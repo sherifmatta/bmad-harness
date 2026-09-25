@@ -1,0 +1,46 @@
+{
+  "name": "bmad-harness",
+  "version": "0.1.0",
+  "description": "A visual harness for BMad projects",
+  "author": "Sherif Matta",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "./out/main/index.js",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "electron-vite dev --",
+    "build": "electron-vite build",
+    "test": "vitest run",
+    "lint": "eslint . --max-warnings 0 && node scripts/check-pins.mjs",
+    "check-pins": "node scripts/check-pins.mjs",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
+    "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
+    "package": "electron-vite build && electron-builder --mac"
+  },
+  "dependencies": {
+    "chokidar": "4.0.3",
+    "dompurify": "3.4.16",
+    "markdown-it": "15.0.2"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "14.2.0",
+    "@types/node": "24.19.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react-swc": "4.3.3",
+    "electron": "44.4.5",
+    "electron-builder": "26.15.3",
+    "electron-vite": "5.0.0",
+    "eslint": "10.11.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.70.1",
+    "vite": "7.3.6",
+    "vitest": "5.0.1"
+  }
+}

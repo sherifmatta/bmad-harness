@@ -11,3 +11,23 @@
 - source_spec: `_bmad/implementation-artifacts/spec-1-1-settle-what-stopping-a-run-actually-costs.md`
   summary: `.bmadshow/paths.json` sets `customOutputPath` to an absolute path that does not exist.
   evidence: The file reads `"customOutputPath": "/bmad-harness/_bmad/"`; `ls /bmad-harness` reports no such directory, the real root being `/Users/sherifmatta/Learnings/bmad-harness/_bmad/`. `customEpicsPath` in the same file is repo-relative and resolves, so the two keys are written in different conventions. Nothing under `.claude/skills/` or `_bmad/scripts/` reads the file, so the consuming tool's behaviour could not be checked. Pre-existing untracked viewer config, present before this story began and unrelated to its scope.
+
+- source_spec: `_bmad/implementation-artifacts/spec-1-2-a-running-application-on-the-pinned-stack.md`
+  summary: A renderer load failure wedges the app invisibly — no window, no message, and `window-all-closed` never fires.
+  evidence: `src/main/windows/main-window.ts` calls `loadURL`/`loadFile` with `void` and shows the window only on `ready-to-show`. If the dev server is down or `out/renderer` is missing, `ready-to-show` never fires, so the window never appears and the reopen path is never reached either — the process sits alive with nothing on screen. The story never specified a policy for a failed renderer load, and the fix needs both a `did-fail-load` handler and a decision about whether to report, retry or exit, so it is more than a patch.
+
+- source_spec: `_bmad/implementation-artifacts/spec-1-2-a-running-application-on-the-pinned-stack.md`
+  summary: The placeholder renderer has no test, and the suite has no DOM environment in which one could run.
+  evidence: No test imports `src/renderer/ui/app.tsx`; its three observable states (null while pending, the path on success, the failure string on rejection) are unasserted, so dropping `setProjectPath` would render an empty window for every launch with the suite still green. `vitest.config.ts` sets `environment: 'node'` while globbing `src/**/*.test.tsx`, and no `jsdom`/`happy-dom` is in the pinned set — closing this means adding a dependency outside NFR11, which the story forbids. Story 1.3 brings the first real renderer surface and is the right place to settle both.
+
+- source_spec: `_bmad/implementation-artifacts/spec-1-2-a-running-application-on-the-pinned-stack.md`
+  summary: `scripts/check-pins.mjs` is itself unverified and duplicates the version list that `DEPENDENCIES.md` also carries.
+  evidence: A missing or `lockfileVersion 1` lockfile produces an uncaught `ENOENT`/`SyntaxError` stack trace instead of the drift report the script exists to give. No test asserts it exits non-zero on drift — the one tool whose failure mode is silence is the one with no automated check. The twelve versions are hand-copied between the script's `PINS` object and the `DEPENDENCIES.md` table, which is the same drift one level up. And only top-level `node_modules/<name>` entries are inspected, so `DEPENDENCIES.md`'s "one copy in the tree rather than two" justification for the `@types/node` pin is unenforced (`esbuild` already has two copies). Closing this needs a lockfile-fixture harness.
+
+- source_spec: `_bmad/implementation-artifacts/spec-1-2-a-running-application-on-the-pinned-stack.md`
+  summary: Nothing runs `npm run lint` — and therefore the pin check — except a human choosing to type it.
+  evidence: `.github/` and `.husky/` do not exist. `scripts/check-pins.mjs` runs only as part of `npm run lint`, so the guarantee the story frames as "the pin set is verifiable by command, not by reading" holds only when someone runs the command. Continuous integration is outside this story's stated intent, so it belongs to whoever owns the repository's automation rather than to the scaffold.
+
+- source_spec: `_bmad/implementation-artifacts/spec-1-2-a-running-application-on-the-pinned-stack.md`
+  summary: "One window per project, always" is a stated boundary that nothing enforces.
+  evidence: `src/main/windows/main-window.ts` keys `projectPathsByWebContents` window→path, never path→window, so there is no structure that would refuse a second window on a project already open. Unreachable today because each process opens exactly one window, but the boundary becomes load-bearing as soon as a second window is reachable — Story 1.12's document window, or any multi-window work after it.

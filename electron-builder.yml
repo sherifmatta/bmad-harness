@@ -1,0 +1,19 @@
+appId: dev.bmad.harness
+productName: BMad Harness
+copyright: ''
+asar: true
+directories:
+  output: dist
+# An allowlist, not a blocklist. An exclusion list ships whatever nobody
+# thought to exclude - `.claude/` and `.bmadshow/paths.json`, with a
+# machine-local absolute path in it, went into the bundle that way. Only the
+# built output and the manifest electron needs to boot are named here;
+# electron-builder adds the production dependency tree itself, pruned of
+# devDependencies.
+files:
+  - out/**
+  - package.json
+mac:
+  category: public.app-category.developer-tools
+  target: dir
+  identity: null
