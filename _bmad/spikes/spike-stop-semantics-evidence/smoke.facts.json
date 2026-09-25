@@ -1,0 +1,21 @@
+{
+  "label": "smoke",
+  "mode": "none",
+  "cmd": "claude -p --input-format stream-json --output-format stream-json --include-partial-messages --verbose --setting-sources project,local",
+  "trial_turn": "Reply with exactly the word: pong. No tools.",
+  "init_seen": true,
+  "session_id": "ac5b8de5-b57b-43cd-a74a-c95aaa5b1cd1",
+  "persona_result": {
+    "subtype": "success",
+    "is_error": false,
+    "duration_ms": 30829,
+    "num_turns": 7,
+    "result_head": "\ud83d\udccb Hello Sherif \u2014 John here, your Product Manager. Good to meet you.\n\n*(Quick note on setup: the customization resolver script needed an approval I couldn't get in this session, so I resolved the agent block by hand instead \u2014 read the base `customize.toml`, then checked `_bmad/custom/` for `bmad-agen"
+  },
+  "verdict": "invalid: no tool in flight",
+  "tool_in_flight": null,
+  "stderr_tail": [
+    "Ignoring 8 permissions.allow entries from .claude/settings.json: this workspace has not been trusted. Run Claude Code interactively here once and accept the trust dialog, or set projects[\"/private/tmp/claude-501/-Users-sherifmatta-Learnings-bmad-harness/f9f13cd6-1763-46bd-997f-936514a4eb04/scratchpad/spike-stop/subject\"].hasTrustDialogAccepted: true in /Users/sherifmatta/.claude.json."
+  ],
+  "final_poll": null
+}

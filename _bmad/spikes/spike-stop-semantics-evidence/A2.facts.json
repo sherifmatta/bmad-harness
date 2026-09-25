@@ -1,0 +1,48 @@
+{
+  "label": "A2",
+  "mode": "sigint",
+  "cmd": "claude -p --input-format stream-json --output-format stream-json --include-partial-messages --verbose --setting-sources project,local",
+  "trial_turn": "Do this now, with tools, no questions and no clarification: (1) Read _bmad/bmm/config.yaml, (2) Read _bmad/config.toml, (3) Read _bmad/scripts/memlog.py, then tell me the project_name and how many agents are configured.",
+  "init_seen": true,
+  "session_id": "6b6747b8-5ae8-475f-b92e-c7e576ed6d73",
+  "persona_result": {
+    "subtype": "success",
+    "is_error": false,
+    "duration_ms": 26145,
+    "num_turns": 7,
+    "result_head": "\ud83d\udccb Hello Sherif \u2014 John here, your Product Manager.\n\n*(Note: the customization resolver needed a permission I don't have in this session, so I resolved the agent block manually from `customize.toml`. No team or personal overrides exist for this skill, so nothing was lost.)*\n\nQuick read on where we sta"
+  },
+  "tool_in_flight": {
+    "name": "Read",
+    "id": "toolu_011srx1GydJyRAWtwCrjbHj2"
+  },
+  "t0_rel": 28.208801416,
+  "interrupt": "SIGINT to child pid",
+  "liveness": {
+    "+0.25s": "alive",
+    "+1.0s": "exited rc=0",
+    "+5.0s": "exited rc=0",
+    "+10.0s": "exited rc=0"
+  },
+  "stdout_eof": true,
+  "result_after_interrupt": {
+    "dt_ms": 16.8,
+    "subtype": "error_during_execution",
+    "is_error": true,
+    "duration_ms": 1872,
+    "num_turns": 2,
+    "result_head": "None"
+  },
+  "exit": {
+    "exit_code": 0,
+    "latency_ms": 346.1
+  },
+  "escalation_sigints_at_ms": [],
+  "alive_at_end_of_window": false,
+  "followup_stdin_write_ok": false,
+  "followup_result": null,
+  "stderr_tail": [
+    "Ignoring 8 permissions.allow entries from .claude/settings.json: this workspace has not been trusted. Run Claude Code interactively here once and accept the trust dialog, or set projects[\"/private/tmp/claude-501/-Users-sherifmatta-Learnings-bmad-harness/f9f13cd6-1763-46bd-997f-936514a4eb04/scratchpad/spike-stop/subject\"].hasTrustDialogAccepted: true in /Users/sherifmatta/.claude.json."
+  ],
+  "final_poll": 0
+}

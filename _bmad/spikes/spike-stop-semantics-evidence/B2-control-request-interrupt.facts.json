@@ -1,0 +1,52 @@
+{
+  "label": "B2-control-request-interrupt",
+  "mode": "inband",
+  "cmd": "claude -p --input-format stream-json --output-format stream-json --include-partial-messages --verbose --setting-sources project,local",
+  "trial_turn": "Do this now, with tools, no questions and no clarification: (1) Read _bmad/bmm/config.yaml, (2) Read _bmad/config.toml, (3) Read _bmad/scripts/memlog.py, (4) Read _bmad/scripts/resolve_config.py, then tell me the project_name and how many agents are configured.",
+  "init_seen": true,
+  "session_id": "c1d8c7f7-5045-4df2-b0be-ea2bee1c691d",
+  "persona_result": {
+    "subtype": "success",
+    "is_error": false,
+    "duration_ms": 17419,
+    "num_turns": 5,
+    "result_head": "No team or user overrides exist for this skill (`_bmad/custom/` holds only config files), so the base block applies. Activation steps are empty on both ends \u2014 nothing to run before or after the greeting. Persistent facts are empty too.\n\n---\n\n\ud83d\udccb Hello Sherif! John here \u2014 Product Manager on the BMad cr"
+  },
+  "tool_in_flight": {
+    "name": "Read",
+    "id": "toolu_013K8sNRk6XDvTp5TXonVwTP"
+  },
+  "t0_rel": 20.060545167,
+  "interrupt": "stdin control message: {\"type\":\"control_request\",\"request_id\":\"spike-2\",\"request\":{\"subtype\":\"interrupt\"}}",
+  "liveness": {
+    "+0.25s": "alive",
+    "+1.0s": "alive",
+    "+5.0s": "alive",
+    "+10.0s": "alive"
+  },
+  "stdout_eof": false,
+  "result_after_interrupt": {
+    "dt_ms": 4.7,
+    "subtype": "error_during_execution",
+    "is_error": true,
+    "duration_ms": 2401,
+    "num_turns": 2,
+    "result_head": "None"
+  },
+  "exit": null,
+  "escalation_sigints_at_ms": [],
+  "alive_at_end_of_window": true,
+  "followup_stdin_write_ok": true,
+  "followup_result": {
+    "subtype": "success",
+    "is_error": false,
+    "duration_ms": 1946,
+    "num_turns": 1,
+    "result_head": "\ud83d\udccb Still here, Sherif \u2014 I'm John, your Product Manager."
+  },
+  "followup_event_count": 14,
+  "stderr_tail": [
+    "Ignoring 8 permissions.allow entries from .claude/settings.json: this workspace has not been trusted. Run Claude Code interactively here once and accept the trust dialog, or set projects[\"/private/tmp/claude-501/-Users-sherifmatta-Learnings-bmad-harness/f9f13cd6-1763-46bd-997f-936514a4eb04/scratchpad/spike-stop/subject\"].hasTrustDialogAccepted: true in /Users/sherifmatta/.claude.json."
+  ],
+  "final_poll": null
+}

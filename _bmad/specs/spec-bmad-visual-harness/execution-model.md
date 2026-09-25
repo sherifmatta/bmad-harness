@@ -106,13 +106,26 @@ in a Fast-path run were revision `Edit`s.
 
 ## Stop and failure
 
-- Send `SIGINT`. It exits a subprocess `rc=0` within ~250ms. **Open risk:** interrupting one turn
-  without ending the session is unverified. If it proves impossible, CAP-11's stop costs the
-  persona's session, and that trade is surfaced to the user rather than hidden.
+- **Stopping a run costs the turn, not the conversation — but not via `SIGINT`.** Write one
+  interrupt line to the session's own stdin:
+  `{"type":"control_request","request_id":"<id>","request":{"subtype":"interrupt"}}`. The CLI
+  answers `control_response` `subtype: "success"` and emits the turn's `result` within **3–6ms**;
+  the process stays alive, `session_id` is unchanged, and the next turn is accepted and answered
+  in the persona's own voice, with memory of what was interrupted. Measured 4/4.
+- **`SIGINT` ends the session.** It exits the subprocess `rc=0` — measured at 217, 346, 354 and
+  390ms (n=4), so *under 400ms*, not the ~250ms previously assumed. A `result` row does arrive
+  ~16ms ahead of the exit, but stdout closes with it and no further turn can be sent. Reserve
+  `SIGINT` for ending a session outright; never use it to stop a run. If an interrupt ever fails
+  (no `control_response`, or a non-`success` one), falling back to `SIGINT` means restarting the
+  session, and that cost is surfaced to the user rather than hidden.
+- Raw measurements: `../../spikes/spike-stop-semantics.md`.
 - A `result` row arrives **per turn**, not once per process, and terminates the turn the harness
   is waiting on. Process exit code is not the signal — a session outlives every turn in it.
-- `subtype: "error_during_execution"` with `is_error: true` and a `stop_reason` marks a turn
-  stopped or failed; its absence marks it finished.
+- `subtype: "error_during_execution"` with `is_error: true` marks a turn stopped or failed; its
+  absence marks it finished. Those two fields are the whole discriminator. **Do not test
+  `stop_reason`** — on an interrupted turn in a live session it is `null` (8/8 turns, under both
+  `SIGINT` and the in-band interrupt), while a completed turn carries `"end_turn"`, so a detector
+  that requires a non-null `stop_reason` classifies every stop as finished.
 - The tool call that was in flight returns a `tool_result` with `is_error: true`, naming the call
   that was rejected. This is how the rail knows which section did *not* land.
 - The partial file on disk is byte-for-byte the last **successful** write. Nothing to revert, so

@@ -1,0 +1,48 @@
+{
+  "label": "A1",
+  "mode": "sigint",
+  "cmd": "claude -p --input-format stream-json --output-format stream-json --include-partial-messages --verbose --setting-sources project,local",
+  "trial_turn": "Do this now, with tools, no questions and no clarification: (1) Read _bmad/bmm/config.yaml, (2) Read _bmad/config.toml, (3) Read _bmad/scripts/memlog.py, then tell me the project_name and how many agents are configured.",
+  "init_seen": true,
+  "session_id": "d8931b7d-0ef8-4ffe-b27b-e69c063db92f",
+  "persona_result": {
+    "subtype": "success",
+    "is_error": false,
+    "duration_ms": 29873,
+    "num_turns": 8,
+    "result_head": "\ud83d\udccb Hello Sherif \u2014 John here, Product Manager on **bmad-harness**.\n\nI've scanned the project: `_bmad/planning-artifacts/` and `docs/` are both empty. Clean slate \u2014 nothing written yet, which means whatever we do first sets the foundation.\n\nA note before we start: you can invoke **`bmad-help`** at any "
+  },
+  "tool_in_flight": {
+    "name": "Read",
+    "id": "toolu_014XfSYNuK7vdn6fSq47KceN"
+  },
+  "t0_rel": 31.292924666,
+  "interrupt": "SIGINT to child pid",
+  "liveness": {
+    "+0.25s": "exited rc=0",
+    "+1.0s": "exited rc=0",
+    "+5.0s": "exited rc=0",
+    "+10.0s": "exited rc=0"
+  },
+  "stdout_eof": true,
+  "result_after_interrupt": {
+    "dt_ms": 15.0,
+    "subtype": "error_during_execution",
+    "is_error": true,
+    "duration_ms": 1223,
+    "num_turns": 2,
+    "result_head": "None"
+  },
+  "exit": {
+    "exit_code": 0,
+    "latency_ms": 217.3
+  },
+  "escalation_sigints_at_ms": [],
+  "alive_at_end_of_window": false,
+  "followup_stdin_write_ok": false,
+  "followup_result": null,
+  "stderr_tail": [
+    "Ignoring 8 permissions.allow entries from .claude/settings.json: this workspace has not been trusted. Run Claude Code interactively here once and accept the trust dialog, or set projects[\"/private/tmp/claude-501/-Users-sherifmatta-Learnings-bmad-harness/f9f13cd6-1763-46bd-997f-936514a4eb04/scratchpad/spike-stop/subject\"].hasTrustDialogAccepted: true in /Users/sherifmatta/.claude.json."
+  ],
+  "final_poll": 0
+}
