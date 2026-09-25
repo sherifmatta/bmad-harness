@@ -1,0 +1,331 @@
+<title>Dead Air Options</title>
+<style>
+/*
+  Governs: EXPERIENCE.md → State Patterns (document card, dead-air feed)
+           EXPERIENCE.md → Component Patterns (live document card)
+           DESIGN.md     → Colors, Typography (tokens copied from harness-mockup.html :root, AD-14)
+  Every colour, radius, dimension and font stack below is taken from the binding mockup.
+  The one value not stated in the source is .dbody padding; 11px 13px is used, matching .sidesec.
+*/
+:root{
+  --bg:#101317; --chrome:#14181d; --panel:#171b21; --panel-2:#1b2027; --panel-3:#20262e;
+  --line:#272d36; --line-soft:#1f242c;
+  --text:#dce2ea; --text-strong:#f1f4f8; --dim:#96a0ad; --faint:#6b7480;
+  --accent:#7fa6e8; --accent-bg:rgba(127,166,232,.12);
+  --green:#6aa87f; --amber:#c6a350; --red:#c47c72;
+  /* proposed, per AD-14's "needs its own token so blue-as-accent and blue-as-state are distinguishable" */
+  --note:#7f9ce8;
+  --mono:ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --sans:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --r:5px;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:var(--sans); font-size:13px; line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  padding:0 16px;
+}
+.page{max-width:940px; margin:0 auto; padding-block:28px 56px}
+
+/* ---------- page furniture (not product chrome) ---------- */
+.masthead{border-bottom:1px solid var(--line); padding-bottom:18px; margin-bottom:8px}
+.masthead h1{
+  font-size:20px; font-weight:600; color:var(--text-strong);
+  letter-spacing:-.01em; margin:0 0 6px; text-wrap:balance;
+}
+.masthead p{margin:0; color:var(--dim); font-size:12.5px; max-width:68ch}
+.masthead .meta{
+  font-family:var(--mono); font-size:10.5px; color:var(--faint);
+  margin-top:10px; display:flex; flex-wrap:wrap; gap:14px;
+}
+
+section{margin-top:38px}
+.shead{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:5px}
+.shead h2{
+  font-size:10.5px; font-weight:600; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--dim); margin:0;
+}
+.shead .verdict{
+  font-family:var(--mono); font-size:9.5px; letter-spacing:.04em;
+  border-radius:3px; padding:0 5px; border:1px solid var(--line);
+  background:var(--panel-2); color:var(--dim);
+}
+.shead .verdict.lean{color:#c9a78a; border-color:rgba(201,167,138,.3); background:rgba(201,167,138,.08)}
+.blurb{color:var(--dim); font-size:12.5px; margin:0 0 14px; max-width:70ch}
+.blurb b{color:var(--text); font-weight:600}
+.cost{
+  font-size:11.5px; color:var(--faint); margin:12px 0 0;
+  border-left:2px solid var(--line); padding-left:11px; max-width:70ch;
+}
+.cost b{color:var(--dim); font-weight:600}
+
+/* ---------- product: document card ---------- */
+.doccard{border:1px solid var(--line); border-radius:6px; background:var(--panel); overflow:hidden}
+.dh{
+  display:flex; align-items:center; gap:8px;
+  background:var(--panel-2); padding:7px 11px; border-bottom:1px solid var(--line-soft);
+}
+.dh .p{font-family:var(--mono); font-size:11px; color:var(--text)}
+.dh .s{font-family:var(--mono); font-size:10px; color:var(--amber); margin-left:auto}
+.dh .el{font-family:var(--mono); font-size:10px; color:var(--faint)}
+.stop{
+  font:inherit; font-family:var(--mono); font-size:10px; color:var(--dim);
+  background:var(--panel); border:1px solid var(--line); border-radius:3px;
+  padding:1px 6px; cursor:pointer;
+}
+.stop:hover{color:var(--text-strong); border-color:#39414c}
+.stop:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+
+.dot{width:6px; height:6px; border-radius:50%; background:var(--faint); flex:0 0 6px}
+.dot.work{background:var(--amber); box-shadow:0 0 0 3px rgba(198,163,80,.13); animation:pulse 1.5s ease-in-out infinite}
+.dot.live{background:var(--green); box-shadow:0 0 0 3px rgba(106,168,127,.14)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+.dbody{
+  font-family:var(--mono); font-size:11.5px; line-height:1.72; color:#b9c4d1;
+  padding:11px 13px; max-height:230px; overflow:auto; white-space:pre-wrap;
+}
+.dbody .h{color:#e4ebf3; font-weight:600}
+.dbody .mut{color:#6e7783}
+.caret{
+  display:inline-block; width:6.5px; height:13px; background:var(--accent);
+  vertical-align:-2px; animation:blink 1.05s steps(1) infinite;
+}
+@keyframes blink{50%{opacity:0}}
+.df{
+  background:var(--panel-2); border-top:1px solid var(--line-soft);
+  padding:6px 11px; font-size:10.5px; color:var(--faint);
+  display:flex; gap:14px; flex-wrap:wrap;
+}
+.df .next{font-family:var(--mono)}
+
+/* ---------- the memlog feed, in its three placements ---------- */
+.mlog{display:flex; flex-direction:column}
+.mrow{display:grid; grid-template-columns:58px 74px 1fr; gap:10px; padding:5px 0; align-items:baseline}
+.mrow .t{font-family:var(--mono); font-size:10px; color:var(--faint); font-variant-numeric:tabular-nums}
+.mrow .k{
+  font-family:var(--mono); font-size:9.5px; letter-spacing:.04em;
+  border:1px solid var(--line); background:var(--panel-2); color:var(--dim);
+  border-radius:3px; padding:0 5px; justify-self:start;
+}
+.mrow .k.dec{color:var(--accent); border-color:#33455f; background:var(--accent-bg)}
+.mrow .k.open{color:#d0968c; border-color:rgba(196,124,114,.3); background:rgba(196,124,114,.09)}
+.mrow .x{font-family:var(--sans); font-size:11.5px; line-height:1.55; color:var(--dim)}
+.mrow .x b{color:var(--text); font-weight:600}
+
+/* A — memlog as the body */
+.mlog.as-body{padding:11px 13px}
+.mlog.as-body .mrow + .mrow{border-top:1px solid var(--line-soft)}
+
+/* B — separate band under the head */
+.band{background:#14181d; border-bottom:1px solid var(--line-soft); padding:8px 13px}
+.band .bl{
+  font-family:var(--mono); font-size:9.5px; letter-spacing:.04em; text-transform:uppercase;
+  color:var(--faint); margin-bottom:4px;
+}
+.emptybody{
+  padding:11px 13px; font-family:var(--mono); font-size:11.5px; color:#6e7783;
+  border-bottom:1px solid var(--line-soft);
+}
+
+/* C — foot-anchored */
+.df.stacked{flex-direction:column; gap:6px; align-items:stretch}
+.df .creason{
+  font-family:var(--sans); font-size:11px; color:var(--dim);
+  display:flex; gap:8px; align-items:baseline;
+}
+.df .creason .t{font-family:var(--mono); font-size:10px; color:var(--faint); flex:0 0 auto}
+
+/* ---------- collapsed form ---------- */
+.collapsed{
+  display:flex; align-items:center; gap:8px;
+  border:1px solid var(--line); border-radius:6px; background:var(--panel);
+  padding:7px 11px; font-family:var(--mono); font-size:10.5px; color:var(--dim);
+}
+.collapsed .nm{color:var(--text)}
+.collapsed .sep{color:#3a424d}
+.collapsed .el{color:var(--faint); margin-left:auto}
+.stack{display:flex; flex-direction:column; gap:9px}
+
+.rail{
+  border:1px solid var(--line); border-radius:6px; background:var(--panel); overflow:hidden;
+  max-width:348px;
+}
+.rowhead{
+  background:var(--panel-2); padding:0 11px; height:30px; display:flex; align-items:center; gap:8px;
+  border-bottom:1px solid var(--line-soft);
+}
+.rowhead h3{font-size:10.5px; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:var(--dim); margin:0}
+.rowhead .meta{font-family:var(--mono); font-size:10px; color:var(--faint); margin-left:auto; display:flex; align-items:center; gap:6px}
+.frow{display:flex; align-items:center; gap:8px; padding:6.5px 11px; border-bottom:1px solid var(--line-soft)}
+.frow:last-child{border-bottom:0}
+.frow .fname{font-family:var(--mono); font-size:11.5px; color:var(--text)}
+.frow .fmeta{font-family:var(--mono); font-size:10.5px; color:var(--faint); margin-left:auto}
+.frow.absent .fname{color:var(--faint)}
+
+@media (prefers-reduced-motion:reduce){*{animation:none !important; transition:none !important}}
+@media (max-width:640px){
+  .mrow{grid-template-columns:1fr; gap:2px}
+  .mrow .k{margin-bottom:2px}
+}
+</style>
+
+<div class="page">
+
+  <div class="masthead">
+    <h1>Dead air: three treatments</h1>
+    <p>The card during the ~8.5 minutes of a Fast-path <code style="font-family:var(--mono);font-size:11.5px;color:#c3cedd">bmad-prd</code> run when nothing has landed on disk and the main thread is silent. No spinner is permitted. The only dependable feed is <code style="font-family:var(--mono);font-size:11.5px;color:#c3cedd">.memlog.md</code>, which appends each decision with its reason.</p>
+    <div class="meta">
+      <span>tokens · harness-mockup.html :root</span>
+      <span>content · payouts PRD, EU v1</span>
+      <span>judge · which one you'd watch for eight minutes</span>
+    </div>
+  </div>
+
+  <!-- ---------------- reference ---------------- -->
+  <section>
+    <div class="shead">
+      <h2>Reference — the card while prose is streaming</h2>
+      <span class="verdict">known good</span>
+    </div>
+    <p class="blurb">This is the state the three options alternate with. Dead air has to feel like the same object, quieter — not like a different component swapped in.</p>
+    <div class="doccard">
+      <div class="dh">
+        <span class="dot work"></span>
+        <span class="p">_bmad/PRD.md</span>
+        <span class="s">writing · §4 Functional Requirements</span>
+        <span class="el">4m 12s</span>
+        <button class="stop" type="button">stop</button>
+      </div>
+      <div class="dbody"><span class="h">### 4. Functional Requirements</span>
+
+<span class="h">FR-1</span>  Merchants can view payout status for any settlement in the last 90 days.
+<span class="h">FR-2</span>  Payout status exposes the state machine, not a summary label: <span class="mut">pending</span>, <span class="mut">batched</span>, <span class="mut">submitted</span>, <span class="mut">settled</span>, <span class="mut">returned</span>.
+<span class="h">FR-3</span>  Each state carries the timestamp it was entered and the actor that caused it.
+<span class="h">FR-4</span>  A returned payout surfaces the scheme return code and a plain-language cause.
+<span class="h">FR-5</span>  Payout schedules are per-merchant and stored in the merchant's local timezone.
+<span class="h">FR-6</span>  Settlement currency is fixed at EUR for v1; multi-currency is a documented non-goal.
+<span class="h">FR-7</span>  <span class="caret"></span></div>
+      <div class="df">
+        <span>1,118 words · 9 sections · autosave on</span>
+        <span class="next">next · §5 Non-functional  §6 Constraints  §7 Open questions</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------------- A ---------------- -->
+  <section>
+    <div class="shead">
+      <h2>Option A — the memlog becomes the body</h2>
+      <span class="verdict lean">my lean</span>
+    </div>
+    <p class="blurb">The card never has an empty body; it has two modes and <b>both are content</b>. When prose isn't streaming, the body is the reasoning log in its own register — tabular time, a kind tag, the decision and the reason it was made.</p>
+    <div class="doccard">
+      <div class="dh">
+        <span class="dot work"></span>
+        <span class="p">_bmad/PRD.md</span>
+        <span class="s">researching · §2 Context</span>
+        <span class="el">2m 48s</span>
+        <button class="stop" type="button">stop</button>
+      </div>
+      <div class="mlog as-body">
+        <div class="mrow"><span class="t">22:14:06</span><span class="k dec">decision</span><span class="x">Scope fixed to <b>EU-only for v1</b> — the brief names EU in §2 and the market note puts US at 2027, so this is a stated boundary, not a silence.</span></div>
+        <div class="mrow"><span class="t">22:14:41</span><span class="k">assumption</span><span class="x">Payout <b>failure handling is in scope</b>. The brief is silent on it, but 61% of last quarter's 214 tickets are "where is my money", which makes it load-bearing.</span></div>
+        <div class="mrow"><span class="t">22:15:02</span><span class="k">note</span><span class="x">Dispatched research subagent — payout SLA benchmarks across EU PSPs, to ground §5.</span></div>
+        <div class="mrow"><span class="t">22:16:30</span><span class="k open">open</span><span class="x"><b>Manual payout trigger unresolved.</b> The brief says payouts are automatic and scheduled; the tickets say "I can't pay my supplier today". Both cannot be true in v1 — flagging for §4 rather than deciding it here.</span></div>
+        <div class="mrow"><span class="t">22:17:48</span><span class="k dec">decision</span><span class="x">§5 will <b>cite <code style="font-family:var(--mono);font-size:11px">billing-svc/src/ledger/reconcile.ts</code> by path</b> rather than describing it — 1,412 lines with no idempotency key is a specific cost, and Amelia's estimate depends on the specific file.</span></div>
+      </div>
+      <div class="df">
+        <span>0 words on disk · researching · autosave on</span>
+        <span class="next">next · §2 Context  §3 Users  §4 Functional Requirements</span>
+      </div>
+    </div>
+    <p class="cost"><b>What it buys.</b> It delivers "you watch the why instead of being told it" for free, and the driest box in the ADR does become the most interesting thing on screen. <b>What it costs.</b> <code style="font-family:var(--mono);font-size:11px">doc:prose</code> and <code style="font-family:var(--mono);font-size:11px">run:note</code> are separate channels precisely so they never mix — AD-3 routes them apart on purpose. Putting them in one box asks the register alone to keep them distinct.</p>
+  </section>
+
+  <!-- ---------------- B ---------------- -->
+  <section>
+    <div class="shead">
+      <h2>Option B — a separate reasoning band</h2>
+      <span class="verdict">safest</span>
+    </div>
+    <p class="blurb">A distinct strip sits under the head and carries the reasons. The prose body stays where it is — empty at the start of a run, or holding its last state mid-run. <b>Two channels, two boxes, no ambiguity ever.</b></p>
+    <div class="doccard">
+      <div class="dh">
+        <span class="dot work"></span>
+        <span class="p">_bmad/PRD.md</span>
+        <span class="s">researching · §2 Context</span>
+        <span class="el">2m 48s</span>
+        <button class="stop" type="button">stop</button>
+      </div>
+      <div class="band">
+        <div class="bl">run notes</div>
+        <div class="mlog">
+          <div class="mrow"><span class="t">22:16:30</span><span class="k open">open</span><span class="x"><b>Manual payout trigger unresolved.</b> Brief says automatic and scheduled; tickets say "I can't pay my supplier today".</span></div>
+          <div class="mrow"><span class="t">22:17:48</span><span class="k dec">decision</span><span class="x">§5 will cite <code style="font-family:var(--mono);font-size:11px">reconcile.ts</code> by path — 1,412 lines, no idempotency key.</span></div>
+        </div>
+      </div>
+      <div class="emptybody">nothing written yet — §2 Context opens when research returns</div>
+      <div class="df">
+        <span>0 words on disk · researching · autosave on</span>
+        <span class="next">next · §2 Context  §3 Users  §4 Functional Requirements</span>
+      </div>
+    </div>
+    <p class="cost"><b>What it buys.</b> The two feeds can never be confused, and the band can persist during streaming so reasons keep arriving alongside prose. <b>What it costs.</b> That empty-body line is doing a spinner's job in words — the one thing the constraint exists to prevent. And the card now has four stacked regions before any prose appears.</p>
+  </section>
+
+  <!-- ---------------- C ---------------- -->
+  <section>
+    <div class="shead">
+      <h2>Option C — foot-anchored</h2>
+      <span class="verdict">weakest</span>
+    </div>
+    <p class="blurb">Reasons accumulate in the footer beside the not-yet-written sections, treated as run metadata rather than content. The card stays a single object with nothing added to it.</p>
+    <div class="doccard">
+      <div class="dh">
+        <span class="dot work"></span>
+        <span class="p">_bmad/PRD.md</span>
+        <span class="s">researching · §2 Context</span>
+        <span class="el">2m 48s</span>
+        <button class="stop" type="button">stop</button>
+      </div>
+      <div class="emptybody" style="border-bottom:0">nothing written yet — §2 Context opens when research returns</div>
+      <div class="df stacked">
+        <div class="creason"><span class="t">22:17:48</span><span>§5 will cite <code style="font-family:var(--mono);font-size:11px">reconcile.ts</code> by path — 1,412 lines, no idempotency key, and Amelia's estimate depends on the file.</span></div>
+        <div class="creason"><span class="t">22:16:30</span><span>Manual payout trigger unresolved — brief and tickets disagree.</span></div>
+        <span class="next">next · §2 Context  §3 Users  §4 Functional Requirements</span>
+      </div>
+    </div>
+    <p class="cost"><b>What it buys.</b> Nothing is added to the card's anatomy; the head/body/foot shape survives untouched. <b>What it costs.</b> The footer is 10.5px <code style="font-family:var(--mono);font-size:11px">--faint</code> metadata — the quietest tier in the product. Putting the single most interesting content of the run in the least legible slot inverts the hierarchy, and the empty body problem is still there.</p>
+  </section>
+
+  <!-- ---------------- collapsed + rail ---------------- -->
+  <section>
+    <div class="shead">
+      <h2>The same eight minutes, if you are not watching</h2>
+      <span class="verdict">the other half of the question</span>
+    </div>
+    <p class="blurb">All three options above only matter if you are looking at the card. If you are in another window, these are what the run actually looks like — and the choice above barely touches them.</p>
+    <div class="stack">
+      <div class="collapsed">
+        <span class="dot work"></span>
+        <span class="nm">John</span><span class="sep">·</span>
+        <span>researching · §2 Context</span><span class="sep">·</span>
+        <span class="el">2m 48s</span>
+        <button class="stop" type="button">stop</button>
+      </div>
+      <div class="rail">
+        <div class="rowhead">
+          <h3>Outputs</h3>
+          <span class="meta"><span class="dot live"></span>fs.watch _bmad/</span>
+        </div>
+        <div class="frow absent"><span class="fname">PRD.md</span><span class="fmeta">not yet written</span></div>
+        <div class="frow"><span class="fname">product-brief.md</span><span class="fmeta">saved · 3d</span></div>
+        <div class="frow"><span class="fname">research/market-2026-09-14.md</span><span class="fmeta">saved · 9d</span></div>
+      </div>
+    </div>
+    <p class="cost"><b>The honest problem.</b> For eight and a half minutes the rail row genuinely does not exist — there is no file. The collapsed line and the amber tile dot are the entire signal, and neither carries a reason. If you spend those minutes elsewhere, <b>Option A's payoff never reaches you</b>, and the real design question moves to the collapsed line and the tile instead.</p>
+  </section>
+
+</div>

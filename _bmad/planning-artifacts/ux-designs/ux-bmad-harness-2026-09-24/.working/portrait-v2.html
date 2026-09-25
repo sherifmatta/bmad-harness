@@ -1,0 +1,377 @@
+<title>Portrait v2</title>
+<style>
+/*
+  Governs: DESIGN.md → Brand & Style (art direction), Components (portrait, initials token)
+  v1 = harness-mockup.html:825 verbatim. v2 = this revision.
+  Both are pure functions: no ids, no gradients, no clip paths, no external assets —
+  so two portraits in one document can never collide, per AD-16's purity requirement.
+*/
+:root{
+  --bg:#101317; --chrome:#14181d; --panel:#171b21; --panel-2:#1b2027; --panel-3:#20262e;
+  --line:#272d36; --line-soft:#1f242c;
+  --text:#dce2ea; --text-strong:#f1f4f8; --dim:#96a0ad; --faint:#6b7480;
+  --accent:#7fa6e8; --accent-bg:rgba(127,166,232,.12);
+  --green:#6aa87f; --amber:#c6a350; --red:#c47c72;
+  --mono:ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --sans:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); font-size:13px; line-height:1.55; -webkit-font-smoothing:antialiased; padding:0 16px}
+.page{max-width:940px; margin:0 auto; padding-block:28px 56px}
+.masthead{border-bottom:1px solid var(--line); padding-bottom:18px}
+.masthead h1{font-size:20px; font-weight:600; color:var(--text-strong); letter-spacing:-.01em; margin:0 0 6px}
+.masthead p{margin:0; color:var(--dim); font-size:12.5px; max-width:68ch}
+.masthead .meta{font-family:var(--mono); font-size:10.5px; color:var(--faint); margin-top:10px; display:flex; flex-wrap:wrap; gap:14px}
+section{margin-top:38px}
+h2{font-size:10.5px; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:var(--dim); margin:0 0 5px}
+.blurb{color:var(--dim); font-size:12.5px; margin:0 0 16px; max-width:70ch}
+.blurb b{color:var(--text); font-weight:600}
+.note{font-size:11.5px; color:var(--faint); margin:14px 0 0; border-left:2px solid var(--line); padding-left:11px; max-width:70ch}
+.note b{color:var(--dim); font-weight:600}
+.pf{display:inline-block; line-height:0; vertical-align:middle}
+
+.cmp{border:1px solid var(--line); border-radius:6px; background:var(--panel); overflow:hidden}
+.cmphead{display:flex; padding:8px 14px; background:var(--panel-2); border-bottom:1px solid var(--line-soft); font-family:var(--mono); font-size:9.5px; letter-spacing:.04em; color:var(--faint); text-transform:uppercase; gap:14px}
+.cmphead .who{width:100px; flex:0 0 100px}
+.cmphead .v{width:210px; flex:0 0 210px}
+.crow{display:flex; gap:14px; padding:14px; border-bottom:1px solid var(--line-soft); align-items:center}
+.crow:last-child{border-bottom:0}
+.crow .who{width:100px; flex:0 0 100px}
+.crow .who b{display:block; font-size:12.5px; font-weight:600; color:var(--text-strong)}
+.crow .who span{font-size:11px; color:var(--dim)}
+.vgroup{width:210px; flex:0 0 210px; display:flex; align-items:flex-end; gap:12px}
+.vgroup.big{width:auto; flex:1 1 auto}
+.szc{display:flex; flex-direction:column; align-items:center; gap:5px}
+.szc .lb{font-family:var(--mono); font-size:9.5px; color:var(--faint)}
+
+.grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:1px; background:var(--line-soft); border:1px solid var(--line); border-radius:6px; overflow:hidden}
+.cell{background:var(--panel); padding:13px 10px; display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center}
+.cell .id{font-family:var(--mono); font-size:9.5px; color:var(--faint); word-break:break-all; line-height:1.4}
+.cell .rn{font-size:11px; color:var(--dim)}
+
+.ctx{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px}
+.ctxbox{border:1px solid var(--line); border-radius:6px; background:var(--panel); overflow:hidden}
+.ctxbox .cl{background:var(--panel-2); padding:6px 11px; font-family:var(--mono); font-size:9.5px; letter-spacing:.04em; text-transform:uppercase; color:var(--faint); border-bottom:1px solid var(--line-soft)}
+.ptile{display:flex; align-items:center; gap:10px; padding:9px 11px; border-bottom:1px solid var(--line-soft); position:relative}
+.ptile:last-child{border-bottom:0}
+.ptile[aria-current="true"]{background:#1f262f}
+.ptile[aria-current="true"]::before{content:""; position:absolute; left:0; top:0; bottom:0; width:2px; background:var(--accent)}
+.ptile .nm b{display:block; font-size:12.5px; font-weight:600; color:var(--text-strong)}
+.ptile .nm span{font-size:11px; color:var(--dim)}
+.ptile .state{font-size:11px; color:var(--faint); margin-top:2px; display:flex; align-items:center; gap:6px}
+.ptile .state em{font-family:var(--mono); font-size:10.5px; font-style:normal}
+.dot{width:6px; height:6px; border-radius:50%; background:var(--faint); flex:0 0 6px}
+.dot.work{background:var(--amber); box-shadow:0 0 0 3px rgba(198,163,80,.13)}
+.dot.live{background:var(--green); box-shadow:0 0 0 3px rgba(106,168,127,.14)}
+.dot.note{background:#7f9ce8}
+.turn{display:flex; gap:10px; padding:12px 10px; margin:8px; border-radius:6px}
+.turn .hd{display:flex; align-items:baseline; gap:8px; margin-bottom:4px}
+.turn .hd b{font-size:12.5px; font-weight:600; color:var(--text-strong)}
+.turn .hd .role{font-size:11px; color:var(--faint)}
+.turn .hd .t{font-family:var(--mono); font-size:10px; color:#5b636e; margin-left:auto}
+.turn .bd{font-size:13px; color:var(--text)}
+.cast{display:flex; gap:10px; padding:12px 14px; background:linear-gradient(180deg,#151920,#12161b); overflow-x:auto}
+.castcard{flex:1 1 0; min-width:148px; display:flex; gap:10px; align-items:center; padding:9px 11px; border:1px solid var(--line-soft); border-radius:6px; background:var(--panel); opacity:.42}
+.castcard.speaking{opacity:1; border-color:#41597e; background:#1b222c; box-shadow:0 0 0 1px rgba(127,166,232,.22), 0 6px 18px -10px rgba(0,0,0,.8)}
+.castcard.speaking .pf svg{box-shadow:0 0 0 2px var(--accent); border-radius:50%}
+.castcard .ci b{display:block; font-size:12.5px; font-weight:600; color:var(--text-strong)}
+.castcard .ci span{font-size:10.5px; color:var(--dim)}
+.castcard .ci .st{font-family:var(--mono); font-size:9.5px; color:var(--faint)}
+.castcard.speaking .ci .st{color:var(--accent)}
+
+/* --- initials token, replacing the 20px portrait --- */
+.stackrow{display:flex; align-items:center; gap:10px; padding:16px 14px; border:1px solid var(--line); border-radius:6px; background:var(--panel); flex-wrap:wrap}
+.faces{display:flex}
+.ini{
+  position:relative; width:20px; height:20px; border-radius:50%;
+  background:#2b333d; border:1px solid #39424e; color:#aab4c1;
+  font-family:var(--mono); font-size:9px; letter-spacing:.02em;
+  display:inline-flex; align-items:center; justify-content:center;
+  margin-right:-5px; box-shadow:0 0 0 1.5px var(--panel-2);
+}
+.ini:focus-visible{outline:2px solid var(--accent); outline-offset:2px; z-index:5}
+.ini .tip{
+  position:absolute; bottom:calc(100% + 7px); left:50%; transform:translateX(-50%);
+  background:var(--panel-3); border:1px solid var(--line); border-radius:4px;
+  padding:5px 9px; white-space:nowrap; opacity:0; visibility:hidden;
+  transition:opacity .12s ease, visibility .12s ease; z-index:10;
+  box-shadow:0 8px 20px -10px rgba(0,0,0,.85); text-align:left;
+}
+.ini:hover .tip, .ini:focus-visible .tip{opacity:1; visibility:visible}
+.ini .tip b{display:block; font-family:var(--sans); font-size:11.5px; font-weight:600; color:var(--text-strong); letter-spacing:0}
+.ini .tip span{display:block; font-family:var(--sans); font-size:10.5px; color:var(--dim); letter-spacing:0}
+.ini.sized32{width:32px; height:32px; font-size:11px; margin-right:0}
+
+.checks{border:1px solid var(--line); border-radius:6px; background:var(--panel); overflow:hidden; margin-top:16px}
+.chk{display:flex; gap:12px; padding:11px 14px; border-bottom:1px solid var(--line-soft); align-items:flex-start}
+.chk:last-child{border-bottom:0}
+.chk .q{font-family:var(--mono); font-size:9.5px; letter-spacing:.04em; color:var(--accent); border:1px solid #33455f; background:var(--accent-bg); border-radius:3px; padding:0 5px; flex:0 0 auto; margin-top:2px}
+.chk .x{font-size:12px; color:var(--dim)}
+.chk .x b{color:var(--text); font-weight:600}
+.dl{display:grid; grid-template-columns:auto 1fr; gap:4px 14px; font-size:12px; margin:0}
+.dl dt{font-family:var(--mono); font-size:10.5px; color:var(--faint); white-space:nowrap}
+.dl dd{margin:0; color:var(--dim)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media (max-width:720px){
+  .crow{flex-wrap:wrap} .vgroup{width:auto; flex:1 1 auto}
+  .cmphead{display:none}
+}
+</style>
+
+<div class="page">
+  <div class="masthead">
+    <h1>Portrait v2</h1>
+    <p>v1 read as a toy. This is the revision, side by side with the original at every size the product renders. The 20px case is gone — it's initials now — which buys the face a much larger detail budget.</p>
+    <div class="meta"><span>v1 · mockup:825</span><span>v2 · this revision</span><span>still pure · no ids, no gradients, no assets</span></div>
+  </div>
+
+  <section>
+    <h2>1 — What changed, and why</h2>
+    <dl class="dl">
+      <dt>face shape</dt><dd>A symmetrical ellipse became a path with a tapered jaw and chin. Width-to-height went from .89 to .76 — the single biggest cause of the cartoon read.</dd>
+      <dt>light source</dt><dd>Everything was flat fill. Now there is one light, upper-left: a shadow down the right contour, a cheek highlight, a shadow under the jaw falling on the neck, and an inner-ear shadow.</dd>
+      <dt>eyes</dt><dd>Round white ellipses with a big pupil became almond paths with a distinct iris, a smaller pupil, a catchlight and a weighted upper lid.</dd>
+      <dt>brows</dt><dd>Thin uniform strokes became filled tapered shapes, thicker at the inner end.</dd>
+      <dt>nose</dt><dd>A single squiggle became a bridge shadow, a tip shadow and two nostrils.</dd>
+      <dt>mouth</dt><dd>A symmetrical smile arc became a flatter line with a lower-lip highlight. Less smiling, more resting.</dd>
+      <dt>hair</dt><dd>One flat fill became a mass plus a highlight arc, so it reads as hair rather than a helmet.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2>2 — v1 against v2</h2>
+    <p class="blurb">Left pair is v1, right group is v2. Sizes are true: 36 is a persona tile, 44 is a cast card. The 96 is for inspection only.</p>
+    <div class="cmp">
+      <div class="cmphead"><span class="who">persona</span><span class="v">v1 — current</span><span>v2 — revised</span></div>
+      <div id="cmpRows"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>3 — v2 in context</h2>
+    <div class="ctx">
+      <div class="ctxbox"><div class="cl">persona tiles · 36px</div><div id="tiles"></div></div>
+      <div class="ctxbox"><div class="cl">transcript turns · 32px</div><div id="turns"></div></div>
+      <div class="ctxbox" style="grid-column:1/-1"><div class="cl">party cast · 44px</div><div class="cast" id="castRow"></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>4 — Small references are initials now</h2>
+    <p class="blurb">Where the portrait used to render at 20px it renders nothing. Initials on the mockup's existing token, <b>hover or focus for the name and role</b>. Keyboard reachable, so it works without a mouse.</p>
+    <div class="stackrow">
+      <div class="faces" id="stackIni"></div>
+      <span style="font-size:11.5px;color:var(--faint);margin-left:16px">hover any face</span>
+    </div>
+    <p class="note"><b>Why this is better than a 20px portrait.</b> Initials are unambiguous at any size, they never collide the way two hashed faces can, and they carry the name directly rather than asking you to recognise a blob. The portrait keeps every size where it earns its place — 32 and up.</p>
+  </section>
+
+  <section>
+    <h2>5 — Derived agents, v2</h2>
+    <p class="blurb">The derivation you already approved, drawn with the v2 generator. Same hash, same params — only the rendering changed.</p>
+    <div class="grid" id="derived"></div>
+  </section>
+
+  <section>
+    <h2>Judge this</h2>
+    <div class="checks">
+      <div class="chk"><span class="q">Q1</span><span class="x"><b>Has it crossed from toy to colleague?</b> If it's closer but not there, tell me which part still reads wrong — the face shape, the eyes, the hair, or the flatness. Each is a separate fix.</span></div>
+      <div class="chk"><span class="q">Q2</span><span class="x"><b>Is it too realistic now?</b> There's a failure mode the other way: uncanny, or so detailed it fights the restrained UI around it. The brief is a company directory, not a portrait studio.</span></div>
+      <div class="chk"><span class="q">Q3</span><span class="x"><b>Do the initials work in section 4?</b> Including whether losing the faces there costs anything you wanted to keep.</span></div>
+    </div>
+  </section>
+</div>
+
+<script>
+function shade(hex, amt){
+  const n = parseInt(hex.slice(1),16);
+  const c = [(n>>16)&255,(n>>8)&255,n&255].map(v => Math.max(0,Math.min(255, v+amt)));
+  return "#"+c.map(v=>v.toString(16).padStart(2,"0")).join("");
+}
+
+/* ============ v1 — verbatim from harness-mockup.html:825 ============ */
+function portraitV1(a, size, label){
+  const s = size||32, hairDark = shade(a.hair,-18);
+  let g = `<circle cx="50" cy="50" r="50" fill="${a.bg}"/>`;
+  if(a.style==="long") g += `<path d="M24,49 C24,23 35,13 50,13 C65,13 76,23 76,49 L76,77 C76,79 73,79 72,77 C69,69 68,60 68,52 L32,52 C32,60 31,69 28,77 C27,79 24,79 24,77 Z" fill="${hairDark}"/>`;
+  if(a.style==="bun"){ g += `<circle cx="72" cy="31" r="9" fill="${hairDark}"/><path d="M28,50 C28,28 37,17 50,17 C63,17 72,28 72,50 L72,62 C72,64 69,64 68,62 C67,58 67,54 67,52 L33,52 C33,55 33,58 32,62 C31,64 28,64 28,62 Z" fill="${hairDark}"/>`; }
+  g += `<path d="M43,57 h14 v16 h-14 z" fill="${a.shade}"/><path d="M7,100 C9,82 26,73 50,73 C74,73 91,82 93,100 Z" fill="${a.shirt}"/><path d="M43.5,73.5 C45.5,80.5 54.5,80.5 56.5,73.5 Z" fill="${a.shade}"/><path d="M43.5,73.5 L50,82 L56.5,73.5" fill="none" stroke="${a.collar}" stroke-width="1.6" stroke-linejoin="round"/>`;
+  if(a.style==="curly"){ [[34,27,9],[46,20,9.5],[58,21,9],[67,31,8.5],[30,38,8],[70,41,7.5],[50,30,10]].forEach(([x,y,r])=> g += `<circle cx="${x}" cy="${y}" r="${r}" fill="${a.hair}"/>`); }
+  else if(a.style==="receding") g += `<ellipse cx="50" cy="38.5" rx="19.3" ry="18.4" fill="${a.hair}"/>`;
+  else { const c=a.crown||{cy:36,rx:20.6,ry:21.2}; g += `<ellipse cx="50" cy="${c.cy}" rx="${c.rx}" ry="${c.ry}" fill="${a.hair}"/>`; }
+  g += `<ellipse cx="31" cy="49" rx="2.7" ry="4.2" fill="${a.shade}"/><ellipse cx="69" cy="49" rx="2.7" ry="4.2" fill="${a.shade}"/><ellipse cx="50" cy="46" rx="19" ry="21.4" fill="${a.skin}"/>`;
+  if(a.beard) g += `<path d="M31,45 C31,61 39,68.5 50,68.5 C61,68.5 69,61 69,45 C69,55 63,59.5 50,59.5 C37,59.5 31,55 31,45 Z" fill="${a.hair}" opacity="${a.beard==="close"?.42:.9}"/>`;
+  if(a.fringe==="sweep") g += `<path d="M31,42 C31,27 39,22 50,22 C59,22 65,25 68,31 C61,27.5 48,29 41,35.5 C37,39 33.5,44 32.3,47 C31.4,46.2 31,44 31,42 Z" fill="${a.hair}"/>`;
+  else if(a.fringe==="straight") g += `<path d="M31,40 C31,27 39,22 50,22 C61,22 69,27 69,40 C69,33.5 61.5,30.5 50,30.5 C38.5,30.5 31,33.5 31,40 Z" fill="${a.hair}"/>`;
+  g += `<path d="M38.4,41.4 Q43,39.4 47.6,41" fill="none" stroke="${hairDark}" stroke-width="1.5" stroke-linecap="round" opacity=".9"/><path d="M52.4,41 Q57,39.4 61.6,41.4" fill="none" stroke="${hairDark}" stroke-width="1.5" stroke-linecap="round" opacity=".9"/>`;
+  [43,57].forEach(x=>{ g += `<ellipse cx="${x}" cy="46" rx="3.1" ry="2.1" fill="#f3eee9"/><circle cx="${x}" cy="46.2" r="1.35" fill="#2a2220"/><path d="M${x-3.2},44.9 Q${x},43.1 ${x+3.2},44.9" fill="none" stroke="#3b302a" stroke-width="1.15" stroke-linecap="round"/>`; });
+  g += `<path d="M50,48.8 C49.3,52.6 48.7,54.9 49.3,55.7 C50,56.5 51.4,56.3 52.3,55.5" fill="none" stroke="${a.shade}" stroke-width="1.25" stroke-linecap="round"/><path d="M46,61 C48,62.4 52,62.4 54,61" fill="none" stroke="#9c6152" stroke-width="1.5" stroke-linecap="round"/>`;
+  if(a.glasses==="rect") g += `<g fill="rgba(240,246,255,.07)" stroke="#cdd4dc" stroke-width="1.35" stroke-linejoin="round"><rect x="35.4" y="41" width="13.4" height="9.4" rx="3"/><rect x="51.2" y="41" width="13.4" height="9.4" rx="3"/></g><path d="M48.8,45 H51.2 M35.4,44.6 L30.2,43.6 M64.6,44.6 L69.8,43.6" fill="none" stroke="#cdd4dc" stroke-width="1.35" stroke-linecap="round"/>`;
+  else if(a.glasses==="round") g += `<g fill="rgba(240,246,255,.07)" stroke="#cdd4dc" stroke-width="1.35"><circle cx="42.6" cy="45.6" r="6.6"/><circle cx="57.4" cy="45.6" r="6.6"/></g><path d="M49.2,45 H50.8 M36,44.6 L30.4,43.6 M64,44.6 L69.6,43.6" fill="none" stroke="#cdd4dc" stroke-width="1.35" stroke-linecap="round"/>`;
+  if(a.earrings) g += `<circle cx="31" cy="54" r="1.7" fill="#c9b07c"/><circle cx="69" cy="54" r="1.7" fill="#c9b07c"/>`;
+  return `<svg width="${s}" height="${s}" viewBox="0 0 100 100" role="img" aria-label="${label||''}" style="border-radius:50%;display:block">${g}</svg>`;
+}
+
+/* ============ v2 ============ */
+function portraitV2(a, size, label){
+  const s = size||32;
+  const hairDark = shade(a.hair,-20), hairLite = shade(a.hair,26);
+  const lite = shade(a.skin,20), dark = shade(a.skin,-38);
+  const eye = a.eye || "#5a4332";
+  let g = `<circle cx="50" cy="50" r="50" fill="${a.bg}"/>`;
+
+  // hair mass behind the head
+  if(a.style==="long"){
+    g += `<path d="M27,48 C27,25 36,16 50,16 C64,16 73,25 73,48 L73,78 C73,80.5 70,80.5 69,78 C66.5,70 65.5,60 65.5,52 L34.5,52 C34.5,60 33.5,70 31,78 C30,80.5 27,80.5 27,78 Z" fill="${hairDark}"/>`;
+  }
+  if(a.style==="bun"){
+    g += `<circle cx="70.5" cy="30" r="8.4" fill="${hairDark}"/><circle cx="70.5" cy="30" r="8.4" fill="${hairLite}" opacity=".16"/>`;
+    g += `<path d="M31,50 C31,28.5 39,19 50,19 C61,19 69,28.5 69,50 L69,61 C69,63 66.5,63 65.8,61 C65,57.5 65,54 65,52 L35,52 C35,54 35,57.5 34.2,61 C33.5,63 31,63 31,61 Z" fill="${hairDark}"/>`;
+  }
+
+  // neck, then the shadow the jaw casts on it, then shoulders
+  g += `<path d="M42.6,56 h14.8 v21 h-14.8 z" fill="${a.shade}"/>`;
+  g += `<ellipse cx="50" cy="70.5" rx="10.6" ry="4.4" fill="${dark}" opacity=".5"/>`;
+  g += `<path d="M6,100 C8,83.5 25,75 50,75 C75,75 92,83.5 94,100 Z" fill="${a.shirt}"/>`;
+  g += `<path d="M42.6,75.4 C44.6,82.6 55.4,82.6 57.4,75.4 Z" fill="${a.shade}"/>`;
+  g += `<path d="M42.6,75.4 L50,84 L57.4,75.4" fill="none" stroke="${a.collar}" stroke-width="1.6" stroke-linejoin="round"/>`;
+
+  // crown behind the face
+  if(a.style==="curly"){
+    [[35.5,29,8.4],[46,22.5,8.8],[57,23.5,8.4],[65,31.5,7.8],[32.5,38.5,7.4],[67.5,40,7],[50,31,9.2]]
+      .forEach(([x,y,r])=> g += `<circle cx="${x}" cy="${y}" r="${r}" fill="${a.hair}"/>`);
+    [[46,22.5,8.8],[57,23.5,8.4]].forEach(([x,y,r])=> g += `<circle cx="${x-1.6}" cy="${y-1.6}" r="${r*.62}" fill="${hairLite}" opacity=".2"/>`);
+  } else if(a.style==="receding"){
+    g += `<ellipse cx="50" cy="37.5" rx="17.8" ry="16.6" fill="${a.hair}"/>`;
+  } else {
+    const c = a.crown || {cy:35, rx:19.2, ry:19.6};
+    g += `<ellipse cx="50" cy="${c.cy}" rx="${c.rx}" ry="${c.ry}" fill="${a.hair}"/>`;
+  }
+
+  // ears
+  g += `<ellipse cx="32.2" cy="48.5" rx="2.9" ry="4.5" fill="${a.skin}"/><ellipse cx="32.4" cy="48.5" rx="1.4" ry="2.5" fill="${dark}" opacity=".45"/>`;
+  g += `<ellipse cx="67.8" cy="48.5" rx="2.9" ry="4.5" fill="${a.skin}"/><ellipse cx="67.6" cy="48.5" rx="1.4" ry="2.5" fill="${dark}" opacity=".45"/>`;
+
+  // face — tapered jaw, ratio .76
+  g += `<path d="M32.5,43.5 C32.5,31 39.5,24 50,24 C60.5,24 67.5,31 67.5,43.5 C67.5,52.5 65.8,58.6 62,63.2 C58.4,67.6 54.4,70 50,70 C45.6,70 41.6,67.6 38,63.2 C34.2,58.6 32.5,52.5 32.5,43.5 Z" fill="${a.skin}"/>`;
+  // one light, upper-left: shadow down the right contour
+  g += `<path d="M50,24 C60.5,24 67.5,31 67.5,43.5 C67.5,52.5 65.8,58.6 62,63.2 C58.4,67.6 54.4,70 50,70 C53.6,66 56,59.5 56.8,51.5 C57.8,41 55,30.5 50,24 Z" fill="${a.shade}" opacity=".26"/>`;
+  // cheek highlight
+  g += `<ellipse cx="41.5" cy="53" rx="5.2" ry="6.5" fill="${lite}" opacity=".24"/>`;
+
+  if(a.beard){
+    g += `<path d="M33,45 C33,60 40.5,70 50,70 C59.5,70 67,60 67,45 C67,55.5 61,60.5 50,60.5 C39,60.5 33,55.5 33,45 Z" fill="${a.hair}" opacity="${a.beard==="close"?.4:.88}"/>`;
+  }
+
+  // fringe over the forehead
+  if(a.fringe==="sweep"){
+    g += `<path d="M32.6,42.5 C32.6,28.5 39.8,22.5 50,22.5 C58.4,22.5 64,25.2 66.8,31 C60.2,27.2 48.2,28.8 41.4,35.2 C37.6,38.6 34.4,43.4 33.4,46.4 C32.8,45.4 32.6,44 32.6,42.5 Z" fill="${a.hair}"/>`;
+  } else if(a.fringe==="straight"){
+    g += `<path d="M32.6,41 C32.6,28.5 39.6,22.5 50,22.5 C60.4,22.5 67.4,28.5 67.4,41 C67.4,34.5 60.5,31.2 50,31.2 C39.5,31.2 32.6,34.5 32.6,41 Z" fill="${a.hair}"/>`;
+  }
+  // hair highlight — kills the helmet read
+  if(a.style!=="receding"){
+    g += `<path d="M36,32 C39,26.4 44.4,23.6 50,23.6 C55,23.6 59.2,25.2 61.8,28.2 C57.4,26.4 52.2,26.6 47.6,28.4 C42.8,30.3 38.6,31.4 36,32 Z" fill="${hairLite}" opacity=".3"/>`;
+  }
+
+  // brows — filled, tapered, heavier at the inner end
+  g += `<path d="M37.4,42.8 Q42.4,39.6 47.6,41.9 Q42.6,41.4 38.1,44 Z" fill="${hairDark}"/>`;
+  g += `<path d="M62.6,42.8 Q57.6,39.6 52.4,41.9 Q57.4,41.4 61.9,44 Z" fill="${hairDark}"/>`;
+
+  // eyes — almond, iris, catchlight, weighted lid
+  [42,58].forEach(x=>{
+    g += `<ellipse cx="${x}" cy="46.6" rx="4.4" ry="3.2" fill="${a.shade}" opacity=".2"/>`;
+    g += `<path d="M${x-3.5},47 Q${x},43.5 ${x+3.5},47 Q${x},49.9 ${x-3.5},47 Z" fill="#f0ebe3"/>`;
+    g += `<circle cx="${x}" cy="46.9" r="1.95" fill="${eye}"/>`;
+    g += `<circle cx="${x}" cy="46.9" r=".92" fill="#17120f"/>`;
+    g += `<circle cx="${x-.75}" cy="46.15" r=".5" fill="#ffffff" opacity=".75"/>`;
+    g += `<path d="M${x-3.7},46.9 Q${x},43.1 ${x+3.7},46.9" fill="none" stroke="#3a2f29" stroke-width="1.3" stroke-linecap="round"/>`;
+  });
+
+  // nose — bridge shadow, tip, nostrils
+  g += `<path d="M50.2,45 C50.8,50 51.8,53.8 52.8,55.8" fill="none" stroke="${a.shade}" stroke-width="1.25" stroke-linecap="round" opacity=".6"/>`;
+  g += `<ellipse cx="50" cy="56.2" rx="3.4" ry="1.7" fill="${a.shade}" opacity=".36"/>`;
+  g += `<ellipse cx="47.4" cy="56.4" rx=".85" ry=".6" fill="${dark}" opacity=".55"/><ellipse cx="52.6" cy="56.4" rx=".85" ry=".6" fill="${dark}" opacity=".55"/>`;
+
+  // mouth — resting, not smiling
+  g += `<path d="M45.3,61.4 Q50,63.2 54.7,61.4" fill="none" stroke="#8d5a4d" stroke-width="1.35" stroke-linecap="round"/>`;
+  g += `<ellipse cx="50" cy="64" rx="4.2" ry="1.7" fill="${lite}" opacity=".22"/>`;
+
+  if(a.glasses==="rect"){
+    g += `<g fill="rgba(240,246,255,.06)" stroke="#cdd4dc" stroke-width="1.3" stroke-linejoin="round"><rect x="35.6" y="41.6" width="12.8" height="9.6" rx="3"/><rect x="51.6" y="41.6" width="12.8" height="9.6" rx="3"/></g><path d="M48.4,45.4 H51.6 M35.6,44.8 L31,43.8 M64.4,44.8 L69,43.8" fill="none" stroke="#cdd4dc" stroke-width="1.3" stroke-linecap="round"/>`;
+  } else if(a.glasses==="round"){
+    g += `<g fill="rgba(240,246,255,.06)" stroke="#cdd4dc" stroke-width="1.3"><circle cx="42" cy="46.4" r="6.8"/><circle cx="58" cy="46.4" r="6.8"/></g><path d="M48.8,45.6 H51.2 M35.2,45 L31,43.8 M64.8,45 L69,43.8" fill="none" stroke="#cdd4dc" stroke-width="1.3" stroke-linecap="round"/>`;
+  }
+  if(a.earrings){
+    g += `<circle cx="32.2" cy="53.6" r="1.7" fill="#c9b07c"/><circle cx="67.8" cy="53.6" r="1.7" fill="#c9b07c"/>`;
+  }
+  return `<svg width="${s}" height="${s}" viewBox="0 0 100 100" role="img" aria-label="${label||''}" style="border-radius:50%;display:block">${g}</svg>`;
+}
+
+const P = {
+  john:{name:"John", title:"Product Manager", state:{kind:"work", text:"drafting PRD.md · §4/9"},
+    art:{skin:"#efc6a1",shade:"#d9a87f",hair:"#9ba3ab",eye:"#6b7a80",style:"short",fringe:"straight",crown:{cy:33.5,rx:18.6,ry:17.6},beard:"full",glasses:null,shirt:"#465260",collar:"#39434f",bg:"#2a3340"}},
+  mary:{name:"Mary", title:"Business Analyst", state:{kind:"idle", text:"idle · last active 41m ago"},
+    art:{skin:"#e7b68d",shade:"#cf9a72",hair:"#7d4a2b",eye:"#6b4a2f",style:"long",fringe:"sweep",beard:null,glasses:"rect",shirt:"#3c4756",collar:"#313b48",bg:"#2f3742"}},
+  winston:{name:"Winston", title:"System Architect", state:{kind:"note", text:"edited architecture.md · 41m ago"},
+    art:{skin:"#7d4f30",shade:"#653d24",hair:"#1e1a17",eye:"#4a3325",style:"receding",fringe:null,beard:"close",glasses:null,shirt:"#3c4a4b",collar:"#313d3e",bg:"#2f3a3c"}},
+  sally:{name:"Sally", title:"UX Designer", state:{kind:"idle", text:"idle"},
+    art:{skin:"#bd7c4e",shade:"#a06539",hair:"#241f1d",eye:"#3d2a1e",style:"curly",fringe:null,beard:null,glasses:null,earrings:true,shirt:"#4b4053",collar:"#3d3445",bg:"#383345"}},
+  amelia:{name:"Amelia", title:"Senior Software Engineer", state:{kind:"live", text:"test watcher running · 84 passing"},
+    art:{skin:"#ebc09c",shade:"#d3a47e",hair:"#2c2521",eye:"#5c6b4a",style:"bun",fringe:"sweep",beard:null,glasses:"round",shirt:"#3f4b45",collar:"#343f3a",bg:"#333c3a"}}
+};
+const ORDER=["mary","john","sally","winston","amelia"];
+
+const SKINS=[["#f2d2b3","#dbb593"],["#efc6a1","#d9a87f"],["#ebc09c","#d3a47e"],["#e7b68d","#cf9a72"],["#d9a074","#bf8759"],["#bd7c4e","#a06539"],["#9c6138","#7d4c2a"],["#7d4f30","#653d24"]];
+const HAIRS=["#1e1a17","#241f1d","#2c2521","#3d2b1f","#5a3a22","#7d4a2b","#8a6a45","#9ba3ab"];
+const EYES=["#4a3325","#5a4332","#6b4a2f","#3d2a1e","#5c6b4a","#4f6068","#6b7a80","#54453a"];
+const FITS=[["#465260","#39434f","#2a3340"],["#3c4756","#313b48","#2f3742"],["#3c4a4b","#313d3e","#2f3a3c"],["#4b4053","#3d3445","#383345"],["#3f4b45","#343f3a","#333c3a"],["#4a4a56","#3d3d47","#353542"],["#52464a","#443a3d","#3a3236"],["#414f5a","#36414a","#313b43"]];
+const STYLES=["short","short","long","curly","bun","receding"];
+const FRINGES=["straight","sweep",null];
+function h32(str,salt){let h=2166136261>>>0;const s=salt+":"+str;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)>>>0;}return h;}
+const pick=(arr,id,salt)=>arr[h32(id,salt)%arr.length];
+function artParamsFor(id){
+  const [skin,sh]=pick(SKINS,id,"skin"), [shirt,collar,bg]=pick(FITS,id,"fit");
+  const style=pick(STYLES,id,"style");
+  return { skin, shade:sh, hair:pick(HAIRS,id,"hair"), eye:pick(EYES,id,"eye"), style,
+    fringe: style==="receding"?null:pick(FRINGES,id,"fringe"),
+    beard:(h32(id,"beard")%100)<32?((h32(id,"beardk")%2)?"full":"close"):null,
+    glasses:(h32(id,"glass")%100)<34?((h32(id,"glassk")%2)?"rect":"round"):null,
+    earrings:(h32(id,"ear")%100)<28, shirt, collar, bg };
+}
+
+document.getElementById("cmpRows").innerHTML = ORDER.map(id=>{
+  const p=P[id];
+  return `<div class="crow"><div class="who"><b>${p.name}</b><span>${p.title}</span></div>
+  <div class="vgroup">${[36,44].map(s=>`<div class="szc"><span class="pf">${portraitV1(p.art,s,p.name)}</span><span class="lb">${s}</span></div>`).join("")}</div>
+  <div class="vgroup big">${[32,36,44,96].map(s=>`<div class="szc"><span class="pf">${portraitV2(p.art,s,p.name+", "+p.title)}</span><span class="lb">${s}</span></div>`).join("")}</div></div>`;
+}).join("");
+
+document.getElementById("tiles").innerHTML = ORDER.map((id,i)=>{
+  const p=P[id];
+  return `<div class="ptile"${i===1?' aria-current="true"':''}><span class="pf">${portraitV2(p.art,36,p.name)}</span>
+  <div class="nm"><b>${p.name}</b><span>${p.title}</span><div class="state"><span class="dot ${p.state.kind}"></span><em>${p.state.text}</em></div></div></div>`;
+}).join("");
+
+const TURNS=[["john","14:02","Two silences already: payout failure handling, and whether a merchant can trigger a payout manually."],["winston","14:04","Boring technology buys us the ability to be wrong cheaply. That's a trade-off, not a verdict."],["amelia","14:06","reconcile.ts is 1,412 lines, no idempotency key, retry path is a setTimeout."]];
+document.getElementById("turns").innerHTML = TURNS.map(([id,t,x])=>{
+  const p=P[id];
+  return `<div class="turn"><span class="pf">${portraitV2(p.art,32,p.name)}</span><div style="flex:1"><div class="hd"><b>${p.name}</b><span class="role">${p.title}</span><span class="t">${t}</span></div><div class="bd">${x}</div></div></div>`;
+}).join("");
+
+document.getElementById("castRow").innerHTML = ORDER.map((id,i)=>{
+  const p=P[id];
+  return `<div class="castcard${i===0?' speaking':''}"><span class="pf">${portraitV2(p.art,44,p.name)}</span><div class="ci"><b>${p.name}</b><span>${p.title}</span><div class="st">${i===0?'speaking':'present · listening'}</div></div></div>`;
+}).join("");
+
+const initialsOf = n => n.trim().split(/\s+/).map(w=>w[0]).slice(0,2).join("").toUpperCase();
+document.getElementById("stackIni").innerHTML = ORDER.map(id=>{
+  const p=P[id];
+  return `<span class="ini" tabindex="0" role="img" aria-label="${p.name}, ${p.title}">${initialsOf(p.name)}<span class="tip"><b>${p.name}</b><span>${p.title}</span></span></span>`;
+}).join("");
+
+const IDS=["bmad-agent-qa","bmad-agent-scrum-master","bmad-agent-po","bmad-agent-devops","bmad-agent-tech-writer","bmad-agent-security","bmad-agent-data-eng","bmad-agent-researcher","bmad-agent-game-designer","bmad-agent-narrative","bmad-agent-level-designer","bmad-agent-sound"];
+const nameOf = id => id.replace("bmad-agent-","").split("-").map(w=>w[0].toUpperCase()+w.slice(1)).join(" ");
+document.getElementById("derived").innerHTML = IDS.map(id=>
+  `<div class="cell"><span class="pf">${portraitV2(artParamsFor(id),44,nameOf(id))}</span><span class="rn">${nameOf(id)}</span><span class="id">${id}</span></div>`).join("");
+</script>

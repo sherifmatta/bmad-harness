@@ -1,0 +1,329 @@
+<title>Portrait Audit</title>
+<style>
+/*
+  Governs: DESIGN.md → Components (portrait), Brand & Style (art direction)
+           EXPERIENCE.md → Component Patterns (persona tile, transcript turn, cast card)
+  The portrait() function below is copied verbatim from harness-mockup.html (lines 825-907),
+  with one change: it takes an art object rather than a persona id, matching AD-16's stated
+  signature portrait(artParams, size, state). artParamsFor(agentId) is NEW — the mockup has
+  no derivation, and AD-16 requires one.
+*/
+:root{
+  --bg:#101317; --chrome:#14181d; --panel:#171b21; --panel-2:#1b2027; --panel-3:#20262e;
+  --line:#272d36; --line-soft:#1f242c;
+  --text:#dce2ea; --text-strong:#f1f4f8; --dim:#96a0ad; --faint:#6b7480;
+  --accent:#7fa6e8; --accent-bg:rgba(127,166,232,.12);
+  --green:#6aa87f; --amber:#c6a350; --red:#c47c72;
+  --mono:ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --sans:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); font-size:13px; line-height:1.55; -webkit-font-smoothing:antialiased; padding:0 16px}
+.page{max-width:940px; margin:0 auto; padding-block:28px 56px}
+.masthead{border-bottom:1px solid var(--line); padding-bottom:18px}
+.masthead h1{font-size:20px; font-weight:600; color:var(--text-strong); letter-spacing:-.01em; margin:0 0 6px; text-wrap:balance}
+.masthead p{margin:0; color:var(--dim); font-size:12.5px; max-width:68ch}
+.masthead .meta{font-family:var(--mono); font-size:10.5px; color:var(--faint); margin-top:10px; display:flex; flex-wrap:wrap; gap:14px}
+section{margin-top:38px}
+h2{font-size:10.5px; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:var(--dim); margin:0 0 5px}
+.blurb{color:var(--dim); font-size:12.5px; margin:0 0 16px; max-width:70ch}
+.blurb b{color:var(--text); font-weight:600}
+.note{font-size:11.5px; color:var(--faint); margin:14px 0 0; border-left:2px solid var(--line); padding-left:11px; max-width:70ch}
+.note b{color:var(--dim); font-weight:600}
+.pf{display:inline-block; line-height:0; vertical-align:middle}
+
+/* size matrix */
+.matrix{border:1px solid var(--line); border-radius:6px; background:var(--panel); overflow:hidden}
+.mrow{display:flex; align-items:center; gap:18px; padding:12px 14px; border-bottom:1px solid var(--line-soft)}
+.mrow:last-child{border-bottom:0}
+.mrow .who{width:104px; flex:0 0 104px}
+.mrow .who b{display:block; font-size:12.5px; font-weight:600; color:var(--text-strong)}
+.mrow .who span{font-size:11px; color:var(--dim)}
+.sizes{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
+.szc{display:flex; flex-direction:column; align-items:center; gap:5px}
+.szc .lb{font-family:var(--mono); font-size:9.5px; color:var(--faint); letter-spacing:.04em}
+.mhead{display:flex; gap:18px; padding:8px 14px; background:var(--panel-2); border-bottom:1px solid var(--line-soft); font-family:var(--mono); font-size:9.5px; letter-spacing:.04em; color:var(--faint); text-transform:uppercase}
+.mhead .who{width:104px; flex:0 0 104px}
+
+/* big inspection */
+.big{display:flex; gap:22px; flex-wrap:wrap; padding:18px 14px; border:1px solid var(--line); border-radius:6px; background:var(--panel)}
+.big .bc{display:flex; flex-direction:column; align-items:center; gap:7px}
+.big .bc .nm{font-size:11px; color:var(--dim); font-family:var(--mono)}
+
+/* in-context */
+.ctx{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px}
+.ctxbox{border:1px solid var(--line); border-radius:6px; background:var(--panel); overflow:hidden}
+.ctxbox .cl{background:var(--panel-2); padding:6px 11px; font-family:var(--mono); font-size:9.5px; letter-spacing:.04em; text-transform:uppercase; color:var(--faint); border-bottom:1px solid var(--line-soft)}
+.ptile{display:flex; align-items:center; gap:10px; padding:9px 11px; border-bottom:1px solid var(--line-soft); position:relative}
+.ptile:last-child{border-bottom:0}
+.ptile[aria-current="true"]{background:#1f262f}
+.ptile[aria-current="true"]::before{content:""; position:absolute; left:0; top:0; bottom:0; width:2px; background:var(--accent)}
+.ptile .nm b{display:block; font-size:12.5px; font-weight:600; color:var(--text-strong)}
+.ptile .nm span{font-size:11px; color:var(--dim)}
+.ptile .state{font-size:11px; color:var(--faint); margin-top:2px; display:flex; align-items:center; gap:6px}
+.ptile .state em{font-family:var(--mono); font-size:10.5px; font-style:normal}
+.dot{width:6px; height:6px; border-radius:50%; background:var(--faint); flex:0 0 6px}
+.dot.work{background:var(--amber); box-shadow:0 0 0 3px rgba(198,163,80,.13)}
+.dot.live{background:var(--green); box-shadow:0 0 0 3px rgba(106,168,127,.14)}
+.dot.note{background:#7f9ce8}
+.turn{display:flex; gap:10px; padding:12px 10px; margin:8px; border-radius:6px}
+.turn .hd{display:flex; align-items:baseline; gap:8px; margin-bottom:4px}
+.turn .hd b{font-size:12.5px; font-weight:600; color:var(--text-strong)}
+.turn .hd .role{font-size:11px; color:var(--faint)}
+.turn .hd .t{font-family:var(--mono); font-size:10px; color:#5b636e; margin-left:auto}
+.turn .bd{font-size:13px; color:var(--text)}
+.cast{display:flex; gap:10px; padding:12px 14px; background:linear-gradient(180deg,#151920,#12161b); overflow-x:auto}
+.castcard{flex:1 1 0; min-width:148px; display:flex; gap:10px; align-items:center; padding:9px 11px; border:1px solid var(--line-soft); border-radius:6px; background:var(--panel); opacity:.42}
+.castcard.speaking{opacity:1; border-color:#41597e; background:#1b222c; box-shadow:0 0 0 1px rgba(127,166,232,.22), 0 6px 18px -10px rgba(0,0,0,.8)}
+.castcard.speaking .pf svg{box-shadow:0 0 0 2px var(--accent); border-radius:50%}
+.castcard .ci b{display:block; font-size:12.5px; font-weight:600; color:var(--text-strong)}
+.castcard .ci span{font-size:10.5px; color:var(--dim)}
+.castcard .ci .st{font-family:var(--mono); font-size:9.5px; color:var(--faint)}
+.castcard.speaking .ci .st{color:var(--accent)}
+.stackfaces{display:flex; padding:14px}
+.stackfaces .pf{margin-right:-6px}
+.stackfaces .pf svg{box-shadow:0 0 0 1.5px var(--panel-2); border-radius:50%}
+
+/* derived grid */
+.grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(128px,1fr)); gap:1px; background:var(--line-soft); border:1px solid var(--line); border-radius:6px; overflow:hidden}
+.cell{background:var(--panel); padding:13px 10px; display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center}
+.cell .id{font-family:var(--mono); font-size:9.5px; color:var(--faint); word-break:break-all; line-height:1.4}
+.cell .rn{font-size:11px; color:var(--dim)}
+
+/* twenty strip */
+.strip{display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:16px 14px; border:1px solid var(--line); border-radius:6px; background:var(--panel)}
+
+.checks{border:1px solid var(--line); border-radius:6px; background:var(--panel); padding:0; overflow:hidden; margin-top:16px}
+.chk{display:flex; gap:12px; padding:11px 14px; border-bottom:1px solid var(--line-soft); align-items:flex-start}
+.chk:last-child{border-bottom:0}
+.chk .q{font-family:var(--mono); font-size:9.5px; letter-spacing:.04em; color:var(--accent); border:1px solid #33455f; background:var(--accent-bg); border-radius:3px; padding:0 5px; flex:0 0 auto; margin-top:2px}
+.chk .x{font-size:12px; color:var(--dim)}
+.chk .x b{color:var(--text); font-weight:600}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="page">
+  <div class="masthead">
+    <h1>Portrait audit</h1>
+    <p>AD-16 names the art direction the project's single highest risk: <b>a company-directory illustrated headshot — a plausible colleague. Not pixel art, not a JRPG sprite, not a cartoon.</b> The generator below is the mockup's own, unchanged. The derivation for non-curated agents is new, because the mockup does not have one.</p>
+    <div class="meta">
+      <span>generator · harness-mockup.html:825</span>
+      <span>sizes · 20 / 32 / 36 / 38 / 44</span>
+      <span>test · does it read as a colleague or as a toy</span>
+    </div>
+  </div>
+
+  <section>
+    <h2>1 — The five, at every size the UI actually uses</h2>
+    <p class="blurb">No scaling: 20px is really 20px. The rightmost column is 96px for inspecting the drawing, and is <b>not</b> a size the product ever renders.</p>
+    <div class="matrix">
+      <div class="mhead"><span class="who">persona</span><span>20 stacked · 32 turn · 36 tile · 38 header · 44 cast &nbsp;|&nbsp; 96 inspection only</span></div>
+      <div id="sizeMatrix"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>2 — In context</h2>
+    <p class="blurb">The faces never appear alone. This is where "restraint around real faces" either works or doesn't.</p>
+    <div class="ctx">
+      <div class="ctxbox">
+        <div class="cl">persona tiles · 36px</div>
+        <div id="tiles"></div>
+      </div>
+      <div class="ctxbox">
+        <div class="cl">transcript turns · 32px</div>
+        <div id="turns"></div>
+      </div>
+      <div class="ctxbox">
+        <div class="cl">party cast · 44px</div>
+        <div class="cast" id="castRow"></div>
+      </div>
+      <div class="ctxbox">
+        <div class="cl">stacked faces · 20px</div>
+        <div class="stackfaces" id="stack"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>3 — The untested requirement: agents nobody curated</h2>
+    <p class="blurb">AD-16: <b>"every other installed agent derives params from its agent id"</b> and <b>"design must hold up for arbitrary unknown agents, not just the five."</b> The mockup proves only the curated case. These are generated from the agent id alone — same id, same face, on any machine, forever.</p>
+    <div class="grid" id="derived"></div>
+    <p class="note"><b>What to look for.</b> Not whether any single one is handsome — whether <b>all sixteen read as the same company</b>. A palette that drifts, a hair shape that reads as a hat, or one face that looks like a different product is the failure mode. The curated five are tuned; these are not, and the product ships whatever this function returns.</p>
+  </section>
+
+  <section>
+    <h2>4 — The 20px test</h2>
+    <p class="blurb">The hardest requirement in AD-16 is <b>"legible from 20px"</b>. At this size the eyes are roughly one pixel. Curated and derived, mixed, in the order the stacked-faces component would render them.</p>
+    <div class="strip" id="twenty"></div>
+    <p class="note"><b>The honest question.</b> At 20px these are colour blobs with a hair silhouette. That may be fine — a stacked face is an <b>identity token</b>, not a portrait, and distinguishability matters more than detail. But if two agents land on similar hair and skin, they become the same blob, and the derivation has no collision check.</p>
+  </section>
+
+  <section>
+    <h2>5 — Determinism</h2>
+    <p class="blurb">AD-16 requires the same agent to wear the same face across sessions and machines, asserted in tests. Each id rendered three times from three separate calls.</p>
+    <div class="strip" id="determinism"></div>
+  </section>
+
+  <section>
+    <h2>What I need you to judge</h2>
+    <div class="checks">
+      <div class="chk"><span class="q">Q1</span><span class="x"><b>Does section 1 read as a plausible colleague, or as a toy?</b> This is the whole risk. If your gut says "cartoon", the direction changes now and not after it's built.</span></div>
+      <div class="chk"><span class="q">Q2</span><span class="x"><b>Does section 3 hold together as one company?</b> Sixteen derived faces, no hand-tuning. If they drift, the derivation needs tighter palettes — or the five stay curated and everyone else gets something simpler and honest.</span></div>
+      <div class="chk"><span class="q">Q3</span><span class="x"><b>Is 20px carrying its weight, or should stacked faces be initials instead?</b> The product already has an <code style="font-family:var(--mono);font-size:11px">.initials</code> component for the user. Using it for tiny agent references is a legitimate option AD-16 doesn't forbid.</span></div>
+      <div class="chk"><span class="q">Q4</span><span class="x"><b>Is the neutral expression right?</b> Every face has the same faint smile and level brows. Reactive faces are deferred to the Should tier, so this one expression is what ships — it has to survive being the only one.</span></div>
+    </div>
+  </section>
+</div>
+
+<script>
+/* ---- verbatim from harness-mockup.html, retyped to take art rather than an id ---- */
+function shade(hex, amt){
+  const n = parseInt(hex.slice(1),16);
+  const c = [(n>>16)&255,(n>>8)&255,n&255].map(v => Math.max(0,Math.min(255, v+amt)));
+  return "#"+c.map(v=>v.toString(16).padStart(2,"0")).join("");
+}
+function portrait(a, size, label){
+  const s = size || 32;
+  const hairDark = shade(a.hair, -18);
+  let g = "";
+  g += `<circle cx="50" cy="50" r="50" fill="${a.bg}"/>`;
+  if(a.style === "long"){
+    g += `<path d="M24,49 C24,23 35,13 50,13 C65,13 76,23 76,49 L76,77 C76,79 73,79 72,77 C69,69 68,60 68,52 L32,52 C32,60 31,69 28,77 C27,79 24,79 24,77 Z" fill="${hairDark}"/>`;
+  }
+  if(a.style === "bun"){
+    g += `<circle cx="72" cy="31" r="9" fill="${hairDark}"/>`;
+    g += `<path d="M28,50 C28,28 37,17 50,17 C63,17 72,28 72,50 L72,62 C72,64 69,64 68,62 C67,58 67,54 67,52 L33,52 C33,55 33,58 32,62 C31,64 28,64 28,62 Z" fill="${hairDark}"/>`;
+  }
+  g += `<path d="M43,57 h14 v16 h-14 z" fill="${a.shade}"/>`;
+  g += `<path d="M7,100 C9,82 26,73 50,73 C74,73 91,82 93,100 Z" fill="${a.shirt}"/>`;
+  g += `<path d="M43.5,73.5 C45.5,80.5 54.5,80.5 56.5,73.5 Z" fill="${a.shade}"/>`;
+  g += `<path d="M43.5,73.5 L50,82 L56.5,73.5" fill="none" stroke="${a.collar}" stroke-width="1.6" stroke-linejoin="round"/>`;
+  if(a.style === "curly"){
+    const c = [[34,27,9],[46,20,9.5],[58,21,9],[67,31,8.5],[30,38,8],[70,41,7.5],[50,30,10]];
+    c.forEach(([x,y,r]) => g += `<circle cx="${x}" cy="${y}" r="${r}" fill="${a.hair}"/>`);
+  } else if(a.style === "receding"){
+    g += `<ellipse cx="50" cy="38.5" rx="19.3" ry="18.4" fill="${a.hair}"/>`;
+  } else {
+    const c = a.crown || {cy:36, rx:20.6, ry:21.2};
+    g += `<ellipse cx="50" cy="${c.cy}" rx="${c.rx}" ry="${c.ry}" fill="${a.hair}"/>`;
+  }
+  g += `<ellipse cx="31" cy="49" rx="2.7" ry="4.2" fill="${a.shade}"/>`;
+  g += `<ellipse cx="69" cy="49" rx="2.7" ry="4.2" fill="${a.shade}"/>`;
+  g += `<ellipse cx="50" cy="46" rx="19" ry="21.4" fill="${a.skin}"/>`;
+  if(a.beard){
+    const op = a.beard === "close" ? .42 : .9;
+    g += `<path d="M31,45 C31,61 39,68.5 50,68.5 C61,68.5 69,61 69,45 C69,55 63,59.5 50,59.5 C37,59.5 31,55 31,45 Z" fill="${a.hair}" opacity="${op}"/>`;
+  }
+  if(a.fringe === "sweep"){
+    g += `<path d="M31,42 C31,27 39,22 50,22 C59,22 65,25 68,31 C61,27.5 48,29 41,35.5 C37,39 33.5,44 32.3,47 C31.4,46.2 31,44 31,42 Z" fill="${a.hair}"/>`;
+  } else if(a.fringe === "straight"){
+    g += `<path d="M31,40 C31,27 39,22 50,22 C61,22 69,27 69,40 C69,33.5 61.5,30.5 50,30.5 C38.5,30.5 31,33.5 31,40 Z" fill="${a.hair}"/>`;
+  }
+  g += `<path d="M38.4,41.4 Q43,39.4 47.6,41" fill="none" stroke="${hairDark}" stroke-width="1.5" stroke-linecap="round" opacity=".9"/>`;
+  g += `<path d="M52.4,41 Q57,39.4 61.6,41.4" fill="none" stroke="${hairDark}" stroke-width="1.5" stroke-linecap="round" opacity=".9"/>`;
+  [43,57].forEach(x => {
+    g += `<ellipse cx="${x}" cy="46" rx="3.1" ry="2.1" fill="#f3eee9"/>`;
+    g += `<circle cx="${x}" cy="46.2" r="1.35" fill="#2a2220"/>`;
+    g += `<path d="M${x-3.2},44.9 Q${x},43.1 ${x+3.2},44.9" fill="none" stroke="#3b302a" stroke-width="1.15" stroke-linecap="round"/>`;
+  });
+  g += `<path d="M50,48.8 C49.3,52.6 48.7,54.9 49.3,55.7 C50,56.5 51.4,56.3 52.3,55.5" fill="none" stroke="${a.shade}" stroke-width="1.25" stroke-linecap="round"/>`;
+  g += `<path d="M46,61 C48,62.4 52,62.4 54,61" fill="none" stroke="#9c6152" stroke-width="1.5" stroke-linecap="round"/>`;
+  if(a.glasses === "rect"){
+    g += `<g fill="rgba(240,246,255,.07)" stroke="#cdd4dc" stroke-width="1.35" stroke-linejoin="round"><rect x="35.4" y="41" width="13.4" height="9.4" rx="3"/><rect x="51.2" y="41" width="13.4" height="9.4" rx="3"/></g><path d="M48.8,45 H51.2 M35.4,44.6 L30.2,43.6 M64.6,44.6 L69.8,43.6" fill="none" stroke="#cdd4dc" stroke-width="1.35" stroke-linecap="round"/>`;
+  } else if(a.glasses === "round"){
+    g += `<g fill="rgba(240,246,255,.07)" stroke="#cdd4dc" stroke-width="1.35"><circle cx="42.6" cy="45.6" r="6.6"/><circle cx="57.4" cy="45.6" r="6.6"/></g><path d="M49.2,45 H50.8 M36,44.6 L30.4,43.6 M64,44.6 L69.6,43.6" fill="none" stroke="#cdd4dc" stroke-width="1.35" stroke-linecap="round"/>`;
+  }
+  if(a.earrings){
+    g += `<circle cx="31" cy="54" r="1.7" fill="#c9b07c"/><circle cx="69" cy="54" r="1.7" fill="#c9b07c"/>`;
+  }
+  return `<svg width="${s}" height="${s}" viewBox="0 0 100 100" role="img" aria-label="${label||''}" style="border-radius:50%;display:block">${g}</svg>`;
+}
+
+/* ---- the five curated, verbatim ---- */
+const P = {
+  john:{name:"John", title:"Product Manager", state:{kind:"work", text:"drafting PRD.md · §4/9"},
+    art:{skin:"#efc6a1",shade:"#d9a87f",hair:"#9ba3ab",style:"short",fringe:"straight",crown:{cy:34,rx:19.6,ry:18.4},beard:"full",glasses:null,shirt:"#465260",collar:"#39434f",bg:"#2a3340"}},
+  mary:{name:"Mary", title:"Business Analyst", state:{kind:"idle", text:"idle · last active 41m ago"},
+    art:{skin:"#e7b68d",shade:"#cf9a72",hair:"#7d4a2b",style:"long",fringe:"sweep",beard:null,glasses:"rect",shirt:"#3c4756",collar:"#313b48",bg:"#2f3742"}},
+  winston:{name:"Winston", title:"System Architect", state:{kind:"note", text:"edited architecture.md · 41m ago"},
+    art:{skin:"#7d4f30",shade:"#653d24",hair:"#1e1a17",style:"receding",fringe:null,beard:"close",glasses:null,shirt:"#3c4a4b",collar:"#313d3e",bg:"#2f3a3c"}},
+  sally:{name:"Sally", title:"UX Designer", state:{kind:"idle", text:"idle"},
+    art:{skin:"#bd7c4e",shade:"#a06539",hair:"#241f1d",style:"curly",fringe:null,beard:null,glasses:null,earrings:true,shirt:"#4b4053",collar:"#3d3445",bg:"#383345"}},
+  amelia:{name:"Amelia", title:"Senior Software Engineer", state:{kind:"live", text:"test watcher running · 84 passing"},
+    art:{skin:"#ebc09c",shade:"#d3a47e",hair:"#2c2521",style:"bun",fringe:"sweep",beard:null,glasses:"round",shirt:"#3f4b45",collar:"#343f3a",bg:"#333c3a"}}
+};
+const ORDER = ["mary","john","sally","winston","amelia"];
+
+/* ---- NEW: artParamsFor(agentId) — deterministic derivation ---- */
+const SKINS=[["#f2d2b3","#dbb593"],["#efc6a1","#d9a87f"],["#ebc09c","#d3a47e"],["#e7b68d","#cf9a72"],["#d9a074","#bf8759"],["#bd7c4e","#a06539"],["#9c6138","#7d4c2a"],["#7d4f30","#653d24"]];
+const HAIRS=["#1e1a17","#241f1d","#2c2521","#3d2b1f","#5a3a22","#7d4a2b","#8a6a45","#9ba3ab"];
+const FITS=[["#465260","#39434f","#2a3340"],["#3c4756","#313b48","#2f3742"],["#3c4a4b","#313d3e","#2f3a3c"],["#4b4053","#3d3445","#383345"],["#3f4b45","#343f3a","#333c3a"],["#4a4a56","#3d3d47","#353542"],["#52464a","#443a3d","#3a3236"],["#414f5a","#36414a","#313b43"]];
+const STYLES=["short","short","long","curly","bun","receding"];
+const FRINGES=["straight","sweep",null];
+
+function h32(str, salt){
+  let h = 2166136261 >>> 0;
+  const s = salt + ":" + str;
+  for(let i=0;i<s.length;i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return h;
+}
+const pick = (arr, id, salt) => arr[h32(id, salt) % arr.length];
+
+function artParamsFor(agentId){
+  const [skin, sh] = pick(SKINS, agentId, "skin");
+  const [shirt, collar, bg] = pick(FITS, agentId, "fit");
+  const style = pick(STYLES, agentId, "style");
+  const fringe = style === "receding" ? null : pick(FRINGES, agentId, "fringe");
+  const beard = (h32(agentId,"beard") % 100) < 32 ? ((h32(agentId,"beardk") % 2) ? "full" : "close") : null;
+  const glasses = (h32(agentId,"glass") % 100) < 34 ? ((h32(agentId,"glassk") % 2) ? "rect" : "round") : null;
+  const earrings = (h32(agentId,"ear") % 100) < 28;
+  return { skin, shade: sh, hair: pick(HAIRS, agentId, "hair"), style, fringe, beard, glasses, earrings, shirt, collar, bg };
+}
+
+/* ---- render ---- */
+const SIZES = [20,32,36,38,44,96];
+document.getElementById("sizeMatrix").innerHTML = ORDER.map(id=>{
+  const p = P[id];
+  return `<div class="mrow"><div class="who"><b>${p.name}</b><span>${p.title}</span></div>
+    <div class="sizes">${SIZES.map(s=>`<div class="szc"><span class="pf">${portrait(p.art,s,p.name+", "+p.title)}</span><span class="lb">${s}</span></div>`).join("")}</div></div>`;
+}).join("");
+
+document.getElementById("tiles").innerHTML = ORDER.map((id,i)=>{
+  const p = P[id];
+  return `<div class="ptile"${i===1?' aria-current="true"':''}><span class="pf">${portrait(p.art,36,p.name)}</span>
+    <div class="nm"><b>${p.name}</b><span>${p.title}</span>
+    <div class="state"><span class="dot ${p.state.kind}"></span><em>${p.state.text}</em></div></div></div>`;
+}).join("");
+
+const TURNS=[["john","14:02","Reading the brief and Mary's market note. Two silences already: payout failure handling, and whether a merchant can trigger a payout manually."],["winston","14:04","Boring technology buys us the ability to be wrong cheaply. That's a trade-off, not a verdict."],["amelia","14:06","reconcile.ts is 1,412 lines, no idempotency key, retry path is a setTimeout."]];
+document.getElementById("turns").innerHTML = TURNS.map(([id,t,x])=>{
+  const p=P[id];
+  return `<div class="turn"><span class="pf">${portrait(p.art,32,p.name)}</span><div style="flex:1">
+    <div class="hd"><b>${p.name}</b><span class="role">${p.title}</span><span class="t">${t}</span></div>
+    <div class="bd">${x}</div></div></div>`;
+}).join("");
+
+document.getElementById("castRow").innerHTML = ORDER.map((id,i)=>{
+  const p=P[id];
+  return `<div class="castcard${i===0?' speaking':''}"><span class="pf">${portrait(p.art,44,p.name)}</span>
+    <div class="ci"><b>${p.name}</b><span>${p.title}</span><div class="st">${i===0?'speaking':'present · listening'}</div></div></div>`;
+}).join("");
+
+document.getElementById("stack").innerHTML = ORDER.map(id=>`<span class="pf">${portrait(P[id].art,20,P[id].name)}</span>`).join("");
+
+const IDS=["bmad-agent-qa","bmad-agent-scrum-master","bmad-agent-po","bmad-agent-devops","bmad-agent-tech-writer","bmad-agent-security","bmad-agent-data-eng","bmad-agent-researcher","bmad-agent-game-designer","bmad-agent-narrative","bmad-agent-level-designer","bmad-agent-sound","bmad-agent-legal","bmad-agent-finance","bmad-agent-support","bmad-agent-growth"];
+const nameOf = id => id.replace("bmad-agent-","").split("-").map(w=>w[0].toUpperCase()+w.slice(1)).join(" ");
+document.getElementById("derived").innerHTML = IDS.map(id=>
+  `<div class="cell"><span class="pf">${portrait(artParamsFor(id),44,nameOf(id))}</span><span class="rn">${nameOf(id)}</span><span class="id">${id}</span></div>`
+).join("");
+
+document.getElementById("twenty").innerHTML =
+  ORDER.map(id=>`<span class="pf">${portrait(P[id].art,20,P[id].name)}</span>`).join("") +
+  `<span style="width:14px"></span>` +
+  IDS.map(id=>`<span class="pf">${portrait(artParamsFor(id),20,nameOf(id))}</span>`).join("");
+
+document.getElementById("determinism").innerHTML = ["bmad-agent-qa","bmad-agent-security","bmad-agent-growth"].map(id=>
+  `<div style="display:flex;align-items:center;gap:7px"><span class="pf">${portrait(artParamsFor(id),36,id)}</span><span class="pf">${portrait(artParamsFor(id),36,id)}</span><span class="pf">${portrait(artParamsFor(id),36,id)}</span><span style="font-family:var(--mono);font-size:9.5px;color:var(--faint);margin:0 16px 0 4px">${id}</span></div>`
+).join("");
+</script>
