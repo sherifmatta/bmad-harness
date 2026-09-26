@@ -1,6 +1,8 @@
-import { readdirSync, readFileSync } from 'node:fs'
-import { join, relative, resolve } from 'node:path'
+import { readFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
+
+import { allStylesheets, guardedStylesheets, literalsIn, withoutComments } from './literal-guard'
 
 /**
  * The visual contract, asserted by command rather than by reading.
@@ -23,7 +25,6 @@ const MOCKUP = join(
   '_bmad/brainstorming/brainstorm-bmad-visual-harness-2026-09-22/harness-mockup.html'
 )
 const TOKENS = join(ROOT, 'src/renderer/design/tokens.css')
-const RENDERER = join(ROOT, 'src/renderer')
 const ENTRY = join(ROOT, 'src/renderer/ui/main.tsx')
 const INDEX_HTML = join(ROOT, 'src/renderer/index.html')
 const DESIGN = join(
@@ -75,6 +76,36 @@ function designValue(section: string, key: string): string {
 }
 
 /**
+ * A nested `components:` sub-map out of DESIGN.md's frontmatter, read at run
+ * time like everything else here. `designValue()` above reads the flat,
+ * two-space maps; a component block is one level deeper, so its own keys sit at
+ * four spaces and the next two-space key ends it.
+ */
+function componentBlock(name: string): Record<string, string> {
+  const design = readFileSync(DESIGN, 'utf8')
+  const from = design.indexOf(`\n  ${name}:\n`)
+  expect(from, `DESIGN.md has no \`components.${name}:\` block`).toBeGreaterThan(-1)
+
+  const rest = design.slice(from + 1)
+  const to = rest.slice(1).search(/\n {0,2}[a-zA-Z][\w-]*:/)
+  const body = rest.slice(0, to === -1 ? undefined : to + 1)
+
+  return Object.fromEntries(
+    [...body.matchAll(/^ {4}([a-zA-Z][\w-]*):[ \t]*(.*)$/gm)].map(([, key, value]) => [
+      key,
+      // A trailing comment needs whitespace before its `#` — and that `#` must
+      // not be a hex colour, or a value like `#242b34 ground, text-strong`
+      // would be truncated to nothing and the next caller would silently
+      // compare half a string.
+      value
+        .replace(/\s+#(?![0-9a-fA-F]{3,8}\b).*$/, '')
+        .trim()
+        .replace(/^'(.*)'$/, '$1')
+    ])
+  )
+}
+
+/**
  * The first line at which two texts diverge, 1-based, or null when one is a
  * prefix of the other. A bare `startsWith` assertion prints two walls of CSS;
  * this is what lets a failure name the line that moved.
@@ -88,11 +119,6 @@ function firstDifferingLine(expected: string, actual: string): number | null {
     }
   }
   return null
-}
-
-/** CSS comments blanked out, line structure preserved, so line numbers survive. */
-function withoutComments(css: string): string {
-  return css.replace(/\/\*[\s\S]*?\*\//g, (match) => match.replace(/[^\n]/g, ' '))
 }
 
 /**
@@ -484,8 +510,51 @@ describe('the theme decision', () => {
     expect(selectors).toEqual([':root', ':root'])
   })
 
-  it('leaves the focus ring to Story 1.4', () => {
-    expect(withoutComments(tokensCss)).not.toMatch(/focus|outline/)
+  it('declares the focus ring\u2019s values and still styles nothing with them', () => {
+    // Story 1.3 left this seam open by asserting the file mentioned neither
+    // `focus` nor `outline`. Story 1.4 closes it by inverting the same
+    // assertion rather than deleting it: the values arrive, the rule does not.
+    const focus = componentBlock('focus')
+
+    // Every key by name before anything is read off it. Without this a renamed
+    // key leaves `focus.offset` undefined, `tokens.get(…)` undefined too, and
+    // `toBe` passes with neither existing — and a missing `ring` throws a raw
+    // TypeError out of `.match` instead of naming what went missing.
+    for (const key of ['ring', 'offset', 'offsetStacked', 'radius']) {
+      expect(focus[key], `DESIGN.md components.focus.${key}`).toBeTypeOf('string')
+    }
+
+    // The ring is written as box-shadow geometry — `0 0 0 2px {colors.accent}`
+    // — and its spread *is* the ring's width. Read out of DESIGN.md at run
+    // time so a retuned ring reddens this file rather than drifting quietly.
+    const LENGTH = /^\d+(?:\.\d+)?px$/
+    const width = focus.ring.match(/(\S+)\s+\{colors\.accent\}$/)?.[1]
+
+    expect(width, 'the ring geometry must end in a spread and {colors.accent}').toMatch(LENGTH)
+    expect(width).toBe('2px')
+    expect(focus.offset).toMatch(LENGTH)
+    expect(focus.offsetStacked).toMatch(LENGTH)
+    expect(focus.radius).toContain('inherits')
+
+    // Each token present and shaped like a length, then equal to its source: a
+    // token deleted from tokens.css must fail here rather than pass by being
+    // as absent as the value it is compared against.
+    for (const [name, expected] of [
+      ['--focus-ring-width', width],
+      ['--focus-ring-offset', focus.offset],
+      ['--focus-ring-offset-stacked', focus.offsetStacked]
+    ] as const) {
+      expect(tokens.get(name), name).toMatch(LENGTH)
+      expect(tokens.get(name), name).toBe(expected)
+    }
+
+    // Values only. A rule here would break the `[':root', ':root']` assertion
+    // above, and — worse — would sit in the one file the NFR23 literal guard
+    // exempts, where the ring could be written in literals. It lives in
+    // design/focus.css instead, and tests/accessibility.test.ts guards it.
+    const structural = withoutComments(tokensCss)
+    expect(structural).not.toMatch(/outline/)
+    expect(structural).not.toMatch(/:focus/)
   })
 })
 
@@ -501,94 +570,6 @@ describe('the contract in force', () => {
     expect(readFileSync(ENTRY, 'utf8')).toMatch(/^import '\.\.\/design\/tokens\.css'$/m)
   })
 })
-
-/**
- * NFR23's enforcement arm. Scoped to stylesheets on purpose: scanning `.tsx`
- * would fire on Story 1.6's portrait palettes, which are literal hex in source
- * by design. Every `.css` under `src/renderer/` except `design/tokens.css` —
- * the one file entitled to literals — must reach its values through `var()`.
- */
-const LITERAL_RULES = [
-  { kind: 'hex colour', pattern: /#[0-9a-fA-F]{3,8}\b/g },
-  // Eleven of tokens.css's own colours are written as rgba(), so this is the
-  // spelling a component is most likely to paste — the guard missed it entirely
-  // while claiming to detect literal colour.
-  {
-    kind: 'colour function',
-    pattern: /\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\((?![^)]*var\()[^)]*\)/g
-  },
-  // Every unit the design system could be restated in, and negatives: the
-  // inset rules DESIGN.md names are written `inset 0 -2px 0 …`, so a lookbehind
-  // that excluded a leading `-` excluded exactly the values most at risk.
-  {
-    kind: 'dimension',
-    pattern: /(?<![\w.#])-?\d*\.?\d+(?:px|ch|rem|em|pt|vh|vw|vmin|vmax|%)(?![\w-])/g
-  },
-  {
-    kind: 'font stack',
-    pattern: /font(?:-family)?\s*:\s*[^;}]*[a-zA-Z][^;}]*/g
-  },
-  // Longhand corners match neither the shorthand rule nor the dimension rule
-  // when the value is a percentage of a keyword.
-  {
-    kind: 'radius',
-    pattern: /border(?:-(?:top|bottom)-(?:left|right))?-radius\s*:\s*[^;}]+/g
-  }
-]
-
-/** A declaration's literal half, with every `var(…)` reference removed. */
-function withoutReferences(value: string): string {
-  return value.replace(/var\(\s*--[\w-]+\s*(?:,[^()]*(?:\([^()]*\))?)?\)/g, ' ')
-}
-
-type Literal = { file: string; line: number; kind: string; text: string }
-
-export function literalsIn(file: string, css: string): Literal[] {
-  const source = withoutComments(css)
-  const found: Literal[] = []
-
-  for (const { kind, pattern } of LITERAL_RULES) {
-    for (const match of source.matchAll(pattern)) {
-      // The exemption is per value, not per declaration: `font-family:
-      // var(--mono), Menlo` and `border-radius: 4px var(--r)` each carry a
-      // literal that a whole-declaration lookahead waved through.
-      const remainder = withoutReferences(match[0])
-      const carriesLiteral =
-        kind === 'font stack' || kind === 'radius'
-          ? /[a-zA-Z0-9#]/.test(remainder.replace(/^[^:]*:/, ''))
-          : true
-      if (!carriesLiteral) {
-        continue
-      }
-
-      found.push({
-        file,
-        line: source.slice(0, match.index).split('\n').length,
-        kind,
-        text: match[0].trim()
-      })
-    }
-  }
-
-  return found.sort((a, b) => a.line - b.line)
-}
-
-function stylesheetsUnder(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(dir, entry.name)
-    if (entry.isDirectory()) {
-      return stylesheetsUnder(path)
-    }
-    return entry.name.endsWith('.css') ? [path] : []
-  })
-}
-
-/** Every stylesheet the guard governs — tokens.css is the one exemption. */
-export function guardedStylesheets(): string[] {
-  return stylesheetsUnder(RENDERER)
-    .filter((path) => path !== TOKENS)
-    .map((path) => relative(ROOT, path))
-}
 
 const CLEAN_PROBE = `
 .rail {
@@ -671,7 +652,7 @@ describe('the NFR23 literal guard', () => {
     // The exemption itself, not the emptiness of the tree: Story 1.9's first
     // compliant stylesheet must not redden this test, or the repair someone
     // reaches for is to edit the guard's own wiring check.
-    const sheets = stylesheetsUnder(RENDERER).map((path) => relative(ROOT, path))
+    const sheets = allStylesheets()
 
     expect(sheets).toContain('src/renderer/design/tokens.css')
     expect(guardedStylesheets()).not.toContain('src/renderer/design/tokens.css')

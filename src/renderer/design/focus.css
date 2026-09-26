@@ -1,0 +1,38 @@
+/*
+ * The focus ring — UX-DR23, NFR21. One treatment, defined once, for every
+ * surface EXPERIENCE.md requires to be keyboard-operable.
+ *
+ * Written as `outline`, not as the `box-shadow` DESIGN.md's token spells.
+ * `0 0 0 2px {colors.accent}` is read there as the ring's *geometry* — 2px of
+ * accent, 2px outside the edge — and the two properties the same paragraph
+ * demands, a 2px offset and the element's own radius, are exactly what
+ * box-shadow cannot do without a second ring in the ground colour underneath,
+ * which is the focus fill that paragraph forbids. `outline` + `outline-offset`
+ * does both natively and follows `border-radius` in Chromium 152, which is
+ * what lets one rule serve a radius ladder from 0 to 50%. It also keeps focus
+ * off `box-shadow`, which already carries two non-focus jobs: the speaking
+ * cast card's portrait ring and the stacked-initials cut-out.
+ *
+ * `:focus-visible` only, and global: a mouse press never draws the ring, and
+ * no surface can forget to opt in or be tempted to restate it. Hover and focus
+ * stay separate treatments — hover raises the ground, focus draws the ring —
+ * and a surface may carry both at once.
+ *
+ * The ring is the whole treatment. No fill, no shadow, no colour change, no
+ * motion. Every value is reached through `var()`; this file is governed by the
+ * NFR23 literal guard, so it could not be written any other way.
+ */
+:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/*
+ * The stacked case: initials discs overlap the disc before them by -5px and
+ * hide the seam with a panel-coloured cut-out ring, which clips a 2px-offset
+ * focus ring. 3px clears it. Only the offset changes — the ring itself is the
+ * same ring, or the "identical on every primitive" rule would be gone.
+ */
+.focus-stacked:focus-visible {
+  outline-offset: var(--focus-ring-offset-stacked);
+}

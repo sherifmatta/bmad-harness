@@ -38,8 +38,9 @@
  * src/renderer/ is a defect, and tests/tokens.test.ts is what detects one.
  *
  * Dark only — NFR15. One palette, one theme, no branch on any theme media
- * query and no high-contrast variant. No focus ring here either: Story 1.4
- * owns that.
+ * query and no high-contrast variant. The focus ring's *values* live below
+ * (Story 1.4, UX-DR23); the rule that draws it lives in design/focus.css,
+ * because this file styles no component.
  */
 :root {
   /* ── The missing token (UX-DR2). Not copied — added. The mockup writes the
@@ -218,6 +219,24 @@
   --motion-eq:eq .9s ease-in-out infinite;
   --motion-reveal:.16s ease;
   --motion-cast:.25s ease;
+
+  /* ── The focus ring (UX-DR23, NFR21), read off DESIGN.md's
+     `components.focus` block (:318-322): a 2px accent ring at 2px offset,
+     drawn outside the element and inheriting that element's radius. Values
+     only — the one global `:focus-visible` rule that spends them is
+     design/focus.css, so that the assertion above ("styles no component")
+     keeps holding and the rule stays subject to the NFR23 literal guard this
+     file is exempt from.
+
+     The stacked offset is 3px rather than 2px because a stacked initials row
+     overlaps each disc onto the one before it by -5px and hides the seam with
+     a panel-coloured cut-out ring; at a 2px offset the next disc's cut-out
+     clips the focus ring's edge. The local stacking raise that the overlap
+     also needs is the initials token's, not this file's — UX-DR10 fixes the
+     product at two z-indexes, so Story 1.6 owns that half. */
+  --focus-ring-width:2px;
+  --focus-ring-offset:2px;
+  --focus-ring-offset-stacked:3px;
 }
 
 /* The three keyframes the inventory names, copied from the mockup. `blink` is
