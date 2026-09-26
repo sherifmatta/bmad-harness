@@ -1,0 +1,19 @@
+# Every guard in this repository is a command someone has to choose to run.
+# This hook makes that choice for them: no commit lands without the pin check,
+# the layer rule, the NFR23 literal sweep and the accessibility assertions
+# having passed. A guard nobody runs is a guard nobody has.
+#
+# `npm run build` is deliberately not here. It is the only one of the four
+# checks with a side effect — it rewrites `out/`, which `npm run dev` is
+# serving from, so a commit made during a dev session would clobber the running
+# app's bundles. It is also the check that grows with the renderer while the
+# other three stay flat, so it is the one that would eventually make this hook
+# something people reach for `--no-verify` to escape. `npm run package` builds
+# before it ships anything; a commit does not need to.
+#
+# Escape hatch, for the record: `git commit --no-verify` skips this. That is a
+# deliberate, visible act, which is the point.
+
+npm run lint
+npm run typecheck
+npm test

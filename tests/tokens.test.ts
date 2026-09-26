@@ -727,12 +727,39 @@ describe('the NFR23 literal guard, inside a component', () => {
     ['colour function', `<div style={{ background: 'rgba(127,166,232,.12)' }} />`],
     ['dimension', `<div style={{ flexBasis: '348px' }} />`],
     ['dimension', `<div style={{ outline: '2px solid red' }} />`],
-    ['dimension', `<div style={{ marginRight: '-5px' }} />`]
+    ['dimension', `<div style={{ marginRight: '-5px' }} />`],
+    // The JSX spellings. `font-family:` and `border-radius:` are the forms a
+    // stylesheet uses; a style prop can only ever say `fontFamily` and
+    // `borderRadius`, so the hyphenated rules alone left the component side
+    // of NFR23 undetectable.
+    ['font stack', `<div style={{ fontFamily: 'Menlo, monospace' }} />`],
+    ['font stack', `<div style={{ fontFamily: "SF Mono" }} />`],
+    ['font stack', `<div style={{ font: 'var(--mono)', fontFamily: 'Menlo' }} />`],
+    // Per value, not per declaration: one reference does not excuse the
+    // literal sitting next to it.
+    ['font stack', `<div style={{ fontFamily: 'var(--mono), Menlo' }} />`],
+    ['radius', `<div style={{ borderRadius: '10px' }} />`],
+    ['radius', `<div style={{ borderRadius: 4 }} />`],
+    ['radius', `<div style={{ borderTopLeftRadius: '50%' }} />`],
+    ['radius', `<div style={{ borderBottomRightRadius: 'var(--r) 3px' }} />`]
   ])('catches a literal %s restated in a style prop', (kind, probe) => {
     const found = inlineStyleLiteralsIn('probe.tsx', probe)
 
     expect(found.length, probe).toBeGreaterThan(0)
     expect(found.map((literal) => literal.kind)).toContain(kind)
+  })
+
+  it.each([
+    [`<div style={{ fontFamily: 'var(--mono)' }} />`],
+    [`<div style={{ borderRadius: 'var(--r-card)' }} />`],
+    [`<div style={{ borderTopLeftRadius: 'var(--r)' }} />`],
+    // The neighbouring reference must not be dragged into the font stack's
+    // value and read back as a literal: a greedy match to the end of the
+    // block would report this compliant prop.
+    [`<div style={{ fontFamily: 'var(--mono)', borderRadius: 'var(--r)' }} />`],
+    [`<div style={{ font: 'var(--mono)', color: 'var(--ink)' }} />`]
+  ])('stays silent for %s, which reaches every value through var()', (probe) => {
+    expect(inlineStyleLiteralsIn('probe.tsx', probe)).toEqual([])
   })
 
   it('leaves literals outside a style prop alone, which the portraits need', () => {
@@ -745,6 +772,18 @@ describe('the NFR23 literal guard, inside a component', () => {
     const found = inlineStyleLiteralsIn('probe.tsx', `\n\n\n<div style={{ width: '10px' }} />`)
 
     expect(found[0]?.line).toBe(4)
+  })
+
+  it('counts the lines a // comment sits on, so an offence is not reported early', () => {
+    // `^\s*//` consumes the newline that ends the *previous* line, so every
+    // offence below a comment that follows a blank line was reported one line
+    // too high — and a guard that names the wrong line sends the reader to
+    // innocent code.
+    const probe = ['const a = 1', '', '// why this is here', `<div style={{ width: '10px' }} />`].join(
+      '\n'
+    )
+
+    expect(inlineStyleLiteralsIn('probe.tsx', probe)[0]?.line).toBe(4)
   })
 
   it('finds no inline-style literal in any component today', () => {

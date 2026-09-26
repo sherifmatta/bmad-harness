@@ -19,7 +19,19 @@ const windowTitles: string[] = []
 const choosesMade: unknown[] = []
 const quits: string[] = []
 
+/** Close every open window the way Electron does — `closed` fires, then they are gone. */
+function closeAllWindows(): void {
+  for (const window of constructedWindows.splice(0)) {
+    for (const handler of window.closedHandlers) {
+      handler()
+    }
+  }
+  openWindows = []
+}
+
 let openWindows: unknown[] = []
+/** Every window the mock has built, so closing them can be modelled faithfully. */
+const constructedWindows: { closedHandlers: (() => void)[] }[] = []
 let chooserAnswer: { canceled: boolean; filePaths: string[] } = {
   canceled: true,
   filePaths: []
@@ -29,12 +41,19 @@ let nextWebContentsId = 1
 vi.mock('electron', () => {
   class BrowserWindow {
     webContents = { id: nextWebContentsId++, on() {} }
+    closedHandlers: (() => void)[] = []
 
     constructor(options: { title: string }) {
       windowTitles.push(options.title)
+      constructedWindows.push(this)
     }
 
-    on() {}
+    on(event: string, handler: () => void) {
+      if (event === 'closed') {
+        this.closedHandlers.push(handler)
+      }
+    }
+
     once() {}
     show() {}
     loadURL() {}
@@ -102,7 +121,11 @@ it('opens nothing on activate while a window is already open', async () => {
 })
 
 it('opens one on activate when none is open', async () => {
-  openWindows = []
+  // Emptying `getAllWindows()` alone would only model half a close: in Electron
+  // a window that is gone has emitted `closed`, which is what releases it from
+  // the one-window-per-project index. Without firing it, the next open for the
+  // same project is correctly answered with the window that just went away.
+  closeAllWindows()
   chooserAnswer = { canceled: false, filePaths: [projectDirectory] }
 
   appHandlers.get('activate')?.()

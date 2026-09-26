@@ -2,10 +2,17 @@ import { basename, join } from 'node:path'
 import { BrowserWindow } from 'electron'
 
 /**
- * One window per project, keyed by its `WebContents` id so the preload's
- * `getProjectPath` answers for the window that asked.
+ * The project each open window was opened for, keyed by its `WebContents` id so
+ * the preload's `getProjectPath` answers for the window that asked.
  */
 const projectPathsByWebContents = new Map<number, string>()
+
+/**
+ * The same set of open windows read the other way round. One window per project
+ * is only a boundary if something can be asked whether a project is already
+ * open, and this is the thing that can be asked.
+ */
+const windowsByProjectPath = new Map<string, BrowserWindow>()
 
 /** Chromium's ERR_ABORTED: a navigation cancelled or replaced, not a failure. */
 const ABORTED = -3
@@ -15,8 +22,17 @@ export function projectPathForWebContents(webContentsId: number): string | undef
   return projectPathsByWebContents.get(webContentsId)
 }
 
-/** Open the single window for one project. */
+/**
+ * Open the single window for one project, or hand back the one already open for
+ * it. The caller asked for that project's window; when there is one, that is
+ * the answer, and a second window on the same project is not.
+ */
 export function createProjectWindow(projectPath: string): BrowserWindow {
+  const openWindow = windowsByProjectPath.get(projectPath)
+  if (openWindow !== undefined) {
+    return openWindow
+  }
+
   const window = new BrowserWindow({
     show: false,
     // `basename` is empty for a root path, which would leave the window
@@ -32,8 +48,12 @@ export function createProjectWindow(projectPath: string): BrowserWindow {
 
   const webContentsId = window.webContents.id
   projectPathsByWebContents.set(webContentsId, projectPath)
+  windowsByProjectPath.set(projectPath, window)
+  // Both indexes, or the next call for this project is handed a destroyed
+  // window instead of opening a live one.
   window.on('closed', () => {
     projectPathsByWebContents.delete(webContentsId)
+    windowsByProjectPath.delete(projectPath)
   })
 
   // The window names its project; the document's own <title> does not win.

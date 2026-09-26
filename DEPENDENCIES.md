@@ -73,6 +73,23 @@ moved on their own as long as `npm run lint`, `npm run typecheck`,
 | `@types/react-dom` | 19.3.0 | tracks the React pin |
 | `@types/node` | 24.19.0 | satisfies Electron 44's `@types/node ^24.9.0` and Vitest 5's `^22 \|\| >=24`, and matches the Node 24 runtime Electron 44 bundles — one copy in the tree rather than two |
 | `@types/markdown-it` | 14.2.0 | markdown-it 15 ships its own `.d.cts` types and wins resolution, so this is belt-and-braces only; drop it if it ever conflicts |
+| `husky` | 9.1.7 | the pre-commit gate — tooling only, not part of the pinned application stack, and not shipped in any bundle |
+
+`husky` is the one row here that nothing builds, lints or typechecks against:
+it exists so that the guards this repository already owns run without anyone
+choosing to run them. It is not in `scripts/check-pins.mjs`'s `PINS` — that
+object is the twelve NFR11 rows and stays that — but it is pinned exactly like
+everything else, because `.npmrc` sets `save-exact=true` and a hook that
+behaves differently on two machines is worse than no hook.
+
+The wiring is two pieces: the `prepare` script runs `husky` on every
+`npm install`, which points `core.hooksPath` at `.husky/_`, and
+`.husky/pre-commit` runs `npm run lint`, `npm run typecheck` and `npm test`.
+`npm run build` is deliberately absent: it is the only one of the four that
+writes to the tree (`out/`, which `npm run dev` serves from), and the only one
+whose cost grows with the renderer. See the comment in `.husky/pre-commit`.
+`.husky/_/` is generated and git-ignores itself, so a fresh clone has no hook
+until `npm install` has run — which is the first command below.
 
 `@swc/core` is not declared here: it is a peer of `electron-vite` satisfied
 transitively by `@vitejs/plugin-react-swc`'s own dependency on it.
@@ -83,11 +100,14 @@ transitively by `@vitejs/plugin-react-swc`'s own dependency on it.
 npm install
 npm ls --all 2>&1 | grep 'UNMET\|invalid' | grep -v 'UNMET OPTIONAL DEPENDENCY'
 node scripts/check-pins.mjs
+git config core.hooksPath
 ```
 
-The second command must print nothing. The `UNMET OPTIONAL DEPENDENCY` lines it
-filters out are the cross-platform prebuilt binaries of `@swc/core` and
-`esbuild` (`*-linux-*`, `*-win32-*`, and the other architectures). They are
-`optionalDependencies` that npm correctly declines to install on this machine,
-they are not peer dependencies, and their absence is the expected state on any
-single platform.
+The second command must print nothing, the third likewise, and the fourth must
+print `.husky/_` — anything else means `npm install` did not run `prepare` and
+this clone commits without the gate. The `UNMET OPTIONAL DEPENDENCY` lines the
+second command filters out are the cross-platform prebuilt binaries of
+`@swc/core` and `esbuild` (`*-linux-*`, `*-win32-*`, and the other
+architectures). They are `optionalDependencies` that npm correctly declines to
+install on this machine, they are not peer dependencies, and their absence is
+the expected state on any single platform.

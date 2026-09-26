@@ -56,6 +56,41 @@ const LITERAL_RULES = [
   }
 ]
 
+/**
+ * The same two declaration rules in JSX's dialect. A `style` prop can only
+ * ever spell these camelCase, so the hyphenated patterns above — which the
+ * whole-tree stylesheet sweep depends on and which must stay exactly as strict
+ * as they are — never fired on a component. These replace them for inline
+ * blocks rather than joining them: `font-family:` is unwritable in a style
+ * object, and the hyphenated patterns run to the next `;` or `}`, which inside
+ * a style prop is the end of the whole block — so a compliant
+ * `{ font: 'var(--mono)', color: 'var(--ink)' }` read back as a literal
+ * because the *neighbour's* property name landed in the font stack's value.
+ *
+ * Both take the value as a quoted string, which is what makes them stop at the
+ * comma between properties while still spanning the comma inside
+ * `'Menlo, monospace'`. An unquoted value is a JS expression, not a literal:
+ * flagging `fontFamily: tokens.mono` would make the token lookup unwritable,
+ * which is the opposite of what NFR23 asks for. A bare number is the one
+ * exception — `borderRadius: 4` is a literal React renders as `4px`.
+ */
+const JSX_RULES = [
+  {
+    kind: 'font stack',
+    pattern: /\bfont(?:Family)?\s*:\s*(?:'[^'\n]*'|"[^"\n]*")/g
+  },
+  {
+    kind: 'radius',
+    pattern: /\bborder(?:(?:Top|Bottom)(?:Left|Right))?Radius\s*:\s*(?:'[^'\n]*'|"[^"\n]*"|-?\d*\.?\d+)/g
+  }
+]
+
+/** The rules that read a whole declaration, and so need the per-value exemption. */
+const DECLARATION_KINDS = new Set(['font stack', 'radius'])
+
+/** The property-agnostic rules, which fire on a value wherever it is spelled. */
+const VALUE_RULES = LITERAL_RULES.filter(({ kind }) => !DECLARATION_KINDS.has(kind))
+
 /** A declaration's literal half, with every `var(…)` reference removed. */
 function withoutReferences(value: string): string {
   return value.replace(/var\(\s*--[\w-]+\s*(?:,[^()]*(?:\([^()]*\))?)?\)/g, ' ')
@@ -63,20 +98,21 @@ function withoutReferences(value: string): string {
 
 type Literal = { file: string; line: number; kind: string; text: string }
 
-export function literalsIn(file: string, css: string): Literal[] {
-  const source = withoutComments(css)
+type Rule = { kind: string; pattern: RegExp }
+
+function scan(file: string, text: string, rules: Rule[]): Literal[] {
+  const source = withoutComments(text)
   const found: Literal[] = []
 
-  for (const { kind, pattern } of LITERAL_RULES) {
+  for (const { kind, pattern } of rules) {
     for (const match of source.matchAll(pattern)) {
       // The exemption is per value, not per declaration: `font-family:
       // var(--mono), Menlo` and `border-radius: 4px var(--r)` each carry a
       // literal that a whole-declaration lookahead waved through.
       const remainder = withoutReferences(match[0])
-      const carriesLiteral =
-        kind === 'font stack' || kind === 'radius'
-          ? /[a-zA-Z0-9#]/.test(remainder.replace(/^[^:]*:/, ''))
-          : true
+      const carriesLiteral = DECLARATION_KINDS.has(kind)
+        ? /[a-zA-Z0-9#]/.test(remainder.replace(/^[^:]*:/, ''))
+        : true
       if (!carriesLiteral) {
         continue
       }
@@ -91,6 +127,10 @@ export function literalsIn(file: string, css: string): Literal[] {
   }
 
   return found.sort((a, b) => a.line - b.line)
+}
+
+export function literalsIn(file: string, css: string): Literal[] {
+  return scan(file, css, LITERAL_RULES)
 }
 
 function stylesheetsUnder(dir: string): string[] {
@@ -153,11 +193,15 @@ function inlineStyleBlocks(source: string): { body: string; index: number }[] {
  * hex by design, and a blanket scan would make those unwritable.
  */
 export function inlineStyleLiteralsIn(file: string, source: string): Literal[] {
-  const text = withoutComments(source).replace(/^\s*\/\/.*$/gm, '')
+  // Horizontal whitespace only: `\s*` would consume the newline that ends the
+  // line above, and every offence below the comment would be reported a line
+  // too high — a guard that names the wrong line sends the reader to innocent
+  // code.
+  const text = withoutComments(source).replace(/^[ \t]*\/\/.*$/gm, '')
 
   return inlineStyleBlocks(text).flatMap(({ body, index }) => {
     const before = text.slice(0, index).split('\n').length - 1
-    return literalsIn(file, body).map((literal) => ({
+    return scan(file, body, [...VALUE_RULES, ...JSX_RULES]).map((literal) => ({
       ...literal,
       line: literal.line + before
     }))
