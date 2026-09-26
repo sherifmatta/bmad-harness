@@ -114,3 +114,66 @@ export function guardedStylesheets(): string[] {
     .filter((path) => path !== TOKENS)
     .map((path) => relative(ROOT, path))
 }
+
+/**
+ * The contents of every `style={{ … }}` prop, brace-balanced so a nested object
+ * or a template expression inside the prop does not end the block early.
+ */
+function inlineStyleBlocks(source: string): { body: string; index: number }[] {
+  const blocks: { body: string; index: number }[] = []
+  const opener = /style\s*=\s*\{\{/g
+  let match: RegExpExecArray | null
+
+  while ((match = opener.exec(source)) !== null) {
+    const from = match.index + match[0].length
+    let depth = 2
+    let at = from
+
+    while (at < source.length && depth > 0) {
+      if (source[at] === '{') {
+        depth += 1
+      } else if (source[at] === '}') {
+        depth -= 1
+      }
+      at += 1
+    }
+
+    // An unbalanced prop runs to end-of-file; report what there is rather than
+    // skipping it, so a typo cannot hide a literal from the sweep.
+    blocks.push({ body: source.slice(from, depth === 0 ? at - 2 : at), index: from })
+    opener.lastIndex = at
+  }
+
+  return blocks
+}
+
+/**
+ * Literals restated inside a component's `style` props. Deliberately *not* a
+ * scan of the whole file: curated palettes elsewhere in a `.tsx` are literal
+ * hex by design, and a blanket scan would make those unwritable.
+ */
+export function inlineStyleLiteralsIn(file: string, source: string): Literal[] {
+  const text = withoutComments(source).replace(/^\s*\/\/.*$/gm, '')
+
+  return inlineStyleBlocks(text).flatMap(({ body, index }) => {
+    const before = text.slice(0, index).split('\n').length - 1
+    return literalsIn(file, body).map((literal) => ({
+      ...literal,
+      line: literal.line + before
+    }))
+  })
+}
+
+/** Every component the inline-style guard governs, repo-relative. */
+export function componentsUnder(): string[] {
+  return sourcesUnder(RENDERER)
+    .filter((path) => path.endsWith('.tsx'))
+    .map((path) => relative(ROOT, path))
+}
+
+function sourcesUnder(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name)
+    return entry.isDirectory() ? sourcesUnder(path) : [path]
+  })
+}

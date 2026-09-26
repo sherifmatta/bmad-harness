@@ -28,7 +28,7 @@ let nextWebContentsId = 1
 
 vi.mock('electron', () => {
   class BrowserWindow {
-    webContents = { id: nextWebContentsId++ }
+    webContents = { id: nextWebContentsId++, on() {} }
 
     constructor(options: { title: string }) {
       windowTitles.push(options.title)

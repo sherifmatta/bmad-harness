@@ -17,7 +17,7 @@ const browserWindowConstructed = vi.fn()
 
 vi.mock('electron', () => {
   class BrowserWindow {
-    webContents = { id: 1 }
+    webContents = { id: 1, on() {} }
     constructor(options: unknown) {
       browserWindowConstructed(options)
     }

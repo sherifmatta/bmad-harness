@@ -2,7 +2,14 @@ import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-import { allStylesheets, guardedStylesheets, literalsIn, withoutComments } from './literal-guard'
+import {
+  allStylesheets,
+  componentsUnder,
+  guardedStylesheets,
+  inlineStyleLiteralsIn,
+  literalsIn,
+  withoutComments
+} from './literal-guard'
 
 /**
  * The visual contract, asserted by command rather than by reading.
@@ -492,6 +499,14 @@ describe('the motion inventory', () => {
 })
 
 describe('the theme decision', () => {
+  it('declares the dark colour scheme, so the UA paints its own chrome dark', () => {
+    // NFR15 is dark only, and a dark palette alone does not reach form
+    // controls, scrollbars, caret or text selection — the user agent paints
+    // those, and without this declaration it paints them light on top of a
+    // #101317 ground. Distinct from a theme *branch*, which line 496 forbids.
+    expect(withoutComments(tokensCss)).toMatch(/\bcolor-scheme\s*:\s*dark\b/)
+  })
+
   it('branches on no theme media query at all', () => {
     for (const branch of ['prefers-color-scheme', 'prefers-contrast', 'forced-colors']) {
       expect(tokensCss, `${branch} must not appear: NFR15 is dark only`).not.toContain(branch)
@@ -672,5 +687,75 @@ describe('the NFR23 literal guard', () => {
     expect(
       offences.map(({ file, line, kind, text }) => `${file}:${line} ${kind} ${text}`)
     ).toEqual([])
+  })
+})
+
+/**
+ * NFR23's other half. The guard above governs `.css`, which is only the whole
+ * story while every surface is written as a stylesheet — and Story 1.3 recorded
+ * that as an open dependency on however Story 1.9 chooses to carry style. A
+ * component that writes `style={{ color: '#7fa6e8' }}` restates the contract
+ * just as surely as a stylesheet would, and nothing saw it.
+ *
+ * Scoped to the inside of `style` props on purpose: a blanket scan of `.tsx`
+ * would fire on Story 1.6's portrait palettes, which are literal hex in source
+ * by design. Vacuous against the tree today — no component carries an inline
+ * style — so the probes are what prove it is wired.
+ */
+const CLEAN_COMPONENT = `
+export function Rail(): JSX.Element {
+  return <div style={{ flexBasis: 'var(--rail)', background: 'var(--panel)' }} />
+}
+`
+
+const PORTRAIT_COMPONENT = `
+// Curated palettes are literal hex in source by design — see Story 1.6.
+const SKIN = '#c98d6b'
+const SIZES = [32, 36, 38, 44]
+export function Portrait(): JSX.Element {
+  return <svg viewBox="0 0 100 100"><circle fill={SKIN} r="40" /></svg>
+}
+`
+
+describe('the NFR23 literal guard, inside a component', () => {
+  it('passes a style prop that reaches every value through var()', () => {
+    expect(inlineStyleLiteralsIn('probe.tsx', CLEAN_COMPONENT)).toEqual([])
+  })
+
+  it.each([
+    ['hex colour', `<div style={{ color: '#7fa6e8' }} />`],
+    ['colour function', `<div style={{ background: 'rgba(127,166,232,.12)' }} />`],
+    ['dimension', `<div style={{ flexBasis: '348px' }} />`],
+    ['dimension', `<div style={{ outline: '2px solid red' }} />`],
+    ['dimension', `<div style={{ marginRight: '-5px' }} />`]
+  ])('catches a literal %s restated in a style prop', (kind, probe) => {
+    const found = inlineStyleLiteralsIn('probe.tsx', probe)
+
+    expect(found.length, probe).toBeGreaterThan(0)
+    expect(found.map((literal) => literal.kind)).toContain(kind)
+  })
+
+  it('leaves literals outside a style prop alone, which the portraits need', () => {
+    // A blanket .tsx scan would make Story 1.6 unbuildable. This must stay
+    // empty for as long as that remains true.
+    expect(inlineStyleLiteralsIn('portrait.tsx', PORTRAIT_COMPONENT)).toEqual([])
+  })
+
+  it('reports the line the style prop sits on, not the line of its block', () => {
+    const found = inlineStyleLiteralsIn('probe.tsx', `\n\n\n<div style={{ width: '10px' }} />`)
+
+    expect(found[0]?.line).toBe(4)
+  })
+
+  it('finds no inline-style literal in any component today', () => {
+    const offences = componentsUnder().flatMap((path) =>
+      inlineStyleLiteralsIn(path, readFileSync(join(ROOT, path), 'utf8'))
+    )
+
+    expect(offences.map((literal) => `${literal.file}:${literal.line} ${literal.text}`)).toEqual([])
+  })
+
+  it('governs the components that exist, so the sweep is not looking at nothing', () => {
+    expect(componentsUnder()).toContain('src/renderer/ui/app.tsx')
   })
 })

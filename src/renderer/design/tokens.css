@@ -43,6 +43,15 @@
  * because this file styles no component.
  */
 :root {
+  /* ── Dark only (NFR15), stated to the user agent and not just to the
+     stylesheet. The palette below covers what this document paints; it does
+     not reach what the browser paints for it — form controls, scrollbars, the
+     caret and text selection — which stay light against a #101317 ground
+     until `color-scheme` says otherwise. This is the declaration, not a theme
+     *branch* — no theme media query appears in this file, and the test below
+     reads this comment too, so it must not name one either. */
+  color-scheme: dark;
+
   /* ── The missing token (UX-DR2). Not copied — added. The mockup writes the
      accent hex literally into stateDot("note"); this separates blue-as-state
      from blue-as-accent. Used by the persona-tile note dot and nothing else,

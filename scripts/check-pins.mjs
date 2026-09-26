@@ -37,12 +37,42 @@ const COMPANIONS = { 'react-dom': '19.3.0' }
 
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/
 
+/** Exit with a stated reason. A stack trace is silence wearing a longer coat. */
+function fail(reason) {
+  console.error(`cannot check the pinned stack: ${reason}`)
+  process.exit(1)
+}
+
 function readJson(relativePath) {
-  return JSON.parse(readFileSync(join(repositoryRoot, relativePath), 'utf8'))
+  let text
+  try {
+    text = readFileSync(join(repositoryRoot, relativePath), 'utf8')
+  } catch (error) {
+    fail(
+      error.code === 'ENOENT'
+        ? `${relativePath} is missing — run \`npm install\` to generate it`
+        : `${relativePath} could not be read (${error.code ?? error.message})`
+    )
+  }
+  try {
+    return JSON.parse(text)
+  } catch {
+    return fail(`${relativePath} is not valid JSON`)
+  }
 }
 
 const packageJson = readJson('package.json')
 const lockfile = readJson('package-lock.json')
+
+// lockfileVersion 1 carries `dependencies`, not `packages`. Without this every
+// pin reads as "absent from package-lock.json" and the script reports a dozen
+// drifts that are not there, which is worse than saying what is actually wrong.
+if (lockfile.packages === undefined) {
+  fail(
+    `package-lock.json has no \`packages\` map (lockfileVersion ${lockfile.lockfileVersion ?? 'unknown'})` +
+      ' — regenerate it with npm 7 or newer'
+  )
+}
 
 const declared = {
   ...packageJson.dependencies,

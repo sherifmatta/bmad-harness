@@ -12,33 +12,6 @@ context: []
 warnings: ['oversized']
 deferred:
   - summary: >-
-      Nothing declares `color-scheme: dark`, so a dark-only product renders light
-      form controls, scrollbars and text selection until a shell stylesheet exists.
-    evidence: |-
-      `grep -rn 'color-scheme' src/ _bmad/planning-artifacts` finds nothing. NFR15
-      forbids a theme *branch*, not this declaration, and `:root { color-scheme: dark }`
-      would pass this story's "no component styling" boundary — but the gap predates
-      this change and the story's acceptance criteria are a closed list that does not
-      reach it. It belongs with the first `body` rule.
-    location: >-
-      src/renderer/design/tokens.css
-    severity: medium
-  - summary: >-
-      The NFR23 literal guard governs `.css` files only, so its coverage depends on
-      Story 1.9 choosing plain stylesheets over CSS-in-JS or inline styles.
-    evidence: |-
-      `literalsIn()` is run over `stylesheetsUnder('src/renderer')`; the sweep is
-      vacuous today (tokens.css is the only stylesheet) and the probes are what prove
-      the matcher works. `.tsx` is excluded deliberately — Story 1.6's portrait
-      palettes are literal hex in source by design — but if the shell carries style in
-      `style={{}}` props or a CSS-in-JS runtime instead, the story's "a literal in a
-      component becomes a detectable defect" is unenforced with the suite still green.
-      Story 1.9 should either write plain `.css` or extend the guard to whatever it
-      chooses.
-    location: >-
-      tests/tokens.test.ts
-    severity: medium
-  - summary: >-
       Hairline border widths and the three inset-rule shadows have no token, so the
       first component stylesheet meets a guard failure with nothing to reach for.
     evidence: |-
@@ -53,6 +26,33 @@ deferred:
     location: >-
       src/renderer/design/tokens.css
     severity: low
+  - summary: >-
+      RESOLVED 2026-09-26 — `color-scheme: dark` is now declared on `:root`.
+    evidence: |-
+      `src/renderer/design/tokens.css` declares `color-scheme: dark` in its second
+      `:root`, so the user agent paints form controls, scrollbars, caret and text
+      selection dark rather than light against the `#101317` ground. It is the
+      declaration, not a theme branch — no theme media query appears in the file and
+      the existing assertion forbidding one still passes. Asserted by
+      `tests/tokens.test.ts` → "declares the dark colour scheme"; verified in the
+      built bundle.
+    location: >-
+      src/renderer/design/tokens.css
+    severity: medium
+  - summary: >-
+      RESOLVED 2026-09-26 — the NFR23 literal guard now reaches inline `style` props.
+    evidence: |-
+      `inlineStyleLiteralsIn()` in `tests/literal-guard.ts` scans the brace-balanced
+      contents of every `style={{ … }}` prop under `src/renderer/` for the same
+      literal classes the stylesheet guard uses, so a component restating a colour or
+      a dimension is a detectable defect whichever way Story 1.9 carries style. It is
+      deliberately scoped to the inside of the prop rather than the whole `.tsx`,
+      because Story 1.6's portrait palettes are literal hex in source by design — a
+      probe asserts those stay untouched. Vacuous against the tree today and proven by
+      in-memory probes, the same shape as the stylesheet guard.
+    location: >-
+      tests/literal-guard.ts
+    severity: medium
 ---
 
 <intent-contract>
