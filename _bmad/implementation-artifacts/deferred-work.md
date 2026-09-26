@@ -32,7 +32,3 @@
 - source_spec: `_bmad/implementation-artifacts/spec-deferred-cleanup-lint-gate-window-guard-jsx-fonts.md`
   summary: The one-window-per-project index keys on the raw path string, so two spellings of one directory are two projects.
   evidence: `src/main/windows/main-window.ts` keys `windowsByProjectPath` on the string it is handed. A trailing slash, a symlinked route, or a differing case on a case-insensitive volume would each open a second window on the same project — the boundary the index exists to hold. Unreachable today: the only caller passes a path straight from the chooser or `argv`, and one window is opened per process anyway. Normalising it changes what `projectPathForWebContents` answers with and therefore what crosses the preload, so it belongs with Story 1.12's second window rather than ahead of it.
-
-- source_spec: `_bmad/implementation-artifacts/spec-deferred-cleanup-lint-gate-window-guard-jsx-fonts.md`
-  summary: The inline-style guard's rule split is held together by matching `kind` strings, which nothing checks.
-  evidence: `tests/literal-guard.ts` derives `VALUE_RULES` by filtering `LITERAL_RULES` on a `DECLARATION_KINDS` set of `kind` names. Renaming a rule's `kind` — a change that looks cosmetic — would silently drop it from the inline sweep while the stylesheet sweep stayed green, so a component could restate a colour with the suite passing. A test asserting the two sets partition `LITERAL_RULES` exactly would close it; it was out of scope for an item whose brief was the camelCase spellings.

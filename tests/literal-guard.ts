@@ -91,6 +91,20 @@ const DECLARATION_KINDS = new Set(['font stack', 'radius'])
 /** The property-agnostic rules, which fire on a value wherever it is spelled. */
 const VALUE_RULES = LITERAL_RULES.filter(({ kind }) => !DECLARATION_KINDS.has(kind))
 
+/**
+ * The `kind` carried by each rule set. Exported so the split above can be
+ * asserted rather than assumed: `DECLARATION_KINDS` is matched against these
+ * strings in two places — it selects `VALUE_RULES`, and it decides which rules
+ * get the per-value `var()` exemption — so renaming a `kind`, which reads as a
+ * cosmetic change, silently moves a rule between sets in both.
+ */
+export const RULE_KINDS = {
+  literal: LITERAL_RULES.map(({ kind }) => kind),
+  declaration: [...DECLARATION_KINDS],
+  value: VALUE_RULES.map(({ kind }) => kind),
+  jsx: JSX_RULES.map(({ kind }) => kind)
+}
+
 /** A declaration's literal half, with every `var(…)` reference removed. */
 function withoutReferences(value: string): string {
   return value.replace(/var\(\s*--[\w-]+\s*(?:,[^()]*(?:\([^()]*\))?)?\)/g, ' ')

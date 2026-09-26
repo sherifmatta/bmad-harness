@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import {
+  RULE_KINDS,
   allStylesheets,
   componentsUnder,
   guardedStylesheets,
@@ -796,5 +797,46 @@ describe('the NFR23 literal guard, inside a component', () => {
 
   it('governs the components that exist, so the sweep is not looking at nothing', () => {
     expect(componentsUnder()).toContain('src/renderer/ui/app.tsx')
+  })
+})
+
+/**
+ * The two sweeps share one list of rules and disagree about it by design: the
+ * stylesheet sweep runs all of `LITERAL_RULES`, the inline sweep swaps the two
+ * declaration-shaped rules for their camelCase dialect. `DECLARATION_KINDS` is
+ * what performs that swap, and it does so by matching `kind` strings — in two
+ * places, once to select the value rules and once to decide which rules get the
+ * per-value `var()` exemption.
+ *
+ * So renaming a `kind` is not cosmetic. A renamed declaration rule falls into
+ * the value set, where it is applied to inline blocks it was never written for
+ * *and* loses its exemption, so `border-radius: var(--r)` starts reporting as a
+ * literal. Nothing about that is visible at the call site, and both sweeps stay
+ * green on the tree as it is today.
+ */
+describe('the guard rule sets', () => {
+  it('names only kinds that exist, so a rename cannot leave the set pointing at nothing', () => {
+    for (const kind of RULE_KINDS.declaration) {
+      expect(RULE_KINDS.literal, `DECLARATION_KINDS names "${kind}"`).toContain(kind)
+    }
+  })
+
+  it('partitions the rules: every rule is a value rule or a declaration rule, never both', () => {
+    expect([...RULE_KINDS.value, ...RULE_KINDS.declaration].sort()).toEqual(
+      [...RULE_KINDS.literal].sort()
+    )
+    expect(RULE_KINDS.value.filter((kind) => RULE_KINDS.declaration.includes(kind))).toEqual([])
+  })
+
+  it('gives every declaration-shaped rule a camelCase counterpart, and no others', () => {
+    // A declaration rule with no JSX dialect leaves that spelling unguarded
+    // inside a style prop; a JSX rule whose kind is not declaration-shaped
+    // loses the var() exemption and reports compliant values as literals.
+    expect([...RULE_KINDS.jsx].sort()).toEqual([...RULE_KINDS.declaration].sort())
+  })
+
+  it('is not vacuous: both sets carry rules', () => {
+    expect(RULE_KINDS.value.length).toBeGreaterThan(0)
+    expect(RULE_KINDS.declaration.length).toBeGreaterThan(0)
   })
 })
