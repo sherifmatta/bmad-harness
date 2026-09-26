@@ -1,0 +1,233 @@
+  :root{
+    --bg:#101317;
+    --chrome:#14181d;
+    --panel:#171b21;
+    --panel-2:#1b2027;
+    --panel-3:#20262e;
+    --line:#272d36;
+    --line-soft:#1f242c;
+    --text:#dce2ea;
+    --text-strong:#f1f4f8;
+    --dim:#96a0ad;
+    --faint:#6b7480;
+    --accent:#7fa6e8;    --accent-bg:rgba(127,166,232,.12);
+    --green:#6aa87f;
+    --amber:#c6a350;
+    --red:#c47c72;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --r:5px;
+  }
+
+/*
+ * The block above is harness-mockup.html's `:root`, lines 8-27, copied
+ * byte-for-byte and in source order — its two-space indentation and its
+ * two-declarations-on-one-line `--accent`/`--accent-bg` row included. It starts
+ * at byte 0 so that tests/tokens.test.ts can compare it against the mockup it
+ * was taken from with `startsWith`. UX-DR1: it is not a starting point to be
+ * tuned. Nothing below may restate `--red`, `--mono`, `--sans` or `--r`.
+ *
+ * Everything from here down is a *second* `:root`, so the verbatim block stays
+ * byte-comparable forever. Values are authoritative from DESIGN.md's
+ * frontmatter (ux-bmad-harness-2026-09-24), which is itself derived from the
+ * mockup; where the two disagree DESIGN.md wins, except inside the block above,
+ * where the mockup is the source by definition.
+ *
+ * This is the whole visual contract, and the one file entitled to literals.
+ * NFR23: a literal colour, dimension, radius or font stack anywhere else under
+ * src/renderer/ is a defect, and tests/tokens.test.ts is what detects one.
+ *
+ * Dark only — NFR15. One palette, one theme, no branch on any theme media
+ * query and no high-contrast variant. No focus ring here either: Story 1.4
+ * owns that.
+ */
+:root {
+  /* ── The missing token (UX-DR2). Not copied — added. The mockup writes the
+     accent hex literally into stateDot("note"); this separates blue-as-state
+     from blue-as-accent. Used by the persona-tile note dot and nothing else,
+     and that dot may not use --accent. */
+  --note:#7f9ce8;
+
+  /* ── The friction tone (UX-DR3). Separate from --red by decision, never
+     derived from it: red is failure, disagree is someone pushing back. */
+  --disagree:#d0968c;
+  --disagree-border:rgba(196,124,114,.3);
+  --disagree-bg:rgba(196,124,114,.09);
+
+  /* ── Promoted literals (UX-DR4). Each already exists in the mockup as a
+     hardcoded value a component would otherwise have to restate. */
+  --accent-border:#33455f;
+  --accent-wash:rgba(127,166,232,.045);
+  --accent-edge:rgba(127,166,232,.45);
+  --halo-live:rgba(106,168,127,.14);
+  --halo-work:rgba(198,163,80,.13);
+  --meta:#5b636e;
+  --ink-doc:#b9c4d1;
+  --ink-doc-strong:#e4ebf3;
+  --ink-doc-mute:#6e7783;
+  --ink-md:#cdd6e0;
+  --code-bg:#1c2128;
+  --code-ink:#c3cedd;
+  --initials-bg:#2b333d;
+  --initials-line:#39424e;
+  --initials-ink:#aab4c1;
+  --win-line:#333b46;
+  --scrim:rgba(8,10,13,.55);
+  --legend-badge:#c9a78a;
+  --legend-badge-bg:rgba(201,167,138,.08);
+  --legend-badge-border:rgba(201,167,138,.3);
+
+  /* ── Type scale (UX-DR5). Thirteen distinct sizes, 9px to 20px, over the two
+     platform stacks above. Fourteen roles: `doc-prose` and `body-ui` are both
+     11.5px and are separated by line-height (1.72 vs 1.55), not by size, so
+     document prose is spelled var(--fs-body-ui) with var(--lh-read).
+     Half-point steps are real — 11px and 11.5px are different roles. */
+  --fs-badge:9px;
+  --fs-micro:9.5px;
+  --fs-meta:10px;
+  --fs-label:10.5px;
+  --fs-ident:11px;
+  --fs-body-ui:11.5px;
+  --fs-control:12px;
+  --fs-name:12.5px;
+  --fs-base:13px;
+  --fs-doc-read:13.5px;
+  --fs-head:14px;
+  --fs-h2:14.5px;
+  --fs-h1:20px;
+
+  /* Four line-heights. --lh-base everywhere by default, --lh-read for both
+     reading measures, --lh-tight for the open-question block and the decision
+     option, --lh-none on the portrait wrapper to kill descender space. */
+  --lh-base:1.55;
+  --lh-read:1.72;
+  --lh-tight:1.45;
+  --lh-none:0;
+
+  /* Tracking makes small type readable and marks a label as a label, never
+     style. Uppercase appears only on rail heads, side-section heads, the legend
+     badge, markdown h3 and table headers — which is what --track-caps is for.
+     It is deliberately not called --track-head: that would pair by name with
+     --fs-head, the 14px chat-header name, whose tracking is --track-control. */
+  --track-caps:.09em;
+  --track-badge:.08em;
+  --track-skill-label:.07em;
+  --track-skill-code:.05em;
+  --track-micro:.04em;
+  --track-md-h3:.03em;
+  --track-brand:.02em;
+  --track-control:.01em;
+  --track-h1:-.01em;
+
+  /* 600 is the only non-default weight in the system. No 500, no 700, no
+     light. Emphasis is one step of weight or one step up the text ramp, never
+     both and never a colour. */
+  --weight-strong:600;
+
+  /* ── Radius family (UX-DR6). Ten values by role, counting --r (5px) above as
+     the DEFAULT. Radius encodes what kind of object a thing is, on a ladder
+     from text-with-a-ground to a window; none is an alias of another and none
+     may be normalised away. --radius-pill is the handoff chip and nothing
+     else; --radius-full is reserved for things standing for a person or a
+     light. */
+  --radius-hairline:1px;
+  --radius-micro:2px;
+  --radius-chip:3px;
+  --radius-control:4px;
+  --radius-card:6px;
+  --radius-window:8px;
+  --radius-scrollbar:10px;
+  --radius-full:50%;
+  --radius-pill:99px;
+
+  /* ── Spacing ladder (UX-DR7). Gaps in use, nothing more. Padding is
+     deliberately not on a scale — the mockup tunes 34 distinct combinations to
+     a dense optical rhythm — and must not be regularised. */
+  --space-hair:1.5px;
+  --space-xxs:4px;
+  --space-xs:5px;
+  --space-sm:6px;
+  --space-sm-plus:7px;
+  --space-md:8px;
+  --space-md-plus:9px;
+  --space-lg:10px;
+  --space-xl:12px;
+  --space-xxl:14px;
+
+  /* ── Binding layout constants (UX-DR7), equal in force to the colours. Each
+     keeps its surface's own name. Component dimensions — the 6px status dot,
+     the 56px tile, portrait sizes, card paddings — are not here; they belong to
+     the stories that build those components. */
+  --rail:348px;
+  --topbar:42px;
+  --rail-head:30px;
+  --thread-max:940px;
+  --party-thread-max:900px;
+  --chat-sub-max:72ch;
+  --doc-read-max:70ch;
+  --win-width:min(880px,92vw);
+  --win-height:min(760px,80vh);
+  --win-titlebar:36px;
+  --win-foot:28px;
+  --card-body-max:230px;
+  --composer-min:20px;
+  --composer-max:120px;
+  /* UX-DR8: the party side panel is 240px — decided. The wider literal the
+     architecture named is superseded by the Room-only ruling and must not be
+     implemented, and the panel must not reserve slots for the deferred
+     sections. */
+  --party-side:240px;
+
+  /* ── Elevation (UX-DR10). Depth is tonal, not cast: the five-step surface
+     ramp *is* the elevation system. There is no elevation scale, no z1/z2/z3,
+     and no hover-lift. Exactly two z-indexes exist, and a surface that needs a
+     third is a window and is built as one. */
+  --z-scrim:40;
+  --z-window:50;
+
+  /* Shadows exist for exactly three jobs: state halos (a dot reading as lit,
+     not as raised), inset rules (edges drawn with a shadow), and the document
+     window's true separation. The speaking cast card gets the restrained
+     version because it must read as lifted out of a row of dimmed peers. */
+  --shadow-halo-live:0 0 0 3px var(--halo-live);
+  --shadow-halo-work:0 0 0 3px var(--halo-work);
+  --shadow-window:0 30px 70px -20px rgba(0,0,0,.85);
+  --shadow-speaking:0 0 0 1px rgba(127,166,232,.22), 0 6px 18px -10px rgba(0,0,0,.8);
+
+  /* Presence and absence are opacity, never removal (UX-DR11). A persona who
+     is not speaking is still in the room. Within the text ramp, hierarchy
+     comes from which tier is picked, never from opacity. */
+  --opacity-idle:.42;
+  --opacity-hover:.72;
+  --opacity-mark:.75;
+  --opacity-speaking:1;
+
+  /* The only two gradients in the product (UX-DR13): the cast strip and the
+     document window's titlebar. No other gradient, and no shadow carrying
+     hue. */
+  --grad-cast:linear-gradient(180deg,#151920,#12161b);
+  --grad-titlebar:linear-gradient(180deg,#232a33,#1d232b);
+
+  /* ── The motion inventory (UX-DR12), closed at five declarations, each bound
+     to a real event: a turn in flight, a caret at the tail of prose being
+     written, who is speaking now, a tile's menu hint opening, and the speaker
+     changing. No easing library, no spring, no entrance animation, no
+     skeleton, no spinner — at any point, in any state. */
+  --motion-pulse:pulse 1.5s ease-in-out infinite;
+  --motion-blink:blink 1.05s steps(1) infinite;
+  --motion-eq:eq .9s ease-in-out infinite;
+  --motion-reveal:.16s ease;
+  --motion-cast:.25s ease;
+}
+
+/* The three keyframes the inventory names, copied from the mockup. `blink` is
+   steps(1) and must stay so: the caret is hard on/off, never a fade. */
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes blink{50%{opacity:0}}
+@keyframes eq{0%,100%{height:3px}50%{height:8px}}
+
+/* NFR17 and UX-DR12: global, no exceptions, no "essential motion" carve-out. Every
+   fact carried by motion is therefore also legible with motion off. */
+@media (prefers-reduced-motion:reduce){
+  *{animation:none !important;transition:none !important}
+}
