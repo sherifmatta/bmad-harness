@@ -1,0 +1,131 @@
+/*
+ * The run note — UX-DR20, FR40, DESIGN.md's `components.run-note` block and
+ * its prose. The anatomy of one note, wherever it appears; the document card
+ * that will contain the feed is Epic 3's and is not here.
+ *
+ * Every value reaches the design system through `var()`. This file is swept by
+ * `guardedStylesheets()` the moment it exists — it is the first component
+ * stylesheet in the repo, and so the first real file the Story 1.3 literal
+ * guard has ever had to govern. The only bare values below are the ones that
+ * carry no design decision: zero, the flexible track, and CSS keywords. The
+ * comments are held to the same rule and name no dimension either, so the
+ * whole file reads clean under a units grep and not only under the guard.
+ *
+ * No media query. NFR27 fixes the product at two breakpoints, so the binding
+ * mockup's own single-column collapse of this row is not ported.
+ *
+ * The register split is the only separator between the run-note feed and the
+ * document prose it will share a box with (UX-DR9): time and kind in `mono`,
+ * reason in `sans`. Nothing here adds a container, rule, label or background
+ * to help — the rule below sits *between rows of one feed*, which is what
+ * UX-DR20 asks for, and is not a divider between the two feeds.
+ */
+
+.run-note-feed {
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+ * The three-column grid at the `lg` gap, baseline-aligned. The vertical
+ * padding is DESIGN.md's prose only — UX-DR20 omits it.
+ */
+.run-note {
+  display: grid;
+  grid-template-columns: var(--run-note-time) var(--run-note-kind) 1fr;
+  gap: var(--space-lg);
+  align-items: baseline;
+  padding: var(--space-xs) 0;
+}
+
+/*
+ * Adjacent-sibling, so the feed carries no leading or trailing rule — the
+ * mockup's `.mrow + .mrow` exactly.
+ */
+.run-note + .run-note {
+  border-top: var(--rule-width) solid var(--line-soft);
+}
+
+/*
+ * Time. `meta` here is the typography role, not the `--meta` colour token: the
+ * colour is `faint`, which DESIGN.md's component block and the mockup agree
+ * on. Tabular figures are required, not preferred — a ragged time column
+ * destroys the feed's scannability. The cell is rendered even when the memlog
+ * carries no timestamp, which is every note read from a file.
+ */
+.run-note-time {
+  font-family: var(--mono);
+  font-size: var(--fs-meta);
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Kind tag. Micro mono at the micro tracking, chip radius, horizontal padding
+ * only, left-justified in its column so a short kind does not stretch. Lower
+ * case: DESIGN.md confines uppercase to five surfaces and this is not one of
+ * them — the mockup's own band label carries `text-transform` and this tag
+ * deliberately does not.
+ */
+.run-note-kind {
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  letter-spacing: var(--track-micro);
+  color: var(--dim);
+  background: var(--panel-2);
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--radius-chip);
+  padding: 0 var(--space-xs);
+  justify-self: start;
+}
+
+/*
+ * An untagged entry — `memlog.py` writes one whenever `--type` and `--by` are
+ * both absent — has no kind to print, and an empty chip is still a bordered
+ * box. Drawing a small empty rectangle would say there is a tag here and it is
+ * blank, which is not what the entry means.
+ */
+.run-note-kind:empty {
+  border: 0;
+  background: none;
+  padding: 0;
+}
+
+/* `decision` — the accent treatment, because a decision is the point. */
+.run-note-kind--accent {
+  color: var(--accent);
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+
+/*
+ * `question` and `gap` — the warm friction treatment. `disagree`, never
+ * `red`: an unresolved question is someone pushing back, not a failure.
+ */
+.run-note-kind--friction {
+  color: var(--disagree);
+  background: var(--disagree-bg);
+  border-color: var(--disagree-border);
+}
+
+/*
+ * Reason. Sans at `body-ui` in `dim` — the same size as the document prose
+ * beside it, separated from it by typeface and line-height alone.
+ */
+.run-note-reason {
+  font-family: var(--sans);
+  font-size: var(--fs-body-ui);
+  line-height: var(--lh-base);
+  color: var(--dim);
+}
+
+/*
+ * Emphasis is two steps — `dim` → `text` and 400 → 600 — where DESIGN.md's
+ * general rule is one step or the other, never both. That is not a slip:
+ * DESIGN.md and UX-DR20 both specify the two-step form for this component by
+ * name, so the run note is the system's one carve-out.
+ */
+.run-note-reason strong {
+  color: var(--text);
+  font-weight: var(--weight-strong);
+}

@@ -1,6 +1,25 @@
 import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
 
+import uxMemlog from '../../../_bmad/planning-artifacts/ux-designs/ux-bmad-harness-2026-09-24/.memlog.md?raw'
+import { RunNoteFeed } from './feed/run-note-feed'
+import { parseMemlog } from './feed/memlog'
+
+/**
+ * Story 1.5 scaffolding, replaced by the real shell in Story 1.9.
+ *
+ * The story's whole purpose is a judgement — does the register split alone
+ * keep reasoning distinct from prose, or does the feed read as a changelog? —
+ * and an unmounted component cannot be judged. So the feed is mounted here,
+ * over this repository's own UX memlog, read into the bundle at build time.
+ *
+ * It is a preview, not a surface: there is no document card, no scrolling
+ * body, no card padding. Those are Epic 3's, and this story ships only the
+ * rows the card will contain. Parsed once at module scope because the text is
+ * a build-time constant and re-parsing it per render would say otherwise.
+ */
+const PREVIEW_NOTES = parseMemlog(uxMemlog)
+
 /**
  * The placeholder renderer: it names the project this window was opened for and
  * nothing else. Unstyled by design — the visual contract is Story 1.3, and a
@@ -47,5 +66,10 @@ export function App(): JSX.Element | null {
   if (projectPath === null) {
     return null
   }
-  return <p>{projectPath}</p>
+  return (
+    <>
+      <p>{projectPath}</p>
+      <RunNoteFeed notes={PREVIEW_NOTES} />
+    </>
+  )
 }

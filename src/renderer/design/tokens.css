@@ -188,6 +188,26 @@
      sections. */
   --party-side:240px;
 
+  /* ── The run note's two column widths and the width of the rule between its
+     rows (Story 1.5), read off DESIGN.md's `components.run-note` block:
+     `grid: '58px 74px 1fr'` (:243) and `rule: '1px solid {colors.line-soft}'`
+     (:245). The third column is `1fr` and needs no token.
+
+     These are component dimensions, which the note above sends to the story
+     that builds the component — and they are here anyway, because there is
+     nowhere else they can be. NFR23 forbids a literal in any stylesheet but
+     this one, `--radius-hairline` is a radius rather than a border width, and
+     the spacing ladder has no 1px rung. A component stylesheet that wanted to
+     spell `58px` or `1px solid` has no token to spend, so the tokens arrive
+     here rather than the literals arriving there.
+
+     `--rule-width` is named for the job, not for the run note: it is the one
+     hairline border width in the system, and the next surface that draws a
+     `1px line-soft` rule spends this rather than adding its own. */
+  --run-note-time:58px;
+  --run-note-kind:74px;
+  --rule-width:1px;
+
   /* ── Elevation (UX-DR10). Depth is tonal, not cast: the five-step surface
      ramp *is* the elevation system. There is no elevation scale, no z1/z2/z3,
      and no hover-lift. Exactly two z-indexes exist, and a surface that needs a

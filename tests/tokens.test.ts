@@ -392,6 +392,33 @@ describe('the layout constants', () => {
     }
   })
 
+  it('carries the run note’s column widths and the hairline rule width', () => {
+    // Story 1.5. These are component dimensions, which the block comment above
+    // them sends to the story that builds the component — and they are here
+    // anyway, because NFR23 leaves nowhere else for them: a component
+    // stylesheet may not spell `58px`, `--radius-hairline` is a radius rather
+    // than a border width, and the spacing ladder has no 1px rung.
+    //
+    // Read out of DESIGN.md's component block at run time, never transcribed,
+    // so a retuned grid reddens this rather than drifting silently — the same
+    // coupling the colours and radii above already hold.
+    const runNote = componentBlock('run-note')
+
+    for (const key of ['grid', 'rule']) {
+      expect(runNote[key], `DESIGN.md components.run-note.${key}`).toBeTypeOf('string')
+    }
+
+    const [time, kind, flexible] = runNote['grid'].split(/\s+/)
+
+    // The third column is flexible and so needs no token; asserted rather than
+    // assumed, because a grid that gained a fourth fixed column would
+    // otherwise leave this test quietly checking the wrong two.
+    expect(flexible, 'the third run-note column takes no token').toBe('1fr')
+    expect(tokens.get('--run-note-time')).toBe(time)
+    expect(tokens.get('--run-note-kind')).toBe(kind)
+    expect(tokens.get('--rule-width')).toBe(runNote['rule'].split(/\s+/)[0])
+  })
+
   it('does not carry the superseded party-panel width', () => {
     // UX-DR8: the Room-only ruling resized the panel, and the wider literal
     // must not be implemented — not as a token, not as a comment, not anywhere.

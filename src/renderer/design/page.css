@@ -1,0 +1,20 @@
+/*
+ * The page ground.
+ *
+ * The palette is dark by decision — UX-DR: dark theme only, no light palette
+ * and no scheme branch — so every colour token is chosen against `--bg`. With
+ * no rule here the window keeps the browser's own light default, and `--dim`
+ * text at `--fs-body-ui` renders pale-on-pale: the tokens are all correct and
+ * the surface is still unreadable.
+ *
+ * This is the smallest thing that makes a rendered surface judgeable, and no
+ * more. It is not the shell: Story 1.9 builds that, and owns the layout,
+ * spacing and structure this file deliberately leaves alone.
+ */
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+}
