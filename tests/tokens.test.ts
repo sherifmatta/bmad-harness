@@ -419,6 +419,43 @@ describe('the layout constants', () => {
     expect(tokens.get('--rule-width')).toBe(runNote['rule'].split(/\s+/)[0])
   })
 
+  it('carries the initials disc’s three dimensions', () => {
+    // Story 1.6, and here for the reason the run note's are: NFR23 forbids the
+    // literal in any stylesheet but this one, and the spacing ladder carries no
+    // signed rung — an overlap that pulls the next disc back over the one
+    // before it is not a gap and does not belong on a ladder of gaps.
+    //
+    // Read out of DESIGN.md's component block at run time rather than
+    // transcribed. A hand-copied `-5px` is exactly the value that drifts
+    // silently: it appears in no other file, so nothing else would notice.
+    const initials = componentBlock('initials')
+
+    for (const key of ['size', 'sizeUser', 'stackOverlap', 'fontSize']) {
+      expect(initials[key], `DESIGN.md components.initials.${key}`).toBeTypeOf('string')
+    }
+
+    expect(tokens.get('--initials-size')).toBe(initials['size'])
+    expect(tokens.get('--initials-size-user')).toBe(initials['sizeUser'])
+    expect(tokens.get('--initials-overlap')).toBe(initials['stackOverlap'])
+    // The glyph size at the small disc needs no token of its own: it is the
+    // `micro` rung of a scale whose half-point steps are explicitly real, and
+    // it is asserted here so that a retuned block cannot leave the disc
+    // spending a rung the contract no longer names. The mockup rounds this to
+    // 9px; the spine wins.
+    expect(tokens.get('--fs-micro')).toBe(initials['fontSize'])
+
+    // The 32px glyph size is stated only inside that line's `[ASSUMPTION]`
+    // comment, which `componentBlock()` strips — so it is read from the raw
+    // line instead. Without this the larger disc's rung is transcribed and
+    // nothing watches it, which is the half of the coupling that was missing.
+    const stated = readFileSync(DESIGN, 'utf8').match(
+      /^ {4}fontSize:.*#\s*\[ASSUMPTION\][^\n]*?([\d.]+px) at the 32px user size/m
+    )
+
+    expect(stated, 'DESIGN.md must state the 32px glyph size').not.toBeNull()
+    expect(tokens.get('--fs-ident')).toBe(stated![1])
+  })
+
   it('does not carry the superseded party-panel width', () => {
     // UX-DR8: the Room-only ruling resized the panel, and the wider literal
     // must not be implemented — not as a token, not as a comment, not anywhere.

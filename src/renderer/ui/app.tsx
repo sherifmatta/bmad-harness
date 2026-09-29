@@ -1,9 +1,13 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import type { JSX } from 'react'
 
 import uxMemlog from '../../../_bmad/planning-artifacts/ux-designs/ux-bmad-harness-2026-09-24/.memlog.md?raw'
 import { RunNoteFeed } from './feed/run-note-feed'
 import { parseMemlog } from './feed/memlog'
+import { artParamsFor } from './persona/art-params'
+import { Initials } from './persona/initials'
+import { portrait } from './persona/portrait'
+import type { PortraitSize } from './persona/portrait'
 
 /**
  * Story 1.5 scaffolding, replaced by the real shell in Story 1.9.
@@ -19,6 +23,63 @@ import { parseMemlog } from './feed/memlog'
  * a build-time constant and re-parsing it per render would say otherwise.
  */
 const PREVIEW_NOTES = parseMemlog(uxMemlog)
+
+/**
+ * Story 1.6 scaffolding, replaced by the real shell in Story 1.9.
+ *
+ * This story's acceptance is a human judgement — do these faces read as
+ * plausible colleagues who could sit in a staff directory without comment, or
+ * as a cartoon? — and FR75 is the one requirement in the epic that no
+ * assertion can stand in for. A generator that is never mounted cannot be
+ * judged, so everything the judgement needs is on screen: the five curated
+ * personas at all four render sizes, a derived grid of twelve agent ids, and a
+ * stacked initials row.
+ *
+ * It is a preview, not a surface. There is no persona tile, no status dot, no
+ * cast card and no chat header — those are Stories 1.9 and 1.10, and this
+ * block carries no layout of its own so that none of it can be mistaken for
+ * one.
+ *
+ * The roster is spelled out here because reading it from the project's own
+ * install is Story 1.7. The five ids are `_bmad/config.toml`'s, and the twelve
+ * derived ids are the mockup's own grid, so the comparison the judgement rests
+ * on is against the same population.
+ */
+const PREVIEW_CAST = [
+  { id: 'bmad-agent-analyst', name: 'Mary', title: 'Business Analyst' },
+  { id: 'bmad-agent-pm', name: 'John', title: 'Product Manager' },
+  { id: 'bmad-agent-ux-designer', name: 'Sally', title: 'UX Designer' },
+  { id: 'bmad-agent-architect', name: 'Winston', title: 'System Architect' },
+  { id: 'bmad-agent-dev', name: 'Amelia', title: 'Senior Software Engineer' }
+]
+
+/** The closed set, all of it — the judgement is about every size, not one. */
+const PREVIEW_SIZES: PortraitSize[] = [32, 36, 38, 44]
+
+/** `mockups/portrait.html:373` — the twelve ids the derived grid is drawn for. */
+const PREVIEW_DERIVED = [
+  'bmad-agent-qa',
+  'bmad-agent-scrum-master',
+  'bmad-agent-po',
+  'bmad-agent-devops',
+  'bmad-agent-tech-writer',
+  'bmad-agent-security',
+  'bmad-agent-data-eng',
+  'bmad-agent-researcher',
+  'bmad-agent-game-designer',
+  'bmad-agent-narrative',
+  'bmad-agent-level-designer',
+  'bmad-agent-sound'
+]
+
+/** The mockup's own label derivation, so the grid reads as the same grid. */
+function derivedName(agentId: string): string {
+  return agentId
+    .replace('bmad-agent-', '')
+    .split('-')
+    .map((word) => word.slice(0, 1).toUpperCase() + word.slice(1))
+    .join(' ')
+}
 
 /**
  * The placeholder renderer: it names the project this window was opened for and
@@ -69,6 +130,40 @@ export function App(): JSX.Element | null {
   return (
     <>
       <p>{projectPath}</p>
+      {PREVIEW_CAST.map((persona) => (
+        <p key={persona.id}>
+          {PREVIEW_SIZES.map((size) => (
+            <Fragment key={size}>
+              {portrait(artParamsFor(persona.id), size, 'idle', persona)}
+            </Fragment>
+          ))}
+          {persona.name} · {persona.title}
+        </p>
+      ))}
+      <p>
+        {PREVIEW_DERIVED.map((agentId) => (
+          <Fragment key={agentId}>
+            {portrait(artParamsFor(agentId), 44, 'idle', {
+              name: derivedName(agentId),
+              title: agentId
+            })}
+          </Fragment>
+        ))}
+      </p>
+      <p>
+        {PREVIEW_CAST.map((persona) => (
+          <Initials
+            key={persona.id}
+            name={persona.name}
+            title={persona.title}
+            size={20}
+            stacked
+          />
+        ))}
+      </p>
+      <p>
+        <Initials name="Preview User" title="you" size={32} />
+      </p>
       <RunNoteFeed notes={PREVIEW_NOTES} />
     </>
   )

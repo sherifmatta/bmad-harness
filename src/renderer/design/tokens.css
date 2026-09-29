@@ -208,6 +208,25 @@
   --run-note-kind:74px;
   --rule-width:1px;
 
+  /* ── The initials disc's three dimensions (Story 1.6), read off DESIGN.md's
+     `components.initials` block: `size` (:201), `sizeUser` (:202) and
+     `stackOverlap` (:209).
+
+     Component dimensions again, and here for the reason the run note's are:
+     NFR23 forbids the literal in any stylesheet but this one, and the spacing
+     ladder carries no signed rung — an overlap that pulls the next disc back
+     over the one before it is not a gap and does not belong on a ladder of
+     gaps. Everything else the disc needs already has a token: its ring width
+     is --space-hair, its border width --rule-width, its radius --radius-full,
+     its glyphs --fs-micro and --fs-ident. These three are the whole of what
+     was missing.
+
+     The colours of the same component were promoted in Story 1.3 and sit with
+     the other promoted literals above; only the dimensions arrive here. */
+  --initials-size:20px;
+  --initials-size-user:32px;
+  --initials-overlap:-5px;
+
   /* ── Elevation (UX-DR10). Depth is tonal, not cast: the five-step surface
      ramp *is* the elevation system. There is no elevation scale, no z1/z2/z3,
      and no hover-lift. Exactly two z-indexes exist, and a surface that needs a

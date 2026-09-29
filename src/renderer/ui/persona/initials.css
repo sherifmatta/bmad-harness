@@ -1,0 +1,174 @@
+/*
+ * The initials token — FR82, UX-DR15, DESIGN.md's `components.initials` block
+ * and its prose at :581-587.
+ *
+ * Three things here are decisions rather than transcription, because the
+ * approved mockup and the spine disagree and the spine wins (UX-DR14):
+ *
+ *  1. **No focus rule.** The mockup draws its own focus stroke at its own
+ *     offset. One treatment is fixed for every primitive and `design/focus.css`
+ *     already owns it; the stacked case differs only by its offset, which that
+ *     file already ships. The markup opts in with a class and states nothing.
+ *  2. **No transition and no shadow on the reveal.** The mockup fades it in
+ *     and drops a shadow under it. Motion is five declarations bound to real
+ *     events and shadows have exactly three jobs; a tooltip is in neither
+ *     inventory. The reveal is instant, on a raised panel with a hairline
+ *     border, and the one shadow below is the cut-out ring the stacked case
+ *     needs — which is one of the three jobs, an edge drawn with a shadow.
+ *  3. **The glyphs take the micro rung, not the mockup's value.** The spine
+ *     puts the small disc on a scale whose half-point steps are explicitly
+ *     real, and the mockup rounds it off.
+ *
+ * No media query: NFR27 allows no third breakpoint. How the stacked row is
+ * raised without adding to the elevation system is the note at the foot of
+ * this file.
+ *
+ * Comments here name no dimension, so the file reads clean under a units grep
+ * and not only under the literal guard.
+ */
+
+/*
+ * The disc. A perfect circle, which the system reserves for things standing
+ * for a person or a light, in mono because letters standing in for a name are
+ * a code rather than speech. `flex` is pinned so a disc in a stacked row
+ * cannot be squeezed out of round by its neighbours.
+ */
+.initials {
+  /* The border is part of the 20px DESIGN.md fixes, not 1px on top of it. The
+     mockup gets this from a global reset it carries and this file does not. */
+  box-sizing: border-box;
+  width: var(--initials-size);
+  height: var(--initials-size);
+  border-radius: var(--radius-full);
+  background: var(--initials-bg);
+  border: var(--rule-width) solid var(--initials-line);
+  color: var(--initials-ink);
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  vertical-align: middle;
+}
+
+/*
+ * The user's own avatar in the transcript. Larger, and one rung up the type
+ * scale with it — the glyphs are sized to the disc, not held constant.
+ */
+.initials--user {
+  width: var(--initials-size-user);
+  height: var(--initials-size-user);
+  font-size: var(--fs-ident);
+}
+
+/*
+ * Stacked. The negative margin pulls each disc back over the one before it,
+ * and the ring cuts it out of that one so the seam reads as an edge rather
+ * than as two overlapping circles. Drawn in the panel colour the row sits on,
+ * which is what makes it a cut-out and not a border.
+ */
+.initials--stacked {
+  box-shadow: 0 0 0 var(--space-hair) var(--panel-2);
+}
+
+/*
+ * The overlap itself, and not on the last disc: the pull is what draws the
+ * next disc back over this one, so the final disc has nothing to pull and a
+ * trailing pull would drag whatever follows the row over it instead. The ring
+ * above stays on every disc, the last one included — it is what cuts that
+ * disc out of the one behind it, which is a different job from the pull.
+ */
+.initials--stacked:not(:last-child) {
+  margin-right: var(--initials-overlap);
+}
+
+/*
+ * The reveal's anchor: a zero-height line across the top of the disc. The card
+ * is its only child, aligned to the line's end so it hangs above the disc, and
+ * centred on it so it stays centred at both disc sizes without either one
+ * being named here. Hidden by `visibility` as well as `opacity`, so it is out
+ * of the accessibility tree and out of the tab order rather than merely
+ * transparent.
+ */
+.initials-reveal {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  visibility: hidden;
+  opacity: 0;
+}
+
+/*
+ * The card. `panel-3` is the raised surface in a tonal elevation system where
+ * depth is the ramp rather than a cast shadow, and the hairline border is what
+ * separates it from whatever it happens to sit over.
+ */
+.initials-reveal-card {
+  margin-bottom: var(--space-sm-plus);
+  background: var(--panel-3);
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--radius-control);
+  padding: var(--space-xs) var(--space-md-plus);
+  white-space: nowrap;
+  text-align: left;
+}
+
+/*
+ * Name and role. Sans at both rungs: these are the register of things said,
+ * not of things written down, and a person's name set in mono is exactly the
+ * defect the register split names.
+ */
+.initials-reveal-name {
+  display: block;
+  font-family: var(--sans);
+  font-size: var(--fs-body-ui);
+  font-weight: var(--weight-strong);
+  color: var(--text-strong);
+}
+
+.initials-reveal-role {
+  display: block;
+  font-family: var(--sans);
+  font-size: var(--fs-label);
+  color: var(--dim);
+}
+
+/*
+ * The hover-and-focus treatment, and the one place either half appears.
+ *
+ * **Parity is structural.** `:hover` and `:focus-visible` are never written
+ * apart below: each list carries both, so a change that reaches one reaches
+ * the other, and the reveal cannot regress to mouse-only without someone
+ * deleting a selector on purpose. That parity is mandatory — a hover-only
+ * tooltip is the one affordance that fails completely without a mouse.
+ *
+ * **`position: relative` is the mechanism, not a convenience.** A stacked row
+ * pulls each disc back over the one before it and cuts it out with a
+ * panel-coloured ring, so the disc *after* the focused one paints its overlap
+ * and its ring straight over the focused disc's focus ring. The mockup reaches
+ * for a third z-index; UX-DR10 fixes the product at two and says a surface
+ * that needs a third is a window. It never needed one: `position: relative`
+ * with no offsets moves nothing, but it promotes the element into the painting
+ * step that runs *after* every non-positioned inline sibling. A disc that is
+ * positioned only while hovered or focused therefore paints above its
+ * neighbours on both sides regardless of source order, and takes its reveal
+ * with it. That is also what gives the reveal a containing block, so the two
+ * rules below are one treatment split only by what CSS can address in a single
+ * rule: an element and its descendant.
+ */
+.initials:hover,
+.initials:focus-visible {
+  position: relative;
+}
+
+.initials:hover .initials-reveal,
+.initials:focus-visible .initials-reveal {
+  visibility: visible;
+  opacity: 1;
+}

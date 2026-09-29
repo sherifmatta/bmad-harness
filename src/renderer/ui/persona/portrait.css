@@ -1,0 +1,39 @@
+/*
+ * The portrait's wrapper and its face — FR73, UX-DR14, DESIGN.md's
+ * `components.portrait` block and the *Construction* paragraph at :540.
+ *
+ * Two rules, and deliberately nothing else. A face's own colour is
+ * per-persona, is the generator's data rather than the design system's, and so
+ * lives in the `.tsx` under the exemption NFR23's guard is scoped around. What
+ * is left here is exactly what DESIGN.md puts on the wrapper and on the svg,
+ * and every value of it reaches the design system through `var()`.
+ *
+ * No media query: NFR27 fixes the product at two breakpoints and a portrait
+ * renders at the same four sizes at both. No focus selector either — the ring
+ * is `design/focus.css`'s, once, for every primitive.
+ *
+ * Comments here name no dimension, so the file reads clean under a units grep
+ * and not only under the literal guard.
+ */
+
+/*
+ * The wrapper. `line-height` is zeroed because an inline svg otherwise sits on
+ * a text baseline and reserves descender space below itself, which pushes a
+ * face off-centre in every row it appears in. `--lh-none` exists for this and
+ * says so where it is declared.
+ */
+.portrait {
+  display: inline-block;
+  line-height: var(--lh-none);
+  vertical-align: middle;
+}
+
+/*
+ * The face. A perfect circle, which the system reserves for things standing
+ * for a person or a light, and `block` so the svg does not reintroduce the
+ * inline baseline the wrapper just removed.
+ */
+.portrait-face {
+  border-radius: var(--radius-full);
+  display: block;
+}
