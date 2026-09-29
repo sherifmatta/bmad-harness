@@ -799,10 +799,23 @@ describe('the preview in force', () => {
     // asserts this: no other test imports `app.tsx`, and dropping the mount
     // leaves the whole suite green.
     expect(app).toContain('const PREVIEW_SIZES: PortraitSize[] = [32, 36, 38, 44]')
+    // The faces are drawn for the roster the project's own install resolves,
+    // so the mount is asserted from that roster and not from a copy of it —
+    // and app.tsx spells no roster of its own.
+    expect(app).toContain('snapshot?.agents.map((persona)')
     for (const agentId of CURATED_AGENT_IDS) {
-      expect(app, agentId).toContain(`'${agentId}'`)
+      // Quoted, because one curated id is a prefix of a derived one.
+      expect(app, agentId).not.toContain(`'${agentId}'`)
     }
     expect(app).toContain('portrait(artParamsFor(persona.id), size, ')
+  })
+
+  it('renders the install errors, the install failure and every persona menu', () => {
+    // Deleting any of these leaves every other test green, and the running app
+    // is where a human confirms the team on screen is this project's.
+    expect(app).toMatch(/snapshot\?\.errors\.map\([\s\S]*?<ErrorLine/)
+    expect(app).toMatch(/installFailure !== null && <ErrorLine error=\{installFailure\}/)
+    expect(app).toMatch(/snapshot\.menus\[persona\.id\][\s\S]*?\.map\(/)
   })
 
   it('mounts a derived grid of the twelve ids the mockup draws', () => {

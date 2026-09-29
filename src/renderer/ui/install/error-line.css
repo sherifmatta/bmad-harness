@@ -1,0 +1,37 @@
+/*
+ * The error line — FR91, UX-DR31. One harness error in the harness register:
+ * mono, quiet, and never red, because a resolver error is neither a failed nor
+ * a stopped run.
+ *
+ * Every value reaches the design system through `var()`; the only bare values
+ * are zero and CSS keywords. The comments name no dimension either.
+ */
+
+.error-line {
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  line-height: var(--lh-tight);
+  color: var(--text);
+  padding: var(--space-xs) 0;
+}
+
+/* The message is the fact; it reads at full text colour. */
+.error-line-message {
+  color: var(--text);
+}
+
+/* The detail steps back to the dim colour, so the message stays the fact. */
+.error-line-detail {
+  color: var(--dim);
+  padding-top: var(--space-xs);
+}
+
+.error-line-summary {
+  color: var(--dim);
+}
+
+.error-line-detail-text {
+  display: grid;
+  padding-top: var(--space-xs);
+  color: var(--dim);
+}

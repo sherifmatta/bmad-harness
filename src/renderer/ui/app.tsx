@@ -5,6 +5,8 @@ import uxMemlog from '../../../_bmad/planning-artifacts/ux-designs/ux-bmad-harne
 import { RunNoteFeed } from './feed/run-note-feed'
 import { parseMemlog } from './feed/memlog'
 import { artParamsFor } from './persona/art-params'
+import { ErrorLine } from './install/error-line'
+import { useInstall } from './install/use-install'
 import { Initials } from './persona/initials'
 import { portrait } from './persona/portrait'
 import type { PortraitSize } from './persona/portrait'
@@ -25,34 +27,28 @@ import type { PortraitSize } from './persona/portrait'
 const PREVIEW_NOTES = parseMemlog(uxMemlog)
 
 /**
- * Story 1.6 scaffolding, replaced by the real shell in Story 1.9.
+ * Story 1.7 scaffolding, replaced by the real shell in Story 1.9 and the tiles
+ * in Story 1.10.
  *
- * This story's acceptance is a human judgement — do these faces read as
+ * Story 1.6's acceptance is a human judgement — do these faces read as
  * plausible colleagues who could sit in a staff directory without comment, or
  * as a cartoon? — and FR75 is the one requirement in the epic that no
  * assertion can stand in for. A generator that is never mounted cannot be
- * judged, so everything the judgement needs is on screen: the five curated
- * personas at all four render sizes, a derived grid of twelve agent ids, and a
+ * judged, so everything the judgement needs is on screen: the project's own
+ * team at all four render sizes, a derived grid of twelve agent ids, and a
  * stacked initials row.
+ *
+ * The team is read from the project's own install, through `useInstall`, so
+ * this is also where a human confirms that the colleagues on screen are this
+ * project's. Each is listed with its menu as plain lines beneath it, and every
+ * resolver error is a line of its own.
  *
  * It is a preview, not a surface. There is no persona tile, no status dot, no
  * cast card and no chat header — those are Stories 1.9 and 1.10, and this
  * block carries no layout of its own so that none of it can be mistaken for
- * one.
- *
- * The roster is spelled out here because reading it from the project's own
- * install is Story 1.7. The five ids are `_bmad/config.toml`'s, and the twelve
- * derived ids are the mockup's own grid, so the comparison the judgement rests
- * on is against the same population.
+ * one. The twelve derived ids are the mockup's own grid, so the comparison the
+ * judgement rests on is against the same population.
  */
-const PREVIEW_CAST = [
-  { id: 'bmad-agent-analyst', name: 'Mary', title: 'Business Analyst' },
-  { id: 'bmad-agent-pm', name: 'John', title: 'Product Manager' },
-  { id: 'bmad-agent-ux-designer', name: 'Sally', title: 'UX Designer' },
-  { id: 'bmad-agent-architect', name: 'Winston', title: 'System Architect' },
-  { id: 'bmad-agent-dev', name: 'Amelia', title: 'Senior Software Engineer' }
-]
-
 /** The closed set, all of it — the judgement is about every size, not one. */
 const PREVIEW_SIZES: PortraitSize[] = [32, 36, 38, 44]
 
@@ -89,6 +85,7 @@ function derivedName(agentId: string): string {
 export function App(): JSX.Element | null {
   const [projectPath, setProjectPath] = useState<string | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
+  const { snapshot, failure: installFailure } = useInstall()
 
   // A preload that failed to load leaves no bridge at all. Read at render
   // rather than in the effect: without this the effect's call throws and the
@@ -130,15 +127,26 @@ export function App(): JSX.Element | null {
   return (
     <>
       <p>{projectPath}</p>
-      {PREVIEW_CAST.map((persona) => (
-        <p key={persona.id}>
-          {PREVIEW_SIZES.map((size) => (
-            <Fragment key={size}>
-              {portrait(artParamsFor(persona.id), size, 'idle', persona)}
-            </Fragment>
+      {installFailure !== null && <ErrorLine error={installFailure} />}
+      {snapshot?.errors.map((error, index) => (
+        <ErrorLine key={`${error.code}-${index}`} error={error} />
+      ))}
+      {snapshot?.agents.map((persona) => (
+        <Fragment key={persona.id}>
+          <p>
+            {PREVIEW_SIZES.map((size) => (
+              <Fragment key={size}>
+                {portrait(artParamsFor(persona.id), size, 'idle', persona)}
+              </Fragment>
+            ))}
+            {persona.name} · {persona.title}
+          </p>
+          {(snapshot.menus[persona.id] ?? []).map((entry) => (
+            <p key={entry.code}>
+              {entry.code} · {entry.description}
+            </p>
           ))}
-          {persona.name} · {persona.title}
-        </p>
+        </Fragment>
       ))}
       <p>
         {PREVIEW_DERIVED.map((agentId) => (
@@ -151,7 +159,7 @@ export function App(): JSX.Element | null {
         ))}
       </p>
       <p>
-        {PREVIEW_CAST.map((persona) => (
+        {snapshot?.agents.map((persona) => (
           <Initials
             key={persona.id}
             name={persona.name}
