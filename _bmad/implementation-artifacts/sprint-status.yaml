@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-25-2026 17:00
-last_updated: 09-30-2026 11:08
+last_updated: 09-30-2026 11:39
 project: bmad-harness
 project_key: NOKEY
 tracking_system: file-system
@@ -45,7 +45,7 @@ development_status:
   1-7-the-team-read-from-the-project-s-own-install: done
   1-8-launch-tells-you-what-is-missing: done
   1-9-conversation-and-project-state-in-one-window: done
-  1-10-the-team-with-faces-in-the-rail: backlog
+  1-10-the-team-with-faces-in-the-rail: done
   1-11-the-project-s-files-changing-as-they-change: backlog
   1-12-read-a-document-at-full-size-without-losing-the-room: backlog
   1-13-the-planning-contract-says-what-actually-governs-the-build: backlog
