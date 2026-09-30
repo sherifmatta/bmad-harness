@@ -69,6 +69,7 @@ vi.mock('electron', () => {
 const main = await import('../src/main/index')
 const installBridge = await import('../src/main/install-bridge')
 const projectBridge = await import('../src/main/project-bridge')
+const railBridge = await import('../src/main/rail-bridge')
 const preload = await import('../src/preload/index')
 const { createProjectWindow } = await import('../src/main/windows/main-window')
 
@@ -89,7 +90,15 @@ it('answers the branch channel on the same literal from both sides', () => {
   expect(registeredHandlers.has(projectBridge.PROJECT_BRANCH_CHANNEL)).toBe(true)
 })
 
-it('exposes exactly four named methods, and no channel passthrough', () => {
+it('answers the rail channels on the same literals from both sides', () => {
+  expect(preload.RAIL_GET_CHANNEL).toBe(railBridge.RAIL_GET_CHANNEL)
+  expect(preload.RAIL_CHANGED_CHANNEL).toBe(railBridge.RAIL_CHANGED_CHANNEL)
+  expect(preload.RAIL_GET_CHANNEL).toBe('rail:get')
+  expect(preload.RAIL_CHANGED_CHANNEL).toBe('rail:changed')
+  expect(registeredHandlers.has(railBridge.RAIL_GET_CHANNEL)).toBe(true)
+})
+
+it('exposes exactly six named methods, and no channel passthrough', () => {
   const harness = exposedApis.get('harness')
 
   expect(harness).toBeDefined()
@@ -97,7 +106,9 @@ it('exposes exactly four named methods, and no channel passthrough', () => {
     'getProjectPath',
     'getInstall',
     'onInstallChanged',
-    'getBranch'
+    'getBranch',
+    'getRail',
+    'onRailChanged'
   ])
   expect(harness?.invoke).toBeUndefined()
 })
@@ -136,6 +147,43 @@ it('hands a subscriber the snapshot and never the event, and unsubscribes that v
   unsubscribe()
   expect(removed).toEqual([[installBridge.INSTALL_CHANGED_CHANNEL, added[0]]])
   expect(listeners.get(installBridge.INSTALL_CHANGED_CHANNEL)?.size).toBe(0)
+})
+
+it('turns a refused rail:get into a rejection carrying the envelope', async () => {
+  const error = { code: 'rail/no-project', message: 'rail · no project is open' }
+  invoke.mockResolvedValue({ ok: false, error })
+  const getRail = exposedApis.get('harness')?.getRail as () => Promise<unknown>
+
+  await expect(getRail()).rejects.toEqual(error)
+  expect(invoke).toHaveBeenCalledWith(railBridge.RAIL_GET_CHANNEL)
+})
+
+it('resolves the rail snapshot itself when rail:get succeeds', async () => {
+  const snapshot = { revision: 1, rows: [] }
+  invoke.mockResolvedValue({ ok: true, snapshot })
+  const getRail = exposedApis.get('harness')?.getRail as () => Promise<unknown>
+
+  await expect(getRail()).resolves.toEqual(snapshot)
+})
+
+it('hands a rail subscriber the snapshot and never the event, and unsubscribes that very listener', () => {
+  const onRailChanged = exposedApis.get('harness')?.onRailChanged as (
+    listener: (snapshot: unknown) => void
+  ) => () => void
+  const received: unknown[] = []
+
+  const unsubscribe = onRailChanged((snapshot) => received.push(snapshot))
+  const added = [...(listeners.get(railBridge.RAIL_CHANGED_CHANNEL) ?? [])]
+  expect(added).toHaveLength(1)
+
+  const snapshot = { revision: 2, rows: [] }
+  ;(added[0] as (event: unknown, snapshot: unknown) => void)({ sender: 'raw event' }, snapshot)
+  expect(received).toEqual([snapshot])
+
+  removed.length = 0
+  unsubscribe()
+  expect(removed).toEqual([[railBridge.RAIL_CHANGED_CHANNEL, added[0]]])
+  expect(listeners.get(railBridge.RAIL_CHANGED_CHANNEL)?.size).toBe(0)
 })
 
 it('sends that method down the channel main is listening on', async () => {

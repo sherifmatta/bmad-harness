@@ -11,6 +11,7 @@ import { ErrorLine } from './install/error-line'
 import { Preflight } from './install/preflight'
 import { announceable, newAnnouncements, roomState } from './install/install-state'
 import { useInstall } from './install/use-install'
+import { useRail } from './outputs/use-rail'
 import { Initials } from './persona/initials'
 import { portrait } from './persona/portrait'
 import type { PortraitSize } from './persona/portrait'
@@ -94,6 +95,7 @@ export function App(): JSX.Element | null {
   const [projectPath, setProjectPath] = useState<string | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
   const { snapshot, failure: installFailure } = useInstall()
+  const { snapshot: rail, failure: railFailure } = useRail()
   const [announcer] = useState(() => new Announcer())
   const announced = useRef<ReadonlySet<string>>(new Set())
 
@@ -168,7 +170,13 @@ export function App(): JSX.Element | null {
   }
   return (
     <>
-      <Shell key="shell" projectPath={projectPath} snapshot={snapshot}>
+      <Shell
+        key="shell"
+        projectPath={projectPath}
+        snapshot={snapshot}
+        rail={rail}
+        railFailure={railFailure}
+      >
         <Preview snapshot={snapshot} installFailure={installFailure} />
       </Shell>
       <LiveRegion key="live-region" announcer={announcer} />

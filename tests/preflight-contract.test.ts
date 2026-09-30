@@ -146,13 +146,20 @@ describe('what preflight never does', () => {
     expect(bridge).toMatch(/createInstallProjection\(\{[\s\S]*?checks: createChecks\(\)/)
   })
 
-  it('leaves the bridge with exactly its four methods (getBranch arrived in Story 1.9)', () => {
+  it('leaves the bridge with exactly its six methods (getBranch arrived in Story 1.9, the two rail methods in Story 1.11)', () => {
     const api = readFileSync(join(SRC, 'preload/harness-api.d.ts'), 'utf8')
     const body = api.match(/interface HarnessApi \{([\s\S]*?)\n\}/)
 
     expect(body, 'HarnessApi must be declared').not.toBeNull()
     const methods = [...body![1].matchAll(/^\s+(\w+)\s*\(/gm)].map(([, name]) => name)
-    expect(methods.sort()).toEqual(['getBranch', 'getInstall', 'getProjectPath', 'onInstallChanged'])
+    expect(methods.sort()).toEqual([
+      'getBranch',
+      'getInstall',
+      'getProjectPath',
+      'getRail',
+      'onInstallChanged',
+      'onRailChanged'
+    ])
   })
 
   it('keeps every preflight message lower case, unpunctuated and path-free', () => {

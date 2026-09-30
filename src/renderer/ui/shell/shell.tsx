@@ -2,9 +2,11 @@ import { useState } from 'react'
 import type { JSX, ReactNode } from 'react'
 
 import './shell.css'
-import type { InstallSnapshot } from '../../../shared/install'
+import type { HarnessError, InstallSnapshot } from '../../../shared/install'
+import type { RailSnapshot } from '../../../shared/rail'
 import { ChatHeader } from '../chat/chat-header'
 import type { PersonaState } from '../persona/portrait'
+import { ConnectedOutputs } from '../outputs/outputs'
 import { stateOf } from '../status/persona-state'
 import { Team } from '../team/team'
 import { currentAgent, displayOrder, groupAgents } from '../team/tile-groups'
@@ -39,10 +41,10 @@ const NO_STATES: ReadonlyMap<string, PersonaState> = new Map()
  *
  * The view not showing stays mounted and `hidden`, never removed, so nothing
  * the user was doing is lost by looking at the other one. The Team half holds
- * the tiles and the chat column its header (Story 1.10); the Outputs half is a
- * head over an empty body and the Party view is an empty region: the rows and
- * side panel are later stories', and no slot is reserved for them. `children`
- * is what the thread holds.
+ * the tiles and the chat column its header (Story 1.10); the Outputs half holds the
+ * project's files (Story 1.11), and with no `rail` yet it is a head over an
+ * empty body. The Party view is an empty region: its side panel is a later
+ * story's, and no slot is reserved for it. `children` is what the thread holds.
  *
  * The shell owns which persona is current. It is derived at render from the
  * display order — the chosen id if the roster still has it, else the topmost
@@ -53,6 +55,8 @@ export function Shell({
   snapshot,
   initialView = DEFAULT_VIEW,
   states = NO_STATES,
+  rail = null,
+  railFailure = null,
   children
 }: {
   projectPath: string
@@ -63,6 +67,10 @@ export function Shell({
   /** Each persona's state, by agent id. Read, never written here: an absent id
       is `idle`, and with no sessions in this epic the map is empty. */
   states?: ReadonlyMap<string, PersonaState>
+  /** The project's files, as main last pushed them. `null` until the first. */
+  rail?: RailSnapshot | null
+  /** Why there is no rail snapshot, when there is not one. */
+  railFailure?: HarnessError | null
   children?: ReactNode
 }): JSX.Element {
   const [view, setView] = useState<ViewId>(initialView)
@@ -104,7 +112,14 @@ export function Shell({
               onSelect={setCurrentId}
             />
           </RailHalf>
-          <RailHalf label="Outputs" />
+          <RailHalf label="Outputs">
+            <ConnectedOutputs
+              snapshot={rail}
+              failure={railFailure}
+              agents={snapshot.agents}
+              projectPath={projectPath}
+            />
+          </RailHalf>
         </div>
       </section>
       <section

@@ -396,6 +396,16 @@
      description line (`.l2`, :160) sits 1px under the name. */
   --chat-head-padding:10px 16px;
   --chat-head-sub-top:1px;
+
+  /* ── The project's files in the rail (Story 1.11), promoted so no stylesheet
+     restates a literal (NFR23).
+
+     A row is padded 6.5px 11px (`.frow`, :134). The file icon is 12 by 14
+     (`fileIcon`, :1102; DESIGN.md `components.rail-row`), drawn at
+     --opacity-mark, which is `iconOpacity` .75. */
+  --rail-row-padding:6.5px 11px;
+  --file-icon-width:12px;
+  --file-icon-height:14px;
 }
 
 /* The three keyframes the inventory names, copied from the mockup. `blink` is

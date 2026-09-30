@@ -334,7 +334,7 @@ describe('the shell mounts the team', () => {
     expect(shell).toContain('<ChatHeader key={current.id}')
     expect(shell.indexOf('<ChatHeader')).toBeLessThan(shell.indexOf('className="scroll"'))
     expect(shell).toMatch(/<RailHalf label="Team">\s*<Team/)
-    expect(shell).toMatch(/<RailHalf label="Outputs" \/>/)
+    expect(shell).toMatch(/<RailHalf label="Outputs">\s*<ConnectedOutputs/)
   })
 
   it('derives the current agent from the display order, so a roster change lands in one frame', () => {

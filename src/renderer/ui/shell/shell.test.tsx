@@ -361,3 +361,71 @@ describe('Shell in the party state', () => {
     expect(markup).toMatch(/aria-pressed="true">Party Mode</)
   })
 })
+
+describe('Shell, the project files', () => {
+  const rail = {
+    revision: 1,
+    rows: [
+      { path: '_bmad/epics.md', state: 'saved' as const, savedAt: 1 },
+      { path: '_bmad/planning-artifacts/prd.md', state: 'changing' as const }
+    ]
+  }
+  const withRail = renderToStaticMarkup(<Shell projectPath="/p" snapshot={snapshot(3)} rail={rail} />)
+  const outputsOf = (html: string): string => html.slice(html.indexOf('>Outputs<'))
+  const teamOf = (html: string): string =>
+    html.slice(html.indexOf('>Team<'), html.indexOf('>Outputs<'))
+
+  it('puts the rows and group headings in the Outputs half and never the Team half', () => {
+    expect(count(outputsOf(withRail), /<li/g)).toBe(2)
+    expect(outputsOf(withRail)).toContain('>_bmad/planning-artifacts/<')
+    expect(teamOf(withRail)).not.toContain('output-row')
+    expect(teamOf(withRail)).not.toContain('>_bmad/')
+  })
+
+  it('adds no button and no tab stop to the Outputs half', () => {
+    const outputs = outputsOf(withRail)
+
+    expect(outputs).not.toMatch(/<button|<input|<a |tabindex|role=/)
+    // Three tiles and two switch buttons, exactly as without a rail.
+    expect(count(withRail, /<button/g)).toBe(2 + 3)
+  })
+
+  it('shows the empty state for a snapshot with no rows, and the failure for a failed rail', () => {
+    const empty = renderToStaticMarkup(
+      <Shell projectPath="/work/falcon" snapshot={snapshot(1)} rail={{ revision: 1, rows: [] }} />
+    )
+    expect(outputsOf(empty)).toContain('no files under _bmad/ yet')
+    expect(outputsOf(empty)).toContain('/work/falcon/_bmad')
+
+    const failed = renderToStaticMarkup(
+      <Shell
+        projectPath="/p"
+        snapshot={snapshot(1)}
+        railFailure={{ code: 'rail/unexpected', message: 'rail · unexpected failure' }}
+      />
+    )
+    expect(outputsOf(failed)).toContain('rail · unexpected failure')
+  })
+
+  it('names the owner from the install roster it already holds', () => {
+    const owned = renderToStaticMarkup(
+      <Shell
+        projectPath="/p"
+        snapshot={snapshotOf([{ ...agent('bmad-agent-pm'), name: 'John' }])}
+        rail={{
+          revision: 1,
+          rows: [
+            {
+              path: '_bmad/planning-artifacts/prd.md',
+              owner: { agentId: 'bmad-agent-pm' },
+              state: 'saved',
+              savedAt: 1
+            }
+          ]
+        }}
+      />
+    )
+
+    expect(outputsOf(owned)).toContain('<span class="output-row-owner">John</span>')
+  })
+})

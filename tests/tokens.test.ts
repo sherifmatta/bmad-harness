@@ -497,6 +497,35 @@ describe('the layout constants', () => {
   })
 })
 
+describe('the files in the rail (Story 1.11)', () => {
+  // Read out of DESIGN.md and the mockup at run time, never transcribed: a
+  // retuned row reddens this rather than drifting.
+  it('couples the file icon opacity to DESIGN.md components.rail-row.iconOpacity', () => {
+    const row = componentBlock('rail-row')
+
+    expect(row['iconOpacity'], 'DESIGN.md components.rail-row.iconOpacity').toBeTypeOf('string')
+    expect(tokens.get('--opacity-mark')).toBe(row['iconOpacity'].replace(/^0(?=\.)/, ''))
+  })
+
+  it('takes the row padding and the icon size from the mockup lines it cites', () => {
+    const mockup = readFileSync(MOCKUP, 'utf8')
+
+    expect(tokens.get('--rail-row-padding')).toBe('6.5px 11px')
+    expect(mockup).toContain('padding:6.5px 11px;cursor:pointer')
+    expect(tokens.get('--file-icon-width')).toBe('12px')
+    expect(tokens.get('--file-icon-height')).toBe('14px')
+    expect(mockup).toContain('<svg width="12" height="14" viewBox="0 0 12 14"')
+  })
+
+  it('comments each of the three new tokens with where it came from', () => {
+    const block = tokensCss.slice(tokensCss.indexOf('The project\'s files in the rail'))
+
+    expect(block).toContain('.frow')
+    expect(block).toContain('fileIcon')
+    expect(block).toContain('components.rail-row')
+  })
+})
+
 describe('elevation and depth', () => {
   it('is exactly two z-indexes: 40 scrim, 50 window', () => {
     const stacking = namesMatching('--z-')

@@ -1,6 +1,7 @@
 import { BrowserWindow, app, ipcMain } from 'electron'
 import { registerInstallBridge } from './install-bridge'
 import { registerProjectBridge } from './project-bridge'
+import { registerRailBridge } from './rail-bridge'
 import { ProjectPathError, resolveProjectPath } from './windows/choose-project'
 import { createProjectWindow, projectPathForWebContents } from './windows/main-window'
 
@@ -65,6 +66,7 @@ ipcMain.handle(PROJECT_PATH_CHANNEL, (event) => {
 
 registerInstallBridge()
 registerProjectBridge()
+registerRailBridge()
 
 /**
  * Anything `openProjectWindow` did not expect. It is attached at every call

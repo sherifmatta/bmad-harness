@@ -305,10 +305,10 @@ describe('the shell furniture stays within scope', () => {
     expect(body).toContain('color: var(--meta)')
   })
 
-  it('keeps the Outputs half an empty body and the party view an empty region', () => {
+  it('mounts the files in the Outputs half and keeps the party view an empty region', () => {
     const shell = code('src/renderer/ui/shell/shell.tsx')
 
-    expect(shell).toMatch(/<RailHalf label="Outputs" \/>/)
+    expect(shell).toMatch(/<RailHalf label="Outputs">\s*<ConnectedOutputs/)
     expect(shell).toMatch(/className="view view-party"[\s\S]*?\/>/)
   })
 
