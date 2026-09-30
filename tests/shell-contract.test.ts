@@ -295,6 +295,23 @@ describe('the shell furniture stays within scope', () => {
     ])
   })
 
+  it('draws the group heading once, for both rail halves to reuse', () => {
+    const body = ruleBody(shellCss, '.rail-group') ?? ''
+
+    expect(body).toContain('padding: var(--rail-group-padding)')
+    expect(body).toContain('font-family: var(--mono)')
+    expect(body).toContain('font-size: var(--fs-meta)')
+    expect(body).toContain('letter-spacing: var(--track-micro)')
+    expect(body).toContain('color: var(--meta)')
+  })
+
+  it('keeps the Outputs half an empty body and the party view an empty region', () => {
+    const shell = code('src/renderer/ui/shell/shell.tsx')
+
+    expect(shell).toMatch(/<RailHalf label="Outputs" \/>/)
+    expect(shell).toMatch(/className="view view-party"[\s\S]*?\/>/)
+  })
+
   it('names the two views once, in view.ts', () => {
     const views = read('src/renderer/ui/shell/view.ts')
 

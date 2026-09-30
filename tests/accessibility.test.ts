@@ -245,14 +245,15 @@ describe('the focus ring', () => {
   const structural = withoutAnyComments(focusCss)
   const rules = rulesIn(focusCss)
 
-  it('is two rules: one global :focus-visible and the stacked offset', () => {
+  it('is three rules: one global :focus-visible, the stacked offset and the inset offset', () => {
     // Pinned as a list rather than probed for a substring. Narrowing the base
     // selector to `button:focus-visible` still matches /:focus-visible/ while
     // leaving twelve of UX-DR23's thirteen surfaces with no ring at all, and
     // the globalness is half of what makes one rule enough for all of them.
     expect(rules.map(({ selector }) => selector)).toEqual([
       ':focus-visible',
-      '.focus-stacked:focus-visible'
+      '.focus-stacked:focus-visible',
+      '.focus-inset:focus-visible'
     ])
   })
 
@@ -260,7 +261,7 @@ describe('the focus ring', () => {
     // Both declarations by name: deleting the offset draws the ring on the
     // element's own edge instead of 2px outside it, which is the geometry
     // DESIGN.md states twice and the one thing a substring check misses.
-    expect(rules, 'focus.css must hold exactly the two rules above').toHaveLength(2)
+    expect(rules, 'focus.css must hold exactly the three rules above').toHaveLength(3)
     expect(rules[0].declarations).toEqual([
       'outline: var(--focus-ring-width) solid var(--accent)',
       'outline-offset: var(--focus-ring-offset)'
@@ -268,8 +269,12 @@ describe('the focus ring', () => {
   })
 
   it('offsets the stacked case and changes nothing else about the ring', () => {
-    expect(rules, 'focus.css must hold exactly the two rules above').toHaveLength(2)
+    expect(rules, 'focus.css must hold exactly the three rules above').toHaveLength(3)
     expect(rules[1].declarations).toEqual(['outline-offset: var(--focus-ring-offset-stacked)'])
+  })
+
+  it('offsets the inset case just inside the edge and changes nothing else about the ring', () => {
+    expect(rules[2].declarations).toEqual(['outline-offset: var(--focus-ring-offset-inset)'])
   })
 
   it('is clean under the NFR23 literal guard, which governs it', () => {
@@ -419,5 +424,51 @@ describe('the shell stylesheets', () => {
   it('mount the live region once, hidden by the component and not by its caller', () => {
     expect(sourcesMatching(/<LiveRegion/)).toEqual(['src/renderer/ui/app.tsx'])
     expect(sourceText.get(LIVE_REGION) ?? '').toContain('className="visually-hidden"')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// The team's stylesheets and sources sit inside the whole-tree sweeps (Story 1.10).
+// ---------------------------------------------------------------------------
+
+describe('the team, status and chat stylesheets', () => {
+  const NEW_CSS = [
+    'src/renderer/ui/team/team.css',
+    'src/renderer/ui/status/status-dot.css',
+    'src/renderer/ui/chat/chat-header.css'
+  ]
+
+  it('are governed by the literal guard and swept by the focus-stroke sweep', () => {
+    for (const path of NEW_CSS) {
+      // Asserted rather than assumed: a stylesheet outside these lists would
+      // pass every sweep above by never being looked at.
+      expect(guardedStylesheets(), path).toContain(path)
+      expect(sources, path).toContain(path)
+      expect(literalsIn(path, sourceText.get(path) ?? ''), path).toEqual([])
+      expect(sourceText.get(path) ?? '', path).not.toMatch(/outline/i)
+    }
+  })
+
+  it('open the menu hint on :hover and :focus-visible together, and draw no ring of their own', () => {
+    const team = withoutAnyComments(sourceText.get(NEW_CSS[0]) ?? '')
+
+    expect(team).toMatch(
+      /\.persona-tile:hover \.menu-hint,\s*\n\s*\.persona-tile:focus-visible \.menu-hint\s*\{/
+    )
+    expect(team.match(/:focus(?!-visible)/g)).toBeNull()
+    for (const path of NEW_CSS.slice(1)) {
+      expect(withoutAnyComments(sourceText.get(path) ?? '')).not.toMatch(/:focus/)
+    }
+  })
+
+  it('leave the arrows to a11y/: the team names none and lists are one tab stop through rovingKey', () => {
+    const nav = sourceText.get('src/renderer/ui/team/tile-nav.ts') ?? ''
+
+    expect(nav).toContain('rovingKey(')
+    expect(sourcesMatching(/Arrow(?:Up|Down|Left|Right)/).filter((path) => !path.startsWith(A11Y))).toEqual([])
+  })
+
+  it('never add a second live region', () => {
+    expect(sourcesMatching(/aria-live/)).toEqual([LIVE_REGION])
   })
 })

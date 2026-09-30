@@ -292,7 +292,9 @@ export const CURATED_AGENT_IDS: readonly string[] = Object.freeze(Object.keys(CU
  * the face every other caller sees.
  */
 export function artParamsFor(agentId: string): ArtParams {
-  const curated = CURATED[agentId]
+  // Own keys only: an id is project text, and `constructor` or `toString` would
+  // otherwise find an inherited function here and be treated as curated art.
+  const curated = Object.hasOwn(CURATED, agentId) ? CURATED[agentId] : undefined
   if (curated !== undefined) {
     const copy = { ...curated }
     // `crown` is the one nested value here, and a spread copies the reference

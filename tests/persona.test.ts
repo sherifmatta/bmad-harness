@@ -188,6 +188,16 @@ describe('the curated five', () => {
     expect(artParamsFor(agentId)).toMatchObject(expected)
   })
 
+  it.each(['constructor', 'toString', 'hasOwnProperty', '__proto__'])(
+    'derives a face for the prototype key %s rather than reading an inherited value',
+    (agentId) => {
+      const art = artParamsFor(agentId)
+
+      expect(art.skin).toMatch(/^#[0-9a-f]{6}$/i)
+      expect(art).toEqual(artParamsFor(agentId))
+    }
+  )
+
   it('gives John the only crown override there is', () => {
     expect(artParamsFor('bmad-agent-pm').crown).toEqual({ cy: 33.5, rx: 18.6, ry: 17.6 })
 
@@ -816,6 +826,14 @@ describe('the preview in force', () => {
     expect(app).toMatch(/snapshot\?\.errors\.map\([\s\S]*?<ErrorLine/)
     expect(app).toMatch(/installFailure !== null && <ErrorLine error=\{installFailure\}/)
     expect(app).toMatch(/snapshot\.menus\[persona\.id\][\s\S]*?\.map\(/)
+  })
+
+  it('keeps the Preview scaffolding after the tiles, the only home of the 32px and 44px sizes', () => {
+    // Story 1.10 fills the rail and the header but does not retire the
+    // preview: Story 1.6's human judgement still needs every size on screen.
+    expect(app).toContain('function Preview(')
+    expect(app).toContain('<Preview snapshot={snapshot} installFailure={installFailure} />')
+    expect(app).toContain('[32, 36, 38, 44]')
   })
 
   it('gates the room on roomState, showing Preflight when blocked', () => {

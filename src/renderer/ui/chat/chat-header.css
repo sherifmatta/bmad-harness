@@ -1,0 +1,68 @@
+/*
+ * The chat header — FR22, UX-DR17, from harness-mockup.html's `.chat-head*`
+ * (:152-161). The name is the largest type in the shell; the description under
+ * it is one quiet line, capped at the reading measure and ellipsised rather
+ * than wrapped.
+ *
+ * No focus rule, no motion, no stacking index. Every value reaches the design
+ * system through `var()`.
+ */
+
+.chat-head {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-xl);
+  padding: var(--chat-head-padding);
+  background: var(--chrome);
+  border-bottom: var(--rule-width) solid var(--line);
+}
+
+.chat-head-id {
+  min-width: 0;
+}
+
+.chat-head-line {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: var(--space-md);
+}
+
+.chat-head-name {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: var(--fs-head);
+  font-weight: var(--weight-strong);
+  letter-spacing: var(--track-control);
+  color: var(--text-strong);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-head-title {
+  min-width: 0;
+  font-size: var(--fs-body-ui);
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-head-sub {
+  max-width: var(--chat-sub-max);
+  margin-top: var(--chat-head-sub-top);
+  font-size: var(--fs-body-ui);
+  color: var(--faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-head-state {
+  display: flex;
+  flex: 0 0 auto;
+  margin-left: auto;
+}

@@ -36,3 +36,14 @@
 .focus-stacked:focus-visible {
   outline-offset: var(--focus-ring-offset-stacked);
 }
+
+/*
+ * The inset case: a full-bleed row inside a scrolling container — a persona
+ * tile in the rail — has no room outside its own edge, because the container
+ * clips whatever is drawn past it and the ring would lose its left, right and
+ * top sides. A negative offset draws the same ring just inside the edge. Only
+ * the offset changes; the ring's width and colour are untouched.
+ */
+.focus-inset:focus-visible {
+  outline-offset: var(--focus-ring-offset-inset);
+}

@@ -245,6 +245,16 @@
   overflow-y: auto;
 }
 
+/* A group heading over a run of tiles or rows: mono and quiet, and drawn once
+   here so that the Outputs half reuses it. */
+.rail-group {
+  padding: var(--rail-group-padding);
+  font-family: var(--mono);
+  font-size: var(--fs-meta);
+  letter-spacing: var(--track-micro);
+  color: var(--meta);
+}
+
 /* ---------- responsive : two breakpoints, no more ---------- */
 
 @media (max-width: 1180px) {

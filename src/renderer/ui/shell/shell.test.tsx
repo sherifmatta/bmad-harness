@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import type { InstallSnapshot } from '../../../shared/install'
 import { isValidElement } from 'react'
 import type { ReactElement, ReactNode } from 'react'
+import type { PersonaState } from '../persona/portrait'
 import { Shell } from './shell'
 import { Topbar } from './topbar'
 import { ViewSwitch } from './view-switch'
@@ -21,6 +22,14 @@ const agent = (id: string) => ({
 const snapshot = (count: number): InstallSnapshot => ({
   revision: 1,
   agents: Array.from({ length: count }, (_, index) => agent(`bmad-agent-${index}`)),
+  menus: {},
+  errors: [],
+  preflight: []
+})
+
+const snapshotOf = (agents: InstallSnapshot['agents']): InstallSnapshot => ({
+  revision: 1,
+  agents,
   menus: {},
   errors: [],
   preflight: []
@@ -124,10 +133,11 @@ describe('Shell', () => {
     expect(markup).toContain('bmad · 5 agents')
   })
 
-  it('heads the rail with Team above Outputs, over empty bodies', () => {
+  it('heads the rail with Team above Outputs, the Outputs body still empty', () => {
     expect(markup.indexOf('>Team<')).toBeGreaterThan(-1)
     expect(markup.indexOf('>Team<')).toBeLessThan(markup.indexOf('>Outputs<'))
-    expect(count(markup, /<div class="rail-body"><\/div>/g)).toBe(2)
+    expect(count(markup, /<div class="rail-body"><\/div>/g)).toBe(1)
+    expect(markup).toMatch(/>Outputs<\/h3><\/div><div class="rail-body"><\/div>/)
   })
 
   it('puts the children in the thread, in the chat column before the rail', () => {
@@ -144,16 +154,156 @@ describe('Shell', () => {
       markup.indexOf('<div class="rail">'),
       markup.indexOf('<section class="view view-party"')
     )
+    const outputs = rail.slice(rail.indexOf('>Outputs<'))
 
-    expect(rail).not.toContain('<button')
-    expect(rail.replace(/<[^>]*>/g, '')).toBe('TeamOutputs')
+    // The Team half holds one tile button per agent; the Outputs half holds none.
+    expect(count(rail, /<button/g)).toBe(5)
+    expect(outputs).not.toContain('<button')
+    expect(rail).not.toMatch(/<a |<input|<textarea/)
   })
 
   it('owns no live region and no second switch', () => {
     // Spelled in two halves: accessibility.test.ts counts the bare attribute
     // across src/, and this file is not the live region.
     expect(markup).not.toContain(`aria-${'live'}`)
-    expect(count(markup, /<button/g)).toBe(2)
+    // Two switch buttons in the topbar, one button per tile in the rail.
+    const bar = markup.slice(markup.indexOf('<header'), markup.indexOf('</header>'))
+    expect(count(bar, /<button/g)).toBe(2)
+    expect(count(markup, /<button/g)).toBe(2 + 5)
+    expect(count(bar, /tabindex/g)).toBe(0)
+  })
+})
+
+describe('Shell, the team and the header', () => {
+  const tiles = (html: string): string[] => html.match(/<button[^>]*persona-tile[^>]*>/g) ?? []
+  const teamOf = (html: string): string =>
+    html.slice(html.indexOf('aria-label="Team"'), html.indexOf('>Outputs<'))
+
+  it('holds one tile button per agent, in display order, in the Team half', () => {
+    const markup = renderToStaticMarkup(<Shell projectPath="/p" snapshot={snapshot(5)} />)
+    const labels = tiles(markup).map((tile) => tile.match(/aria-label="([^"]*)"/)?.[1])
+
+    expect(labels).toEqual([0, 1, 2, 3, 4].map((index) => `bmad-agent-${index}, Role, idle`))
+    expect(markup).toContain('role="group" aria-label="Team"')
+    expect(markup.indexOf('aria-label="Team"')).toBeGreaterThan(markup.indexOf('>Team<'))
+    expect(markup.indexOf('aria-label="Team"')).toBeLessThan(markup.indexOf('>Outputs<'))
+  })
+
+  it('names the topmost agent in the header and marks its tile current, and no other', () => {
+    const markup = renderToStaticMarkup(<Shell projectPath="/p" snapshot={snapshot(3)} />)
+    const header = markup.slice(markup.indexOf('class="chat-head"'), markup.indexOf('class="scroll"'))
+
+    expect(header).toContain('>bmad-agent-0<')
+    expect(count(markup, /aria-current="true"/g)).toBe(1)
+    expect(tiles(markup)[0]).toContain('aria-current="true"')
+    // The header sits above the thread, inside the chat column.
+    expect(markup.indexOf('class="chat"')).toBeLessThan(markup.indexOf('class="chat-head"'))
+    expect(markup.indexOf('class="chat-head"')).toBeLessThan(markup.indexOf('class="scroll"'))
+  })
+
+  it('opens with exactly one tab stop in the list, on the current tile', () => {
+    const markup = renderToStaticMarkup(<Shell projectPath="/p" snapshot={snapshot(4)} />)
+
+    expect(tiles(markup).map((tile) => tile.match(/tabindex="(-?\d+)"/)?.[1])).toEqual([
+      '0',
+      '-1',
+      '-1',
+      '-1'
+    ])
+  })
+
+  it('draws headings only from two groups, in first-appearance order', () => {
+    const one = renderToStaticMarkup(<Shell projectPath="/p" snapshot={snapshot(3)} />)
+    expect(one).not.toContain('rail-group')
+
+    const many = renderToStaticMarkup(
+      <Shell
+        projectPath="/p"
+        snapshot={snapshotOf([
+          { ...agent('a'), module: 'bmm', team: 't1' },
+          { ...agent('b'), module: 'gds' },
+          { ...agent('c'), module: 'bmm', team: 't1' },
+          { ...agent('d'), module: 'bmm', team: 't2' }
+        ])}
+      />
+    )
+    const team = teamOf(many)
+
+    expect([...team.matchAll(/class="rail-group">([^<]*)</g)].map(([, heading]) => heading)).toEqual([
+      'bmm · t1',
+      'gds',
+      'bmm · t2'
+    ])
+    expect(tiles(team).map((tile) => tile.match(/aria-label="([^"]*)"/)?.[1])).toEqual([
+      'a, Role, idle',
+      'c, Role, idle',
+      'b, Role, idle',
+      'd, Role, idle'
+    ])
+    // The topmost tile in display order is the current one and names the header.
+    expect(tiles(team)[0]).toContain('aria-current="true"')
+  })
+
+  it('reads every state from the states map, an unmatched id being idle', () => {
+    const states = new Map<string, PersonaState>([
+      ['bmad-agent-0', 'work'],
+      ['bmad-agent-1', 'note'],
+      ['not-an-agent', 'error']
+    ])
+    const markup = renderToStaticMarkup(
+      <Shell projectPath="/p" snapshot={snapshot(3)} states={states} />
+    )
+    const header = markup.slice(markup.indexOf('class="chat-head"'), markup.indexOf('class="scroll"'))
+
+    expect(tiles(markup).map((tile) => tile.match(/aria-label="([^"]*)"/)?.[1])).toEqual([
+      'bmad-agent-0, Role, working',
+      'bmad-agent-1, Role, file changed',
+      'bmad-agent-2, Role, idle'
+    ])
+    // The header follows the current agent's state.
+    expect(header).toContain('status-dot--work')
+    expect(header).toContain('>working<')
+    expect(header).not.toContain('>error<')
+    expect(count(markup, /status-dot--error/g)).toBe(0)
+  })
+
+  it('hands each tile its own menu codes from snapshot.menus, and none to an agent without a menu', () => {
+    const codes = (n: number): { code: string; description: string }[] =>
+      Array.from({ length: n }, (_, index) => ({ code: `C${index + 1}`, description: 'never shown' }))
+    const markup = renderToStaticMarkup(
+      <Shell
+        projectPath="/p"
+        snapshot={{
+          ...snapshotOf([agent('many'), agent('few'), agent('none'), agent('constructor')]),
+          menus: { many: codes(8), few: [{ code: 'X1', description: 'd' }, { code: 'X2', description: 'd' }, { code: 'X3', description: 'd' }] }
+        }}
+      />
+    )
+    const team = teamOf(markup)
+    // One slice per tile, from its opening tag to the next one.
+    const slices = team.split('<button').slice(1)
+    const tagsOf = (slice: string): string[] =>
+      [...slice.matchAll(/class="code-tag">([^<]*)</g)].map(([, text]) => text)
+    const by = (id: string): string => slices.find((slice) => slice.includes(`aria-label="${id}, `)) ?? ''
+
+    expect(tagsOf(by('many'))).toEqual(['C1', 'C2', 'C3', 'C4', 'C5', 'C6', '+2'])
+    expect(tagsOf(by('few'))).toEqual(['X1', 'X2', 'X3'])
+    expect(by('few')).not.toContain('+')
+    expect(by('none')).not.toContain('menu-hint')
+    // An id that is also an Object.prototype key must not read an inherited value.
+    expect(by('constructor')).not.toContain('menu-hint')
+    expect(by('constructor')).not.toContain('code-tag')
+    expect(slices).toHaveLength(4)
+    // The descriptions never reach the tile.
+    expect(team).not.toContain('never shown')
+  })
+
+  it('draws no header and no tiles when there are no agents', () => {
+    const markup = renderToStaticMarkup(<Shell projectPath="/p" snapshot={snapshot(0)} />)
+
+    expect(markup).not.toContain('chat-head')
+    expect(markup).not.toContain('persona-tile')
+    expect(markup).not.toContain('aria-label="Team"')
   })
 })
 

@@ -286,6 +286,13 @@
   --focus-ring-offset:2px;
   --focus-ring-offset-stacked:3px;
 
+  /* The inset offset, for a row that fills a scrolling container edge to edge
+     (the persona tile in the rail). The container clips anything drawn outside
+     the row, so the ring is drawn just inside it instead: minus the ring's own
+     width, which leaves the width itself unchanged. Not in DESIGN.md — derived
+     from `--focus-ring-width`, and asserted equal to its negation. */
+  --focus-ring-offset-inset:-2px;
+
   /* ── The shell furniture (Story 1.9), promoted so no stylesheet restates a
      literal (NFR23). Each is read off harness-mockup.html and named for its
      role rather than the selector that first spelled it.
@@ -354,6 +361,41 @@
      margin, and the live region's wrapper spends it. */
   --hidden-size:1px;
   --hidden-offset:-1px;
+
+  /* ── The team in the rail and the chat header (Story 1.10), promoted so no
+     stylesheet restates a literal (NFR23). These are the component dimensions
+     the layout-constants note above left to the story that builds the
+     component — this is that story.
+
+     The status dot: DESIGN.md `components.status-dot.size`, and `.dot` (:78)
+     in the mockup. Its four colours and two halos already exist above. */
+  --status-dot-size:6px;
+
+  /* The persona tile: DESIGN.md `components.persona-tile` (`height`,
+     `currentBackground`, `currentEdge`) and `.ptile` (:108-130) in the mockup.
+     The tile is padded 9px 11px (:109), its current ground is `#1f262f` (:114),
+     its accent bar is 2px (:115), and the state line sits 2px under the name
+     (`.state`, :121). */
+  --tile-height:56px;
+  --tile-padding:9px 11px;
+  --tile-current:#1f262f;
+  --tile-edge-width:2px;
+  --tile-state-top:2px;
+
+  /* The menu hint opens to at most 60px (`.ptile:hover .menu-hint`, :127), and
+     each code tag sits on `#1b2028` padded 0 4px (`.code-tag`, :129-130). */
+  --tile-hint-max:60px;
+  --code-tag-bg:#1b2028;
+  --code-tag-padding:0 4px;
+
+  /* The group heading over a run of tiles or rows: `.fgroup` (:147), padded
+     8px 11px 3px. Drawn once in shell.css for both rail halves to reuse. */
+  --rail-group-padding:8px 11px 3px;
+
+  /* The chat header: `.chat-head` (:152-160), padded 10px 16px, and its
+     description line (`.l2`, :160) sits 1px under the name. */
+  --chat-head-padding:10px 16px;
+  --chat-head-sub-top:1px;
 }
 
 /* The three keyframes the inventory names, copied from the mockup. `blink` is

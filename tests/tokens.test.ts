@@ -468,9 +468,32 @@ describe('the layout constants', () => {
   })
 
   it('carries no component dimension', () => {
-    for (const name of ['--status-dot', '--tile', '--portrait']) {
+    // Story 1.10 built the status dot and the persona tile, so their prefixes
+    // left this list and gained the positive assertions below; the portrait's
+    // size stays a render argument and never becomes a token.
+    for (const name of ['--portrait']) {
       expect(namesMatching(name)).toEqual([])
     }
+  })
+
+  it('carries the status dot and the persona tile, read from DESIGN.md', () => {
+    // Story 1.10. Read out of DESIGN.md's component blocks at run time, never
+    // transcribed — the same coupling the run note's and the initials disc's
+    // dimensions hold, so a retuned tile reddens this rather than drifting.
+    const tile = componentBlock('persona-tile')
+    const dot = componentBlock('status-dot')
+
+    for (const key of ['height', 'currentBackground', 'currentEdge']) {
+      expect(tile[key], `DESIGN.md components.persona-tile.${key}`).toBeTypeOf('string')
+    }
+    expect(dot['size'], 'DESIGN.md components.status-dot.size').toBeTypeOf('string')
+
+    expect(tokens.get('--tile-height')).toBe(tile['height'])
+    expect(tokens.get('--tile-current')).toBe(tile['currentBackground'])
+    // `2px {colors.accent}`: the width is the first word, the colour is --accent.
+    expect(tokens.get('--tile-edge-width')).toBe(tile['currentEdge'].split(/\s+/)[0])
+    expect(tile['currentEdge']).toContain('{colors.accent}')
+    expect(tokens.get('--status-dot-size')).toBe(dot['size'])
   })
 })
 
@@ -629,6 +652,10 @@ describe('the theme decision', () => {
       expect(tokens.get(name), name).toMatch(LENGTH)
       expect(tokens.get(name), name).toBe(expected)
     }
+
+    // The inset offset is derived, not read: minus the ring's own width, so the
+    // ring is drawn just inside a clipped row's edge with its width unchanged.
+    expect(tokens.get('--focus-ring-offset-inset')).toBe(`-${width}`)
 
     // Values only. A rule here would break the `[':root', ':root']` assertion
     // above, and — worse — would sit in the one file the NFR23 literal guard

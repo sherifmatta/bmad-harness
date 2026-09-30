@@ -1,0 +1,55 @@
+/*
+ * The status dot and its state line — FR22, UX-DR17, DESIGN.md's
+ * `components.status-dot` block and the dot table at :589-600, from
+ * harness-mockup.html's `.dot` (:78-80) and `.pulse` (:148).
+ *
+ * Five states over four colours. `idle` is the faint ground; `work` is amber,
+ * haloed and the only one that pulses; `live` is green and haloed; `note` is
+ * its own blue and never the accent, so blue-as-state stays apart from
+ * blue-as-accent; `error` is red. The halo exists on `work` and `live` only.
+ * The pulse spends the inventory's own declaration and the keyframes it names
+ * live in tokens.css, so this file adds neither.
+ *
+ * No focus rule, no stacking index. Every value reaches the design system
+ * through `var()`.
+ */
+
+.status-dot {
+  flex: 0 0 auto;
+  width: var(--status-dot-size);
+  height: var(--status-dot-size);
+  border-radius: var(--radius-full);
+  background: var(--faint);
+}
+
+.status-dot--work {
+  background: var(--amber);
+  box-shadow: var(--shadow-halo-work);
+  animation: var(--motion-pulse);
+}
+
+.status-dot--live {
+  background: var(--green);
+  box-shadow: var(--shadow-halo-live);
+}
+
+.status-dot--note {
+  background: var(--note);
+}
+
+.status-dot--error {
+  background: var(--red);
+}
+
+/* The dot and its word. Mono, because the words are the harness's own state
+   and not speech; faint, because state is the quietest line a tile carries. */
+.state-line {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  color: var(--faint);
+  white-space: nowrap;
+}

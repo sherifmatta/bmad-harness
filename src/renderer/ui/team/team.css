@@ -1,0 +1,134 @@
+/*
+ * The persona tile — FR18, FR19, UX-DR16, DESIGN.md's `components.persona-tile`
+ * block, from harness-mockup.html's `.ptile*` and `.code-tag` (:107-130).
+ *
+ * The tile is a native button, so the reset below is what makes it look like a
+ * row and nothing else: ground transparent, `--panel-2` under the pointer, and
+ * `--tile-current` with an accent bar down its left edge when it is the
+ * current one. The current rule comes after the hover rule on purpose, so a
+ * current tile keeps its ground while hovered.
+ *
+ * The menu hint is the tile's only motion. It opens on hover and on keyboard
+ * focus from one selector list: a hover-only reveal is the one affordance that
+ * fails completely without a mouse, and it is the tile's only route to the
+ * menu codes. Nothing else moves — no hover lift, no entrance.
+ *
+ * No rule here draws the focus ring: the shared ring is design/focus.css's.
+ * The `:focus-visible` below opens the hint and styles no ring. No stacking
+ * index, no keyframes, and every value reaches the design system through
+ * `var()`.
+ */
+
+/* Columns, so a native button stretches to the row's width without a
+   percentage: a flex column's items fill its cross axis by default. */
+.team-list,
+.team-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.persona-tile {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-lg);
+  min-height: var(--tile-height);
+  margin: 0;
+  padding: var(--tile-padding);
+  border: 0;
+  border-bottom: var(--rule-width) solid var(--line-soft);
+  background: transparent;
+  font-family: var(--sans);
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.persona-tile:hover {
+  background: var(--panel-2);
+}
+
+.persona-tile[aria-current='true'] {
+  background: var(--tile-current);
+}
+
+.persona-tile[aria-current='true']::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--tile-edge-width);
+  background: var(--accent);
+}
+
+.persona-tile .portrait {
+  flex: 0 0 auto;
+}
+
+.tile-who {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tile-ident {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: var(--space-sm-plus);
+}
+
+.tile-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--fs-name);
+  font-weight: var(--weight-strong);
+  color: var(--text-strong);
+}
+
+.tile-title {
+  min-width: 0;
+  font-size: var(--fs-ident);
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tile-state {
+  display: flex;
+  margin-top: var(--tile-state-top);
+}
+
+/* The hint: codes only, closed until the tile is hovered or focused. */
+.menu-hint {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xxs);
+  margin-top: var(--space-xs);
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height var(--motion-reveal), opacity var(--motion-reveal);
+}
+
+.persona-tile:hover .menu-hint,
+.persona-tile:focus-visible .menu-hint {
+  max-height: var(--tile-hint-max);
+  opacity: 1;
+}
+
+.code-tag {
+  padding: var(--code-tag-padding);
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--radius-chip);
+  background: var(--code-tag-bg);
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  letter-spacing: var(--track-micro);
+  color: var(--dim);
+}
