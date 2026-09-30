@@ -39,6 +39,13 @@ export type InstallSnapshot = {
   agents: AgentView[]
   menus: Record<string, MenuEntryView[]>
   errors: HarnessError[]
+  /**
+   * The named prerequisites that are not met, in the order claude, uv,
+   * no-agents. Empty means every one passed and the room may open. It rides
+   * the install snapshot because the verdict is a function of the roster plus
+   * two facts about tools, and one frame keeps them from disagreeing.
+   */
+  preflight: HarnessError[]
 }
 
 /** The reply to `install:get`: a snapshot, or the envelope saying why not. */

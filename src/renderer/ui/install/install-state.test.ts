@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { InstallSnapshot } from '../../../shared/install'
-import { acceptSnapshot, asHarnessError, connectInstall } from './install-state'
+import { acceptSnapshot, asHarnessError, connectInstall, roomState } from './install-state'
 
 const snapshot = (revision: number): InstallSnapshot => ({
   revision,
   agents: [],
   menus: {},
-  errors: []
+  errors: [],
+  preflight: []
 })
 
 describe('acceptSnapshot', () => {
@@ -135,5 +136,47 @@ describe('connectInstall', () => {
 
     expect(calls).toEqual(['subscribe', 'ask', 'unsubscribe'])
     expect(seen).toEqual([])
+  })
+})
+
+describe('roomState', () => {
+  const agent = {
+    id: 'bmad-agent-analyst',
+    module: 'bmm',
+    name: 'Mary',
+    title: 'Analyst',
+    icon: 'i',
+    description: 'd'
+  }
+  const line = { code: 'preflight/uv-missing', message: 'uv · not found · install uv' }
+  const failure = { code: 'install/unexpected', message: 'install · unexpected failure' }
+  const healthy: InstallSnapshot = { ...snapshot(1), agents: [agent], menus: { [agent.id]: [] } }
+
+  it('is pending with nothing at all', () => {
+    expect(roomState(null, null)).toBe('pending')
+  })
+
+  it('is blocked by a failure with no snapshot', () => {
+    expect(roomState(null, failure)).toBe('blocked')
+  })
+
+  it('is blocked by any preflight line, even with agents', () => {
+    expect(roomState({ ...healthy, preflight: [line] }, null)).toBe('blocked')
+  })
+
+  it('is blocked by an empty roster', () => {
+    expect(roomState(snapshot(1), null)).toBe('blocked')
+  })
+
+  it('is blocked by a resolver error with an empty roster', () => {
+    expect(roomState({ ...snapshot(1), errors: [failure] }, null)).toBe('blocked')
+  })
+
+  it('is open when healthy', () => {
+    expect(roomState(healthy, null)).toBe('open')
+  })
+
+  it('is open when healthy beside a stale failure', () => {
+    expect(roomState(healthy, failure)).toBe('open')
   })
 })

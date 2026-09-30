@@ -7,6 +7,7 @@ import type {
   RosterResult
 } from '../sources/install/resolvers'
 import type { ResolvedMenuEntry } from '../sources/install/schema'
+import type { PrerequisiteChecks, ToolCheck } from '../sources/preflight/tools'
 import { createInstallProjection } from './install'
 
 const agent = (id: string, name: string) => ({
@@ -57,16 +58,45 @@ function scripted() {
   return { state, source }
 }
 
-function build() {
+/** Tools told what to answer, and able to count what they were asked. */
+function scriptedChecks() {
+  const state: { claude: ToolCheck; uv: ToolCheck; claudeCalls: number; uvCalls: number } = {
+    claude: { ok: true },
+    uv: { ok: true },
+    claudeCalls: 0,
+    uvCalls: 0
+  }
+  const checks: PrerequisiteChecks = {
+    async checkClaude() {
+      state.claudeCalls += 1
+      return state.claude
+    },
+    async checkUv() {
+      state.uvCalls += 1
+      return state.uv
+    }
+  }
+  return { state: state, checks }
+}
+
+function build(withChecks = false) {
   const { state, source } = scripted()
+  const scriptedTools = scriptedChecks()
   const emitted: InstallSnapshot[] = []
   const diagnostics: string[] = []
   const projection = createInstallProjection({
     source,
+    ...(withChecks ? { checks: scriptedTools.checks } : {}),
     onChange: (snapshot) => emitted.push(snapshot),
     onDiagnostic: (line) => diagnostics.push(line)
   })
-  return { state, projection, emitted, diagnostics }
+  return { state, tools: scriptedTools.state, projection, emitted, diagnostics }
+}
+
+const NO_AGENTS = {
+  code: 'preflight/no-agents',
+  message:
+    'no agents · looked for agents in this project, under --setting-sources project,local · a bmad install scoped to the user rather than the project resolves none there · install bmad into this project, or open one that has it'
 }
 
 const mary = agent('bmad-agent-analyst', 'Mary')
@@ -88,7 +118,8 @@ describe('a first success', () => {
         [mary.id]: [{ code: 'BP', description: 'BP does a thing' }],
         [john.id]: []
       },
-      errors: []
+      errors: [],
+      preflight: []
     })
     expect(emitted[0]).toEqual(projection.snapshot())
   })
@@ -116,13 +147,19 @@ describe('a first success', () => {
     }
   })
 
-  it('reads a valid empty roster as no agents and no error', async () => {
+  it('reads a valid empty roster as no agents, no error, and one no-agents line', async () => {
     const { projection, emitted } = build()
 
     await projection.refresh()
 
-    expect(projection.snapshot()).toEqual({ revision: 0, agents: [], menus: {}, errors: [] })
-    expect(emitted).toHaveLength(0)
+    expect(projection.snapshot()).toEqual({
+      revision: 1,
+      agents: [],
+      menus: {},
+      errors: [],
+      preflight: [NO_AGENTS]
+    })
+    expect(emitted).toHaveLength(1)
   })
 })
 
@@ -316,5 +353,229 @@ describe('emission', () => {
     expect(JSON.stringify(projection.snapshot())).not.toContain('private')
     // The cause reaches the developer's terminal, and only there.
     expect(diagnostics).toEqual(['install/unexpected · /private/path exploded'])
+  })
+})
+
+describe('preflight', () => {
+  const missing = (kind: 'claude-missing' | 'claude-unauthenticated'): ToolCheck => ({
+    ok: false,
+    kind,
+    diagnostic: 'claude auth status · stderr said /Users/x/.claude/settings.json'
+  })
+  const uvMissing: ToolCheck = { ok: false, kind: 'uv-missing', diagnostic: 'uv python find · spawn ENOENT' }
+
+  it('is empty when every prerequisite passes', async () => {
+    const { state, tools, projection } = build(true)
+    state.roster = { ok: true, agents: [mary] }
+
+    await projection.refresh()
+
+    expect(projection.snapshot().preflight).toEqual([])
+    expect(tools.claudeCalls).toBe(1)
+    expect(tools.uvCalls).toBe(1)
+  })
+
+  it.each([
+    ['claude-missing', 'claude · not on path · install the claude cli'],
+    ['claude-unauthenticated', 'claude · not signed in · run claude once to sign in']
+  ] as const)('names %s and still resolves the roster', async (kind, message) => {
+    const { state, tools, projection } = build(true)
+    state.roster = { ok: true, agents: [mary] }
+    tools.claude = missing(kind)
+
+    await projection.refresh()
+
+    expect(state.rosterCalls).toBe(1)
+    expect(projection.snapshot().agents).toEqual([mary])
+    expect(projection.snapshot().preflight).toEqual([{ code: `preflight/${kind}`, message }])
+  })
+
+  it.each([
+    ['uv-missing', 'uv · not found · install uv', undefined],
+    [
+      'uv-python-old',
+      'uv · resolves no python 3.11 or newer · install a 3.11+ toolchain for uv',
+      'python 3.9.6'
+    ]
+  ] as const)('names %s, runs no resolver, and adds no no-agents line', async (kind, message, detail) => {
+    const { state, tools, projection } = build(true)
+    state.roster = { ok: true, agents: [mary] }
+    tools.uv = { ok: false, kind, ...(detail !== undefined ? { detail } : {}), diagnostic: 'd' }
+
+    await projection.refresh()
+
+    expect(state.rosterCalls).toBe(0)
+    const snapshot = projection.snapshot()
+    expect(snapshot.agents).toEqual([])
+    expect(snapshot.errors).toEqual([])
+    expect(snapshot.preflight).toEqual([
+      { code: `preflight/${kind}`, message, ...(detail !== undefined ? { detail } : {}) }
+    ])
+  })
+
+  it('names which tool could not conclude, with a detail', async () => {
+    const { tools, projection } = build(true)
+    tools.claude = { ok: false, kind: 'check-failed', detail: 'exceeded 15000ms', diagnostic: 'd' }
+    tools.uv = { ok: false, kind: 'check-failed', detail: 'output was not json', diagnostic: 'd' }
+
+    await projection.refresh()
+
+    expect(projection.snapshot().preflight).toEqual([
+      { code: 'preflight/check-failed', message: 'claude · check did not complete', detail: 'exceeded 15000ms' },
+      { code: 'preflight/check-failed', message: 'uv · check did not complete', detail: 'output was not json' }
+    ])
+  })
+
+  it('lists both tools, claude first', async () => {
+    const { tools, projection } = build(true)
+    tools.claude = missing('claude-missing')
+    tools.uv = uvMissing
+
+    await projection.refresh()
+
+    expect(projection.snapshot().preflight.map((e) => e.code)).toEqual([
+      'preflight/claude-missing',
+      'preflight/uv-missing'
+    ])
+  })
+
+  it('orders claude, then no-agents when uv passes and the roster is empty', async () => {
+    const { tools, projection } = build(true)
+    tools.claude = missing('claude-unauthenticated')
+
+    await projection.refresh()
+
+    expect(projection.snapshot().preflight.map((e) => e.code)).toEqual([
+      'preflight/claude-unauthenticated',
+      'preflight/no-agents'
+    ])
+  })
+
+  it('gives no-agents exactly the four-part message, never "found" as a result', async () => {
+    const { projection } = build(true)
+
+    await projection.refresh()
+
+    const [line] = projection.snapshot().preflight
+    expect(line).toEqual(NO_AGENTS)
+    expect(line.detail).toBeUndefined()
+    for (const part of ['agents', 'this project', '--setting-sources project,local', 'user', 'install bmad into this project']) {
+      expect(line.message).toContain(part)
+    }
+    expect(line.message).not.toContain('no agents found')
+  })
+
+  it('does not call a resolver failure with no last good roster no-agents', async () => {
+    const { state, projection } = build(true)
+    state.roster = failure('invocation-failed')
+
+    await projection.refresh()
+
+    const snapshot = projection.snapshot()
+    expect(snapshot.errors.map((e) => e.code)).toEqual(['resolver/invocation-failed'])
+    expect(snapshot.preflight).toEqual([])
+  })
+
+  it('keeps a tool line beside a resolver error when the roster resolver fails with no last good', async () => {
+    const { state, tools, projection } = build(true)
+    tools.claude = missing('claude-missing')
+    state.roster = failure('invocation-failed')
+
+    await projection.refresh()
+
+    const snapshot = projection.snapshot()
+    expect(snapshot.preflight.map((e) => e.code)).toEqual(['preflight/claude-missing'])
+    expect(snapshot.errors.map((e) => e.code)).toEqual(['resolver/invocation-failed'])
+  })
+
+  it('clears no-agents when a later refresh has the roster resolver fail', async () => {
+    const { state, projection } = build(true)
+    await projection.refresh()
+    expect(projection.snapshot().preflight).toEqual([NO_AGENTS])
+
+    state.roster = failure('invocation-failed')
+    await projection.refresh()
+
+    expect(projection.snapshot().preflight).toEqual([])
+    expect(projection.snapshot().errors.map((e) => e.code)).toEqual(['resolver/invocation-failed'])
+  })
+
+  it('clears no-agents and bumps the revision when the roster gains an agent', async () => {
+    const { state, projection, emitted } = build(true)
+    await projection.refresh()
+    expect(projection.snapshot().preflight).toEqual([NO_AGENTS])
+
+    state.roster = { ok: true, agents: [mary] }
+    await projection.refresh()
+
+    expect(projection.snapshot().preflight).toEqual([])
+    expect(emitted.map((s) => s.revision)).toEqual([1, 2])
+  })
+
+  it('emits nothing for an identical refresh', async () => {
+    const { tools, projection, emitted } = build(true)
+    tools.uv = uvMissing
+
+    await projection.refresh()
+    await projection.refresh()
+
+    expect(emitted).toHaveLength(1)
+  })
+
+  it('asks each tool once across many refreshes, and once when they run together', async () => {
+    const { state, tools, projection } = build(true)
+    state.roster = { ok: true, agents: [mary] }
+
+    await Promise.all([projection.refresh(), projection.refresh()])
+    await projection.refresh()
+    await projection.refresh()
+
+    expect(tools.claudeCalls).toBe(1)
+    expect(tools.uvCalls).toBe(1)
+  })
+
+  it('turns a check that throws into check-failed without leaking its message', async () => {
+    const { state, source } = scripted()
+    state.roster = { ok: true, agents: [mary] }
+    const diagnostics: string[] = []
+    const projection = createInstallProjection({
+      source,
+      checks: {
+        checkClaude: async () => {
+          throw new Error('/private/claude exploded')
+        },
+        checkUv: async () => ({ ok: true })
+      },
+      onChange: () => {},
+      onDiagnostic: (line) => diagnostics.push(line)
+    })
+
+    await projection.refresh()
+
+    expect(projection.snapshot().preflight).toHaveLength(1)
+    expect(projection.snapshot().preflight[0].code).toBe('preflight/check-failed')
+    expect(JSON.stringify(projection.snapshot())).not.toContain('private')
+    expect(diagnostics).toEqual(['preflight/check-failed · /private/claude exploded'])
+  })
+
+  it('sends the diagnostic to the terminal once and never puts it in a snapshot', async () => {
+    const { tools, projection, diagnostics } = build(true)
+    tools.claude = missing('claude-unauthenticated')
+    tools.uv = { ok: false, kind: 'uv-python-old', detail: 'python 3.9.6', diagnostic: 'uv python find · python 3.9.6' }
+
+    await projection.refresh()
+    await projection.refresh()
+
+    expect(diagnostics).toEqual([
+      'preflight/claude-unauthenticated · claude auth status · stderr said /Users/x/.claude/settings.json',
+      'preflight/uv-python-old · uv python find · python 3.9.6'
+    ])
+    const text = JSON.stringify(projection.snapshot())
+    expect(text).not.toContain('stderr')
+    expect(text).not.toContain('.toml')
+    // Codes carry a slash by design; what a person reads never does.
+    for (const line of projection.snapshot().preflight) {
+      expect(`${line.message} ${line.detail ?? ''}`).not.toContain('/')
+    }
   })
 })

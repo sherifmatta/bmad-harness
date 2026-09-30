@@ -818,6 +818,27 @@ describe('the preview in force', () => {
     expect(app).toMatch(/snapshot\.menus\[persona\.id\][\s\S]*?\.map\(/)
   })
 
+  it('gates the room on roomState, showing Preflight when blocked', () => {
+    // Story 1.8: an empty room reads as broken, not unconfigured. The preview
+    // rows may sit only under the `open` branch, so a project that cannot open
+    // shows the named lines and nothing else.
+    expect(app).toContain('roomState(')
+    expect(app).toContain('<Preflight')
+    expect(app).toContain("room === 'pending'")
+    expect(app).toContain("room === 'blocked'")
+
+    const gate = app.indexOf("if (room === 'blocked')")
+    const open = app.indexOf('PREVIEW_SIZES.map')
+    const blockedBranch = app.slice(gate, app.indexOf('\n  }\n', gate))
+    expect(gate).toBeGreaterThan(-1)
+    expect(open).toBeGreaterThan(gate)
+    expect(blockedBranch).toContain('<Preflight')
+    for (const row of ['portrait(', '<Initials', 'RunNoteFeed', 'PREVIEW_', 'snapshot?.agents']) {
+      expect(blockedBranch, row).not.toContain(row)
+    }
+    expect(app).toContain('Story 1.8 gate: the room opens only when preflight passes')
+  })
+
   it('mounts a derived grid of the twelve ids the mockup draws', () => {
     const grid = app.match(/const PREVIEW_DERIVED = \[([^\]]*)\]/)
 

@@ -7,7 +7,7 @@ const ROOT = '/work/project'
 
 function sourceWith(result: CommandResult, extra: { timeoutMs?: number } = {}) {
   const run = vi.fn<CommandRunner>(async () => result)
-  return { run, source: createInstallSource({ projectRoot: ROOT, run, ...extra }) }
+  return { run, source: createInstallSource({ projectRoot: ROOT, run, exists: async () => true, ...extra }) }
 }
 
 const ok = (json: unknown): CommandResult => ({ ok: true, stdout: JSON.stringify(json) })
@@ -68,7 +68,13 @@ describe('the resolver invocations', () => {
 
   it('honours an injected bound and working directory', async () => {
     const run = vi.fn<CommandRunner>(async () => ok({}))
-    await createInstallSource({ projectRoot: ROOT, run, timeoutMs: 123, cwd: '/elsewhere' }).resolveRoster()
+    await createInstallSource({
+      projectRoot: ROOT,
+      run,
+      exists: async () => true,
+      timeoutMs: 123,
+      cwd: '/elsewhere'
+    }).resolveRoster()
 
     expect(run.mock.calls[0][2]).toMatchObject({ timeoutMs: 123, cwd: '/elsewhere' })
   })
@@ -80,6 +86,36 @@ describe('the resolver invocations', () => {
 
     expect(run).not.toHaveBeenCalled()
     expect(menu).toMatchObject({ ok: false, failure: { kind: 'unexpected-shape' } })
+  })
+})
+
+describe('a project with no resolver script', () => {
+  it('has no agents and runs nothing, and only its script path is asked about', async () => {
+    const run = vi.fn<CommandRunner>(async () => ok({}))
+    const asked: string[] = []
+    const source = createInstallSource({
+      projectRoot: ROOT,
+      run,
+      exists: async (path) => {
+        asked.push(path)
+        return false
+      }
+    })
+
+    expect(await source.resolveRoster()).toEqual({ ok: true, agents: [] })
+    expect(run).not.toHaveBeenCalled()
+    expect(asked).toEqual([`${ROOT}/_bmad/scripts/resolve_config.py`])
+    expect(asked.some((path) => path.includes('.toml'))).toBe(false)
+  })
+
+  it('runs the resolver as before when the script is there', async () => {
+    const run = vi.fn<CommandRunner>(async () => ok({ agents: { 'bmad-agent-a': agent } }))
+    const source = createInstallSource({ projectRoot: ROOT, run, exists: async () => true })
+
+    const roster = await source.resolveRoster()
+
+    expect(run).toHaveBeenCalledTimes(1)
+    expect(roster.ok && roster.agents).toHaveLength(1)
   })
 })
 

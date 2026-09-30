@@ -97,7 +97,7 @@ it('turns a refused install:get into a rejection carrying the envelope', async (
 })
 
 it('resolves the snapshot itself when install:get succeeds', async () => {
-  const snapshot = { revision: 1, agents: [], menus: {}, errors: [] }
+  const snapshot = { revision: 1, agents: [], menus: {}, errors: [], preflight: [] }
   invoke.mockResolvedValue({ ok: true, snapshot })
   const getInstall = exposedApis.get('harness')?.getInstall as () => Promise<unknown>
 
@@ -114,7 +114,7 @@ it('hands a subscriber the snapshot and never the event, and unsubscribes that v
   const added = [...(listeners.get(installBridge.INSTALL_CHANGED_CHANNEL) ?? [])]
   expect(added).toHaveLength(1)
 
-  const snapshot = { revision: 2, agents: [], menus: {}, errors: [] }
+  const snapshot = { revision: 2, agents: [], menus: {}, errors: [], preflight: [] }
   ;(added[0] as (event: unknown, snapshot: unknown) => void)({ sender: 'raw event' }, snapshot)
   expect(received).toEqual([snapshot])
 

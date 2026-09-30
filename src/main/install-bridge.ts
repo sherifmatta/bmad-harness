@@ -5,6 +5,8 @@ import { createInstallProjection } from './projections/install'
 import type { InstallProjection } from './projections/install'
 import { createInstallSource } from './sources/install/resolvers'
 import type { InstallSource } from './sources/install/resolvers'
+import { createPrerequisiteChecks } from './sources/preflight/tools'
+import type { PrerequisiteChecks } from './sources/preflight/tools'
 import { watchInstall } from './sources/install/watch-install'
 import type { InstallWatcher } from './sources/install/watch-install'
 import { projectPathForWebContents } from './windows/main-window'
@@ -27,6 +29,7 @@ type Sender = {
 export type InstallBridgeDeps = {
   projectPathFor?: (webContentsId: number) => string | undefined
   createSource?: (projectRoot: string) => InstallSource
+  createChecks?: () => PrerequisiteChecks
   watch?: (options: { projectRoot: string; onChange: () => void }) => InstallWatcher
   writeDiagnostic?: (line: string) => void
 }
@@ -48,6 +51,7 @@ function failure(error: HarnessError): InstallReply {
 export function registerInstallBridge(deps: InstallBridgeDeps = {}): void {
   const projectPathFor = deps.projectPathFor ?? projectPathForWebContents
   const createSource = deps.createSource ?? ((projectRoot) => createInstallSource({ projectRoot }))
+  const createChecks = deps.createChecks ?? (() => createPrerequisiteChecks())
   const watch = deps.watch ?? watchInstall
   const writeDiagnostic =
     deps.writeDiagnostic ?? ((line: string) => void process.stderr.write(`${line}\n`))
@@ -62,6 +66,7 @@ export function registerInstallBridge(deps: InstallBridgeDeps = {}): void {
 
     const projection = createInstallProjection({
       source: createSource(projectRoot),
+      checks: createChecks(),
       onChange: (snapshot) => {
         if (!sender.isDestroyed()) {
           sender.send(INSTALL_CHANGED_CHANNEL, snapshot)

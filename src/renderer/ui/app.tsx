@@ -6,6 +6,8 @@ import { RunNoteFeed } from './feed/run-note-feed'
 import { parseMemlog } from './feed/memlog'
 import { artParamsFor } from './persona/art-params'
 import { ErrorLine } from './install/error-line'
+import { Preflight } from './install/preflight'
+import { roomState } from './install/install-state'
 import { useInstall } from './install/use-install'
 import { Initials } from './persona/initials'
 import { portrait } from './persona/portrait'
@@ -123,6 +125,19 @@ export function App(): JSX.Element | null {
   }
   if (projectPath === null) {
     return null
+  }
+  const room = roomState(snapshot, installFailure)
+  if (room === 'pending') {
+    return null
+  }
+  // Story 1.8 gate: the room opens only when preflight passes; the 1:1 view proper is Story 1.9.
+  if (room === 'blocked') {
+    return (
+      <>
+        <p>{projectPath}</p>
+        <Preflight snapshot={snapshot} failure={installFailure} />
+      </>
+    )
   }
   return (
     <>

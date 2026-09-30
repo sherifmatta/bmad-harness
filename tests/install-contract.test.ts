@@ -221,7 +221,7 @@ describe('every failure class, end to end through the projection', () => {
   it.each(results)('%s yields a lower-case message and a detail without a path', async (_name, result) => {
     const run: CommandRunner = async () => result
     const projection = createInstallProjection({
-      source: createInstallSource({ projectRoot: '/somewhere', run }),
+      source: createInstallSource({ projectRoot: '/somewhere', run, exists: async () => true }),
       onChange: () => {}
     })
     await projection.refresh()
@@ -254,7 +254,7 @@ describe('every failure class, end to end through the projection', () => {
         ? { ok: true, stdout: JSON.stringify({ agents: agent }) }
         : { ok: false, kind: 'exit', code: 1 }
     const projection = createInstallProjection({
-      source: createInstallSource({ projectRoot: '/somewhere', run }),
+      source: createInstallSource({ projectRoot: '/somewhere', run, exists: async () => true }),
       onChange: () => {}
     })
     await projection.refresh()

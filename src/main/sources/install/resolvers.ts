@@ -1,3 +1,4 @@
+import { access } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { AgentView } from '../../../shared/install'
@@ -44,7 +45,15 @@ export type InstallSourceOptions = {
   run?: CommandRunner
   timeoutMs?: number
   cwd?: string
+  /** Whether a path exists. Injectable so tests need no filesystem. */
+  exists?: (path: string) => Promise<boolean>
 }
+
+const pathExists = (path: string): Promise<boolean> =>
+  access(path).then(
+    () => true,
+    () => false
+  )
 
 function failureOf(result: Extract<CommandResult, { ok: false }>, timeoutMs: number): {
   kind: ResolverFailure['kind']
@@ -74,7 +83,8 @@ export function createInstallSource({
   projectRoot,
   run = runCommand,
   timeoutMs = RESOLVER_TIMEOUT_MS,
-  cwd = tmpdir()
+  cwd = tmpdir(),
+  exists = pathExists
 }: InstallSourceOptions): InstallSource {
   const scripts = join(projectRoot, '_bmad', 'scripts')
 
@@ -116,6 +126,12 @@ export function createInstallSource({
   return {
     async resolveRoster() {
       const script = 'resolve_config.py'
+      // A project with no resolver script has nothing to ask, and the answer to
+      // "which agents does it resolve" is none. Only the script's path is
+      // checked; it is never read.
+      if (!(await exists(join(scripts, script)))) {
+        return { ok: true, agents: [] }
+      }
       const answer = await resolve(script, ['--project-root', projectRoot, '--key', 'agents'])
       if (!answer.ok) {
         return answer

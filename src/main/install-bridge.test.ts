@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { InstallSnapshot } from '../shared/install'
 import type { InstallSource } from './sources/install/resolvers'
+import type { PrerequisiteChecks } from './sources/preflight/tools'
 
 type Handler = (event: { sender: FakeSender }) => Promise<unknown>
 
@@ -49,6 +50,8 @@ let sourcesCreated: string[]
 let watchers: { onChange: () => void; closed: boolean }[]
 let watchThrows: Error | null
 let diagnostics: string[]
+let checksCreated: number
+let uvCheck: Awaited<ReturnType<PrerequisiteChecks['checkUv']>>
 
 beforeEach(() => {
   handlers.clear()
@@ -57,6 +60,8 @@ beforeEach(() => {
   watchers = []
   watchThrows = null
   diagnostics = []
+  checksCreated = 0
+  uvCheck = { ok: true }
   roster = async () => ({ ok: true, agents: [mary] })
   registerInstallBridge({
     projectPathFor: (id) => (id < 100 ? `/project-${id}` : undefined),
@@ -69,6 +74,10 @@ beforeEach(() => {
         },
         resolveMenu: async () => ({ ok: true, entries: [], problems: [] })
       }
+    },
+    createChecks: () => {
+      checksCreated += 1
+      return { checkClaude: async () => ({ ok: true }), checkUv: async () => uvCheck }
     },
     watch: ({ onChange }) => {
       if (watchThrows !== null) {
@@ -102,6 +111,29 @@ describe('install:get', () => {
     expect(reply.ok).toBe(true)
     expect(reply.snapshot.agents).toEqual([mary])
     expect(sourcesCreated).toEqual(['/project-1'])
+  })
+
+  it('does not build the checks until the first install:get, then builds them once per sender', async () => {
+    expect(checksCreated).toBe(0)
+    const sender = new FakeSender(1)
+
+    await ask(sender)
+    await ask(sender)
+
+    expect(checksCreated).toBe(1)
+  })
+
+  it('carries a failing tool in the reply’s preflight, and runs no roster resolver', async () => {
+    uvCheck = { ok: false, kind: 'uv-missing', diagnostic: 'uv python find · spawn ENOENT' }
+
+    const reply = (await ask(new FakeSender(1))) as { ok: true; snapshot: InstallSnapshot }
+
+    expect(reply.snapshot.preflight).toEqual([
+      { code: 'preflight/uv-missing', message: 'uv · not found · install uv' }
+    ])
+    expect(rosterCalls).toBe(0)
+    expect(diagnostics).toEqual(['preflight/uv-missing · uv python find · spawn ENOENT'])
+    expect(JSON.stringify(reply)).not.toContain('ENOENT')
   })
 
   it('builds one projection and one watcher per sender across repeated asks', async () => {

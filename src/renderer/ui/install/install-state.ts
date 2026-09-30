@@ -80,3 +80,22 @@ export function connectInstall(
     unsubscribe()
   }
 }
+
+/**
+ * Whether the room may open. `pending` draws nothing at all — no spinner, no
+ * sentence. `blocked` shows the project and the named lines and nothing else:
+ * a failure with no snapshot, any unmet prerequisite, or a roster with nobody
+ * in it (an empty room reads as broken, not unconfigured). Otherwise `open`.
+ *
+ * A failure held beside a valid snapshot does not block: a snapshot supersedes
+ * an earlier failure, and the room shows whichever it has.
+ */
+export function roomState(
+  snapshot: InstallSnapshot | null,
+  failure: HarnessError | null
+): 'pending' | 'blocked' | 'open' {
+  if (snapshot === null) {
+    return failure === null ? 'pending' : 'blocked'
+  }
+  return snapshot.preflight.length > 0 || snapshot.agents.length === 0 ? 'blocked' : 'open'
+}
