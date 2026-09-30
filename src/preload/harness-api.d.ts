@@ -2,7 +2,7 @@ import type { InstallSnapshot } from '../shared/install'
 import type { RailSnapshot } from '../shared/rail'
 
 /**
- * The whole bridge surface. Explicitly enumerated: six named methods, no
+ * The whole bridge surface. Explicitly enumerated: eight named methods, no
  * generic `invoke(channel, …)` passthrough, and no `ipcRenderer` in the
  * renderer's reach.
  */
@@ -21,6 +21,17 @@ export interface HarnessApi {
   getRail(): Promise<RailSnapshot>
   /** Calls back with each pushed rail snapshot; returns the way to stop listening. */
   onRailChanged(listener: (snapshot: RailSnapshot) => void): () => void
+  /**
+   * Ask main to open the read-only document window for a rail row's
+   * project-relative path (FR55). A command, not a read: it resolves when main
+   * has acted and rejects with the `HarnessError` envelope when it refused.
+   */
+  openDoc(path: string): Promise<void>
+  /**
+   * Calls back with the project-relative path of the row whose document window
+   * has just been closed by the user; returns the way to stop listening.
+   */
+  onDocClosed(listener: (path: string) => void): () => void
 }
 
 declare global {

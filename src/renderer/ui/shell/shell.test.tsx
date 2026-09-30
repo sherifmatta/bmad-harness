@@ -382,12 +382,14 @@ describe('Shell, the project files', () => {
     expect(teamOf(withRail)).not.toContain('>_bmad/')
   })
 
-  it('adds no button and no tab stop to the Outputs half', () => {
+  it('makes each row one button and the half one tab stop, with no input, link or role', () => {
     const outputs = outputsOf(withRail)
 
-    expect(outputs).not.toMatch(/<button|<input|<a |tabindex|role=/)
-    // Three tiles and two switch buttons, exactly as without a rail.
-    expect(count(withRail, /<button/g)).toBe(2 + 3)
+    expect(outputs).not.toMatch(/<input|<a |role=/)
+    expect(count(outputs, /<button/g)).toBe(2)
+    expect(count(outputs, /tabindex="0"/g)).toBe(1)
+    // Three tiles, two switch buttons and the two rows.
+    expect(count(withRail, /<button/g)).toBe(2 + 3 + 2)
   })
 
   it('shows the empty state for a snapshot with no rows, and the failure for a failed rail', () => {

@@ -1,4 +1,4 @@
-import type { JSX } from 'react'
+import type { JSX, KeyboardEvent } from 'react'
 
 import type { RailRow } from '../../../shared/rail'
 import { StatusDot } from '../status/status-dot'
@@ -36,41 +36,62 @@ function FileIcon(): JSX.Element {
 }
 
 /**
- * One file under `_bmad/`, as one static line (UX-DR18): icon, name, then a
- * meta cluster — the stream's annotation if there is one, the owner's name if
- * it resolved, and the watcher's state.
+ * One file under `_bmad/`, as one line (UX-DR18): icon, name, then a meta
+ * cluster — the stream's annotation if there is one, the owner's name if it
+ * resolved, and the watcher's state.
+ *
+ * The row is an `li` holding one native button (FR55, NFR20), so `Enter` is the
+ * browser's own click and the row is a control that does something: it opens
+ * the file's document window. Exactly one row in the list is a tab stop
+ * (`tabStop`), and which one, and how focus travels between rows, is
+ * `Outputs`'s. The button carries the shared inset ring and no rule of its own.
  *
  * The row is complete without an annotation: the slot renders nothing, not an
  * empty box. `ownerName` is the roster's name for the row's owner, or
  * `undefined` when the row has none or the roster lacks it — and then nothing
  * is drawn, never a fallback. A dot appears only beside the text `changing`.
- *
- * Nothing here is a control. Opening a row is a later story's, and a focusable
- * row with nothing to do would be a dead control.
+ * Opening a document changes nothing about the row.
  */
 export function OutputRow({
   row,
   ownerName,
-  now
+  now,
+  tabStop,
+  onOpen,
+  onKey,
+  buttonRef
 }: {
   row: RailRow
   ownerName?: string
   now: number
+  tabStop: boolean
+  onOpen: (path: string) => void
+  onKey: (event: KeyboardEvent<HTMLButtonElement>) => void
+  buttonRef: (element: HTMLButtonElement | null) => void
 }): JSX.Element {
   return (
     <li className={`output-row output-row--${row.state}`}>
-      <FileIcon />
-      <span className="output-row-name">{baseName(row.path)}</span>
-      <span className="output-row-meta">
-        {row.annotation !== undefined && (
-          <span className="output-row-annotation">{row.annotation.text}</span>
-        )}
-        {ownerName !== undefined && <span className="output-row-owner">{ownerName}</span>}
-        <span className="output-row-state">
-          {row.state === 'changing' && <StatusDot state="work" />}
-          {stateText(row, now)}
+      <button
+        type="button"
+        className="output-row-button focus-inset"
+        tabIndex={tabStop ? 0 : -1}
+        ref={buttonRef}
+        onClick={() => onOpen(row.path)}
+        onKeyDown={onKey}
+      >
+        <FileIcon />
+        <span className="output-row-name">{baseName(row.path)}</span>
+        <span className="output-row-meta">
+          {row.annotation !== undefined && (
+            <span className="output-row-annotation">{row.annotation.text}</span>
+          )}
+          {ownerName !== undefined && <span className="output-row-owner">{ownerName}</span>}
+          <span className="output-row-state">
+            {row.state === 'changing' && <StatusDot state="work" />}
+            {stateText(row, now)}
+          </span>
         </span>
-      </span>
+      </button>
     </li>
   )
 }

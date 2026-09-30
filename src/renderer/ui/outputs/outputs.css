@@ -1,16 +1,21 @@
 /*
  * The project's files in the rail — Story 1.11, UX-DR18, DESIGN.md's
- * `components.rail-row` block, from harness-mockup.html's `.frow*` (:133-146).
+ * `components.rail-row` block, from harness-mockup.html's `.frow*` (:133-146);
+ * made a control in Story 1.12 (FR55, NFR20).
  *
- * The group heading is the shell's own `.rail-group`, reused as it is. A row
- * is static: no pointer affordance and no ground under the pointer, because
- * opening a file is a later story's and a row that looks pressable with
- * nothing to press is a dead control.
+ * The group heading is the shell's own `.rail-group`, reused as it is. A row is
+ * an `li` holding one native button that opens the file's document window, so
+ * the button is reset to read as the row and nothing else: ground transparent,
+ * `--panel-2` under the pointer and the pointer cursor, exactly as a persona
+ * tile does. The `li` keeps the row's rule.
+ *
+ * No rule here draws the focus ring: the shared inset ring is
+ * design/focus.css's.
  *
  * `changing` turns the name, the state text and the icon stroke. The dot's
  * own colour, halo and pulse are status-dot.css's. Every value reaches the
  * design system through `var()`; the only bare values are zero and CSS
- * keywords. No focus rule, no stacking index, no keyframes and no motion.
+ * keywords. No stacking index, no keyframes and no motion.
  */
 
 .outputs-list {
@@ -23,10 +28,28 @@
 
 .output-row {
   display: flex;
+  flex-direction: column;
+  border-bottom: var(--rule-width) solid var(--line-soft);
+}
+
+/* A native button, stretched to the row's width by its column parent and reset
+   to read as the row. */
+.output-row-button {
+  display: flex;
   align-items: center;
   gap: var(--space-md-plus);
+  margin: 0;
   padding: var(--rail-row-padding);
-  border-bottom: var(--rule-width) solid var(--line-soft);
+  border: 0;
+  background: transparent;
+  font-family: var(--sans);
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.output-row-button:hover {
+  background: var(--panel-2);
 }
 
 .file-icon {

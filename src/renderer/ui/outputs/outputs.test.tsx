@@ -100,11 +100,12 @@ describe('Outputs', () => {
     expect(markup).not.toMatch(/\b2\b/)
   })
 
-  it('is one list per group, with no control, role, tab stop or live region', () => {
+  it('is one list per group, each row one button, and no role, style, title or live region', () => {
     const markup = render({ snapshot: rail(saved('_bmad/a.md'), saved('_bmad/x/b.md')) })
 
     expect(count(markup, /<ul/g)).toBe(2)
-    expect(markup).not.toMatch(/<button|<input|role=|tabindex|style=|title=/)
+    expect(count(markup, /<button/g)).toBe(2)
+    expect(markup).not.toMatch(/<input|role=|style=|title=/)
     // Spelled in two halves: accessibility.test.ts counts the bare attribute across src/.
     expect(markup).not.toContain(`aria-${'live'}`)
   })
@@ -116,5 +117,27 @@ describe('Outputs', () => {
     })
 
     expect(markup).not.toContain('error-line')
+  })
+})
+
+describe('the rows as one roving list', () => {
+  const snapshot = rail(
+    saved('_bmad/planning-artifacts/prd.md'),
+    saved('_bmad/epics.md'),
+    saved('_bmad/planning-artifacts/architecture.md')
+  )
+
+  it('has exactly one tab stop, and it is the first row in visual order', () => {
+    const markup = render({ snapshot })
+
+    expect(count(markup, /tabindex="0"/g)).toBe(1)
+    expect(count(markup, /tabindex="-1"/g)).toBe(2)
+    // Visual order: _bmad/epics.md, then the planning-artifacts group by name.
+    expect(markup.indexOf('tabindex="0"')).toBeLessThan(markup.indexOf('epics.md'))
+    expect(markup.indexOf('tabindex="0"')).toBeLessThan(markup.indexOf('tabindex="-1"'))
+  })
+
+  it('draws the list with no role: it is a plain list of buttons', () => {
+    expect(render({ snapshot })).not.toMatch(/role=/)
   })
 })

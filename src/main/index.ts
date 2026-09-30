@@ -1,4 +1,5 @@
 import { BrowserWindow, app, ipcMain } from 'electron'
+import { registerDocBridge } from './doc-bridge'
 import { registerInstallBridge } from './install-bridge'
 import { registerProjectBridge } from './project-bridge'
 import { registerRailBridge } from './rail-bridge'
@@ -67,6 +68,7 @@ ipcMain.handle(PROJECT_PATH_CHANNEL, (event) => {
 registerInstallBridge()
 registerProjectBridge()
 registerRailBridge()
+registerDocBridge()
 
 /**
  * Anything `openProjectWindow` did not expect. It is attached at every call

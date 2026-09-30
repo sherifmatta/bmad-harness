@@ -421,8 +421,13 @@ describe('the shell stylesheets', () => {
     expect(withoutAnyComments(sourceText.get(SHELL_CSS) ?? '')).not.toMatch(/:focus/)
   })
 
-  it('mount the live region once, hidden by the component and not by its caller', () => {
-    expect(sourcesMatching(/<LiveRegion/)).toEqual(['src/renderer/ui/app.tsx'])
+  it('mount the live region once per window, hidden by the component and not by its caller', () => {
+    // Two windows, two pages, one region each: the project window's (app.tsx)
+    // and the document window's own (Story 1.12), which shares no file with it.
+    expect(sourcesMatching(/<LiveRegion/)).toEqual([
+      'src/renderer/ui/app.tsx',
+      'src/renderer/ui/doc/doc-app.tsx'
+    ])
     expect(sourceText.get(LIVE_REGION) ?? '').toContain('className="visually-hidden"')
   })
 })

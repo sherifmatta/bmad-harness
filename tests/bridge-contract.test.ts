@@ -70,7 +70,9 @@ const main = await import('../src/main/index')
 const installBridge = await import('../src/main/install-bridge')
 const projectBridge = await import('../src/main/project-bridge')
 const railBridge = await import('../src/main/rail-bridge')
+const docBridge = await import('../src/main/doc-bridge')
 const preload = await import('../src/preload/index')
+const docPreload = await import('../src/preload/doc')
 const { createProjectWindow } = await import('../src/main/windows/main-window')
 
 it('answers on the same channel from both sides', () => {
@@ -98,7 +100,40 @@ it('answers the rail channels on the same literals from both sides', () => {
   expect(registeredHandlers.has(railBridge.RAIL_GET_CHANNEL)).toBe(true)
 })
 
-it('exposes exactly six named methods, and no channel passthrough', () => {
+it('answers the document channels on the same literals from both sides', () => {
+  // The shell's two: a command in, a path back.
+  expect(preload.DOC_OPEN_CHANNEL).toBe(docBridge.DOC_OPEN_CHANNEL)
+  expect(preload.DOC_CLOSED_CHANNEL).toBe(docBridge.DOC_CLOSED_CHANNEL)
+  expect(preload.DOC_OPEN_CHANNEL).toBe('doc:open')
+  expect(preload.DOC_CLOSED_CHANNEL).toBe('doc:closed')
+  // The document window's five.
+  expect(docPreload.DOC_GET_CHANNEL).toBe(docBridge.DOC_GET_CHANNEL)
+  expect(docPreload.DOC_CHANGED_CHANNEL).toBe(docBridge.DOC_CHANGED_CHANNEL)
+  expect(docPreload.DOC_REVEAL_CHANNEL).toBe(docBridge.DOC_REVEAL_CHANNEL)
+  expect(docPreload.DOC_EDIT_CHANNEL).toBe(docBridge.DOC_EDIT_CHANNEL)
+  expect(docPreload.DOC_CLOSE_CHANNEL).toBe(docBridge.DOC_CLOSE_CHANNEL)
+  expect(
+    [
+      docPreload.DOC_GET_CHANNEL,
+      docPreload.DOC_CHANGED_CHANNEL,
+      docPreload.DOC_REVEAL_CHANNEL,
+      docPreload.DOC_EDIT_CHANNEL,
+      docPreload.DOC_CLOSE_CHANNEL
+    ]
+  ).toEqual(['doc:get', 'doc:changed', 'doc:reveal', 'doc:open-in-editor', 'doc:close'])
+  // Every channel main answers is registered with ipcMain.handle.
+  for (const channel of [
+    docBridge.DOC_OPEN_CHANNEL,
+    docBridge.DOC_GET_CHANNEL,
+    docBridge.DOC_REVEAL_CHANNEL,
+    docBridge.DOC_EDIT_CHANNEL,
+    docBridge.DOC_CLOSE_CHANNEL
+  ]) {
+    expect(registeredHandlers.has(channel), channel).toBe(true)
+  }
+})
+
+it('exposes exactly eight named methods, and no channel passthrough', () => {
   const harness = exposedApis.get('harness')
 
   expect(harness).toBeDefined()
@@ -108,9 +143,32 @@ it('exposes exactly six named methods, and no channel passthrough', () => {
     'onInstallChanged',
     'getBranch',
     'getRail',
-    'onRailChanged'
+    'onRailChanged',
+    'openDoc',
+    'onDocClosed'
   ])
   expect(harness?.invoke).toBeUndefined()
+  expect(harness?.send).toBeUndefined()
+})
+
+it('exposes the document window exactly five named methods, none of which takes a path', () => {
+  const docWindow = exposedApis.get('docWindow')
+
+  expect(docWindow).toBeDefined()
+  expect(Object.keys(docWindow ?? {})).toEqual([
+    'getDocument',
+    'onDocumentChanged',
+    'revealInFinder',
+    'openInEditor',
+    'close'
+  ])
+  expect(docWindow?.invoke).toBeUndefined()
+  expect(docWindow?.send).toBeUndefined()
+  for (const method of Object.values(docWindow ?? {})) {
+    expect((method as () => unknown).length).toBe(method === docWindow?.onDocumentChanged ? 1 : 0)
+  }
+  // And the shell's bridge does not carry the document window's methods.
+  expect(exposedApis.get('harness')?.getDocument).toBeUndefined()
 })
 
 it('turns a refused install:get into a rejection carrying the envelope', async () => {
@@ -230,4 +288,91 @@ it('answers a known window with the branch read from its own project', async () 
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
+})
+
+it('sends openDoc down the open channel with the row’s path, and resolves with nothing', async () => {
+  invoke.mockClear()
+  invoke.mockResolvedValue({ ok: true })
+  const openDoc = exposedApis.get('harness')?.openDoc as (path: string) => Promise<unknown>
+
+  await expect(openDoc('_bmad/planning-artifacts/prd.md')).resolves.toBeUndefined()
+  expect(invoke).toHaveBeenCalledWith(docBridge.DOC_OPEN_CHANNEL, '_bmad/planning-artifacts/prd.md')
+})
+
+it('turns a refused doc:open into a rejection carrying the envelope', async () => {
+  const error = { code: 'doc/invalid-path', message: 'doc · not a document under _bmad/' }
+  invoke.mockResolvedValue({ ok: false, error })
+  const openDoc = exposedApis.get('harness')?.openDoc as (path: string) => Promise<unknown>
+
+  await expect(openDoc('../x')).rejects.toEqual(error)
+})
+
+it('hands an onDocClosed subscriber the path and never the event, and unsubscribes that very listener', () => {
+  const onDocClosed = exposedApis.get('harness')?.onDocClosed as (
+    listener: (path: string) => void
+  ) => () => void
+  const received: unknown[] = []
+
+  const unsubscribe = onDocClosed((path) => received.push(path))
+  const added = [...(listeners.get(docBridge.DOC_CLOSED_CHANNEL) ?? [])]
+  expect(added).toHaveLength(1)
+
+  ;(added[0] as (event: unknown, path: unknown) => void)({ sender: 'raw event' }, '_bmad/prd.md')
+  expect(received).toEqual(['_bmad/prd.md'])
+
+  removed.length = 0
+  unsubscribe()
+  expect(removed).toEqual([[docBridge.DOC_CLOSED_CHANNEL, added[0]]])
+  expect(listeners.get(docBridge.DOC_CLOSED_CHANNEL)?.size).toBe(0)
+})
+
+it('turns a refused doc:get into a rejection carrying the envelope, and resolves the snapshot itself', async () => {
+  const getDocument = exposedApis.get('docWindow')?.getDocument as () => Promise<unknown>
+  const error = { code: 'doc/no-document', message: 'doc · no document is open for this window' }
+
+  invoke.mockClear()
+  invoke.mockResolvedValue({ ok: false, error })
+  await expect(getDocument()).rejects.toEqual(error)
+  expect(invoke).toHaveBeenCalledWith(docBridge.DOC_GET_CHANNEL)
+
+  const snapshot = { revision: 1, path: '_bmad/a.md', state: 'present', text: 'x' }
+  invoke.mockResolvedValue({ ok: true, snapshot })
+  await expect(getDocument()).resolves.toEqual(snapshot)
+})
+
+it('hands a document subscriber the snapshot and never the event, and unsubscribes that very listener', () => {
+  const onDocumentChanged = exposedApis.get('docWindow')?.onDocumentChanged as (
+    listener: (snapshot: unknown) => void
+  ) => () => void
+  const received: unknown[] = []
+
+  const unsubscribe = onDocumentChanged((snapshot) => received.push(snapshot))
+  const added = [...(listeners.get(docBridge.DOC_CHANGED_CHANNEL) ?? [])]
+  expect(added).toHaveLength(1)
+
+  const snapshot = { revision: 2, text: 'y' }
+  ;(added[0] as (event: unknown, snapshot: unknown) => void)({ sender: 'raw event' }, snapshot)
+  expect(received).toEqual([snapshot])
+
+  removed.length = 0
+  unsubscribe()
+  expect(removed).toEqual([[docBridge.DOC_CHANGED_CHANNEL, added[0]]])
+  expect(listeners.get(docBridge.DOC_CHANGED_CHANNEL)?.size).toBe(0)
+})
+
+it.each([
+  ['revealInFinder', docBridge.DOC_REVEAL_CHANNEL],
+  ['openInEditor', docBridge.DOC_EDIT_CHANNEL],
+  ['close', docBridge.DOC_CLOSE_CHANNEL]
+])('sends %s down its own channel with no argument, and rejects with the envelope if refused', async (method, channel) => {
+  const call = exposedApis.get('docWindow')?.[method] as () => Promise<unknown>
+
+  invoke.mockClear()
+  invoke.mockResolvedValue({ ok: true })
+  await expect(call()).resolves.toBeUndefined()
+  expect(invoke).toHaveBeenCalledWith(channel)
+
+  const error = { code: 'doc/no-document', message: 'doc · no document is open for this window' }
+  invoke.mockResolvedValue({ ok: false, error })
+  await expect(call()).rejects.toEqual(error)
 })

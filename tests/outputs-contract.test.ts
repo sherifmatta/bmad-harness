@@ -81,20 +81,51 @@ describe('the outputs stylesheet', () => {
     }
   })
 
-  it('holds no stacking, outline, keyframes, motion, pointer or hover rule, and no shorthand font', () => {
-    expect(css).not.toMatch(/z-index|outline|@keyframes|transition|animation|cursor|:hover|:focus/)
+  it('holds no stacking, outline, keyframes, motion or focus rule, and no shorthand font', () => {
+    // Story 1.12 made the row a control, so the pointer cursor and the hover
+    // ground are allowed here and nowhere the rail's rows are not.
+    expect(css).not.toMatch(/z-index|outline|@keyframes|transition|animation|:focus/)
     expect(css).not.toMatch(/(^|[\s;{])font\s*:/)
+  })
+
+  it('gives the row button the pointer and the hover ground a persona tile has, and nothing more', () => {
+    expect(css).toMatch(/\.output-row-button\s*\{[^}]*cursor:\s*pointer/)
+    expect(css).toMatch(/\.output-row-button:hover\s*\{[^}]*background:\s*var\(--panel-2\)/)
+    expect([...css.matchAll(/:hover/g)]).toHaveLength(1)
   })
 })
 
 describe('the outputs sources', () => {
-  it('draw no control, role, tab stop, click handler, inline style, title or live region', () => {
+  const ROW = `${OUTPUTS_DIR}/output-row.tsx`
+
+  it('draw no control, tab stop or handler but in the row, and no role, inline style, title or live region anywhere', () => {
+    expect(outputsSources).toContain(ROW)
     for (const path of outputsSources) {
       const text = code(path)
-      expect(text, path).not.toMatch(/<button|<input|role=|tabindex|onClick|style=|title=/)
+      // The row is the one control (Story 1.12): a native button, its tab stop
+      // and its two handlers live in output-row.tsx and nowhere else.
+      if (path !== ROW) {
+        expect(text, path).not.toMatch(/<button|tabindex=|tabIndex=|onClick|onKeyDown/i)
+      }
+      expect(text, path).not.toMatch(/<input|role=|style=|title=/)
       expect(text, path).not.toMatch(/aria-live/)
       expect(text, path).not.toMatch(/announc/i)
     }
+  })
+
+  it('make the row exactly one native button, reached by Enter as a click and moved by rowMove', () => {
+    const row = code(ROW)
+    const nav = code(`${OUTPUTS_DIR}/row-nav.ts`)
+
+    expect(row.match(/<button/g)).toHaveLength(1)
+    expect(row).toMatch(/<button\s+type="button"/)
+    expect(row).toContain('tabIndex={tabStop ? 0 : -1}')
+    expect(row).toContain('focus-inset')
+    // No key is named in the row: Enter is the native click.
+    expect(row).not.toMatch(/\bEnter\b|key ===|\.key\b/)
+    expect(nav).toContain('rovingKey')
+    expect(nav).toContain("['Enter']")
+    expect(nav).not.toMatch(/Arrow|case '/)
   })
 
   it('never say create, new, edit, save, written by or generated to the user', () => {

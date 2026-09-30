@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { DocAck } from '../shared/document'
 import type { InstallReply, InstallSnapshot } from '../shared/install'
 import type { RailReply, RailSnapshot } from '../shared/rail'
 import type { HarnessApi } from './harness-api'
@@ -14,6 +15,8 @@ export const INSTALL_CHANGED_CHANNEL = 'install:changed'
 export const PROJECT_BRANCH_CHANNEL = 'project:branch'
 export const RAIL_GET_CHANNEL = 'rail:get'
 export const RAIL_CHANGED_CHANNEL = 'rail:changed'
+export const DOC_OPEN_CHANNEL = 'doc:open'
+export const DOC_CLOSED_CHANNEL = 'doc:closed'
 
 const harness: HarnessApi = {
   getProjectPath: () => ipcRenderer.invoke(PROJECT_PATH_CHANNEL) as Promise<string>,
@@ -53,6 +56,25 @@ const harness: HarnessApi = {
     ipcRenderer.on(RAIL_CHANGED_CHANNEL, wrapper)
     return () => {
       ipcRenderer.removeListener(RAIL_CHANGED_CHANNEL, wrapper)
+    }
+  },
+
+  // A command, not a read (FR55, AD-13): the row's project-relative path goes
+  // to main, which validates it, resolves it and opens the window. Nothing
+  // comes back but whether it did.
+  openDoc: async (path) => {
+    const reply = (await ipcRenderer.invoke(DOC_OPEN_CHANNEL, path)) as DocAck
+    if (!reply.ok) {
+      throw reply.error
+    }
+  },
+
+  onDocClosed: (listener) => {
+    // The project-relative path of the row that opened the window, never the event.
+    const wrapper = (_event: unknown, path: string): void => listener(path)
+    ipcRenderer.on(DOC_CLOSED_CHANNEL, wrapper)
+    return () => {
+      ipcRenderer.removeListener(DOC_CLOSED_CHANNEL, wrapper)
     }
   }
 }

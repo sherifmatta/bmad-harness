@@ -146,7 +146,7 @@ describe('what preflight never does', () => {
     expect(bridge).toMatch(/createInstallProjection\(\{[\s\S]*?checks: createChecks\(\)/)
   })
 
-  it('leaves the bridge with exactly its six methods (getBranch arrived in Story 1.9, the two rail methods in Story 1.11)', () => {
+  it('leaves the bridge with exactly its eight methods (getBranch arrived in Story 1.9, the two rail methods in Story 1.11, the two document methods in Story 1.12)', () => {
     const api = readFileSync(join(SRC, 'preload/harness-api.d.ts'), 'utf8')
     const body = api.match(/interface HarnessApi \{([\s\S]*?)\n\}/)
 
@@ -157,8 +157,10 @@ describe('what preflight never does', () => {
       'getInstall',
       'getProjectPath',
       'getRail',
+      'onDocClosed',
       'onInstallChanged',
-      'onRailChanged'
+      'onRailChanged',
+      'openDoc'
     ])
   })
 

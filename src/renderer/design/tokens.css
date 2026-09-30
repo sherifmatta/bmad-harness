@@ -406,6 +406,44 @@
   --rail-row-padding:6.5px 11px;
   --file-icon-width:12px;
   --file-icon-height:14px;
+
+  /* ── The document window (Story 1.12), promoted so no stylesheet restates a
+     literal (NFR23). Every line cited is harness-mockup.html's; the component
+     is DESIGN.md `components.document-window`. The window's own size, titlebar
+     and foot (--win-width, --win-height, --win-titlebar, --win-foot), its
+     ground and border (--win-line), its shadow and titlebar gradient, the
+     scrim and the two stacking indexes were promoted earlier and are spent as
+     they are.
+
+     The card sits `top:8vh` (`.win`, :341). */
+  --win-top:8vh;
+
+  /* The three lights in the titlebar: `.win .lights` is a 6px gap (:351) of
+     10px circles coloured `#3a424e` (:352; DESIGN.md
+     `components.document-window.lights`). They are decoration, not controls. */
+  --win-lights-gap:6px;
+  --win-light-size:10px;
+  --win-light:#3a424e;
+
+  /* The body is padded `26px 34px 40px` (`.win .wbody`, :355; DESIGN.md
+     `components.document-window.bodyPadding`), and the foot `0 11px`
+     (`.win .wfoot`, :369). */
+  --doc-body-padding:26px 34px 40px;
+  --win-foot-padding:0 11px;
+
+  /* The ghost button: `.ghost-btn` is padded `4px 10px` (:74) and its hover
+     border is `#39414c` (:76). The other values are existing tokens. */
+  --ghost-padding:4px 10px;
+  --ghost-border-hover:#39414c;
+
+  /* Rendered markdown's rhythm, from `.md` (:356-367): the gap under the first
+     heading's rule (`.md .sub` margin-bottom, :358), h2 and h3 margins (:359,
+     :360), the list indent (:362) and the full-width table (:364). */
+  --md-h1-gap:22px;
+  --md-h2-margin:24px 0 7px;
+  --md-h3-margin:18px 0 5px;
+  --md-list-indent:19px;
+  --md-table-width:100%;
 }
 
 /* The three keyframes the inventory names, copied from the mockup. `blink` is

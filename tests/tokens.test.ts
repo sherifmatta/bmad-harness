@@ -526,6 +526,59 @@ describe('the files in the rail (Story 1.11)', () => {
   })
 })
 
+describe('the document window (Story 1.12)', () => {
+  // Read out of DESIGN.md and the mockup at run time, never transcribed: a
+  // retuned window reddens this rather than drifting.
+  const mockup = readFileSync(MOCKUP, 'utf8')
+
+  it('couples the lights, the body padding and the card geometry to DESIGN.md components.document-window', () => {
+    const window = componentBlock('document-window')
+
+    for (const key of ['lights', 'bodyPadding', 'radius', 'shadow', 'titlebar']) {
+      expect(window[key], `DESIGN.md components.document-window.${key}`).toBeTypeOf('string')
+    }
+    // `10px {rounded.full} #3a424e`: the size is the first word, the colour the last.
+    const [size, , colour] = window['lights'].split(/\s+/)
+    expect(tokens.get('--win-light-size')).toBe(size)
+    expect(tokens.get('--win-light')).toBe(colour)
+    expect(tokens.get('--doc-body-padding')).toBe(window['bodyPadding'])
+    expect(tokens.get('--shadow-window')).toBe(window['shadow'].replace(/\s*,\s*/g, ','))
+    expect(window['titlebar']).toContain(tokens.get('--grad-titlebar'))
+  })
+
+  it('takes each promoted literal from the mockup line it cites', () => {
+    expect(tokens.get('--win-top')).toBe('8vh')
+    expect(mockup).toContain('top:8vh;left:50%')
+    expect(tokens.get('--win-lights-gap')).toBe('6px')
+    expect(mockup).toContain('.win .lights{display:flex;gap:6px;')
+    expect(tokens.get('--win-foot-padding')).toBe('0 11px')
+    expect(mockup).toContain('gap:12px;padding:0 11px;')
+    expect(tokens.get('--ghost-padding')).toBe('4px 10px')
+    expect(mockup).toContain('padding:4px 10px;font-size:11.5px')
+    expect(tokens.get('--ghost-border-hover')).toBe('#39414c')
+    expect(mockup).toContain('.ghost-btn:hover{color:var(--text-strong);border-color:#39414c}')
+    expect(tokens.get('--md-h1-gap')).toBe('22px')
+    expect(mockup).toContain('margin-bottom:22px;padding-bottom:14px')
+    expect(tokens.get('--md-h2-margin')).toBe('24px 0 7px')
+    expect(mockup).toContain('margin:24px 0 7px')
+    expect(tokens.get('--md-h3-margin')).toBe('18px 0 5px')
+    expect(mockup).toContain('margin:18px 0 5px')
+    expect(tokens.get('--md-list-indent')).toBe('19px')
+    expect(mockup).toContain('padding-left:19px')
+    expect(tokens.get('--md-table-width')).toBe('100%')
+    expect(mockup).toContain('border-collapse:collapse;width:100%')
+  })
+
+  it('comments the block with the mockup and the component it was read from', () => {
+    const block = tokensCss.slice(tokensCss.indexOf('The document window (Story 1.12)'))
+
+    expect(block).toContain('components.document-window')
+    expect(block).toContain('.win')
+    expect(block).toContain('.ghost-btn')
+    expect(block).toContain('.md')
+  })
+})
+
 describe('elevation and depth', () => {
   it('is exactly two z-indexes: 40 scrim, 50 window', () => {
     const stacking = namesMatching('--z-')

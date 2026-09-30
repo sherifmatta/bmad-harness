@@ -7,10 +7,18 @@ import { OutputRow } from './output-row'
 const NOW = 1_000_000_000_000
 const DAY = 24 * 60 * 60 * 1000
 
-function render(row: RailRow, ownerName?: string): string {
+function render(row: RailRow, ownerName?: string, tabStop = false): string {
   return renderToStaticMarkup(
     <ul>
-      <OutputRow row={row} ownerName={ownerName} now={NOW} />
+      <OutputRow
+        row={row}
+        ownerName={ownerName}
+        now={NOW}
+        tabStop={tabStop}
+        onOpen={() => {}}
+        onKey={() => {}}
+        buttonRef={() => {}}
+      />
     </ul>
   )
 }
@@ -22,10 +30,14 @@ const CHANGING: RailRow = { path: '_bmad/planning-artifacts/prd.md', state: 'cha
 const EMPTY: RailRow = { path: '_bmad/planning-artifacts/prd.md', state: 'not-yet-written' }
 
 describe('OutputRow', () => {
-  it('is one list item: icon, name, then the meta cluster', () => {
+  it('is one list item holding one button: icon, name, then the meta cluster', () => {
     const markup = render(SAVED)
 
     expect(count(markup, /<li/g)).toBe(1)
+    expect(count(markup, /<button/g)).toBe(1)
+    expect(markup).toMatch(/^<ul><li class="output-row output-row--saved"><button type="button" class="output-row-button focus-inset"/)
+    expect(markup.indexOf('<li')).toBeLessThan(markup.indexOf('<button'))
+    expect(markup.indexOf('<button')).toBeLessThan(markup.indexOf('file-icon'))
     expect(markup.indexOf('file-icon')).toBeLessThan(markup.indexOf('output-row-name'))
     expect(markup.indexOf('output-row-name')).toBeLessThan(markup.indexOf('output-row-meta'))
     expect(markup).toContain('<span class="output-row-name">prd.md</span>')
@@ -98,10 +110,44 @@ describe('OutputRow', () => {
     expect(markup).toContain('&lt;b&gt;Mallory&lt;/b&gt;')
   })
 
-  it('is static: no control, role, tab stop or title', () => {
+  it('is a native button with no role, title, link or second control', () => {
     for (const row of [SAVED, CHANGING, EMPTY]) {
-      expect(render(row, 'John')).not.toMatch(/<button|<input|<a |role=|tabindex|title=|onclick/i)
+      const markup = render(row, 'John')
+
+      expect(markup).toMatch(/<button type="button"/)
+      expect(markup).not.toMatch(/<input|<a |role=|title=|aria-label|style=/i)
+      expect(count(markup, /<button/g)).toBe(1)
     }
+  })
+
+  it('is the list’s one tab stop with tabindex 0, and every other row -1', () => {
+    expect(render(SAVED, undefined, true)).toContain('tabindex="0"')
+    expect(render(SAVED, undefined, true)).not.toContain('tabindex="-1"')
+    expect(render(SAVED, undefined, false)).toContain('tabindex="-1"')
+    expect(render(SAVED, undefined, false)).not.toContain('tabindex="0"')
+  })
+
+  it('takes the shared inset ring through a class, and draws no ring of its own', () => {
+    expect(render(SAVED)).toContain('class="output-row-button focus-inset"')
+  })
+
+  it('opens the file on click with the row’s project-relative path, and reports keys to its list', () => {
+    const opened: string[] = []
+    const keys: string[] = []
+    const element = OutputRow({
+      row: SAVED,
+      now: NOW,
+      tabStop: true,
+      onOpen: (path) => opened.push(path),
+      onKey: (event) => keys.push(event.key),
+      buttonRef: () => {}
+    })
+    const button = (element.props as { children: { props: { onClick: () => void; onKeyDown: (e: { key: string }) => void } } }).children
+    button.props.onClick()
+    button.props.onKeyDown({ key: 'x' })
+
+    expect(opened).toEqual(['_bmad/planning-artifacts/prd.md'])
+    expect(keys).toEqual(['x'])
   })
 
   it('never says anything implying the harness wrote the file', () => {

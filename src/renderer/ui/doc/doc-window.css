@@ -1,0 +1,312 @@
+/*
+ * The document window's page — Story 1.12, UX-DR27, DESIGN.md's
+ * `components.document-window` block, from harness-mockup.html's `.scrim`,
+ * `.win*` and `.md*` (:337-372).
+ *
+ * The OS window around this page is a transparent stage laid over the project
+ * window (main's doc-window.ts); the page paints everything a window has: the
+ * scrim, the card, its radius and its one true shadow. So the ground here is
+ * `transparent`, a CSS keyword, where page.css would paint `--bg`.
+ *
+ * This is the one stylesheet that spends `--z-scrim` and `--z-window`, the two
+ * stacking indexes the product has. Every value reaches the design system
+ * through `var()`; the only bare values are zero and CSS keywords. Nothing here
+ * styles keyboard focus: the shared ring is design/focus.css's, and it reaches
+ * the three buttons and the document region untouched. No keyframes and no
+ * motion.
+ */
+
+body {
+  background: transparent;
+}
+
+/* ---------- the scrim and the card ---------- */
+
+/* Inert: it dims the room and answers no click. */
+.doc-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-scrim);
+  background: var(--scrim);
+}
+
+.doc-window {
+  position: fixed;
+  z-index: var(--z-window);
+  top: var(--win-top);
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  width: var(--win-width);
+  height: var(--win-height);
+  overflow: hidden;
+  background: var(--panel);
+  border: var(--rule-width) solid var(--win-line);
+  border-radius: var(--radius-window);
+  box-shadow: var(--shadow-window);
+}
+
+/* ---------- the title bar ---------- */
+
+.doc-titlebar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  height: var(--win-titlebar);
+  padding: 0 var(--space-lg);
+  background: var(--grad-titlebar);
+  border-bottom: var(--rule-width) solid var(--line);
+}
+
+/* Decoration: the OS draws none on a frameless window. */
+.doc-lights {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--win-lights-gap);
+  margin-right: var(--space-xxs);
+}
+
+.doc-light {
+  display: block;
+  width: var(--win-light-size);
+  height: var(--win-light-size);
+  border-radius: var(--radius-full);
+  background: var(--win-light);
+}
+
+/* The full path, not the basename: one line, cut with an ellipsis. */
+.doc-path {
+  flex: 0 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--mono);
+  font-size: var(--fs-ident);
+  color: var(--dim);
+}
+
+.doc-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-sm);
+  margin-left: auto;
+}
+
+.ghost-btn {
+  margin: 0;
+  padding: var(--ghost-padding);
+  background: var(--panel-2);
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--r);
+  font-family: var(--sans);
+  font-size: var(--fs-body-ui);
+  color: var(--dim);
+  cursor: pointer;
+}
+
+.ghost-btn:hover:enabled {
+  color: var(--text-strong);
+  border-color: var(--ghost-border-hover);
+}
+
+/* A refused document offers neither escape; dimmed, not removed. */
+.ghost-btn:disabled {
+  opacity: var(--opacity-idle);
+  cursor: default;
+}
+
+/* ---------- the reading surface ---------- */
+
+.doc-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--doc-body-padding);
+}
+
+/* A file that is not markdown: mono text as it is, never run through markdown. */
+.doc-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--mono);
+  font-size: var(--fs-body-ui);
+  line-height: var(--lh-read);
+  color: var(--ink-md);
+}
+
+.doc-failure,
+.doc-unavailable {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  color: var(--dim);
+}
+
+/* No card to sit in: the one line stands on its own ground, above the scrim. */
+.doc-unavailable {
+  position: fixed;
+  z-index: var(--z-window);
+  top: var(--win-top);
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  width: var(--win-width);
+  padding: var(--space-lg);
+  background: var(--panel);
+  border-radius: var(--radius-window);
+}
+
+/* ---------- rendered markdown ---------- */
+
+.doc-md {
+  max-width: var(--doc-read-max);
+  margin: 0 auto;
+  font-size: var(--fs-doc-read);
+  line-height: var(--lh-read);
+  color: var(--ink-md);
+}
+
+.doc-md h1 {
+  margin: 0 0 var(--md-h1-gap);
+  padding-bottom: var(--space-xxl);
+  border-bottom: var(--rule-width) solid var(--line);
+  font-size: var(--fs-h1);
+  font-weight: var(--weight-strong);
+  letter-spacing: var(--track-h1);
+  color: var(--text-strong);
+}
+
+.doc-md h2 {
+  margin: var(--md-h2-margin);
+  font-size: var(--fs-h2);
+  font-weight: var(--weight-strong);
+  color: var(--text-strong);
+}
+
+.doc-md h3,
+.doc-md h4,
+.doc-md h5,
+.doc-md h6 {
+  margin: var(--md-h3-margin);
+  font-size: var(--fs-name);
+  font-weight: var(--weight-strong);
+  letter-spacing: var(--track-md-h3);
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.doc-md p {
+  margin: 0 0 var(--space-lg);
+}
+
+.doc-md ul,
+.doc-md ol {
+  margin: 0 0 var(--space-xl);
+  padding-left: var(--md-list-indent);
+}
+
+.doc-md li {
+  margin-bottom: var(--space-xs);
+}
+
+.doc-md strong {
+  font-weight: var(--weight-strong);
+  color: var(--text-strong);
+}
+
+.doc-md del {
+  color: var(--dim);
+}
+
+.doc-md blockquote {
+  margin: 0 0 var(--space-lg);
+  padding-left: var(--space-xl);
+  border-left: var(--rule-width) solid var(--line);
+  color: var(--dim);
+}
+
+.doc-md hr {
+  margin: var(--space-xxl) 0;
+  border: 0;
+  border-top: var(--rule-width) solid var(--line);
+}
+
+.doc-md code {
+  padding: 0 var(--space-xxs);
+  border-radius: var(--radius-chip);
+  background: var(--code-bg);
+  font-family: var(--mono);
+  font-size: var(--fs-body-ui);
+  color: var(--code-ink);
+}
+
+.doc-md pre {
+  margin: 0 0 var(--space-xxl);
+  padding: var(--space-lg) var(--space-xl);
+  overflow: auto;
+  border-radius: var(--radius-control);
+  background: var(--code-bg);
+  line-height: var(--lh-tight);
+}
+
+.doc-md pre code {
+  padding: 0;
+  background: transparent;
+}
+
+.doc-md table {
+  width: var(--md-table-width);
+  margin: var(--space-sm) 0 var(--space-xxl);
+  border-collapse: collapse;
+  font-size: var(--fs-name);
+}
+
+.doc-md th,
+.doc-md td {
+  padding: var(--space-sm) var(--space-md-plus);
+  border: var(--rule-width) solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.doc-md th {
+  background: var(--panel-2);
+  font-size: var(--fs-ident);
+  font-weight: var(--weight-strong);
+  letter-spacing: var(--track-micro);
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+/* A requirement id: accent mono, never broken across lines. */
+.doc-md .fr {
+  font-family: var(--mono);
+  font-size: var(--fs-body-ui);
+  white-space: nowrap;
+  color: var(--accent);
+}
+
+/* ---------- the foot ---------- */
+
+.doc-foot {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-xl);
+  height: var(--win-foot);
+  padding: var(--win-foot-padding);
+  border-top: var(--rule-width) solid var(--line);
+  background: var(--panel-2);
+  font-family: var(--mono);
+  font-size: var(--fs-meta);
+  color: var(--faint);
+}
+
+.doc-foot-kind {
+  margin-left: auto;
+}
