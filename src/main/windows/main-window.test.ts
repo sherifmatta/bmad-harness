@@ -57,6 +57,8 @@ let projectPathForWebContents: MainWindow['projectPathForWebContents']
 
 interface CapturedOptions {
   title: string
+  width: number
+  height: number
   webPreferences: {
     preload: string
     contextIsolation: boolean
@@ -100,6 +102,15 @@ beforeEach(async () => {
 })
 
 describe('the project window', () => {
+  it('opens wider than the 1000px breakpoint, so it is not born stacked', () => {
+    createProjectWindow('/somewhere/a-project')
+    const { width, height } = optionsOfLastWindow()
+
+    expect(width).toBe(1280)
+    expect(height).toBe(800)
+    expect(width).toBeGreaterThan(1180)
+  })
+
   it('is created with the renderer sealed off from Node', () => {
     createProjectWindow('/somewhere/a-project')
     const { webPreferences } = optionsOfLastWindow()

@@ -1,0 +1,298 @@
+/*
+ * The shell — Story 1.9: the topbar, the two views and the 1:1 layout, from
+ * harness-mockup.html's `.app`, `.topbar` … `.rail-head` and `@media` blocks.
+ *
+ * Every value reaches the design system through `var()`; the only bare values
+ * are zero and CSS keywords. The one place a dimension is spelled is the
+ * condition of a media rule, which cannot read a custom property, and there
+ * are exactly two of those (NFR27): the party side panel goes at the first,
+ * the layout stacks at the second. No mobile rule exists.
+ *
+ * Nothing here draws or styles keyboard focus: the shared ring is
+ * design/focus.css's, and it reaches the view switch untouched. No stacking
+ * index, no keyframes and no motion either.
+ */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: var(--viewport-tall);
+  min-height: 0;
+}
+
+/* ---------- topbar ---------- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xxl);
+  height: var(--topbar);
+  flex: 0 0 var(--topbar);
+  padding: 0 var(--space-xl);
+  background: var(--chrome);
+  border-bottom: var(--rule-width) solid var(--line);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  letter-spacing: var(--track-brand);
+}
+
+.brand-mark {
+  position: relative;
+  flex: 0 0 auto;
+  width: var(--brand-mark-size);
+  height: var(--brand-mark-size);
+  border: var(--rule-width) solid var(--brand-mark-line);
+  border-radius: var(--radius-chip);
+}
+
+.brand-mark::after {
+  content: '';
+  position: absolute;
+  inset: var(--brand-mark-inset);
+  background: var(--accent);
+  opacity: var(--opacity-mark);
+  border-radius: var(--radius-hairline);
+}
+
+.brand-name {
+  font-size: var(--fs-name);
+  font-weight: var(--weight-strong);
+  color: var(--text-strong);
+}
+
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: var(--fs-body-ui);
+  color: var(--dim);
+}
+
+.crumbs-sep {
+  color: var(--topbar-sep);
+}
+
+.crumbs-path {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  height: var(--chip-height);
+  padding: var(--chip-padding);
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--radius-chip);
+  background: var(--panel-2);
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  color: var(--dim);
+  white-space: nowrap;
+  max-width: var(--chip-max);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spacer {
+  flex: 1 1 auto;
+  min-width: var(--space-md);
+}
+
+/* ---------- the view switch ---------- */
+
+.view-switch {
+  display: flex;
+  flex: 0 0 auto;
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--r);
+  background: var(--panel-2);
+}
+
+.view-switch button {
+  padding: var(--switch-padding);
+  border: 0;
+  border-right: var(--rule-width) solid var(--line-soft);
+  background: transparent;
+  font-family: var(--sans);
+  font-size: var(--fs-control);
+  letter-spacing: var(--track-control);
+  color: var(--dim);
+  cursor: pointer;
+}
+
+/* No clipping on the group, or the shared ring is cut off at its edge: the end
+   buttons carry the group's outer corners themselves. The pressed inset rule
+   is drawn by the button's own box, so it follows these radii. */
+.view-switch button:first-child {
+  border-top-left-radius: var(--r);
+  border-bottom-left-radius: var(--r);
+}
+
+.view-switch button:last-child {
+  border-right: 0;
+  border-top-right-radius: var(--r);
+  border-bottom-right-radius: var(--r);
+}
+
+.view-switch button:hover {
+  color: var(--text);
+}
+
+.view-switch button[aria-pressed='true'] {
+  background: var(--raised);
+  color: var(--text-strong);
+  box-shadow: var(--inset-pressed);
+}
+
+/* ---------- views ---------- */
+
+.view {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.view[hidden] {
+  display: none;
+}
+
+.view-conversation {
+  flex-direction: row;
+}
+
+.view-party {
+  flex-direction: column;
+}
+
+/* ---------- 1:1 : the chat column ---------- */
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  background: var(--bg);
+}
+
+.scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.thread {
+  max-width: var(--thread-max);
+  margin: 0 auto;
+  padding: var(--thread-padding);
+}
+
+/* ---------- 1:1 : the rail ---------- */
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 var(--rail);
+  width: var(--rail);
+  min-height: 0;
+  border-left: var(--rule-width) solid var(--line);
+  background: var(--panel);
+}
+
+.rail-half {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 var(--rail-half-basis);
+  min-height: 0;
+}
+
+.rail-half + .rail-half {
+  border-top: var(--rule-width) solid var(--line);
+}
+
+.rail-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  height: var(--rail-head);
+  flex: 0 0 var(--rail-head);
+  padding: var(--rail-head-padding);
+  border-bottom: var(--rule-width) solid var(--line-soft);
+  background: var(--panel-2);
+}
+
+.rail-head h3 {
+  margin: 0;
+  font-size: var(--fs-label);
+  font-weight: var(--weight-strong);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.rail-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ---------- responsive : two breakpoints, no more ---------- */
+
+@media (max-width: 1180px) {
+  .party-side {
+    display: none;
+  }
+}
+
+@media (max-width: 1000px) {
+  body {
+    overflow: auto;
+  }
+
+  .app {
+    height: auto;
+    min-height: var(--viewport-tall);
+  }
+
+  .view,
+  .view-conversation {
+    flex-direction: column;
+  }
+
+  .chat {
+    min-height: var(--stack-chat-min);
+  }
+
+  .rail {
+    flex: 0 0 auto;
+    width: auto;
+    border-left: 0;
+    border-top: var(--rule-width) solid var(--line);
+  }
+
+  .rail-half {
+    min-height: var(--stack-half-min);
+  }
+
+  .topbar {
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    height: auto;
+    padding: var(--space-sm) var(--space-lg);
+    gap: var(--space-md);
+  }
+
+  .crumbs {
+    order: 3;
+    width: var(--stack-crumbs-width);
+  }
+}

@@ -9,6 +9,8 @@ import {
   guardedStylesheets,
   inlineStyleLiteralsIn,
   literalsIn,
+  allMediaConditions,
+  mediaConditionsIn,
   withoutComments
 } from './literal-guard'
 
@@ -726,6 +728,41 @@ describe('the NFR23 literal guard', () => {
     expect(literalsIn('probe.css', '/* was #171b21 at 348px */\n.rail { color: var(--dim) }')).toEqual(
       []
     )
+  })
+
+  it('lets an @media condition spell its breakpoint, and only the condition', () => {
+    expect(
+      literalsIn('probe.css', '@media (max-width: 1000px) { .rail { width: var(--rail) } }')
+    ).toEqual([])
+    expect(
+      literalsIn('probe.css', '@media (max-width: 1000px) { .rail { width: 348px } }').map(
+        ({ kind, text }) => `${kind} ${text}`
+      )
+    ).toEqual(['dimension 348px'])
+    expect(
+      literalsIn('probe.css', '@media (max-width: 1000px) {\n.rail { color: #171b21 }\n}')
+    ).toEqual([{ file: 'probe.css', line: 2, kind: 'hex colour', text: '#171b21' }])
+  })
+
+  it('pins the breakpoints: every @media under src/renderer/ is 1180, 1000, or the reduced-motion block', () => {
+    expect(allMediaConditions()).toEqual(
+      [
+        'src/renderer/design/tokens.css: (prefers-reduced-motion:reduce)',
+        'src/renderer/ui/shell/shell.css: (max-width:1000px)',
+        'src/renderer/ui/shell/shell.css: (max-width:1180px)'
+      ].sort()
+    )
+    expect(tokensCss).not.toMatch(/@media[^{]*width/)
+  })
+
+  it('sees a third media condition of any kind, so the pin above cannot be dodged', () => {
+    expect(mediaConditionsIn('@media (max-height: 600px) { .a { color: var(--dim) } }')).toEqual([
+      '(max-height:600px)'
+    ])
+    expect(mediaConditionsIn('@media (orientation: portrait) { .a { color: var(--dim) } }')).toEqual([
+      '(orientation:portrait)'
+    ])
+    expect(mediaConditionsIn('/* @media (max-width: 1px) */ .a { color: var(--dim) }')).toEqual([])
   })
 
   it('exempts tokens.css and nothing else', () => {

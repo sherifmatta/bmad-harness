@@ -392,3 +392,32 @@ describe('the live region', () => {
     ).toEqual([])
   })
 })
+
+// ---------------------------------------------------------------------------
+// The shell's stylesheets sit inside the whole-tree sweeps (Story 1.9).
+// ---------------------------------------------------------------------------
+
+describe('the shell stylesheets', () => {
+  const SHELL_CSS = 'src/renderer/ui/shell/shell.css'
+  const LIVE_REGION_CSS = `${A11Y}live-region.css`
+
+  it('are governed by the literal guard and swept by the focus-stroke and arrow-key sweeps', () => {
+    for (const path of [SHELL_CSS, LIVE_REGION_CSS]) {
+      // Asserted rather than assumed: a stylesheet outside these lists would
+      // pass every sweep above by never being looked at.
+      expect(guardedStylesheets(), path).toContain(path)
+      expect(sources, path).toContain(path)
+      expect(literalsIn(path, sourceText.get(path) ?? ''), path).toEqual([])
+      expect(sourceText.get(path) ?? '', path).not.toMatch(/outline/i)
+    }
+  })
+
+  it('leave the view switch to the shared ring: one button rule, no focus rule', () => {
+    expect(withoutAnyComments(sourceText.get(SHELL_CSS) ?? '')).not.toMatch(/:focus/)
+  })
+
+  it('mount the live region once, hidden by the component and not by its caller', () => {
+    expect(sourcesMatching(/<LiveRegion/)).toEqual(['src/renderer/ui/app.tsx'])
+    expect(sourceText.get(LIVE_REGION) ?? '').toContain('className="visually-hidden"')
+  })
+})

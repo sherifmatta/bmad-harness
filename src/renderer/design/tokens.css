@@ -285,6 +285,75 @@
   --focus-ring-width:2px;
   --focus-ring-offset:2px;
   --focus-ring-offset-stacked:3px;
+
+  /* ── The shell furniture (Story 1.9), promoted so no stylesheet restates a
+     literal (NFR23). Each is read off harness-mockup.html and named for its
+     role rather than the selector that first spelled it.
+
+     The brand mark: `.brand .mark` (:51) is a 16px square with a `#445062`
+     border, and its `::after` (:52) is inset 3px. */
+  --brand-mark-size:16px;
+  --brand-mark-inset:3px;
+  --brand-mark-line:#445062;
+
+  /* The breadcrumb separator: `.crumbs .sep` (:56), `#3a424d` — quieter than
+     --faint, so the bar reads as one line and not two facts. */
+  --topbar-sep:#3a424d;
+
+  /* The chip: `.chip` (:58-63) — 20px tall, padded 0 7px. */
+  --chip-height:20px;
+  --chip-padding:0 7px;
+
+  /* The widest a chip may grow before it ellipsises. Not in the mockup, whose
+     chips carry short fixed strings; a branch name is project content of up to
+     200 characters and must not push the view switch off the bar. */
+  --chip-max:240px;
+
+  /* The view switch: `.segmented button` (:65-68) is padded 5px 13px, and its
+     pressed ground (:70) is `#242b34`, one step above --panel-2. */
+  --switch-padding:5px 13px;
+  --raised:#242b34;
+
+  /* The inset rule under the pressed switch button (:70; DESIGN.md:495) — an
+     edge drawn with a shadow, not depth. Named apart from the --shadow- family
+     on purpose: that family is the four halo and window shadows, and the
+     negative offset is a literal a stylesheet may not spell. */
+  --inset-pressed:inset 0 -2px 0 var(--accent);
+
+  /* The rail head's padding: `.rail-head` (:95-98), 0 11px. Eleven is not on
+     the spacing ladder and padding is deliberately not regularised. */
+  --rail-head-padding:0 11px;
+
+  /* The chat thread's padding: `.thread` (:170), 16px 16px 26px. */
+  --thread-padding:16px 16px 26px;
+
+  /* Each rail half takes half the rail: `.rail-half` (:93), `flex:1 1 50%`. */
+  --rail-half-basis:50%;
+
+  /* One viewport tall: `.app` (:42), `height:100vh`, and the stacked
+     `min-height:100vh` (:391). */
+  --viewport-tall:100vh;
+
+  /* The stacked layout: the breadcrumb row takes the topbar's full width on
+     its own line (`.crumbs{order:3;width:100%}`, :400), and the two floors,
+     `.col-chat{min-height:62vh}` (:394) and `.rail-half{min-height:230px}`
+     (:396). */
+  --stack-crumbs-width:100%;
+  --stack-chat-min:62vh;
+  --stack-half-min:230px;
+
+  /* The scrollbar: `::-webkit-scrollbar` (:37-40) is 10px, the thumb sits
+     behind a 3px transparent border and lightens on hover. The radius is
+     --radius-scrollbar. */
+  --scrollbar-size:10px;
+  --scrollbar-inset:3px;
+  --scrollbar-thumb:#2b323b;
+  --scrollbar-thumb-hover:#3a434e;
+
+  /* The visually-hidden pair: the standard clip needs a 1px box and a -1px
+     margin, and the live region's wrapper spends it. */
+  --hidden-size:1px;
+  --hidden-offset:-1px;
 }
 
 /* The three keyframes the inventory names, copied from the mockup. `blink` is

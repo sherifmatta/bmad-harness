@@ -1,0 +1,23 @@
+/*
+ * Visually hidden, still in the accessibility tree.
+ *
+ * The live region must be present for a screen reader and absent from the
+ * page, so it cannot be hidden with `display: none` or `visibility` — either
+ * removes it from the tree and nothing is ever announced. The standard clip
+ * keeps it: absolutely positioned, one unit square, pulled back over itself,
+ * clipped to nothing and unable to wrap.
+ *
+ * Applied by `LiveRegion` itself, so no caller can mount the region visibly.
+ */
+
+.visually-hidden {
+  position: absolute;
+  width: var(--hidden-size);
+  height: var(--hidden-size);
+  margin: var(--hidden-offset);
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

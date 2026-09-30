@@ -1,20 +1,24 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import type { JSX } from 'react'
 
 import uxMemlog from '../../../_bmad/planning-artifacts/ux-designs/ux-bmad-harness-2026-09-24/.memlog.md?raw'
+import { Announcer } from './a11y/announcer'
+import { LiveRegion } from './a11y/live-region'
 import { RunNoteFeed } from './feed/run-note-feed'
 import { parseMemlog } from './feed/memlog'
 import { artParamsFor } from './persona/art-params'
 import { ErrorLine } from './install/error-line'
 import { Preflight } from './install/preflight'
-import { roomState } from './install/install-state'
+import { announceable, newAnnouncements, roomState } from './install/install-state'
 import { useInstall } from './install/use-install'
 import { Initials } from './persona/initials'
 import { portrait } from './persona/portrait'
 import type { PortraitSize } from './persona/portrait'
+import { Shell } from './shell/shell'
+import type { HarnessError, InstallSnapshot } from '../../shared/install'
 
 /**
- * Story 1.5 scaffolding, replaced by the real shell in Story 1.9.
+ * Story 1.5 scaffolding, mounted in the shell's thread (Story 1.9).
  *
  * The story's whole purpose is a judgement — does the register split alone
  * keep reasoning distinct from prose, or does the feed read as a changelog? —
@@ -29,8 +33,8 @@ import type { PortraitSize } from './persona/portrait'
 const PREVIEW_NOTES = parseMemlog(uxMemlog)
 
 /**
- * Story 1.7 scaffolding, replaced by the real shell in Story 1.9 and the tiles
- * in Story 1.10.
+ * Story 1.7 scaffolding, mounted in the shell's thread (Story 1.9) until the
+ * tiles arrive in Story 1.10.
  *
  * Story 1.6's acceptance is a human judgement — do these faces read as
  * plausible colleagues who could sit in a staff directory without comment, or
@@ -80,14 +84,32 @@ function derivedName(agentId: string): string {
 }
 
 /**
- * The placeholder renderer: it names the project this window was opened for and
- * nothing else. Unstyled by design — the visual contract is Story 1.3, and a
- * literal colour, dimension or font stack here would be a defect.
+ * The renderer's root: it resolves the project this window was opened for, gates
+ * the room on the install (Story 1.8), and mounts the shell around the preview
+ * scaffolding when the room opens (Story 1.9). It owns the window's one
+ * announcer and mounts the one live region on every screen that renders
+ * anything. A literal colour, dimension or font stack here would be a defect.
  */
 export function App(): JSX.Element | null {
   const [projectPath, setProjectPath] = useState<string | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
   const { snapshot, failure: installFailure } = useInstall()
+  const [announcer] = useState(() => new Announcer())
+  const announced = useRef<ReadonlySet<string>>(new Set())
+
+  // Each line is spoken once, when it first appears: `message` only, never
+  // `detail`. The key set is of the lines now, so one that clears and returns
+  // is announced again.
+  useEffect(() => {
+    const { messages, keys } = newAnnouncements(
+      announced.current,
+      announceable(snapshot, installFailure)
+    )
+    announced.current = keys
+    for (const message of messages) {
+      announcer.announce(message, performance.now())
+    }
+  }, [announcer, snapshot, installFailure])
 
   // A preload that failed to load leaves no bridge at all. Read at render
   // rather than in the effect: without this the effect's call throws and the
@@ -130,18 +152,44 @@ export function App(): JSX.Element | null {
   if (room === 'pending') {
     return null
   }
-  // Story 1.8 gate: the room opens only when preflight passes; the 1:1 view proper is Story 1.9.
+  // Story 1.8 gate: the room opens only when preflight passes; what opens is the shell (Story 1.9).
+  // The live region carries one key in both branches so a blocked-to-open change keeps it mounted.
   if (room === 'blocked') {
     return (
       <>
         <p>{projectPath}</p>
         <Preflight snapshot={snapshot} failure={installFailure} />
+        <LiveRegion key="live-region" announcer={announcer} />
       </>
     )
   }
+  if (snapshot === null) {
+    return null
+  }
   return (
     <>
-      <p>{projectPath}</p>
+      <Shell key="shell" projectPath={projectPath} snapshot={snapshot}>
+        <Preview snapshot={snapshot} installFailure={installFailure} />
+      </Shell>
+      <LiveRegion key="live-region" announcer={announcer} />
+    </>
+  )
+}
+
+/**
+ * The scaffolding that lives in the thread until the tiles (Story 1.10) and the
+ * document card (Epic 3) replace it. Content unchanged from Stories 1.5–1.7; the
+ * project path it once opened with is the topbar's now.
+ */
+function Preview({
+  snapshot,
+  installFailure
+}: {
+  snapshot: InstallSnapshot | null
+  installFailure: HarnessError | null
+}): JSX.Element {
+  return (
+    <>
       {installFailure !== null && <ErrorLine error={installFailure} />}
       {snapshot?.errors.map((error, index) => (
         <ErrorLine key={`${error.code}-${index}`} error={error} />

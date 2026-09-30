@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { InstallSnapshot } from '../../../shared/install'
-import { acceptSnapshot, asHarnessError, connectInstall, roomState } from './install-state'
+import {
+  acceptSnapshot,
+  announceable,
+  asHarnessError,
+  connectInstall,
+  newAnnouncements,
+  roomState
+} from './install-state'
 
 const snapshot = (revision: number): InstallSnapshot => ({
   revision,
@@ -178,5 +185,89 @@ describe('roomState', () => {
 
   it('is open when healthy beside a stale failure', () => {
     expect(roomState(healthy, failure)).toBe('open')
+  })
+})
+
+describe('newAnnouncements', () => {
+  const line = (code: string, message: string, detail?: string) =>
+    detail === undefined ? { code, message } : { code, message, detail }
+
+  it('announces every line on the first call, in order', () => {
+    const lines = [line('a', 'first'), line('b', 'second'), line('c', 'third')]
+
+    expect(newAnnouncements(new Set(), lines).messages).toEqual(['first', 'second', 'third'])
+  })
+
+  it('announces nothing for an identical second call', () => {
+    const lines = [line('a', 'first'), line('b', 'second')]
+    const { keys } = newAnnouncements(new Set(), lines)
+
+    expect(newAnnouncements(keys, lines).messages).toEqual([])
+  })
+
+  it('announces only what is new beside what was already said', () => {
+    const { keys } = newAnnouncements(new Set(), [line('a', 'first')])
+
+    expect(newAnnouncements(keys, [line('a', 'first'), line('b', 'second')]).messages).toEqual([
+      'second'
+    ])
+  })
+
+  it('announces a line again when it clears and returns', () => {
+    const a = line('a', 'first')
+    const said = newAnnouncements(new Set(), [a])
+    const cleared = newAnnouncements(said.keys, [])
+    const returned = newAnnouncements(cleared.keys, [a])
+
+    expect(cleared.messages).toEqual([])
+    expect(cleared.keys.size).toBe(0)
+    expect(returned.messages).toEqual(['first'])
+  })
+
+  it('never speaks detail, and treats a changed detail as a changed line', () => {
+    const first = newAnnouncements(new Set(), [line('a', 'roster', 'exceeded 15000ms')])
+    const second = newAnnouncements(first.keys, [line('a', 'roster', 'exceeded 30000ms')])
+
+    expect(first.messages).toEqual(['roster'])
+    expect(second.messages).toEqual(['roster'])
+    expect(JSON.stringify([first.messages, second.messages])).not.toContain('exceeded')
+  })
+
+  it('announces a line repeated within one call once', () => {
+    const a = line('a', 'first')
+
+    expect(newAnnouncements(new Set(), [a, a, line('b', 'second'), a]).messages).toEqual([
+      'first',
+      'second'
+    ])
+  })
+
+  it('announces nothing for no lines', () => {
+    expect(newAnnouncements(new Set(), [])).toEqual({ messages: [], keys: new Set() })
+  })
+})
+
+describe('announceable', () => {
+  const at = (code: string) => ({ code, message: code })
+  const snap = (over: Partial<InstallSnapshot>): InstallSnapshot => ({ ...snapshot(1), ...over })
+
+  it('lists preflight, then errors, then the failure', () => {
+    const lines = announceable(
+      snap({ preflight: [at('p1'), at('p2')], errors: [at('e1')] }),
+      at('f')
+    )
+
+    expect(lines.map(({ code }) => code)).toEqual(['p1', 'p2', 'e1', 'f'])
+  })
+
+  it('lets each source contribute alone', () => {
+    expect(announceable(snap({ preflight: [at('p')] }), null)).toEqual([at('p')])
+    expect(announceable(snap({ errors: [at('e')] }), null)).toEqual([at('e')])
+    expect(announceable(null, at('f'))).toEqual([at('f')])
+  })
+
+  it('handles a null snapshot and a null failure', () => {
+    expect(announceable(null, null)).toEqual([])
+    expect(announceable(snap({}), null)).toEqual([])
   })
 })

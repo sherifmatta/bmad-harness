@@ -14,6 +14,14 @@ const projectPathsByWebContents = new Map<number, string>()
  */
 const windowsByProjectPath = new Map<string, BrowserWindow>()
 
+/**
+ * The size a project window opens at. Electron's own default is 800x600, which
+ * is below the shell's 1000px breakpoint and would open every window stacked
+ * instead of chat-left, rail-right.
+ */
+export const WINDOW_WIDTH = 1280
+export const WINDOW_HEIGHT = 800
+
 /** Chromium's ERR_ABORTED: a navigation cancelled or replaced, not a failure. */
 const ABORTED = -3
 
@@ -35,6 +43,8 @@ export function createProjectWindow(projectPath: string): BrowserWindow {
 
   const window = new BrowserWindow({
     show: false,
+    width: WINDOW_WIDTH,
+    height: WINDOW_HEIGHT,
     // `basename` is empty for a root path, which would leave the window
     // naming no project at all.
     title: basename(projectPath) || projectPath,

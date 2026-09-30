@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
+import './live-region.css'
 import { ANNOUNCE_INTERVAL_MS, Announcer } from './announcer'
 
 /**
@@ -18,7 +19,11 @@ import { ANNOUNCE_INTERVAL_MS, Announcer } from './announcer'
  * It is deliberately thin. The decision of *what* to say and *when* it is due
  * belongs to `Announcer`, which is pure; all this does is hold the clock the
  * announcer refuses to hold and put the result in the accessibility tree.
- * Nothing mounts it yet — the shell is Story 1.9.
+ * `App` mounts it once, on every screen that renders anything (Story 1.9).
+ *
+ * It hides itself: the region sits in a `.visually-hidden` wrapper applied here
+ * and not by its callers, so no surface can mount it visibly. The wrapper keeps
+ * it in the accessibility tree, which `display: none` would not.
  */
 
 /**
@@ -57,11 +62,13 @@ export function LiveRegion({ announcer }: { announcer: Announcer }): JSX.Element
   }, [announcer])
 
   return (
-    <div aria-live="polite" aria-atomic="false">
-      {/* A fresh key replaces the node rather than editing its text, so a
-          repeat of the previous message is still a DOM mutation and is still
-          announced. */}
-      <span key={spoken.seq}>{spoken.message}</span>
+    <div className="visually-hidden">
+      <div aria-live="polite" aria-atomic="false">
+        {/* A fresh key replaces the node rather than editing its text, so a
+            repeat of the previous message is still a DOM mutation and is still
+            announced. */}
+        <span key={spoken.seq}>{spoken.message}</span>
+      </div>
     </div>
   )
 }

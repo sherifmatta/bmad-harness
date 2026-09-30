@@ -1,5 +1,5 @@
 /*
- * The page ground.
+ * The page ground, shared by every surface.
  *
  * The palette is dark by decision — UX-DR: dark theme only, no light palette
  * and no scheme branch — so every colour token is chosen against `--bg`. With
@@ -7,14 +7,46 @@
  * text at `--fs-body-ui` renders pale-on-pale: the tokens are all correct and
  * the surface is still unreadable.
  *
- * This is the smallest thing that makes a rendered surface judgeable, and no
- * more. It is not the shell: Story 1.9 builds that, and owns the layout,
- * spacing and structure this file deliberately leaves alone.
+ * Global rules only: the ground, the reset the shell relies on, and the
+ * scrollbars (UX-DR28). No component selector belongs here — the shell's own
+ * furniture is in ui/shell/shell.css. At full size the body does not scroll:
+ * one project per window, and the shell is one viewport tall (NFR27). The
+ * stacked layout turns scrolling back on, in the shell's own stylesheet.
  */
+
+* {
+  box-sizing: border-box;
+}
 
 body {
   margin: 0;
+  overflow: hidden;
   background: var(--bg);
   color: var(--text);
   font-family: var(--sans);
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+}
+
+/* The scrollbar: a thin track-less bar whose thumb floats behind a transparent
+   inset, so it reads as a slim pill against any ground. */
+::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  background-clip: content-box;
+  border: var(--scrollbar-inset) solid transparent;
+  border-radius: var(--radius-scrollbar);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
 }

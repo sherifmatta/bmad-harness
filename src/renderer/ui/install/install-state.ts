@@ -99,3 +99,54 @@ export function roomState(
   }
   return snapshot.preflight.length > 0 || snapshot.agents.length === 0 ? 'blocked' : 'open'
 }
+
+/**
+ * Every line the polite live region may speak for, in the order the blocked
+ * screen shows them: unmet prerequisites, install errors, then the failure.
+ */
+export function announceable(
+  snapshot: InstallSnapshot | null,
+  failure: HarnessError | null
+): HarnessError[] {
+  return [
+    ...(snapshot?.preflight ?? []),
+    ...(snapshot?.errors ?? []),
+    ...(failure === null ? [] : [failure])
+  ]
+}
+
+/** What identifies a line for the purpose of announcing it only once. */
+function announcementKey(line: HarnessError): string {
+  return `${line.code}|${line.message}|${line.detail ?? ''}`
+}
+
+/**
+ * Which lines are new since the last look, for the polite live region
+ * (EXPERIENCE.md:512: preflight and resolver errors are announced once).
+ *
+ * Returns the `message` of each line whose `code|message|detail` key is not in
+ * `previous` — in order, and once each even if a line repeats within the call —
+ * plus the key set to hand back next time. The set is of the lines *now*, not
+ * of everything ever seen, so a line that clears and comes back is new again.
+ * Only `message` is ever returned: `detail` is for the disclosure, never speech.
+ */
+export function newAnnouncements(
+  previous: ReadonlySet<string>,
+  lines: HarnessError[]
+): { messages: string[]; keys: Set<string> } {
+  const keys = new Set<string>()
+  const messages: string[] = []
+
+  for (const line of lines) {
+    const key = announcementKey(line)
+    if (keys.has(key)) {
+      continue
+    }
+    keys.add(key)
+    if (!previous.has(key)) {
+      messages.push(line.message)
+    }
+  }
+
+  return { messages, keys }
+}

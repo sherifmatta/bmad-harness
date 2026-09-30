@@ -2,13 +2,15 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { InstallReply, InstallSnapshot } from '../shared/install'
 import type { HarnessApi } from './harness-api'
 
-// Kept in step with src/main/index.ts and src/main/install-bridge.ts by hand.
+// Kept in step with src/main/index.ts, src/main/install-bridge.ts and
+// src/main/project-bridge.ts by hand.
 // Exported so that tests/bridge-contract.test.ts fails the moment a pair of
 // literals diverges - renaming one silently would leave lint, typecheck and
 // build green while the window rendered an error.
 export const PROJECT_PATH_CHANNEL = 'project:path'
 export const INSTALL_GET_CHANNEL = 'install:get'
 export const INSTALL_CHANGED_CHANNEL = 'install:changed'
+export const PROJECT_BRANCH_CHANNEL = 'project:branch'
 
 const harness: HarnessApi = {
   getProjectPath: () => ipcRenderer.invoke(PROJECT_PATH_CHANNEL) as Promise<string>,
@@ -31,7 +33,9 @@ const harness: HarnessApi = {
     return () => {
       ipcRenderer.removeListener(INSTALL_CHANGED_CHANNEL, wrapper)
     }
-  }
+  },
+
+  getBranch: () => ipcRenderer.invoke(PROJECT_BRANCH_CHANNEL) as Promise<string | null>
 }
 
 contextBridge.exposeInMainWorld('harness', harness)

@@ -1,4 +1,4 @@
-import { readdirSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 
 /**
@@ -114,8 +114,19 @@ type Literal = { file: string; line: number; kind: string; text: string }
 
 type Rule = { kind: string; pattern: RegExp }
 
+/**
+ * An `@media` rule's condition blanked out, line structure preserved, and
+ * nothing else. A media condition cannot read `var()`, so the breakpoints are
+ * the one place a dimension is legitimately spelled — but only there: the
+ * declarations *inside* the block are still scanned, and a test pins that
+ * exactly two width conditions exist under `src/renderer/`.
+ */
+export function withoutMediaConditions(css: string): string {
+  return css.replace(/@media[^{]*/g, (match) => match.replace(/[^\n]/g, ' '))
+}
+
 function scan(file: string, text: string, rules: Rule[]): Literal[] {
-  const source = withoutComments(text)
+  const source = withoutMediaConditions(withoutComments(text))
   const found: Literal[] = []
 
   for (const { kind, pattern } of rules) {
@@ -234,4 +245,29 @@ function sourcesUnder(dir: string): string[] {
     const path = join(dir, entry.name)
     return entry.isDirectory() ? sourcesUnder(path) : [path]
   })
+}
+
+/**
+ * The condition of every `@media` rule in a stylesheet, whitespace removed —
+ * width, height, orientation, preference, all of them.
+ */
+export function mediaConditionsIn(css: string): string[] {
+  return [...withoutComments(css).matchAll(/@media([^{]*)\{/g)].map(([, condition]) =>
+    condition.replace(/\s/g, '')
+  )
+}
+
+/**
+ * Every `@media` rule under `src/renderer/` as `file: condition`, sorted.
+ * NFR27 fixes the product at two breakpoints; counting every rule, not just
+ * width ones, is what stops a third condition on height or orientation.
+ */
+export function allMediaConditions(): string[] {
+  return allStylesheets()
+    .flatMap((file) =>
+      mediaConditionsIn(readFileSync(join(ROOT, file), 'utf8')).map(
+        (condition) => `${file}: ${condition}`
+      )
+    )
+    .sort()
 }

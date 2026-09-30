@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { expect, it, vi } from 'vitest'
 
 /**
@@ -65,6 +68,7 @@ vi.mock('electron', () => {
 
 const main = await import('../src/main/index')
 const installBridge = await import('../src/main/install-bridge')
+const projectBridge = await import('../src/main/project-bridge')
 const preload = await import('../src/preload/index')
 const { createProjectWindow } = await import('../src/main/windows/main-window')
 
@@ -79,11 +83,22 @@ it('answers the install channels on the same literals from both sides', () => {
   expect(registeredHandlers.has(installBridge.INSTALL_GET_CHANNEL)).toBe(true)
 })
 
-it('exposes exactly three named methods, and no channel passthrough', () => {
+it('answers the branch channel on the same literal from both sides', () => {
+  expect(preload.PROJECT_BRANCH_CHANNEL).toBe(projectBridge.PROJECT_BRANCH_CHANNEL)
+  expect(preload.PROJECT_BRANCH_CHANNEL).toBe('project:branch')
+  expect(registeredHandlers.has(projectBridge.PROJECT_BRANCH_CHANNEL)).toBe(true)
+})
+
+it('exposes exactly four named methods, and no channel passthrough', () => {
   const harness = exposedApis.get('harness')
 
   expect(harness).toBeDefined()
-  expect(Object.keys(harness ?? {})).toEqual(['getProjectPath', 'getInstall', 'onInstallChanged'])
+  expect(Object.keys(harness ?? {})).toEqual([
+    'getProjectPath',
+    'getInstall',
+    'onInstallChanged',
+    'getBranch'
+  ])
   expect(harness?.invoke).toBeUndefined()
 })
 
@@ -139,4 +154,32 @@ it('answers a window with its own project, and refuses a window it does not know
   expect(() => handler?.({ sender: { id: window.webContents.id + 1000 } })).toThrow(
     /no project is open/
   )
+})
+
+it('sends getBranch down the branch channel and resolves what main answers', async () => {
+  invoke.mockResolvedValue('feat/payouts-prd')
+  const getBranch = exposedApis.get('harness')?.getBranch as () => Promise<string | null>
+
+  await expect(getBranch()).resolves.toBe('feat/payouts-prd')
+  expect(invoke).toHaveBeenCalledWith(projectBridge.PROJECT_BRANCH_CHANNEL)
+})
+
+it('answers the branch of a window with none for a window it does not know', async () => {
+  const handler = registeredHandlers.get(projectBridge.PROJECT_BRANCH_CHANNEL)
+
+  await expect(handler?.({ sender: { id: 987654 } })).resolves.toBeNull()
+})
+
+it('answers a known window with the branch read from its own project', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'bridge-branch-'))
+  try {
+    mkdirSync(join(root, '.git'))
+    writeFileSync(join(root, '.git', 'HEAD'), 'ref: refs/heads/x\n')
+    const window = createProjectWindow(root)
+    const handler = registeredHandlers.get(projectBridge.PROJECT_BRANCH_CHANNEL)
+
+    await expect(handler?.({ sender: { id: window.webContents.id } })).resolves.toBe('x')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
 })
