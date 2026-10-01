@@ -273,6 +273,20 @@ components:
     hoverBorder: '#475364'
     codeChip: '{typography.micro} {colors.accent}, border {colors.accent-border}, radius {rounded.micro}'
     moreVariant: '{colors.faint}'
+  conversation-turn:
+    radius: '{rounded.card}'
+    padding: '12px 10px'
+    gap: '12px'
+    stackGap: '2px between turns'
+    portraitSize: 32px
+    name: '{typography.name} sans, text-strong'
+    role: '{typography.ident} sans, faint'
+    time: '{typography.meta} mono, {colors.meta}, right-aligned'
+    words: '{typography.body-ui} sans, text, pre-wrap, paragraphs split on blank lines only'
+    userBackground: '{colors.accent-wash}'
+    userRule: 'inset 2px 0 0 {colors.accent-edge}'
+    userAvatar: 'initials at 32px'
+    max: '{spacing.thread-max}'
   composer:
     background: '{colors.panel}'
     border: '1px solid {colors.line}'
@@ -283,6 +297,9 @@ components:
     sendBorder: '#3b4d6b'
     sendColor: '#cfe0f8'
     sendHover: '#334463'
+    min: '{spacing.composer-min}'
+    max: '{spacing.composer-max}'
+    inner: '{spacing.thread-max}'
   cast-card:
     radius: '{rounded.card}'
     minWidth: 148px
@@ -663,9 +680,19 @@ It is specified for **every surface EXPERIENCE.md requires to be keyboard-operab
 
 The row must look right at **1 to 10 entries**. Its overflow behaviour — in-place expansion, and what must never happen instead — is EXPERIENCE.md's (→ *Component Patterns → `+N more`, in detail*).
 
+### Conversation turn
+
+The conversation's most-repeated element, and the one the radius table names only in passing. A `{rounded.card}` (6px) container padded `12px 10px` with a 12px gap, successive turns 2px apart: a 32px portrait on the left, and on the right a header line over the words.
+
+The header is the name at `{typography.name}` (12.5px/600, `text-strong`), the role at `{typography.ident}` (11px, sans, `faint`) and the timestamp in mono at `{typography.meta}` (10px, `meta`), pushed to the right edge. The words follow at `{typography.body-ui}` in sans, `white-space: pre-wrap`, with paragraphs split on blank lines and nothing else: no prefix, frame, label, summary or classification of what a persona said. Everything a project or a persona supplies is rendered as text.
+
+**The user's turn** is the same container on the `accent-wash` ground with an `inset 2px 0 0 accent-edge` rule down its left edge, and the 32px initials token where the portrait would be — the user has no generated face. The wash and the rule are the only difference; the user's turn is not a different component.
+
+No hover lift, no entrance animation, no typewriter reveal. The thread caps at `{spacing.thread-max}`.
+
 ### Composer
 
-`panel` ground, 1px `line`, `{rounded.card}` (6px) radius. Focus-within moves the border to `#3c4a60`. Placeholder `#5c646f`. Textarea autogrows 20px→120px. Send button: `#2c3a52` ground, `#3b4d6b` border, `#cfe0f8` glyph, `{rounded.control}` radius, `#334463` on hover. Hint lines below at `{typography.label}` in `{colors.meta}`.
+`panel` ground, 1px `line`, `{rounded.card}` (6px) radius. Focus-within moves the border to `#3c4a60`. Placeholder `#5c646f`. Textarea autogrows 20px→120px, clamped in CSS and sized from its content. It is never disabled and takes the shared focus ring itself; the field's border shift is a second cue, not a replacement. `Enter` sends, `Shift+Enter` is a newline, and no other chord sends. Send button: `#2c3a52` ground, `#3b4d6b` border, `#cfe0f8` glyph, `{rounded.control}` radius, `#334463` on hover. Hint lines below at `{typography.label}` in `{colors.meta}`.
 
 ### Cast card
 

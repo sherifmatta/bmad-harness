@@ -137,12 +137,18 @@ describe("no palette, no launcher, no global skills list", () => {
     "src/renderer/ui/outputs/",
     "src/renderer/ui/a11y/",
   ];
+  // The composer is the one component that takes a keystroke of its own
+  // (Story 2.3): Enter sends and Shift+Enter is a newline. It is exempt from
+  // the key sweep as a file, not as a directory, and nothing else in chat/ is.
+  const COMPOSER = "src/renderer/ui/chat/composer.tsx";
   const KEY_PATTERN =
     /\bonKey(?:Down|Up|Press)(?:Capture)?\b|\bonkey(?:down|up|press)\s*=|\baddEventListener\(\s*['"]key|\bkey(?:down|up|press)\b|\.key\s*===?|\b(?:event|evt|ev|e)\.code\b|\bKeyboardEvent\b|\b(?:meta|ctrl)Key\b/;
 
   it("handles no key outside the team, the outputs and the shared roving code", () => {
     const outside = RENDERER_CODE.filter(
-      (path) => !KEY_SURFACES.some((root) => path.startsWith(root)),
+      (path) =>
+        path !== COMPOSER &&
+        !KEY_SURFACES.some((root) => path.startsWith(root)),
     );
 
     expect(offenders(outside, KEY_PATTERN)).toEqual([]);
@@ -157,13 +163,19 @@ describe("no palette, no launcher, no global skills list", () => {
     ).toEqual([]);
   });
 
-  it("has no input, textarea, select, editable region, dialog, combobox or search role", () => {
+  it("has no input, select, editable region, dialog, combobox or search role", () => {
     expect(
       offenders(
         RENDERER_CODE,
-        /<(?:input|textarea|select|dialog)\b|contentEditable|role=["'](?:dialog|combobox|search|searchbox|menu|listbox)|role:\s*["'](?:dialog|combobox|search|searchbox)|aria-modal|type=["']search/,
+        /<(?:input|select|dialog)\b|contentEditable|role=["'](?:dialog|combobox|search|searchbox|menu|listbox)|role:\s*["'](?:dialog|combobox|search|searchbox)|aria-modal|type=["']search/,
       ),
     ).toEqual([]);
+  });
+
+  it("has a textarea in the composer and nowhere else", () => {
+    expect(
+      RENDERER_CODE.filter((path) => /<textarea\b/.test(code.get(path) ?? "")),
+    ).toEqual([COMPOSER]);
   });
 
   it("registers no global shortcut, and spends `accelerator` and input events in one file each", () => {
@@ -540,6 +552,18 @@ describe("the text ramp", () => {
     "ui/outputs/outputs.css: .file-icon": {
       kind: "decoration",
       why: "the glyph before a file name",
+    },
+    "ui/chat/turn.css: .turn-role": {
+      kind: "label",
+      why: "the persona’s title under their name; the name and the portrait’s own label carry who is speaking, and its absence costs nothing",
+    },
+    "ui/chat/turn.css: .turn-time": {
+      kind: "label",
+      why: "the clock time of a turn; the thread is in time order, so position carries the sequence and the time only refines it",
+    },
+    "ui/chat/composer.css: .composer-hint": {
+      kind: "restated",
+      why: "the two keys the field answers to; Enter sending is how every message field behaves and nothing is lost by missing the line",
     },
     "ui/outputs/outputs.css: .outputs-empty-path": {
       kind: "restated",

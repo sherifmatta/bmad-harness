@@ -1,0 +1,81 @@
+/*
+ * The conversation turn — UX-DR25, DESIGN.md's `conversation-turn` block, from
+ * harness-mockup.html's `.turn` rules (:171-184).
+ *
+ * Two grounds on one container: the persona's turn has none, the user's sits
+ * on the accent wash with an inset rule down its left edge. No hover lift, no
+ * entrance animation, no focus rule — the turn is not a control, and the
+ * initials disc inside it takes the shared ring.
+ *
+ * Every value reaches the design system through `var()`.
+ */
+
+.turn {
+  display: flex;
+  gap: var(--turn-gap);
+  padding: var(--turn-padding);
+  border-radius: var(--radius-card);
+}
+
+.turn + .turn {
+  margin-top: var(--turn-stack-gap);
+}
+
+.turn--user {
+  background: var(--accent-wash);
+  box-shadow: var(--inset-turn-user);
+}
+
+.turn-av {
+  flex: 0 0 auto;
+  padding-top: var(--turn-avatar-top);
+}
+
+.turn-body {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.turn-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-md-plus);
+  margin-bottom: var(--turn-head-bottom);
+}
+
+.turn-name {
+  font-family: var(--sans);
+  font-size: var(--fs-name);
+  font-weight: var(--weight-strong);
+  color: var(--text-strong);
+}
+
+.turn-role {
+  font-family: var(--sans);
+  font-size: var(--fs-ident);
+  color: var(--faint);
+}
+
+.turn-time {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: var(--fs-meta);
+  color: var(--meta);
+}
+
+.turn-words {
+  font-family: var(--sans);
+  font-size: var(--fs-body-ui);
+  line-height: var(--lh-base);
+  color: var(--text);
+}
+
+.turn-words p {
+  margin: 0 0 var(--space-md);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.turn-words p:last-child {
+  margin-bottom: 0;
+}

@@ -397,6 +397,41 @@
   --chat-head-padding:10px 16px;
   --chat-head-sub-top:1px;
 
+  /* ── The turn and the composer (Story 2.3), promoted so no stylesheet
+     restates a literal (NFR23). Every line cited is harness-mockup.html's; the
+     components are DESIGN.md `conversation-turn` and `composer`.
+
+     A turn: `.turn` (:171) is padded 12px 10px with a 12px gap, successive turns
+     sit 2px apart (:172), the avatar drops 1px (:174), and the header sits 3px
+     over the words (:176). The user turn's rule is `inset 2px 0 0` in
+     --accent-edge (:173), named apart from the --shadow- family for the reason
+     --inset-pressed is: an edge drawn with a shadow, not depth. */
+  --turn-padding:12px 10px;
+  --turn-gap:12px;
+  --turn-stack-gap:2px;
+  --turn-avatar-top:1px;
+  --turn-head-bottom:3px;
+  --inset-turn-user:inset 2px 0 0 var(--accent-edge);
+
+  /* The composer: `.composer` (:246) is padded 9px 16px 11px, `.inputwrap`
+     (:257) 7px 8px 7px 11px, and the textarea (:259-262) 2px 0. The field's focus
+     border is #3c4a60 (:258) and the placeholder #5c646f (:263). The send
+     button (:264-265) is padded 4px 12px on #2c3a52, bordered #3b4d6b, glyph
+     #cfe0f8, hovering to #334463. The hint line (:266) sits 6px under the
+     field with a 14px gap. */
+  --composer-padding:9px 16px 11px;
+  --composer-field-padding:7px 8px 7px 11px;
+  --composer-text-padding:2px 0;
+  --composer-focus-line:#3c4a60;
+  --composer-placeholder:#5c646f;
+  --send-padding:4px 12px;
+  --send-bg:#2c3a52;
+  --send-line:#3b4d6b;
+  --send-ink:#cfe0f8;
+  --send-hover:#334463;
+  --composer-hint-top:6px;
+  --composer-hint-gap:14px;
+
   /* ── The project's files in the rail (Story 1.11), promoted so no stylesheet
      restates a literal (NFR23).
 

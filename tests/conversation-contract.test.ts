@@ -1,0 +1,234 @@
+import { readFileSync, readdirSync } from 'node:fs'
+import { join, resolve } from 'node:path'
+import { describe, expect, it } from 'vitest'
+
+import { guardedStylesheets, literalsIn, withoutComments } from './literal-guard'
+
+/**
+ * Story 2.3's turn and composer, asserted from the stylesheets and sources as
+ * text. The behaviour (keys, focus, growth) is held by the DOM tests beside the
+ * components; what only the files can show is that the values are tokens, that
+ * the grounds and radii are the ones DESIGN.md names, and that the sources
+ * carry none of the things the story forbids.
+ */
+
+const ROOT = resolve(import.meta.dirname, '..')
+const read = (path: string): string => readFileSync(join(ROOT, path), 'utf8')
+
+/** Source with block comments and whole-line `//` comments removed. */
+const code = (path: string): string => withoutComments(read(path)).replace(/^\s*\/\/.*$/gm, '')
+
+const CHAT = 'src/renderer/ui/chat/'
+const TURN_CSS = `${CHAT}turn.css`
+const COMPOSER_CSS = `${CHAT}composer.css`
+const SHELL_CSS = 'src/renderer/ui/shell/shell.css'
+const TOKENS_CSS = 'src/renderer/design/tokens.css'
+const DESIGN_MD = '_bmad/planning-artifacts/ux-designs/ux-bmad-harness-2026-09-24/DESIGN.md'
+
+const turnCss = withoutComments(read(TURN_CSS))
+const composerCss = withoutComments(read(COMPOSER_CSS))
+const shellCss = withoutComments(read(SHELL_CSS))
+const tokensCss = withoutComments(read(TOKENS_CSS))
+
+/** The declaration block of the first rule whose selector list holds exactly `selector`. */
+function ruleBody(css: string, selector: string): string {
+  for (const [, selectors, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    if (selectors.split(',').some((candidate) => candidate.trim() === selector)) {
+      return body
+    }
+  }
+  throw new Error(`no rule for ${selector}`)
+}
+
+const declared = new Map(
+  [...tokensCss.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)].map(([, name, value]) => [name, value.trim()])
+)
+
+const chatSources = readdirSync(join(ROOT, CHAT))
+  .filter((name) => !/\.test\./.test(name))
+  .map((name) => `${CHAT}${name}`)
+
+describe('the stylesheets', () => {
+  it('are governed by the literal guard and reach every value through a declared token', () => {
+    for (const path of [TURN_CSS, COMPOSER_CSS]) {
+      expect(guardedStylesheets(), path).toContain(path)
+      expect(literalsIn(path, read(path)), path).toEqual([])
+
+      const used = [...withoutComments(read(path)).matchAll(/var\(\s*(--[\w-]+)/g)].map(([, name]) => name)
+      expect(used.length, path).toBeGreaterThan(0)
+      expect(
+        used.filter((name) => !declared.has(name)),
+        path
+      ).toEqual([])
+    }
+  })
+
+  it('hold no focus rule, no outline, no motion, no stacking and no media query', () => {
+    for (const css of [turnCss, composerCss]) {
+      expect(css).not.toMatch(/:focus(?!-within)|outline|transition|animation|@keyframes|z-index|@media|!important/)
+    }
+  })
+})
+
+describe('the turn', () => {
+  it('is a card-radius container', () => {
+    expect(ruleBody(turnCss, '.turn')).toContain('border-radius: var(--radius-card)')
+    expect(declared.get('--radius-card')).toBe('6px')
+  })
+
+  it('puts the user turn on the accent wash with the inset accent-edge rule', () => {
+    const body = ruleBody(turnCss, '.turn--user')
+
+    expect(body).toContain('background: var(--accent-wash)')
+    expect(body).toContain('box-shadow: var(--inset-turn-user)')
+    expect(declared.get('--inset-turn-user')).toBe('inset 2px 0 0 var(--accent-edge)')
+  })
+
+  it('sets the header at the name, ident and meta rungs and the words at body-ui', () => {
+    expect(ruleBody(turnCss, '.turn-name')).toMatch(/font-size: var\(--fs-name\)[\s\S]*font-weight: var\(--weight-strong\)/)
+    expect(declared.get('--fs-name')).toBe('12.5px')
+
+    const role = ruleBody(turnCss, '.turn-role')
+    expect(role).toContain('font-family: var(--sans)')
+    expect(role).toContain('font-size: var(--fs-ident)')
+    expect(role).toContain('color: var(--faint)')
+
+    const time = ruleBody(turnCss, '.turn-time')
+    expect(time).toContain('font-family: var(--mono)')
+    expect(time).toContain('font-size: var(--fs-meta)')
+    expect(time).toContain('color: var(--meta)')
+    expect(time).toContain('margin-left: auto')
+
+    const words = ruleBody(turnCss, '.turn-words')
+    expect(words).toContain('font-family: var(--sans)')
+    expect(words).toContain('font-size: var(--fs-body-ui)')
+    expect(ruleBody(turnCss, '.turn-words p')).toContain('white-space: pre-wrap')
+  })
+
+  it('takes the padding and gap the mockup tunes', () => {
+    expect(declared.get('--turn-padding')).toBe('12px 10px')
+    expect(declared.get('--turn-gap')).toBe('12px')
+    expect(declared.get('--initials-size-user')).toBe('32px')
+  })
+})
+
+describe('the composer', () => {
+  it('is a panel field with a 1px line and a card radius, whose border shifts on focus-within', () => {
+    const body = ruleBody(composerCss, '.composer-field')
+
+    expect(body).toContain('background: var(--panel)')
+    expect(body).toContain('border: var(--rule-width) solid var(--line)')
+    expect(body).toContain('border-radius: var(--radius-card)')
+    expect(declared.get('--rule-width')).toBe('1px')
+    expect(ruleBody(composerCss, '.composer-field:focus-within')).toContain('border-color: var(--composer-focus-line)')
+    expect(declared.get('--composer-focus-line')).toBe('#3c4a60')
+  })
+
+  it('grows from --composer-min to --composer-max and takes its placeholder from a token', () => {
+    const body = ruleBody(composerCss, '.composer-input')
+
+    // The height is set from scrollHeight, which includes the padding.
+    expect(body).toContain('box-sizing: border-box')
+    expect(body).toContain('min-height: var(--composer-min)')
+    expect(body).toContain('max-height: var(--composer-max)')
+    expect(body).toContain('overflow-y: auto')
+    expect(declared.get('--composer-min')).toBe('20px')
+    expect(declared.get('--composer-max')).toBe('120px')
+    expect(ruleBody(composerCss, '.composer-input::placeholder')).toContain('color: var(--composer-placeholder)')
+    expect(declared.get('--composer-placeholder')).toBe('#5c646f')
+  })
+
+  it('gives the send button its own ground, border, glyph and hover, at the control radius', () => {
+    const body = ruleBody(composerCss, '.composer-send')
+
+    expect(body).toContain('background: var(--send-bg)')
+    expect(body).toContain('var(--send-line)')
+    expect(body).toContain('color: var(--send-ink)')
+    expect(body).toContain('border-radius: var(--radius-control)')
+    expect(ruleBody(composerCss, '.composer-send:hover')).toContain('background: var(--send-hover)')
+    expect([
+      declared.get('--send-bg'),
+      declared.get('--send-line'),
+      declared.get('--send-ink'),
+      declared.get('--send-hover')
+    ]).toEqual(['#2c3a52', '#3b4d6b', '#cfe0f8', '#334463'])
+  })
+
+  it('sets the hint at the label rung in meta, mono', () => {
+    const body = ruleBody(composerCss, '.composer-hint')
+
+    expect(body).toContain('font-size: var(--fs-label)')
+    expect(body).toContain('color: var(--meta)')
+    expect(body).toContain('font-family: var(--mono)')
+  })
+})
+
+describe('the caps', () => {
+  it('holds .thread and .composer-inner to --thread-max, which is 940px', () => {
+    expect(ruleBody(shellCss, '.thread')).toContain('max-width: var(--thread-max)')
+    expect(ruleBody(composerCss, '.composer-inner')).toContain('max-width: var(--thread-max)')
+    expect(declared.get('--thread-max')).toBe('940px')
+  })
+
+  it('keeps the chat header’s second line at --chat-sub-max', () => {
+    expect(ruleBody(withoutComments(read(`${CHAT}chat-header.css`)), '.chat-head-sub')).toContain(
+      'max-width: var(--chat-sub-max)'
+    )
+    expect(declared.get('--chat-sub-max')).toBe('72ch')
+  })
+})
+
+describe('the sources', () => {
+  it('carry neither the command glyph nor the return glyph, in code or in comment', () => {
+    for (const path of [...chatSources, ...[TURN_CSS, COMPOSER_CSS]]) {
+      expect(read(path), path).not.toMatch(/⌘|↵/)
+    }
+  })
+
+  it('lock nothing, anywhere in the chat components', () => {
+    for (const path of chatSources.filter((name) => name.endsWith('.tsx'))) {
+      expect(code(path), path).not.toMatch(/\bdisabled\b|\breadOnly\b|aria-disabled/)
+    }
+  })
+
+  it('draw no focus rule or ring suppression in a component either', () => {
+    for (const path of chatSources.filter((name) => name.endsWith('.tsx'))) {
+      expect(code(path), path).not.toMatch(/outline|autoFocus|tabIndex/)
+    }
+  })
+
+  it('take no dependency beyond React and the renderer', () => {
+    for (const path of chatSources.filter((name) => name.endsWith('.tsx') || name.endsWith('.ts'))) {
+      const specifiers = [...read(path).matchAll(/from\s+'([^']+)'/g)].map(([, specifier]) => specifier)
+
+      expect(
+        specifiers.filter((specifier) => !specifier.startsWith('.') && specifier !== 'react'),
+        path
+      ).toEqual([])
+    }
+  })
+
+  it('are not mounted in the shell or the app yet', () => {
+    for (const path of ['src/renderer/ui/shell/shell.tsx', 'src/renderer/ui/app.tsx']) {
+      expect(read(path), path).not.toMatch(/composer|transcript|\.\/turn|chat\/turn/i)
+    }
+  })
+})
+
+describe('DESIGN.md', () => {
+  const design = read(DESIGN_MD)
+
+  it('names the conversation turn as a component, in the frontmatter and in prose', () => {
+    expect(design).toMatch(/^ {2}conversation-turn:\n(?: {4}.+\n)+/m)
+    expect(design).toContain('### Conversation turn')
+  })
+
+  it('gives it the values the stylesheet spends', () => {
+    const block = design.slice(design.indexOf('  conversation-turn:'), design.indexOf('  composer:'))
+
+    expect(block).toContain("radius: '{rounded.card}'")
+    expect(block).toContain('portraitSize: 32px')
+    expect(block).toContain("userBackground: '{colors.accent-wash}'")
+    expect(block).toContain("userRule: 'inset 2px 0 0 {colors.accent-edge}'")
+  })
+})

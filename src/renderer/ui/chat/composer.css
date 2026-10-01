@@ -1,0 +1,89 @@
+/*
+ * The composer — UX-DR25, DESIGN.md's `composer` block, from
+ * harness-mockup.html's `.composer*`, `.inputwrap`, `.sendbtn` and `.hintline`
+ * (:246-266).
+ *
+ * **No focus rule, and nothing that suppresses the ring.** The mockup's
+ * textarea switches the browser's own ring off and moves the field's border
+ * instead; that is the defect this file does not carry. The textarea and the send button take the one shared
+ * ring from `design/focus.css`, and the field's own border shift on
+ * focus-within is a second, quieter cue on top of it, not a replacement.
+ *
+ * The textarea grows from its minimum to its maximum by CSS clamp; the height
+ * the component sets from the content only chooses a point between them.
+ *
+ * Every value reaches the design system through `var()`.
+ */
+
+.composer {
+  flex: 0 0 auto;
+  border-top: var(--rule-width) solid var(--line);
+  background: var(--chrome);
+  padding: var(--composer-padding);
+}
+
+.composer-inner {
+  max-width: var(--thread-max);
+  margin: 0 auto;
+}
+
+.composer-field {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-md);
+  border: var(--rule-width) solid var(--line);
+  background: var(--panel);
+  border-radius: var(--radius-card);
+  padding: var(--composer-field-padding);
+}
+
+.composer-field:focus-within {
+  border-color: var(--composer-focus-line);
+}
+
+.composer-input {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--composer-min);
+  max-height: var(--composer-max);
+  margin: 0;
+  padding: var(--composer-text-padding);
+  border: 0;
+  resize: none;
+  overflow-y: auto;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+}
+
+.composer-input::placeholder {
+  color: var(--composer-placeholder);
+}
+
+.composer-send {
+  flex: 0 0 auto;
+  padding: var(--send-padding);
+  background: var(--send-bg);
+  border: var(--rule-width) solid var(--send-line);
+  border-radius: var(--radius-control);
+  color: var(--send-ink);
+  font-family: var(--sans);
+  font-size: var(--fs-body-ui);
+  cursor: pointer;
+}
+
+.composer-send:hover {
+  background: var(--send-hover);
+}
+
+.composer-hint {
+  display: flex;
+  gap: var(--composer-hint-gap);
+  margin-top: var(--composer-hint-top);
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  color: var(--meta);
+}
