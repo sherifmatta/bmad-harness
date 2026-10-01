@@ -1,8 +1,10 @@
+import type { ContractEvent } from '../shared/events'
+import type { SessionId } from '../shared/ids'
 import type { InstallSnapshot } from '../shared/install'
 import type { RailSnapshot } from '../shared/rail'
 
 /**
- * The whole bridge surface. Explicitly enumerated: eight named methods, no
+ * The whole bridge surface. Explicitly enumerated: eleven named methods, no
  * generic `invoke(channel, …)` passthrough, and no `ipcRenderer` in the
  * renderer's reach.
  */
@@ -32,6 +34,23 @@ export interface HarnessApi {
    * has just been closed by the user; returns the way to stop listening.
    */
   onDocClosed(listener: (path: string) => void): () => void
+  /**
+   * Open the session for a persona, or find the one already open for it, and
+   * resolve with its id. Rejects with the `HarnessError` envelope when main
+   * refused or could not start it.
+   */
+  openSession(agentId: string): Promise<SessionId>
+  /**
+   * Send one turn into a session. Resolves when it was written and rejects
+   * with the `HarnessError` envelope when it was not (`session/busy` while a
+   * turn is in flight).
+   */
+  sendTurn(sessionId: SessionId, text: string): Promise<void>
+  /**
+   * Calls back with each contract event main pushes for this window's
+   * sessions, as `{name, payload}`; returns the way to stop listening.
+   */
+  onSessionEvent(listener: (event: ContractEvent) => void): () => void
 }
 
 declare global {

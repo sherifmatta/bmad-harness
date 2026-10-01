@@ -3,6 +3,7 @@ import { registerDocBridge } from './doc-bridge'
 import { registerInstallBridge } from './install-bridge'
 import { registerProjectBridge } from './project-bridge'
 import { registerRailBridge } from './rail-bridge'
+import { registerSessionBridge } from './session-bridge'
 import { installApplicationMenu } from './windows/app-menu'
 import { ProjectPathError, resolveProjectPath } from './windows/choose-project'
 import { createProjectWindow, projectPathForWebContents } from './windows/main-window'
@@ -70,6 +71,7 @@ registerInstallBridge()
 registerProjectBridge()
 registerRailBridge()
 registerDocBridge()
+registerSessionBridge()
 
 /**
  * Anything `openProjectWindow` did not expect. It is attached at every call

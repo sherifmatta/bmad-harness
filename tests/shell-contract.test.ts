@@ -257,9 +257,10 @@ describe('the app mounts the shell', () => {
     expect(app.match(/<LiveRegion/g)).toHaveLength(2)
   })
 
-  it('keeps the preview rows under the shell only', () => {
-    expect(app.indexOf('PREVIEW_SIZES.map')).toBeGreaterThan(app.indexOf('<Shell'))
-    expect(app).toMatch(/<Shell[^>]*>\s*<Preview/)
+  it('keeps the turns and the composer under the shell only', () => {
+    expect(app.indexOf('<Turns')).toBeGreaterThan(app.indexOf('<Shell'))
+    expect(app.indexOf('<Composer')).toBeGreaterThan(app.indexOf('<Shell'))
+    expect(app).not.toContain('PREVIEW_')
     expect(app).not.toContain('PREVIEW_NOTES')
     expect(app).not.toContain('snapshot.menus')
   })

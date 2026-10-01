@@ -431,3 +431,28 @@ describe('Shell, the project files', () => {
     expect(outputsOf(owned)).toContain('<span class="output-row-owner">John</span>')
   })
 })
+
+describe('Shell, the composer slot', () => {
+  const markup = (props: Partial<Parameters<typeof Shell>[0]> = {}): string =>
+    renderToStaticMarkup(<Shell projectPath="/work/falcon" snapshot={snapshot(2)} {...props} />)
+
+  it('puts the composer in .chat after .scroll, built for the current persona', () => {
+    const html = markup({
+      composer: (agent) => <i className="slot" data-agent={agent.id} />,
+      children: <b className="turns" />
+    })
+
+    expect(html).toContain('data-agent="bmad-agent-0"')
+    expect(html.indexOf('class="scroll"')).toBeLessThan(html.indexOf('class="slot"'))
+    expect(html.indexOf('class="turns"')).toBeLessThan(html.indexOf('class="slot"'))
+    expect(html.indexOf('class="slot"')).toBeLessThan(html.indexOf('class="rail"'))
+    expect(html.match(/class="slot"/g)).toHaveLength(1)
+  })
+
+  it('adds nothing to the chat column without a composer, or without an agent', () => {
+    expect(markup()).not.toContain('slot')
+    expect(
+      markup({ snapshot: snapshotOf([]), composer: () => <i className="slot" /> })
+    ).not.toContain('class="slot"')
+  })
+})

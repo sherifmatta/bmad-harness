@@ -225,11 +225,11 @@ describe('the rail in the window', () => {
     expect(index.indexOf('registerInstallBridge()')).toBeLessThan(index.indexOf('registerRailBridge()'))
   })
 
-  it('feeds the shell from useRail and keeps the Preview scaffolding', () => {
+  it('feeds the shell from useRail and mounts the conversation as the thread', () => {
     const app = read('src/renderer/ui/app.tsx')
 
     expect(app).toContain('useRail()')
-    expect(app).toMatch(/<Shell[^>]*rail=\{rail\}[^>]*railFailure=\{railFailure\}[^>]*>\s*<Preview/)
+    expect(app).toMatch(/<Shell[^>]*rail=\{rail\}[^>]*railFailure=\{railFailure\}[\s\S]*?<Turns entries=/)
     expect(app).not.toContain('PREVIEW_NOTES')
   })
 })

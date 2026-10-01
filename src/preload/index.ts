@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { ContractCommands } from '../shared/commands'
 import type { DocAck } from '../shared/document'
+import type { ContractEvent } from '../shared/events'
 import type { InstallReply, InstallSnapshot } from '../shared/install'
 import type { RailReply, RailSnapshot } from '../shared/rail'
 import type { HarnessApi } from './harness-api'
@@ -17,6 +19,9 @@ export const RAIL_GET_CHANNEL = 'rail:get'
 export const RAIL_CHANGED_CHANNEL = 'rail:changed'
 export const DOC_OPEN_CHANNEL = 'doc:open'
 export const DOC_CLOSED_CHANNEL = 'doc:closed'
+export const SESSION_OPEN_CHANNEL = 'session:open'
+export const TURN_SEND_CHANNEL = 'turn:send'
+export const SESSION_EVENT_CHANNEL = 'session:event'
 
 const harness: HarnessApi = {
   getProjectPath: () => ipcRenderer.invoke(PROJECT_PATH_CHANNEL) as Promise<string>,
@@ -75,6 +80,40 @@ const harness: HarnessApi = {
     ipcRenderer.on(DOC_CLOSED_CHANNEL, wrapper)
     return () => {
       ipcRenderer.removeListener(DOC_CLOSED_CHANNEL, wrapper)
+    }
+  },
+
+  // Commands (AD-13): the agent id goes to main, which validates it and starts
+  // or finds the session. What comes back is the session id, or the envelope.
+  openSession: async (agentId) => {
+    const reply = (await ipcRenderer.invoke(
+      SESSION_OPEN_CHANNEL,
+      agentId
+    )) as ContractCommands['session.open']['reply']
+    if (!reply.ok) {
+      throw reply.error
+    }
+    return reply.sessionId
+  },
+
+  sendTurn: async (sessionId, text) => {
+    const reply = (await ipcRenderer.invoke(
+      TURN_SEND_CHANNEL,
+      sessionId,
+      text
+    )) as ContractCommands['turn.send']['reply']
+    if (!reply.ok) {
+      throw reply.error
+    }
+  },
+
+  onSessionEvent: (listener) => {
+    // The contract event itself, never the IPC event: a raw IpcRendererEvent in
+    // the renderer's hands would be a channel handle.
+    const wrapper = (_event: unknown, event: ContractEvent): void => listener(event)
+    ipcRenderer.on(SESSION_EVENT_CHANNEL, wrapper)
+    return () => {
+      ipcRenderer.removeListener(SESSION_EVENT_CHANNEL, wrapper)
     }
   }
 }

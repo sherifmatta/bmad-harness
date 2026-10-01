@@ -800,24 +800,26 @@ describe('the persona directory', () => {
 // The mount the story's acceptance depends on.
 // ---------------------------------------------------------------------------
 
-describe('the preview in force', () => {
+describe('the faces in the running app', () => {
+  // Story 2.4 retired the Story 1.7 preview rows: the faces are now judged
+  // where they live, on the tiles and on every persona turn in the thread.
   const app = read('src/renderer/ui/app.tsx')
 
-  it('mounts the five curated faces at all four sizes', () => {
-    // FR75 is the one requirement in this epic no assertion can stand in for,
-    // and a generator that is never mounted cannot be judged. Nothing else
-    // asserts this: no other test imports `app.tsx`, and dropping the mount
-    // leaves the whole suite green.
-    expect(app).toContain('const PREVIEW_SIZES: PortraitSize[] = [32, 36, 38, 44]')
-    // The faces are drawn for the roster the project's own install resolves,
-    // so the mount is asserted from that roster and not from a copy of it —
-    // and app.tsx spells no roster of its own.
-    expect(app).toContain('snapshot?.agents.map((persona)')
+  it('no longer mounts the preview scaffolding or spells a roster of its own', () => {
+    expect(app).not.toContain('PREVIEW_')
+    expect(app).not.toContain('function Preview(')
+    expect(app).not.toMatch(/portrait\(|<Initials/)
     for (const agentId of CURATED_AGENT_IDS) {
       // Quoted, because one curated id is a prefix of a derived one.
       expect(app, agentId).not.toContain(`'${agentId}'`)
     }
-    expect(app).toContain('portrait(artParamsFor(persona.id), size, ')
+  })
+
+  it('draws a persona’s face on each of their turns, from the roster’s own agent', () => {
+    const turn = read('src/renderer/ui/chat/turn.tsx')
+
+    expect(turn).toContain('portrait(artParamsFor(agent.id), 32, state, agent)')
+    expect(turn).toMatch(/<Initials \{\.\.\.user\} size=\{32\} \/>/)
   })
 
   it('renders the install errors and the install failure, and no persona menu', () => {
@@ -825,63 +827,29 @@ describe('the preview in force', () => {
     // where a human confirms the team on screen is this project's. Story 1.14
     // removed the per-persona menu lines: rendered flat, they were a global
     // skills list.
-    expect(app).toMatch(/snapshot\?\.errors\.map\([\s\S]*?<ErrorLine/)
+    expect(app).toMatch(/snapshot\.errors\.map\([\s\S]*?<ErrorLine/)
     expect(app).toMatch(/installFailure !== null && <ErrorLine error=\{installFailure\}/)
     expect(app).not.toMatch(/snapshot\.menus/)
   })
 
-  it('keeps the Preview scaffolding after the tiles, the only home of the 32px and 44px sizes', () => {
-    // Story 1.10 fills the rail and the header but does not retire the
-    // preview: Story 1.6's human judgement still needs every size on screen.
-    expect(app).toContain('function Preview(')
-    expect(app).toContain('<Preview snapshot={snapshot} installFailure={installFailure} />')
-    expect(app).toContain('[32, 36, 38, 44]')
-  })
-
   it('gates the room on roomState, showing Preflight when blocked', () => {
-    // Story 1.8: an empty room reads as broken, not unconfigured. The preview
-    // rows may sit only under the `open` branch, so a project that cannot open
-    // shows the named lines and nothing else.
+    // Story 1.8: an empty room reads as broken, not unconfigured. The shell and
+    // the conversation may sit only under the `open` branch, so a project that
+    // cannot open shows the named lines and nothing else.
     expect(app).toContain('roomState(')
     expect(app).toContain('<Preflight')
     expect(app).toContain("room === 'pending'")
     expect(app).toContain("room === 'blocked'")
 
     const gate = app.indexOf("if (room === 'blocked')")
-    const open = app.indexOf('PREVIEW_SIZES.map')
+    const open = app.indexOf('<Shell')
     const blockedBranch = app.slice(gate, app.indexOf('\n  }\n', gate))
     expect(gate).toBeGreaterThan(-1)
     expect(open).toBeGreaterThan(gate)
     expect(blockedBranch).toContain('<Preflight')
-    for (const row of ['portrait(', '<Initials', 'PREVIEW_', 'snapshot?.agents']) {
+    for (const row of ['portrait(', '<Initials', '<Turns', '<Composer', 'snapshot?.agents']) {
       expect(blockedBranch, row).not.toContain(row)
     }
     expect(app).toContain('Story 1.8 gate: the room opens only when preflight passes')
-  })
-
-  it('mounts a derived grid of the twelve ids the mockup draws', () => {
-    const grid = app.match(/const PREVIEW_DERIVED = \[([^\]]*)\]/)
-
-    expect(grid, 'app.tsx must mount the derived grid').not.toBeNull()
-    const ids = [...grid![1].matchAll(/'([^']+)'/g)].map(([, id]) => id)
-
-    // The same twelve, in the same order, read out of the mockup — so the
-    // population the human judgement compares is the population the mockup
-    // draws, and not merely twelve ids of the right shape.
-    expect(ids).toEqual(mockupDerivedIds())
-    expect(ids).toHaveLength(12)
-    expect(ids.filter((id) => CURATED_AGENT_IDS.includes(id))).toEqual([])
-    expect(app).toContain('portrait(artParamsFor(agentId), 44, ')
-  })
-
-  it('mounts a stacked initials row below them', () => {
-    const stacked = app.match(/<Initials[\s\S]*?stacked\s*\/>/)
-
-    expect(stacked, 'app.tsx must mount a stacked row').not.toBeNull()
-    // Its own size, not the user disc's: the stacked row is the small
-    // reference case, which is the case the 32px portrait floor handed over.
-    expect(stacked![0]).toContain('size={20}')
-    // And the user's own avatar, which is the other half of UX-DR15.
-    expect(app).toMatch(/<Initials[^/]*size=\{32\}[^/]*\/>/)
   })
 })

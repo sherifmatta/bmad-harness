@@ -1,77 +1,33 @@
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { JSX } from 'react'
 
 import { Announcer } from './a11y/announcer'
 import { LiveRegion } from './a11y/live-region'
-import { artParamsFor } from './persona/art-params'
+import { Composer } from './chat/composer'
+import { Turns } from './chat/transcript'
+import { useConversation } from './chat/use-conversation'
 import { ErrorLine } from './install/error-line'
 import { Preflight } from './install/preflight'
 import { announceable, newAnnouncements, roomState } from './install/install-state'
 import { useInstall } from './install/use-install'
 import { useRail } from './outputs/use-rail'
-import { Initials } from './persona/initials'
-import { portrait } from './persona/portrait'
-import type { PortraitSize } from './persona/portrait'
 import { Shell } from './shell/shell'
-import type { HarnessError, InstallSnapshot } from '../../shared/install'
+import type { AgentView } from '../../shared/install'
 
-/**
- * Story 1.7 scaffolding, mounted in the shell's thread (Story 1.9) until the
- * tiles arrive in Story 1.10.
- *
- * Story 1.6's acceptance is a human judgement — do these faces read as
- * plausible colleagues who could sit in a staff directory without comment, or
- * as a cartoon? — and FR75 is the one requirement in the epic that no
- * assertion can stand in for. A generator that is never mounted cannot be
- * judged, so everything the judgement needs is on screen: the project's own
- * team at all four render sizes, a derived grid of twelve agent ids, and a
- * stacked initials row.
- *
- * The team is read from the project's own install, through `useInstall`, so
- * this is also where a human confirms that the colleagues on screen are this
- * project's. Every resolver error is a line of its own. Story 1.14 removed the
- * per-persona menu lines: rendered flat they were a global skills list.
- *
- * It is a preview, not a surface. There is no persona tile, no status dot, no
- * cast card and no chat header — those are Stories 1.9 and 1.10, and this
- * block carries no layout of its own so that none of it can be mistaken for
- * one. The twelve derived ids are the mockup's own grid, so the comparison the
- * judgement rests on is against the same population.
- */
-/** The closed set, all of it — the judgement is about every size, not one. */
-const PREVIEW_SIZES: PortraitSize[] = [32, 36, 38, 44]
-
-/** `mockups/portrait.html:373` — the twelve ids the derived grid is drawn for. */
-const PREVIEW_DERIVED = [
-  'bmad-agent-qa',
-  'bmad-agent-scrum-master',
-  'bmad-agent-po',
-  'bmad-agent-devops',
-  'bmad-agent-tech-writer',
-  'bmad-agent-security',
-  'bmad-agent-data-eng',
-  'bmad-agent-researcher',
-  'bmad-agent-game-designer',
-  'bmad-agent-narrative',
-  'bmad-agent-level-designer',
-  'bmad-agent-sound'
-]
-
-/** The mockup's own label derivation, so the grid reads as the same grid. */
-function derivedName(agentId: string): string {
-  return agentId
-    .replace('bmad-agent-', '')
-    .split('-')
-    .map((word) => word.slice(0, 1).toUpperCase() + word.slice(1))
-    .join(' ')
-}
+/** No roster yet: the conversation is mounted before the install has answered. */
+const NO_AGENTS: readonly AgentView[] = []
 
 /**
  * The renderer's root: it resolves the project this window was opened for, gates
- * the room on the install (Story 1.8), and mounts the shell around the preview
- * scaffolding when the room opens (Story 1.9). It owns the window's one
- * announcer and mounts the one live region on every screen that renders
+ * the room on the install (Story 1.8), and mounts the shell around the
+ * conversation when the room opens (Stories 1.9 and 2.4). It owns the window's
+ * one announcer and mounts the one live region on every screen that renders
  * anything. A literal colour, dimension or font stack here would be a defect.
+ *
+ * The thread holds the install's errors, then the conversation's turns: a
+ * persona's own words as they arrive and the user's own sends. Selecting a tile
+ * opens that persona's session; the composer under the thread is keyed by the
+ * current persona and sends to theirs.
  */
 export function App(): JSX.Element | null {
   const [projectPath, setProjectPath] = useState<string | null>(null)
@@ -79,6 +35,7 @@ export function App(): JSX.Element | null {
   const { snapshot, failure: installFailure } = useInstall()
   const { snapshot: rail, failure: railFailure } = useRail()
   const [announcer] = useState(() => new Announcer())
+  const conversation = useConversation(snapshot?.agents ?? NO_AGENTS)
   const announced = useRef<ReadonlySet<string>>(new Set())
 
   // Each line is spoken once, when it first appears: `message` only, never
@@ -158,68 +115,23 @@ export function App(): JSX.Element | null {
         snapshot={snapshot}
         rail={rail}
         railFailure={railFailure}
+        onActivate={conversation.activate}
+        composer={(agent) => (
+          <Composer
+            key={agent.id}
+            agentName={agent.name}
+            onSend={(text) => conversation.send(agent.id, text)}
+          />
+        )}
       >
-        <Preview snapshot={snapshot} installFailure={installFailure} />
+        {installFailure !== null && <ErrorLine error={installFailure} />}
+        {snapshot.errors.map((error, index) => (
+          <ErrorLine key={`${error.code}-${index}`} error={error} />
+        ))}
+        {conversation.failure !== null && <ErrorLine error={conversation.failure} />}
+        <Turns entries={conversation.entries} />
       </Shell>
       <LiveRegion key="live-region" announcer={announcer} />
-    </>
-  )
-}
-
-/**
- * The scaffolding that lives in the thread until the tiles (Story 1.10) and the
- * document card (Epic 3) replace it. Content unchanged from Stories 1.5–1.7; the
- * project path it once opened with is the topbar's now.
- */
-function Preview({
-  snapshot,
-  installFailure
-}: {
-  snapshot: InstallSnapshot | null
-  installFailure: HarnessError | null
-}): JSX.Element {
-  return (
-    <>
-      {installFailure !== null && <ErrorLine error={installFailure} />}
-      {snapshot?.errors.map((error, index) => (
-        <ErrorLine key={`${error.code}-${index}`} error={error} />
-      ))}
-      {snapshot?.agents.map((persona) => (
-        <Fragment key={persona.id}>
-          <p>
-            {PREVIEW_SIZES.map((size) => (
-              <Fragment key={size}>
-                {portrait(artParamsFor(persona.id), size, 'idle', persona)}
-              </Fragment>
-            ))}
-            {persona.name} · {persona.title}
-          </p>
-        </Fragment>
-      ))}
-      <p>
-        {PREVIEW_DERIVED.map((agentId) => (
-          <Fragment key={agentId}>
-            {portrait(artParamsFor(agentId), 44, 'idle', {
-              name: derivedName(agentId),
-              title: agentId
-            })}
-          </Fragment>
-        ))}
-      </p>
-      <p>
-        {snapshot?.agents.map((persona) => (
-          <Initials
-            key={persona.id}
-            name={persona.name}
-            title={persona.title}
-            size={20}
-            stacked
-          />
-        ))}
-      </p>
-      <p>
-        <Initials name="Preview User" title="you" size={32} />
-      </p>
     </>
   )
 }

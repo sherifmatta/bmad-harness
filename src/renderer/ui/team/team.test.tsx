@@ -371,4 +371,33 @@ describe('Shell, the chain from a click to the header', () => {
 
     expect(elementsOfType(tree, ChatHeader)).toEqual([])
   })
+
+  it('calls onActivate with the id on every selection, the current tile’s included, and still moves the current agent', () => {
+    const activated: string[] = []
+    const render = (): ReactElement<TeamProps> => {
+      hooks.begin('shell')
+      return elementsOfType<TeamProps>(Shell({ projectPath: '/p', snapshot, onActivate: (id) => void activated.push(id) }), Team)[0]
+    }
+
+    render().props.onSelect('bmad-agent-2')
+    render().props.onSelect('bmad-agent-2')
+    render().props.onSelect('bmad-agent-0')
+
+    expect(activated).toEqual(['bmad-agent-2', 'bmad-agent-2', 'bmad-agent-0'])
+    expect(render().props.currentId).toBe('bmad-agent-0')
+  })
+
+  it('renders the composer slot for the current agent only, and nothing without one', () => {
+    const seen: string[] = []
+    hooks.begin('shell')
+    const slot = (agent: AgentView): ReactNode => {
+      seen.push(agent.id)
+      return null
+    }
+    Shell({ projectPath: '/p', snapshot, composer: slot })
+    hooks.begin('shell')
+    Shell({ projectPath: '/p', snapshot: { ...snapshot, agents: [] }, composer: slot })
+
+    expect(seen).toEqual(['bmad-agent-0'])
+  })
 })

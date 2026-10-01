@@ -208,10 +208,16 @@ describe('the sources', () => {
     }
   })
 
-  it('are not mounted in the shell or the app yet', () => {
-    for (const path of ['src/renderer/ui/shell/shell.tsx', 'src/renderer/ui/app.tsx']) {
-      expect(read(path), path).not.toMatch(/composer|transcript|\.\/turn|chat\/turn/i)
-    }
+  it('are mounted by the app, which hands the shell only a slot for the composer', () => {
+    const app = read('src/renderer/ui/app.tsx')
+    const shell = read('src/renderer/ui/shell/shell.tsx')
+
+    expect(app).toMatch(/import \{ Composer \} from '\.\/chat\/composer'/)
+    expect(app).toMatch(/import \{ Turns \} from '\.\/chat\/transcript'/)
+    expect(app).toContain('<Composer')
+    expect(app).toContain('<Turns entries={conversation.entries} />')
+    // The shell takes a render prop and a callback; it imports no conversation part.
+    expect(shell).not.toMatch(/from '\.\.\/chat\/(?:composer|transcript|turn|use-conversation|conversation-state)'/)
   })
 })
 

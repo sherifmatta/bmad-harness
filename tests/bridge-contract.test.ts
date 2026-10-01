@@ -71,6 +71,7 @@ const installBridge = await import('../src/main/install-bridge')
 const projectBridge = await import('../src/main/project-bridge')
 const railBridge = await import('../src/main/rail-bridge')
 const docBridge = await import('../src/main/doc-bridge')
+const sessionBridge = await import('../src/main/session-bridge')
 const preload = await import('../src/preload/index')
 const docPreload = await import('../src/preload/doc')
 const { createProjectWindow } = await import('../src/main/windows/main-window')
@@ -133,7 +134,7 @@ it('answers the document channels on the same literals from both sides', () => {
   }
 })
 
-it('exposes exactly eight named methods, and no channel passthrough', () => {
+it('exposes exactly eleven named methods, and no channel passthrough', () => {
   const harness = exposedApis.get('harness')
 
   expect(harness).toBeDefined()
@@ -145,7 +146,10 @@ it('exposes exactly eight named methods, and no channel passthrough', () => {
     'getRail',
     'onRailChanged',
     'openDoc',
-    'onDocClosed'
+    'onDocClosed',
+    'openSession',
+    'sendTurn',
+    'onSessionEvent'
   ])
   expect(harness?.invoke).toBeUndefined()
   expect(harness?.send).toBeUndefined()
@@ -375,4 +379,71 @@ it.each([
   const error = { code: 'doc/no-document', message: 'doc · no document is open for this window' }
   invoke.mockResolvedValue({ ok: false, error })
   await expect(call()).rejects.toEqual(error)
+})
+
+it('answers the session channels on the same literals from both sides', () => {
+  expect(preload.SESSION_OPEN_CHANNEL).toBe(sessionBridge.SESSION_OPEN_CHANNEL)
+  expect(preload.TURN_SEND_CHANNEL).toBe(sessionBridge.TURN_SEND_CHANNEL)
+  expect(preload.SESSION_EVENT_CHANNEL).toBe(sessionBridge.SESSION_EVENT_CHANNEL)
+  expect([preload.SESSION_OPEN_CHANNEL, preload.TURN_SEND_CHANNEL, preload.SESSION_EVENT_CHANNEL]).toEqual([
+    'session:open',
+    'turn:send',
+    'session:event'
+  ])
+  expect(registeredHandlers.has(sessionBridge.SESSION_OPEN_CHANNEL)).toBe(true)
+  expect(registeredHandlers.has(sessionBridge.TURN_SEND_CHANNEL)).toBe(true)
+})
+
+it('sends openSession down the open channel with the agent id, and resolves with the session id', async () => {
+  invoke.mockClear()
+  invoke.mockResolvedValue({ ok: true, sessionId: 's1' })
+  const openSession = exposedApis.get('harness')?.openSession as (id: string) => Promise<unknown>
+
+  await expect(openSession('bmad-agent-pm')).resolves.toBe('s1')
+  expect(invoke).toHaveBeenCalledWith(sessionBridge.SESSION_OPEN_CHANNEL, 'bmad-agent-pm')
+})
+
+it('turns a refused session:open into a rejection carrying the envelope', async () => {
+  const error = { code: 'session/invalid-agent', message: 'session · not a valid agent id' }
+  invoke.mockResolvedValue({ ok: false, error })
+  const openSession = exposedApis.get('harness')?.openSession as (id: string) => Promise<unknown>
+
+  await expect(openSession('../x')).rejects.toEqual(error)
+})
+
+it('sends sendTurn down the turn channel with the session id and the text', async () => {
+  invoke.mockClear()
+  invoke.mockResolvedValue({ ok: true })
+  const sendTurn = exposedApis.get('harness')?.sendTurn as (id: string, text: string) => Promise<unknown>
+
+  await expect(sendTurn('s1', 'hello')).resolves.toBeUndefined()
+  expect(invoke).toHaveBeenCalledWith(sessionBridge.TURN_SEND_CHANNEL, 's1', 'hello')
+})
+
+it('turns a refused turn:send into a rejection carrying the envelope', async () => {
+  const error = { code: 'session/busy', message: 'session · a turn is already in flight' }
+  invoke.mockResolvedValue({ ok: false, error })
+  const sendTurn = exposedApis.get('harness')?.sendTurn as (id: string, text: string) => Promise<unknown>
+
+  await expect(sendTurn('s1', 'hello')).rejects.toEqual(error)
+})
+
+it('hands a session subscriber the contract event and never the IPC event, and unsubscribes that very listener', () => {
+  const onSessionEvent = exposedApis.get('harness')?.onSessionEvent as (
+    listener: (event: unknown) => void
+  ) => () => void
+  const received: unknown[] = []
+
+  const unsubscribe = onSessionEvent((event) => received.push(event))
+  const added = [...(listeners.get(sessionBridge.SESSION_EVENT_CHANNEL) ?? [])]
+  expect(added).toHaveLength(1)
+
+  const event = { name: 'session:awaiting-turn', payload: { sessionId: 's1', at: 1 } }
+  ;(added[0] as (event: unknown, payload: unknown) => void)({ sender: 'raw event' }, event)
+  expect(received).toEqual([event])
+
+  removed.length = 0
+  unsubscribe()
+  expect(removed).toEqual([[sessionBridge.SESSION_EVENT_CHANNEL, added[0]]])
+  expect(listeners.get(sessionBridge.SESSION_EVENT_CHANNEL)?.size).toBe(0)
 })

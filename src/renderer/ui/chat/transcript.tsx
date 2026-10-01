@@ -20,6 +20,8 @@ export type PersonaEntry = {
   at: number
   agent: AgentView
   text: string
+  /** The model's id for the message these words belong to, when a session gave one. */
+  messageId?: string
 }
 
 export type UserEntry = {
@@ -50,9 +52,13 @@ export function orderEntries<T extends { at: number }>(entries: readonly T[]): T
   return ordered
 }
 
-export function Transcript({ entries }: { entries: readonly TranscriptEntry[] }): JSX.Element {
+/**
+ * The turns alone, with no thread around them: for a surface, like the shell,
+ * that already provides the `.thread` they sit in.
+ */
+export function Turns({ entries }: { entries: readonly TranscriptEntry[] }): JSX.Element {
   return (
-    <div className="thread">
+    <>
       {orderEntries(entries).map((entry) =>
         entry.kind === 'persona' ? (
           <PersonaTurn key={entry.id} agent={entry.agent} at={entry.at} text={entry.text} />
@@ -60,6 +66,14 @@ export function Transcript({ entries }: { entries: readonly TranscriptEntry[] })
           <UserTurn key={entry.id} at={entry.at} text={entry.text} user={entry.user} />
         )
       )}
+    </>
+  )
+}
+
+export function Transcript({ entries }: { entries: readonly TranscriptEntry[] }): JSX.Element {
+  return (
+    <div className="thread">
+      <Turns entries={entries} />
     </div>
   )
 }

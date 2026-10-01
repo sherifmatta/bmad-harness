@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { JSX, ReactNode } from 'react'
 
 import './shell.css'
-import type { HarnessError, InstallSnapshot } from '../../../shared/install'
+import type { AgentView, HarnessError, InstallSnapshot } from '../../../shared/install'
 import type { RailSnapshot } from '../../../shared/rail'
 import { ChatHeader } from '../chat/chat-header'
 import type { PersonaState } from '../persona/portrait'
@@ -57,6 +57,8 @@ export function Shell({
   states = NO_STATES,
   rail = null,
   railFailure = null,
+  onActivate,
+  composer,
   children
 }: {
   projectPath: string
@@ -71,6 +73,10 @@ export function Shell({
   rail?: RailSnapshot | null
   /** Why there is no rail snapshot, when there is not one. */
   railFailure?: HarnessError | null
+  /** Called with the agent's id on every tile selection, the current tile's too. */
+  onActivate?: (agentId: string) => void
+  /** The composer for the current persona, rendered in the chat column under the thread. */
+  composer?: (agent: AgentView) => ReactNode
   children?: ReactNode
 }): JSX.Element {
   const [view, setView] = useState<ViewId>(initialView)
@@ -79,6 +85,15 @@ export function Shell({
 
   const ordered = displayOrder(groupAgents(snapshot.agents))
   const current = currentAgent(ordered, currentId)
+
+  // With nobody listening, selecting is only choosing the current persona.
+  const select =
+    onActivate === undefined
+      ? setCurrentId
+      : (agentId: string): void => {
+          setCurrentId(agentId)
+          onActivate(agentId)
+        }
 
   return (
     <div className="app">
@@ -101,6 +116,7 @@ export function Shell({
           <div className="scroll">
             <div className="thread">{children}</div>
           </div>
+          {current !== null && composer?.(current)}
         </div>
         <div className="rail">
           <RailHalf label="Team">
@@ -109,7 +125,7 @@ export function Shell({
               menus={snapshot.menus}
               states={states}
               currentId={current?.id ?? null}
-              onSelect={setCurrentId}
+              onSelect={select}
             />
           </RailHalf>
           <RailHalf label="Outputs">
