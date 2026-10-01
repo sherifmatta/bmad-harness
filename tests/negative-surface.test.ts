@@ -303,13 +303,32 @@ describe("no spinner, skeleton or stand-in sentence", () => {
 });
 
 describe("the document window has no refresh, edit or save", () => {
-  it("reloads, saves and writes nothing in main", () => {
+  it("forces no reload, saves and writes nothing in main", () => {
     expect(
       offenders(
         MAIN_CODE,
-        /\bforceReload\b|\breloadIgnoringCache\b|\.reload\(|role:\s*['"](?:reload|forceReload)|CommandOrControl|\bsaveAs\b|\bshowSaveDialog\b|\bsave\b|\bwriteFile(?:Sync)?\b|\bappendFile(?:Sync)?\b|\bcreateWriteStream\b/,
+        /\bforceReload\b|\breloadIgnoringCache\b|\.reload\(|CommandOrControl|\bsaveAs\b|\bshowSaveDialog\b|\bsave\b|\bwriteFile(?:Sync)?\b|\bappendFile(?:Sync)?\b|\bcreateWriteStream\b/,
       ),
     ).toEqual([]);
+  });
+
+  it("spends the one reload role in the application menu, and only for the project window", () => {
+    // The project window may be reloaded; the document window may not. The role
+    // is named in exactly one file, and there only behind the project focus, so
+    // the document window's menu has no reload entry at all.
+    expect(
+      offenders(MAIN_CODE, /role:\s*['"]reload['"]/).map((hit) =>
+        hit.split(":")[0],
+      ),
+    ).toEqual(["src/main/windows/app-menu.ts"]);
+
+    const menu = code.get("src/main/windows/app-menu.ts") ?? "";
+    const guard = menu.match(
+      /if\s*\(\s*focus\s*===\s*['"]project['"]\s*\)\s*\{[^}]*role:\s*['"]reload['"][^}]*\}/,
+    );
+
+    expect(guard).not.toBeNull();
+    expect(menu.match(/role:\s*['"]reload['"]/g)).toHaveLength(1);
   });
 
   it("has no save, refresh, reload or edit channel on either preload or in the shared contract", () => {

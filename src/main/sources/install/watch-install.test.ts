@@ -36,9 +36,16 @@ afterEach(async () => {
   await watcher?.close()
   watcher = null
   rmSync(root, { recursive: true, force: true })
+  // The watcher is rooted at the project, so the OS file-event stream still
+  // delivering this directory's removal reaches the next test's watcher; let it
+  // drain before that one starts.
+  await sleep(300)
 })
 
 async function start(): Promise<void> {
+  // Rooted at the project, the watcher can still be handed the creation of the
+  // fixture it was started a moment after, and would count it as a change.
+  await sleep(200)
   watcher = watchInstall({ projectRoot: root, debounceMs: DEBOUNCE, onChange: () => void calls++ })
   await watcher.ready
 }
@@ -89,5 +96,79 @@ describe('watchInstall', () => {
     writeFileSync(join(root, CONFIG), 'a = 4\n')
     await sleep(DEBOUNCE * 6)
     expect(calls).toBe(0)
+  })
+
+  describe('roots that do not exist yet', () => {
+    // chokidar never sees a root that did not exist when it started, so these
+    // fail for any watcher rooted at `_bmad` or `.claude/skills` themselves.
+    const until = async (condition: () => boolean, timeoutMs = 4000): Promise<void> => {
+      const deadline = Date.now() + timeoutMs
+      while (!condition() && Date.now() < deadline) {
+        await sleep(20)
+      }
+    }
+
+    /**
+     * A project that lacks the given roots. They are removed from the fixture
+     * and the OS file-event stream is given time to finish delivering the
+     * removal: a watcher started while it is still reporting the deletion of a
+     * path that is about to be created again misses the creation, which is a
+     * fact about the fixture and not about a project that really lacked them.
+     */
+    const withoutRoots = async (...roots: string[]): Promise<void> => {
+      for (const name of roots) {
+        rmSync(join(root, name), { recursive: true })
+      }
+      await sleep(300)
+    }
+
+    it('fires when _bmad is created after launch and its configuration is written', async () => {
+      await withoutRoots('_bmad')
+      await start()
+      expect(calls).toBe(0)
+
+      mkdirSync(join(root, '_bmad/custom'), { recursive: true })
+      writeFileSync(join(root, CONFIG), 'a = 1\n')
+      await until(() => calls > 0)
+
+      expect(calls).toBeGreaterThan(0)
+    })
+
+    it('fires when .claude/skills is created after launch and a skill customisation is written', async () => {
+      await withoutRoots('.claude')
+      await start()
+      expect(calls).toBe(0)
+
+      mkdirSync(join(root, '.claude/skills/x'), { recursive: true })
+      writeFileSync(join(root, CUSTOMIZE), 'a = 1\n')
+      await until(() => calls > 0)
+
+      expect(calls).toBeGreaterThan(0)
+    })
+
+    it('fires when a project with neither root gains both', async () => {
+      await withoutRoots('_bmad', '.claude')
+      await start()
+
+      mkdirSync(join(root, '.claude/skills/x'), { recursive: true })
+      writeFileSync(join(root, CUSTOMIZE), 'a = 1\n')
+      await until(() => calls > 0)
+
+      expect(calls).toBeGreaterThan(0)
+    })
+
+    it('stays silent for the rest of the project: only _bmad and .claude/skills are admitted', async () => {
+      mkdirSync(join(root, 'node_modules/pkg'), { recursive: true })
+      mkdirSync(join(root, '.claude/commands'), { recursive: true })
+      await start()
+
+      writeFileSync(join(root, 'node_modules/pkg/package.toml'), 'a = 1\n')
+      writeFileSync(join(root, toml('notes')), 'a = 1\n')
+      writeFileSync(join(root, toml('.claude/settings')), 'a = 1\n')
+      writeFileSync(join(root, toml('.claude/commands/x')), 'a = 1\n')
+      await sleep(DEBOUNCE * 8)
+
+      expect(calls).toBe(0)
+    })
   })
 })

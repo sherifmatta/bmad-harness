@@ -176,8 +176,12 @@ describe('the rail modules in main', () => {
     expect(watcher).toContain('alwaysStat: true')
     expect(watcher).toContain('ignoreInitial: false')
     expect(watcher).not.toMatch(/awaitWriteFinish|usePolling|interval:|debounce/)
-    // `_bmad` only: no watcher on the skills directory or the harness's own data.
-    expect(watcher).toContain("join(projectRoot, '_bmad')")
+    // `_bmad` only: no watcher on the skills directory or the harness's own
+    // data. The watch path is the project root so that a `_bmad` created after
+    // launch is seen, and everything under the root but `_bmad` is ignored.
+    expect(watcher).toContain('watch(projectRoot')
+    expect(watcher).toContain("WATCHED_DIR = '_bmad'")
+    expect(watcher).toContain('!underWatchedDir(path)')
     expect(watcher).not.toMatch(/\.claude|userData/)
   })
 

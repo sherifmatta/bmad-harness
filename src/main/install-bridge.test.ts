@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { InstallSnapshot } from '../shared/install'
 import type { InstallSource } from './sources/install/resolvers'
@@ -7,9 +8,14 @@ type Handler = (event: { sender: FakeSender }) => Promise<unknown>
 
 const handlers = new Map<string, Handler>()
 
+const fromWebContents = vi.fn<(sender: unknown) => unknown>()
+
 vi.mock('electron', () => ({
-  ipcMain: { handle: (channel: string, handler: Handler) => handlers.set(channel, handler) }
+  ipcMain: { handle: (channel: string, handler: Handler) => handlers.set(channel, handler) },
+  BrowserWindow: { fromWebContents: (sender: unknown) => fromWebContents(sender) }
 }))
+
+import type { InstallBridgeDeps } from './install-bridge'
 
 const { INSTALL_CHANGED_CHANNEL, INSTALL_GET_CHANNEL, registerInstallBridge } = await import(
   './install-bridge'
@@ -51,6 +57,7 @@ let watchers: { onChange: () => void; closed: boolean }[]
 let watchThrows: Error | null
 let diagnostics: string[]
 let checksCreated: number
+let focusListeners: { listener: () => void; subscribed: boolean }[]
 let uvCheck: Awaited<ReturnType<PrerequisiteChecks['checkUv']>>
 
 beforeEach(() => {
@@ -61,8 +68,15 @@ beforeEach(() => {
   watchThrows = null
   diagnostics = []
   checksCreated = 0
+  focusListeners = []
   uvCheck = { ok: true }
   roster = async () => ({ ok: true, agents: [mary] })
+  fromWebContents.mockReset()
+  register()
+})
+
+function register(extra: Partial<InstallBridgeDeps> = {}): void {
+  handlers.clear()
   registerInstallBridge({
     projectPathFor: (id) => (id < 100 ? `/project-${id}` : undefined),
     createSource: (projectRoot) => {
@@ -87,9 +101,15 @@ beforeEach(() => {
       watchers.push(watcher)
       return { ready: Promise.resolve(), close: async () => void (watcher.closed = true) }
     },
-    writeDiagnostic: (line) => diagnostics.push(line)
+    subscribeFocus: (_sender, listener) => {
+      const entry = { listener, subscribed: true }
+      focusListeners.push(entry)
+      return () => void (entry.subscribed = false)
+    },
+    writeDiagnostic: (line) => diagnostics.push(line),
+    ...extra
   })
-})
+}
 
 const ask = (sender: FakeSender) => handlers.get(INSTALL_GET_CHANNEL)?.({ sender })
 
@@ -221,5 +241,124 @@ describe('install:get', () => {
     })
     expect(diagnostics).toEqual(['install/unexpected · /private/place exploded'])
     expect(JSON.stringify(reply)).not.toContain('private')
+  })
+})
+
+describe('window focus', () => {
+  it('asks again when the window regains focus while a prerequisite is unmet, and clears it once met', async () => {
+    uvCheck = { ok: false, kind: 'uv-missing', diagnostic: 'uv python find · spawn ENOENT' }
+    const sender = new FakeSender(1)
+    await ask(sender)
+    sender.sent.length = 0
+
+    uvCheck = { ok: true }
+    focusListeners[0].listener()
+    await vi.waitFor(() => expect(sender.sent).toHaveLength(1))
+
+    expect(sender.sent[0][0]).toBe(INSTALL_CHANGED_CHANNEL)
+    expect(sender.sent[0][1].preflight).toEqual([])
+    expect(sender.sent[0][1].agents).toEqual([mary])
+  })
+
+  it('asks again on focus while a resolver error is showing', async () => {
+    roster = async () => ({
+      ok: false,
+      failure: { kind: 'timeout', detail: 'timed out', diagnostic: 'resolve_config.py · timed out' }
+    })
+    await ask(new FakeSender(1))
+    expect(rosterCalls).toBe(1)
+
+    focusListeners[0].listener()
+
+    await vi.waitFor(() => expect(rosterCalls).toBe(2))
+  })
+
+  it('does not re-resolve on focus when the room is healthy, so no resolver is respawned per focus', async () => {
+    await ask(new FakeSender(1))
+    expect(rosterCalls).toBe(1)
+
+    focusListeners[0].listener()
+    focusListeners[0].listener()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+
+    expect(rosterCalls).toBe(1)
+    expect(checksCreated).toBe(1)
+  })
+
+  it('subscribes once per sender, however often it is asked, and stops when the sender is destroyed', async () => {
+    const sender = new FakeSender(1)
+    await ask(sender)
+    await ask(sender)
+
+    expect(focusListeners).toHaveLength(1)
+    expect(focusListeners[0].subscribed).toBe(true)
+
+    sender.destroy()
+
+    expect(focusListeners[0].subscribed).toBe(false)
+  })
+})
+
+describe('window focus, through the real window', () => {
+  /** A window that is an emitter, so `emit('focus')` is how Electron raises it. */
+  class FakeWindow extends EventEmitter {
+    destroyed = false
+    isDestroyed() {
+      return this.destroyed
+    }
+  }
+
+  // The injected subscription is replaced by the default, which reads the
+  // sender's own window.
+  beforeEach(() => register({ subscribeFocus: undefined }))
+
+  it('asks again when its window gains focus while blocked, and stops listening once the sender is destroyed', async () => {
+    const window = new FakeWindow()
+    fromWebContents.mockReturnValue(window)
+    uvCheck = { ok: false, kind: 'uv-missing', diagnostic: 'uv python find · spawn ENOENT' }
+    const sender = new FakeSender(1)
+    await ask(sender)
+    sender.sent.length = 0
+    expect(window.listenerCount('focus')).toBe(1)
+
+    uvCheck = { ok: true }
+    window.emit('focus')
+    await vi.waitFor(() => expect(sender.sent).toHaveLength(1))
+    expect(sender.sent[0][1].preflight).toEqual([])
+
+    sender.destroy()
+    expect(window.listenerCount('focus')).toBe(0)
+  })
+
+  it('subscribes to the window of the sender it was asked from', async () => {
+    fromWebContents.mockReturnValue(new FakeWindow())
+    const sender = new FakeSender(1)
+
+    await ask(sender)
+
+    expect(fromWebContents).toHaveBeenCalledWith(sender)
+  })
+
+  it('gives a sender with no window a subscription that does nothing, rather than failing the ask', async () => {
+    fromWebContents.mockReturnValue(null)
+    const sender = new FakeSender(1)
+
+    const reply = (await ask(sender)) as { ok: boolean }
+
+    expect(reply.ok).toBe(true)
+    expect(() => sender.destroy()).not.toThrow()
+  })
+
+  it('does not touch a window that is already destroyed when the sender goes', async () => {
+    const window = new FakeWindow()
+    fromWebContents.mockReturnValue(window)
+    const removeListener = vi.spyOn(window, 'removeListener')
+    const sender = new FakeSender(1)
+    await ask(sender)
+
+    window.destroyed = true
+    sender.destroy()
+
+    expect(removeListener).not.toHaveBeenCalled()
   })
 })

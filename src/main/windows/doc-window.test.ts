@@ -85,6 +85,7 @@ vi.mock('electron', () => ({ BrowserWindow: FakeWindow }))
 type DocWindowModule = typeof import('./doc-window')
 let openDocWindow: DocWindowModule['openDocWindow']
 let parentWindowFor: DocWindowModule['parentWindowFor']
+let isDocWindow: DocWindowModule['isDocWindow']
 
 const PATH = '/work/falcon/_bmad/planning-artifacts/prd.md'
 const OTHER = '/work/falcon/_bmad/config.toml'
@@ -131,7 +132,7 @@ beforeEach(async () => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
   // The registry of open windows is module state; each test starts without one.
   vi.resetModules()
-  ;({ openDocWindow, parentWindowFor } = await import('./doc-window'))
+  ;({ openDocWindow, parentWindowFor, isDocWindow } = await import('./doc-window'))
   parent = new FakeWindow()
   constructed.length = 0
 })
@@ -397,5 +398,29 @@ describe('parentWindowFor', () => {
     const contents = {}
 
     expect(parentWindowFor(contents as never)).toEqual({ fromWebContents: contents })
+  })
+})
+
+describe('isDocWindow', () => {
+  it('is true for an open document window’s page and false for its parent and for a stranger', () => {
+    open()
+
+    expect(isDocWindow(lastWindow().webContents)).toBe(true)
+    expect(isDocWindow(parent.webContents)).toBe(false)
+    expect(isDocWindow({ id: 99_999 })).toBe(false)
+  })
+
+  it('is false before any document window has opened', () => {
+    expect(isDocWindow(parent.webContents)).toBe(false)
+  })
+
+  it('is false again once the document window has closed, so the menu returns to the project’s', () => {
+    open()
+    const { webContents } = lastWindow()
+    expect(isDocWindow(webContents)).toBe(true)
+
+    finishClosing(lastWindow())
+
+    expect(isDocWindow(webContents)).toBe(false)
   })
 })

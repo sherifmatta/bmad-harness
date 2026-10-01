@@ -53,6 +53,11 @@ afterEach(async () => {
 })
 
 async function start(): Promise<void> {
+  // The watcher is rooted at the project, so the creation of `_bmad` a moment
+  // ago is an event it can still be handed after `ready`, reporting the files
+  // the scan already found as written. Let the OS deliver what the fixture just
+  // did before the watcher starts.
+  await sleep(200)
   watcher = watchArtifacts({
     projectRoot: root,
     onObservation: (observation) => seen.push(observation),
@@ -195,6 +200,34 @@ describe('watchArtifacts', () => {
     await until(() => paths('artifact:written').includes('_bmad/a/x.md'))
 
     expect(paths('artifact:written')).toContain('_bmad/a/x.md')
+  })
+
+  it('reports the files of an _bmad created whole after launch as written, never as found', async () => {
+    rmSync(join(root, '_bmad'), { recursive: true })
+    // Let the OS finish reporting the removal, or it can swallow the creation
+    // below that reuses the same paths.
+    await sleep(SETTLED)
+    await start()
+
+    mkdirSync(join(root, '_bmad/planning-artifacts'), { recursive: true })
+    writeFileSync(join(root, '_bmad/planning-artifacts/prd.md'), 'hi')
+    await until(() => paths('artifact:written').includes('_bmad/planning-artifacts/prd.md'))
+
+    expect(paths('artifact:written')).toContain('_bmad/planning-artifacts/prd.md')
+    expect(paths('artifact:found')).toEqual([])
+    expect(errors).toEqual([])
+  })
+
+  it('reports the files of a project whose own directory is named like a temp file', async () => {
+    // The noise test is for names inside the project; the root's name is the
+    // user's, and `ignored` alone would drop the whole project.
+    rmSync(root, { recursive: true, force: true })
+    root = join(mkdtempSync(join(tmpdir(), 'watch-artifacts-')), 'client.tmp')
+    mkdirSync(join(root, '_bmad/planning-artifacts'), { recursive: true })
+    writeFileSync(join(root, '_bmad/planning-artifacts/prd.md'), 'hi')
+    await start()
+
+    expect(paths('artifact:found')).toEqual(['_bmad/planning-artifacts/prd.md'])
   })
 
   it('watches _bmad only: a sibling directory standing for userData is silent', async () => {

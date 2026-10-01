@@ -1,4 +1,4 @@
-import { join, relative, sep } from 'node:path'
+import { relative, sep } from 'node:path'
 import { watch } from 'chokidar'
 
 /**
@@ -14,6 +14,13 @@ import { watch } from 'chokidar'
  * The `ignored` test is stat-independent and path-shaped: it decides from the
  * path alone, so everything else under `_bmad/` (the artifacts the rail
  * watches) can churn without ever re-resolving anything.
+ *
+ * The watcher is rooted at the project itself, not at `_bmad` and
+ * `.claude/skills`. chokidar never sees a root that did not exist when it
+ * started, so a project opened before its install (or before `uv` could read
+ * it) would stay blind to the install appearing. Rooted at the project, the
+ * creation of `_bmad` or `.claude` is an event like any other, and `ignored`
+ * admits nothing else, so no other directory of the project is walked.
  */
 
 /** A burst of events inside this window is one refresh. */
@@ -45,6 +52,26 @@ function inSkillsSet(parts: string[]): boolean {
   return parts.length === 2 && parts[1] === CUSTOMIZE
 }
 
+/**
+ * Whether a path relative to the project root is in the watched set. The root
+ * and the directories on the way to a watched file are admitted so the watcher
+ * can descend to it, and so can notice them being created; nothing else under
+ * the root is.
+ */
+function inProjectSet(parts: string[]): boolean {
+  if (parts.length === 0) {
+    return true
+  }
+  const [first, second, ...rest] = parts
+  if (first === '_bmad') {
+    return inBmadSet(parts.slice(1))
+  }
+  if (first === '.claude') {
+    return second === undefined || (second === 'skills' && inSkillsSet(rest))
+  }
+  return false
+}
+
 export type InstallWatcher = {
   /** Resolves once the initial scan is done and events will be delivered. */
   ready: Promise<void>
@@ -60,22 +87,13 @@ export function watchInstall({
   onChange: () => void
   debounceMs?: number
 }): InstallWatcher {
-  const bmad = join(projectRoot, '_bmad')
-  const skills = join(projectRoot, '.claude', 'skills')
-
   const ignored = (path: string): boolean => {
-    for (const [base, admits] of [
-      [bmad, inBmadSet],
-      [skills, inSkillsSet]
-    ] as const) {
-      const rel = relative(base, path)
-      if (rel === '..' || rel.startsWith(`..${sep}`)) {
-        continue
-      }
-      return !admits(rel === '' ? [] : rel.split(sep))
+    const rel = relative(projectRoot, path)
+    if (rel === '..' || rel.startsWith(`..${sep}`)) {
+      // Outside the project: a symlink target or a parent, never something to walk.
+      return true
     }
-    // Neither root: a parent of a watched root, which must stay reachable.
-    return false
+    return !inProjectSet(rel === '' ? [] : rel.split(sep))
   }
 
   let timer: NodeJS.Timeout | null = null
@@ -96,10 +114,12 @@ export function watchInstall({
     }, debounceMs)
   }
 
-  const watcher = watch([bmad, skills], {
+  const watcher = watch(projectRoot, {
     ignoreInitial: true,
     atomic: true,
-    depth: 2,
+    // `.claude/skills/<skill>/customize.toml` is the deepest file: four levels
+    // under the root, so three of directories to descend.
+    depth: 4,
     ignored
   })
 

@@ -1,4 +1,4 @@
-import { join, relative, sep } from 'node:path'
+import { relative, sep } from 'node:path'
 import { watch } from 'chokidar'
 import type { ArtifactObservation } from '../../../shared/rail'
 
@@ -8,11 +8,15 @@ import type { ArtifactObservation } from '../../../shared/rail'
  * a file (FR54): the rail knows that a file exists, how big it is and when it
  * was last modified, and no more.
  *
- * It watches `_bmad/` only. The harness's own transcripts, logs, caches and
- * window state live in `userData`, outside the project, and so can never be a
- * row. The install watcher owns `.claude/skills` and the configuration files;
- * this is a second watcher on a different question, not a second answer to the
- * same one.
+ * It watches `_bmad/` only, through a watcher rooted at the project: chokidar
+ * never sees a root that did not exist when it started, so rooting at `_bmad`
+ * would leave a project opened before its install blind to it for good. The
+ * project root is therefore the watch path and `_bmad` the only thing under it
+ * that is admitted, so no other directory of the project is walked. The
+ * harness's own transcripts, logs, caches and window state live in `userData`,
+ * outside the project, and so can never be a row. The install watcher owns
+ * `.claude/skills` and the configuration files; this is a second watcher on a
+ * different question, not a second answer to the same one.
  *
  * `atomic: true` folds a writer's temp-then-rename (`memlog.py` writes
  * `<name>.tmp`, then `os.replace`s it over the target) into a change, so the
@@ -30,6 +34,9 @@ export function ignored(path: string): boolean {
   const base = path.slice(path.lastIndexOf(sep) + 1)
   return base === NOISE_NAME || base.endsWith(NOISE_SUFFIX)
 }
+
+/** The one directory under the project root that is walked. */
+const WATCHED_DIR = '_bmad'
 
 export type ArtifactWatcher = {
   /** Resolves once the initial scan is done and events will be delivered. */
@@ -51,11 +58,20 @@ export function watchArtifacts({
 
   const posix = (path: string): string => relative(projectRoot, path).split(sep).join('/')
 
-  const watcher = watch(join(projectRoot, '_bmad'), {
+  // The root itself is admitted so the watcher can descend; of everything in
+  // it only `_bmad` and what is under it is.
+  const underWatchedDir = (path: string): boolean => {
+    const first = relative(projectRoot, path).split(sep)[0]
+    return first === '' || first === WATCHED_DIR
+  }
+
+  const watcher = watch(projectRoot, {
     ignoreInitial: false,
     atomic: true,
     alwaysStat: true,
-    ignored
+    // The noise test is for names inside the project: the root's own name is
+    // the user's, and a project directory called `foo.tmp` is still a project.
+    ignored: (path) => (path !== projectRoot && ignored(path)) || !underWatchedDir(path)
   })
 
   const emit = (

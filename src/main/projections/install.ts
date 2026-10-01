@@ -20,8 +20,9 @@ import type { PrerequisiteChecks, ToolCheck } from '../sources/preflight/tools'
  *
  * Preflight is folded in here for the same reason the roster is: the verdict
  * is a function of the roster plus two facts about tools, and one snapshot
- * keeps them from disagreeing. The tools are asked once per projection and the
- * answer is kept. If `uv` did not pass the resolvers are not run at all —
+ * keeps them from disagreeing. The tools are asked once per projection while
+ * they pass; an answer with any failure in it is not kept, so the next refresh
+ * asks again. If `uv` did not pass the resolvers are not run at all —
  * spawning them could only produce a second, noisier form of the same fact.
  *
  * Whether a menu entry runs a skill or a prompt is held here, keyed by agent
@@ -118,9 +119,18 @@ export function createInstallProjection({
   type ToolVerdict = { uvPassed: boolean; errors: HarnessError[] }
   let verdict: Promise<ToolVerdict> | null = null
 
-  /** Ask both tools once, in parallel, and keep the answer for the window's life. */
+  /**
+   * Ask both tools in parallel and keep the answer for the window's life, but
+   * only a clean one. A verdict with any error in it is dropped as soon as it
+   * is known, so the next refresh asks again: the remedy it names (install uv,
+   * sign in) can only work if the answer can change, and a check that could not
+   * conclude is not an answer at all.
+   */
   function toolVerdict(checks: PrerequisiteChecks): Promise<ToolVerdict> {
-    verdict ??= (async () => {
+    if (verdict !== null) {
+      return verdict
+    }
+    const asked: Promise<ToolVerdict> = (async () => {
       const settle = async (ask: () => Promise<ToolCheck>): Promise<ToolCheck> => {
         try {
           return await ask()
@@ -151,7 +161,19 @@ export function createInstallProjection({
       }
       return { uvPassed: uv.ok, errors: found }
     })()
-    return verdict
+    verdict = asked
+    const drop = (): void => {
+      if (verdict === asked) {
+        verdict = null
+      }
+    }
+    // Registered before the caller awaits `asked`, so the drop lands first.
+    void asked.then((answer) => {
+      if (answer.errors.length > 0) {
+        drop()
+      }
+    }, drop)
+    return asked
   }
 
   const content = (): Content => {

@@ -154,5 +154,9 @@ it('installs the application menu once, before the first window, for the unpacka
   expect(callOrder.indexOf('window')).toBeGreaterThan(callOrder.indexOf('menu'))
   // The mock says `isPackaged: false`, so the developer's DevTools item is in.
   expect(JSON.stringify(menusInstalled[0])).toContain('toggleDevTools')
-  expect(JSON.stringify(menusInstalled[0])).not.toMatch(/reload|forceReload|zoom/i)
+  // The first menu is the project window's: it may be reloaded and zoomed, and
+  // never force-reloaded.
+  expect(JSON.stringify(menusInstalled[0])).toContain('"reload"')
+  expect(JSON.stringify(menusInstalled[0])).toContain('zoomIn')
+  expect(JSON.stringify(menusInstalled[0])).not.toMatch(/forceReload/i)
 })

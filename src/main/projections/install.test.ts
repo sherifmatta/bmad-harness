@@ -558,12 +558,11 @@ describe('preflight', () => {
     expect(diagnostics).toEqual(['preflight/check-failed · /private/claude exploded'])
   })
 
-  it('sends the diagnostic to the terminal once and never puts it in a snapshot', async () => {
+  it('sends the diagnostic to the terminal once per ask and never puts it in a snapshot', async () => {
     const { tools, projection, diagnostics } = build(true)
     tools.claude = missing('claude-unauthenticated')
     tools.uv = { ok: false, kind: 'uv-python-old', detail: 'python 3.9.6', diagnostic: 'uv python find · python 3.9.6' }
 
-    await projection.refresh()
     await projection.refresh()
 
     expect(diagnostics).toEqual([
@@ -577,5 +576,105 @@ describe('preflight', () => {
     for (const line of projection.snapshot().preflight) {
       expect(`${line.message} ${line.detail ?? ''}`).not.toContain('/')
     }
+  })
+})
+
+describe('preflight recovery', () => {
+  const uvMissing: ToolCheck = { ok: false, kind: 'uv-missing', diagnostic: 'uv python find · spawn ENOENT' }
+
+  it('clears the preflight and runs the resolvers once uv has been installed, without a new projection', async () => {
+    const { state, tools, projection, emitted } = build(true)
+    state.roster = { ok: true, agents: [mary] }
+    tools.uv = uvMissing
+    await projection.refresh()
+    expect(projection.snapshot().preflight.map((line) => line.code)).toEqual(['preflight/uv-missing'])
+    expect(state.rosterCalls).toBe(0)
+
+    tools.uv = { ok: true }
+    await projection.refresh()
+
+    expect(projection.snapshot().preflight).toEqual([])
+    expect(projection.snapshot().agents.map((a) => a.id)).toEqual([mary.id])
+    expect(state.rosterCalls).toBe(1)
+    expect(emitted).toHaveLength(2)
+  })
+
+  it('asks both tools again on the next refresh after any failure, not only the one that failed', async () => {
+    const { tools, projection } = build(true)
+    tools.uv = uvMissing
+
+    await projection.refresh()
+    await projection.refresh()
+
+    expect(tools.claudeCalls).toBe(2)
+    expect(tools.uvCalls).toBe(2)
+  })
+
+  it('does not keep a check that could not conclude: a timeout once is asked again, and a pass then sticks', async () => {
+    const { state, source } = scripted()
+    state.roster = { ok: true, agents: [mary] }
+    let uvAsks = 0
+    const projection = createInstallProjection({
+      source,
+      checks: {
+        checkClaude: async () => ({ ok: true }),
+        checkUv: async () => {
+          uvAsks += 1
+          return uvAsks === 1
+            ? { ok: false, kind: 'check-failed', detail: 'timed out', diagnostic: 'uv python find · timed out' }
+            : { ok: true }
+        }
+      },
+      onChange: () => {}
+    })
+
+    await projection.refresh()
+    expect(projection.snapshot().preflight.map((line) => line.code)).toEqual(['preflight/check-failed'])
+
+    await projection.refresh()
+    await projection.refresh()
+
+    expect(projection.snapshot().preflight).toEqual([])
+    expect(uvAsks).toBe(2)
+  })
+
+  it('does not keep a check that threw: the next refresh asks again', async () => {
+    const { state, source } = scripted()
+    state.roster = { ok: true, agents: [mary] }
+    let claudeAsks = 0
+    const projection = createInstallProjection({
+      source,
+      checks: {
+        checkClaude: async () => {
+          claudeAsks += 1
+          if (claudeAsks === 1) {
+            throw new Error('exploded')
+          }
+          return { ok: true }
+        },
+        checkUv: async () => ({ ok: true })
+      },
+      onChange: () => {}
+    })
+
+    await projection.refresh()
+    expect(projection.snapshot().preflight[0].code).toBe('preflight/check-failed')
+
+    await projection.refresh()
+
+    expect(projection.snapshot().preflight).toEqual([])
+    expect(claudeAsks).toBe(2)
+  })
+
+  it('asks a clean verdict once across many refreshes, however many pass', async () => {
+    const { state, tools, projection } = build(true)
+    state.roster = { ok: true, agents: [mary] }
+
+    for (let i = 0; i < 5; i += 1) {
+      await projection.refresh()
+    }
+
+    expect(tools.claudeCalls).toBe(1)
+    expect(tools.uvCalls).toBe(1)
   })
 })

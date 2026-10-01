@@ -58,6 +58,20 @@ export function parentWindowFor(webContents: WebContents): BrowserWindow | null 
   return BrowserWindow.fromWebContents(webContents)
 }
 
+/**
+ * Whether a `WebContents` is a document window's page. The application menu
+ * asks this to decide which window kind has focus, so it reads the map the
+ * window already keeps rather than a second registry that could disagree.
+ */
+export function isDocWindow(webContents: Pick<WebContents, 'id'>): boolean {
+  for (const { handle } of openByParent.values()) {
+    if (handle.sender.id === webContents.id) {
+      return true
+    }
+  }
+  return false
+}
+
 export function openDocWindow({
   parent,
   fullPath,

@@ -1,5 +1,5 @@
-import { ipcMain } from 'electron'
-import type { IpcMainInvokeEvent } from 'electron'
+import { BrowserWindow, ipcMain } from 'electron'
+import type { IpcMainInvokeEvent, WebContents } from 'electron'
 import type { HarnessError, InstallReply, InstallSnapshot } from '../shared/install'
 import { createInstallProjection } from './projections/install'
 import type { InstallProjection } from './projections/install'
@@ -19,7 +19,7 @@ export const INSTALL_GET_CHANNEL = 'install:get'
 export const INSTALL_CHANGED_CHANNEL = 'install:changed'
 
 /** The parts of a `WebContents` the bridge touches. */
-type Sender = {
+export type Sender = {
   id: number
   send(channel: string, snapshot: InstallSnapshot): void
   isDestroyed(): boolean
@@ -31,10 +31,26 @@ export type InstallBridgeDeps = {
   createSource?: (projectRoot: string) => InstallSource
   createChecks?: () => PrerequisiteChecks
   watch?: (options: { projectRoot: string; onChange: () => void }) => InstallWatcher
+  /** Calls `listener` whenever the sender's window gains focus; returns the way to stop. */
+  subscribeFocus?: (sender: Sender, listener: () => void) => () => void
   writeDiagnostic?: (line: string) => void
 }
 
 type Service = { projection: InstallProjection; watcher: InstallWatcher; ready: Promise<void> }
+
+/** The default focus subscription: the `focus` event of the sender's own window. */
+function subscribeWindowFocus(sender: Sender, listener: () => void): () => void {
+  const window = BrowserWindow.fromWebContents(sender as unknown as WebContents)
+  if (window === null) {
+    return () => {}
+  }
+  window.on('focus', listener)
+  return () => {
+    if (!window.isDestroyed()) {
+      window.removeListener('focus', listener)
+    }
+  }
+}
 
 function failure(error: HarnessError): InstallReply {
   return { ok: false, error }
@@ -53,6 +69,7 @@ export function registerInstallBridge(deps: InstallBridgeDeps = {}): void {
   const createSource = deps.createSource ?? ((projectRoot) => createInstallSource({ projectRoot }))
   const createChecks = deps.createChecks ?? (() => createPrerequisiteChecks())
   const watch = deps.watch ?? watchInstall
+  const subscribeFocus = deps.subscribeFocus ?? subscribeWindowFocus
   const writeDiagnostic =
     deps.writeDiagnostic ?? ((line: string) => void process.stderr.write(`${line}\n`))
 
@@ -78,7 +95,19 @@ export function registerInstallBridge(deps: InstallBridgeDeps = {}): void {
     const service = { projection, watcher, ready: projection.refresh() }
     services.set(sender.id, service)
 
+    // Following the remedy (install uv, sign in) changes nothing in the
+    // project, so no watcher notices; coming back to the window is the signal.
+    // Only while something is wrong: a healthy room is not re-resolved, and so
+    // no resolver is respawned, every time the user switches back to it.
+    const unsubscribeFocus = subscribeFocus(sender, () => {
+      const { preflight, errors } = projection.snapshot()
+      if (preflight.length > 0 || errors.length > 0) {
+        void projection.refresh()
+      }
+    })
+
     sender.once('destroyed', () => {
+      unsubscribeFocus()
       projection.dispose()
       void watcher.close()
       services.delete(sender.id)
