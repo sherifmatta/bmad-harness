@@ -1,0 +1,49 @@
+{
+  "scenario": "reviewer-gate-failure-induced",
+  "recordedAt": "2026-10-01T18:24:54.059Z",
+  "claudeVersion": "2.1.274 (Claude Code)",
+  "argv": [
+    "claude",
+    "-p",
+    "--input-format",
+    "stream-json",
+    "--output-format",
+    "stream-json",
+    "--include-partial-messages",
+    "--verbose",
+    "--setting-sources",
+    "project,local",
+    "--permission-mode",
+    "bypassPermissions",
+    "--model",
+    "sonnet",
+    "--max-budget-usd",
+    "1.00"
+  ],
+  "contractVersion": null,
+  "cwd": "/private/tmp/claude-501/-Users-sherifmatta-Learnings-bmad-harness/1c9f5c21-36bb-427d-a54b-af04146a506b/scratchpad/subject-gate",
+  "interrupt": null,
+  "notes": [
+    "Induced, not natural: reviewer gate run on a finished PRD under a --max-budget-usd cap so the CLI ends the turn in an error while reviewers are running"
+  ],
+  "turns": [
+    {
+      "afterLine": 0,
+      "text": "/bmad-prd"
+    },
+    {
+      "afterLine": 306,
+      "text": "Validate the existing PRD in this project (the prd.md under _bmad/planning-artifacts/prds). Run the Reviewer Gate on it now: every reviewer in the menu, dispatched in parallel as subagents, and report the findings. Do not ask me anything first.\n"
+    }
+  ],
+  "exit": {
+    "code": 1,
+    "signal": null
+  },
+  "lines": 951,
+  "resultRows": 4,
+  "inboxTurns": 1,
+  "finishedAt": "2026-10-01T18:30:10.180Z",
+  "model": "claude-sonnet-5",
+  "claudeSessionId": "4c09aeed-4df7-49b1-af67-b1697debe599"
+}

@@ -1,0 +1,51 @@
+{
+  "scenario": "fast-path-sonnet",
+  "recordedAt": "2026-10-01T17:35:44.344Z",
+  "claudeVersion": "2.1.274 (Claude Code)",
+  "argv": [
+    "claude",
+    "-p",
+    "--input-format",
+    "stream-json",
+    "--output-format",
+    "stream-json",
+    "--include-partial-messages",
+    "--verbose",
+    "--setting-sources",
+    "project,local",
+    "--permission-mode",
+    "bypassPermissions",
+    "--model",
+    "sonnet"
+  ],
+  "contractVersion": null,
+  "cwd": "/private/tmp/claude-501/-Users-sherifmatta-Learnings-bmad-harness/1c9f5c21-36bb-427d-a54b-af04146a506b/scratchpad/subject-sonfast",
+  "interrupt": null,
+  "notes": [
+    "Fast path on sonnet: documents land via Write, revisions via Edit"
+  ],
+  "turns": [
+    {
+      "afterLine": 0,
+      "text": "/bmad-prd"
+    },
+    {
+      "afterLine": 279,
+      "text": "Brain dump. Product: \"Tidewatch\" \u2014 an offline-first field inspection app for municipal water-main inspectors (mid-size city utilities, 40-400 field staff). Today inspectors carry paper checklists and a camera; findings are re-keyed into a work-order system days later, photos get lost, GPS positions are wrong because they're typed from memory, and valve exercise records (turning every hydrant/valve on a schedule) fall behind regulatory cadence. Dispatchers have no live picture, and auditors reconstruct history from PDFs.\n\nWho: (1) field inspectors, gloved hands, sun glare, no signal in basements and vaults; (2) dispatchers/supervisors scheduling routes and reviewing exceptions; (3) compliance auditors who need a defensible trail for state water-quality and asset-management reporting; (4) GIS analysts who own the asset register and need clean write-back. Secondary: contractors with limited temporary access.\n\nCore capabilities I know I want: offline-first sync with deterministic conflict resolution and per-field provenance; asset lookup by scan (QR/NFC tag), by map, or by nearest-N; configurable inspection templates (hydrant flow test, valve exercise with turn counts and torque, main-break triage, backflow-preventer test) with required photo evidence and signature capture; automatic GPS capture with accuracy radius and a \"snap to asset\" correction rather than free typing; route planning that batches nearby due assets and respects crew skills and truck equipment; a supervisor review queue with exception-based triage (only out-of-tolerance readings surface); immutable audit log with exportable regulatory packets (PDF + CSV) per reporting period; two-way integration with the asset register (Esri-style feature services) and the work-order system (generic REST adapter + CSV fallback); role-based access with contractor-scoped, time-boxed accounts; and a lightweight analytics view for cadence compliance (% valves exercised on time, by district).\n\nHard constraints: must run on rugged Android tablets and iPhones; must work fully offline for at least 5 days; photos up to 12MP compress on-device; battery impact under 15% per 8-hour shift; sync of a 200-record day under 90 seconds on a weak LTE link; data residency in-region; WCAG 2.2 AA for the supervisor web app; accessibility of the field app for gloved/high-glare use (large targets, high-contrast mode). Security: SSO via the utility's identity provider, device-bound tokens, remote wipe, encryption at rest.\n\nOut of scope for v1: customer-facing outage notifications, hydraulic modelling, meter reading/AMI, sewer and stormwater (water mains only), voice control, and any offline map authoring. Not sure yet: whether to support drones/robotic crawlers as an input source \u2014 park it as a later consideration.\n\nBusiness: launch-quality \u2014 we're selling to utilities with 12-18 month procurement cycles, pilot in 2 cities, success = pilot cities retire paper checklists for valve exercising and cut finding-to-work-order latency from ~4 days to under 4 hours. Counter-metric: no increase in per-inspection time.\n\nExisting inputs: none to read, this is the whole dump. Anything else? Not that I can think of beyond the above.\n\nStakes: launch. Please go Fast path \u2014 batch whatever gaps you need into at most one consolidated question round, then draft the whole PRD with [ASSUMPTION] tags. I want a thorough, complete PRD with detailed numbered functional requirements, NFRs, journeys, success metrics, risks and open questions, not a skeleton. Do your usual web research on comparables (e.g. other utility field-inspection and asset-management tools) using subagents in parallel so you ground the positioning, then draft.\n"
+    },
+    {
+      "afterLine": 1639,
+      "text": "Assume. Tag your best judgment calls as [ASSUMPTION] and draft the full PRD now, thorough and complete (detailed numbered FRs, NFRs, journeys, metrics, risks, open questions). Then run the finalize sequence including the reviewer gate: run all reviewers in parallel and apply the fixes they raise to the PRD.\n"
+    }
+  ],
+  "exit": {
+    "code": 0,
+    "signal": null
+  },
+  "lines": 13047,
+  "resultRows": 9,
+  "inboxTurns": 2,
+  "finishedAt": "2026-10-01T18:24:05.767Z",
+  "model": "claude-sonnet-5",
+  "claudeSessionId": "36cbaf54-1edc-4696-adf7-f8d4882f9921"
+}

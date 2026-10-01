@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-25-2026 17:00
-last_updated: 10-01-2026 11:29
+last_updated: 10-01-2026 14:35
 project: bmad-harness
 project_key: NOKEY
 tracking_system: file-system
@@ -53,7 +53,7 @@ development_status:
   epic-1-retrospective: done
 
   epic-2: backlog
-  2-1-a-recorded-corpus-to-build-against: backlog
+  2-1-a-recorded-corpus-to-build-against: review
   2-2-one-contract-across-the-bridge: backlog
   2-3-the-turn-and-the-composer: backlog
   2-4-open-a-session-and-hear-back: backlog
