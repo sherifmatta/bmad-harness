@@ -1057,6 +1057,19 @@ So that the interpreters can be built and exercised in seconds instead of by wai
 **Given** the corpus
 **Then** Epic 3 treats a missing or unusable corpus as a blocker rather than as missing test coverage.
 
+**Carried in from the Epic 1 retrospective** (`_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md`, action item 6). Story 1.14 replaced Electron's default application menu with a role-only one (`src/main/windows/app-menu.ts`) to guarantee the document window has no refresh. That removed zoom and reload from every window, which no requirement asked for. These two criteria are the exception to this story's "needs no harness code" premise; they restore the two capabilities.
+
+**Given** the application menu built in `src/main/windows/app-menu.ts`
+**When** the project window is focused
+**Then** the menu offers zoom in, zoom out and reset zoom, and a reload of the project window, each through an Electron role so it carries its own platform label and key
+**And** reloading the project window loses nothing, because main re-emits its projection on reconnect (the reload criterion in Story 2.7 is exercised through this route, not through DevTools).
+
+**Given** the document window carries no refresh control (UX-DR38, Story 1.14)
+**When** the document window is focused
+**Then** the menu offers zoom in, zoom out and reset zoom, so a document can be read larger
+**And** no reload entry is enabled for it, so the document window still cannot be refreshed by hand — it reloads only from the watcher
+**And** the negative-surface check in Story 1.14 is amended to assert reload is absent for the document window rather than absent from the menu altogether.
+
 ### Story 2.2: One contract across the bridge
 
 As a developer on the harness,

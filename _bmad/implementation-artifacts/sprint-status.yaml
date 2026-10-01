@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-25-2026 17:00
-last_updated: 09-30-2026 21:20
+last_updated: 10-01-2026 08:17
 project: bmad-harness
 project_key: NOKEY
 tracking_system: file-system
@@ -50,7 +50,7 @@ development_status:
   1-12-read-a-document-at-full-size-without-losing-the-room: done
   1-13-the-planning-contract-says-what-actually-governs-the-build: done
   1-14-nothing-the-product-promised-not-to-do: done
-  epic-1-retrospective: optional
+  epic-1-retrospective: done
 
   epic-2: backlog
   2-1-a-recorded-corpus-to-build-against: backlog
@@ -90,3 +90,131 @@ development_status:
   4-5-the-room-ends-it-does-not-pause: backlog
   4-6-nothing-this-epic-promised-not-to-do: backlog
   epic-4-retrospective: optional
+action_items:
+  - id: "epic-1-retro-item-1-make-the-packaged-app-find-claude-and-uv"
+    epic: 1
+    action: "Make the packaged app find claude and uv: build the child env once in
+      main (login-shell PATH or known install dirs) and pass it to preflight and the
+      resolvers, with a test on the env. Deferred: packaged app out of scope for now."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-2-let-preflight-recover-drop-the-cached-to"
+    epic: 1
+    action: "Let preflight recover: drop the cached tool verdict on any tool error,
+      never cache check-failed, re-ask on window focus, and have the watchers see
+      creation of _bmad and .claude/skills after launch. Before Epic 2."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-3-fix-the-document-sanitiser-allow-list-ad"
+    epic: 1
+    action: "Fix the document sanitiser allow-list (add s and numeric ol start) and
+      add one test that runs renderMarkdown through a DOM-capable DOMPurify. Before
+      Epic 2."
+    owner: "dev"
+    status: done
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-4-decide-the-dom-test-environment-jsdom-or"
+    epic: 1
+    action: "Decide the DOM test environment (jsdom or happy-dom, or an explicit no),
+      then cover useRail, useInstall, useDocument, LiveRegion and useNow. Before story
+      2.3."
+    owner: "Sherif + dev"
+    status: in-progress
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-5-decide-the-main-window-reload-route-and"
+    epic: 1
+    action: "Decide the main-window reload route and zoom (both removed by story 1.14's
+      menu) or amend Epic 2's 'window reloads, nothing is lost' AC. Before story 2.7."
+    owner: "Sherif + architect"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-6-correct-the-stop-mechanism-everywhere-st"
+    epic: 1
+    action: "Correct the stop mechanism everywhere still stale: FR83, FR87, FR90,
+      story 1.1 and 3.7 ACs, ARCHITECTURE-SPINE.md:190,267,338, EXPERIENCE.md:370,381,
+      epic-1-context.md:62. Route via the owning skills. Before Epic 3."
+    owner: "PM + architect"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-7-reconcile-the-as-built-into-the-contract"
+    epic: 1
+    action: "Reconcile the as-built into the contract: nineteen memlog kinds, four-argument
+      portrait, hover on current tile, absent session-owner branch, resolve_party
+      not invoked, 1.9 thread contents, overflow:hidden on the segmented control,
+      document window geometry, branch chip source."
+    owner: "PM + UX"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-8-retire-the-preview-scaffolding-move-reso"
+    epic: 1
+    action: "Retire the Preview scaffolding: move resolver and menu error lines into
+      a real shell surface first, then delete Preview, PREVIEW_DERIVED and derivedName."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-9-harden-failure-paths-watcher-onerror-cha"
+    epic: 1
+    action: "Harden failure paths: watcher onError channels, did-fail-load loop, doc:open
+      rejections and backslash filenames, render-process-gone on the stage window,
+      document-window parent focus, escape-action containment re-check, install-bridge
+      ready race, navigation guard and CSP, empty-roster flip, UTF-8 truncation boundary."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-10-extract-the-shared-bridge-skeleton-one-c"
+    epic: 1
+    action: "Extract the shared bridge skeleton, one channels module and one failure-mapping
+      function (the two copies already diverge) plus shared test fixtures, before
+      Epic 2 adds a fourth bridge."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-11-make-roster-handling-tolerant-icon-and-d"
+    epic: 1
+    action: "Make roster handling tolerant: icon and description optional, reject
+      or order integer-like agent ids, drop only a bad entry with a named error instead
+      of the whole roster."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-12-decide-outputs-rail-scope-install-intern"
+    epic: 1
+    action: "Decide Outputs rail scope (install internals, config files, uniform 'saved
+      just now' at load), whether a config file listed as data satisfies the no-config-path
+      AC, and the faint-tier rail-group and chat-head-sub copy."
+    owner: "Sherif + UX"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-13-once-a-dom-environment-exists-test-the-n"
+    epic: 1
+    action: "Once a DOM environment exists, test the negative surface by behavior:
+      media-emulated reduced motion, real keydown on the shell, the application menu
+      read back from Electron."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-14-refresh-deferred-work-md-and-tracking-cl"
+    epic: 1
+    action: "Refresh deferred-work.md and tracking: close LiveRegion and stacked-ring
+      entries, correct the main-window normalisation premise, ingest ~18 frontmatter-only
+      deferred items, set epic-1 done, set the cleanup spec to done, reconcile three
+      mismatched story keys."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-15-process-a-story-whose-acceptance-needs-a"
+    epic: 1
+    action: "Process: a story whose acceptance needs a person does not move to done
+      without a recorded decision (accept commit or note)."
+    owner: "Sherif"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-16-process-a-deferral-that-names-a-later-st"
+    epic: 1
+    action: "Process: a deferral that names a later story must add the item to that
+      story's ACs at the time, since those AC lists are frozen."
+    owner: "Sherif"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
