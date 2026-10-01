@@ -48,15 +48,15 @@
 
 /*
  * Time. `meta` here is the typography role, not the `--meta` colour token: the
- * colour is `faint`, which DESIGN.md's component block and the mockup agree
- * on. Tabular figures are required, not preferred — a ragged time column
- * destroys the feed's scannability. The cell is rendered even when the memlog
+ * colour is `dim`: the time is the only place a note's moment is written, so
+ * Story 1.14 moved it up from the faint tier. Tabular figures are required,
+ * not preferred — a ragged time column destroys the feed's scannability. The cell is rendered even when the memlog
  * carries no timestamp, which is every note read from a file.
  */
 .run-note-time {
   font-family: var(--mono);
   font-size: var(--fs-meta);
-  color: var(--faint);
+  color: var(--dim);
   font-variant-numeric: tabular-nums;
 }
 

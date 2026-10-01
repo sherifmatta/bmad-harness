@@ -820,12 +820,14 @@ describe('the preview in force', () => {
     expect(app).toContain('portrait(artParamsFor(persona.id), size, ')
   })
 
-  it('renders the install errors, the install failure and every persona menu', () => {
-    // Deleting any of these leaves every other test green, and the running app
-    // is where a human confirms the team on screen is this project's.
+  it('renders the install errors and the install failure, and no persona menu', () => {
+    // Deleting either leaves every other test green, and the running app is
+    // where a human confirms the team on screen is this project's. Story 1.14
+    // removed the per-persona menu lines: rendered flat, they were a global
+    // skills list.
     expect(app).toMatch(/snapshot\?\.errors\.map\([\s\S]*?<ErrorLine/)
     expect(app).toMatch(/installFailure !== null && <ErrorLine error=\{installFailure\}/)
-    expect(app).toMatch(/snapshot\.menus\[persona\.id\][\s\S]*?\.map\(/)
+    expect(app).not.toMatch(/snapshot\.menus/)
   })
 
   it('keeps the Preview scaffolding after the tiles, the only home of the 32px and 44px sizes', () => {
@@ -851,7 +853,7 @@ describe('the preview in force', () => {
     expect(gate).toBeGreaterThan(-1)
     expect(open).toBeGreaterThan(gate)
     expect(blockedBranch).toContain('<Preflight')
-    for (const row of ['portrait(', '<Initials', 'RunNoteFeed', 'PREVIEW_', 'snapshot?.agents']) {
+    for (const row of ['portrait(', '<Initials', 'PREVIEW_', 'snapshot?.agents']) {
       expect(blockedBranch, row).not.toContain(row)
     }
     expect(app).toContain('Story 1.8 gate: the room opens only when preflight passes')

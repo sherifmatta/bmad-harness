@@ -18,6 +18,9 @@ const appHandlers = new Map<string, () => void>()
 const windowTitles: string[] = []
 const choosesMade: unknown[] = []
 const quits: string[] = []
+const menusInstalled: unknown[] = []
+/** One shared log, so what came first is a fact and not an inference. */
+const callOrder: string[] = []
 
 /** Close every open window the way Electron does — `closed` fires, then they are gone. */
 function closeAllWindows(): void {
@@ -44,6 +47,7 @@ vi.mock('electron', () => {
     closedHandlers: (() => void)[] = []
 
     constructor(options: { title: string }) {
+      callOrder.push('window')
       windowTitles.push(options.title)
       constructedWindows.push(this)
     }
@@ -80,7 +84,14 @@ vi.mock('electron', () => {
       },
       showErrorBox: vi.fn()
     },
-    ipcMain: { handle: vi.fn() }
+    ipcMain: { handle: vi.fn() },
+    Menu: {
+      buildFromTemplate: (template: unknown) => template,
+      setApplicationMenu: (menu: unknown) => {
+        callOrder.push('menu')
+        menusInstalled.push(menu)
+      }
+    }
   }
 })
 
@@ -135,4 +146,13 @@ it('opens one on activate when none is open', async () => {
   // chooser every time.
   expect(choosesMade).toHaveLength(1)
   expect(quits).toHaveLength(0)
+})
+
+it('installs the application menu once, before the first window, for the unpackaged build', () => {
+  expect(menusInstalled).toHaveLength(1)
+  expect(callOrder.indexOf('menu')).toBe(0)
+  expect(callOrder.indexOf('window')).toBeGreaterThan(callOrder.indexOf('menu'))
+  // The mock says `isPackaged: false`, so the developer's DevTools item is in.
+  expect(JSON.stringify(menusInstalled[0])).toContain('toggleDevTools')
+  expect(JSON.stringify(menusInstalled[0])).not.toMatch(/reload|forceReload|zoom/i)
 })

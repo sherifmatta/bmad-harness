@@ -174,7 +174,7 @@ describe('the persona tile rules', () => {
     const line = ruleBody(DOT_CSS, ['.state-line']) ?? ''
     expect(line).toContain('font-family: var(--mono)')
     expect(line).toContain('font-size: var(--fs-label)')
-    expect(line).toContain('color: var(--faint)')
+    expect(line).toContain('color: var(--dim)')
   })
 
   it('ellipsises a long name on one line in the tile, letting it shrink before the title', () => {

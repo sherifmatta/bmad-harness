@@ -226,5 +226,6 @@ describe('the rail in the window', () => {
 
     expect(app).toContain('useRail()')
     expect(app).toMatch(/<Shell[^>]*rail=\{rail\}[^>]*railFailure=\{railFailure\}[^>]*>\s*<Preview/)
+    expect(app).not.toContain('PREVIEW_NOTES')
   })
 })

@@ -42,7 +42,8 @@
 }
 
 /* The dot and its word. Mono, because the words are the harness's own state
-   and not speech; faint, because state is the quietest line a tile carries. */
+   and not speech; dim, because the word is the only place a persona's
+   state is written, and the faint tier is for what the page can lose. */
 .state-line {
   display: inline-flex;
   align-items: center;
@@ -50,6 +51,6 @@
   min-width: 0;
   font-family: var(--mono);
   font-size: var(--fs-label);
-  color: var(--faint);
+  color: var(--dim);
   white-space: nowrap;
 }

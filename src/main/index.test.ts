@@ -46,7 +46,8 @@ vi.mock('electron', () => {
       showOpenDialog: (...args: unknown[]) => showOpenDialog(...args),
       showErrorBox: vi.fn()
     },
-    ipcMain: { handle: vi.fn() }
+    ipcMain: { handle: vi.fn() },
+    Menu: { buildFromTemplate: (template: unknown) => template, setApplicationMenu: vi.fn() }
   }
 })
 

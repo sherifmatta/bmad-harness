@@ -422,12 +422,16 @@ describe('the memlogs in this repository', () => {
  * mount leaves the whole suite green.
  */
 describe('the preview in force', () => {
-  it('mounts the feed over a real memlog', () => {
+  it('no longer mounts the feed over this repository’s own memlog', () => {
+    // Story 1.14: the judgement the mount existed for was made in Story 1.5,
+    // and the memlog it read names `customize.toml`. The feed and the parser
+    // stay for Epic 3; nothing mounts them yet.
     const app = read(APP)
 
-    expect(app).toContain('<RunNoteFeed notes={PREVIEW_NOTES} />')
-    expect(app).toContain('parseMemlog(uxMemlog)')
-    expect(app).toContain(UX_MEMLOG.slice(UX_MEMLOG.indexOf('_bmad')))
+    expect(app).not.toContain('RunNoteFeed')
+    expect(app).not.toContain('PREVIEW_NOTES')
+    expect(app).not.toContain('parseMemlog')
+    expect(app).not.toContain('.memlog.md')
   })
 
   it('renders it on a ground the palette was designed for', () => {

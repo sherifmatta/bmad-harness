@@ -1,11 +1,8 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import type { JSX } from 'react'
 
-import uxMemlog from '../../../_bmad/planning-artifacts/ux-designs/ux-bmad-harness-2026-09-24/.memlog.md?raw'
 import { Announcer } from './a11y/announcer'
 import { LiveRegion } from './a11y/live-region'
-import { RunNoteFeed } from './feed/run-note-feed'
-import { parseMemlog } from './feed/memlog'
 import { artParamsFor } from './persona/art-params'
 import { ErrorLine } from './install/error-line'
 import { Preflight } from './install/preflight'
@@ -17,21 +14,6 @@ import { portrait } from './persona/portrait'
 import type { PortraitSize } from './persona/portrait'
 import { Shell } from './shell/shell'
 import type { HarnessError, InstallSnapshot } from '../../shared/install'
-
-/**
- * Story 1.5 scaffolding, mounted in the shell's thread (Story 1.9).
- *
- * The story's whole purpose is a judgement — does the register split alone
- * keep reasoning distinct from prose, or does the feed read as a changelog? —
- * and an unmounted component cannot be judged. So the feed is mounted here,
- * over this repository's own UX memlog, read into the bundle at build time.
- *
- * It is a preview, not a surface: there is no document card, no scrolling
- * body, no card padding. Those are Epic 3's, and this story ships only the
- * rows the card will contain. Parsed once at module scope because the text is
- * a build-time constant and re-parsing it per render would say otherwise.
- */
-const PREVIEW_NOTES = parseMemlog(uxMemlog)
 
 /**
  * Story 1.7 scaffolding, mounted in the shell's thread (Story 1.9) until the
@@ -47,8 +29,8 @@ const PREVIEW_NOTES = parseMemlog(uxMemlog)
  *
  * The team is read from the project's own install, through `useInstall`, so
  * this is also where a human confirms that the colleagues on screen are this
- * project's. Each is listed with its menu as plain lines beneath it, and every
- * resolver error is a line of its own.
+ * project's. Every resolver error is a line of its own. Story 1.14 removed the
+ * per-persona menu lines: rendered flat they were a global skills list.
  *
  * It is a preview, not a surface. There is no persona tile, no status dot, no
  * cast card and no chat header — those are Stories 1.9 and 1.10, and this
@@ -212,11 +194,6 @@ function Preview({
             ))}
             {persona.name} · {persona.title}
           </p>
-          {(snapshot.menus[persona.id] ?? []).map((entry) => (
-            <p key={entry.code}>
-              {entry.code} · {entry.description}
-            </p>
-          ))}
         </Fragment>
       ))}
       <p>
@@ -243,7 +220,6 @@ function Preview({
       <p>
         <Initials name="Preview User" title="you" size={32} />
       </p>
-      <RunNoteFeed notes={PREVIEW_NOTES} />
     </>
   )
 }

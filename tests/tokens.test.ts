@@ -665,7 +665,9 @@ describe('the motion inventory', () => {
     expect(media).toHaveLength(1)
     const [, condition, body] = media[0]
     expect(condition.replace(/\s/g, '')).toBe('prefers-reduced-motion:reduce')
-    expect(body.trim()).toBe('*{animation:none !important;transition:none !important}')
+    expect(body.trim()).toBe(
+      '*,*::before,*::after{animation:none !important;transition:none !important}'
+    )
     expect(body).not.toContain(':not(')
   })
 })

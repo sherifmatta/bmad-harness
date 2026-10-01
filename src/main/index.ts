@@ -3,6 +3,7 @@ import { registerDocBridge } from './doc-bridge'
 import { registerInstallBridge } from './install-bridge'
 import { registerProjectBridge } from './project-bridge'
 import { registerRailBridge } from './rail-bridge'
+import { installApplicationMenu } from './windows/app-menu'
 import { ProjectPathError, resolveProjectPath } from './windows/choose-project'
 import { createProjectWindow, projectPathForWebContents } from './windows/main-window'
 
@@ -80,7 +81,14 @@ function reportStartupFailure(error: unknown): void {
   app.exit(1)
 }
 
-app.whenReady().then(openProjectWindow).catch(reportStartupFailure)
+app
+  .whenReady()
+  .then(() => {
+    // Before the first window, so no window ever has Electron's default menu.
+    installApplicationMenu(app.isPackaged)
+    return openProjectWindow()
+  })
+  .catch(reportStartupFailure)
 
 // Closing a project window returns to the chooser rather than quitting;
 // cancelling the chooser quits.

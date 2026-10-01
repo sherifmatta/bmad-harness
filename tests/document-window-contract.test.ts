@@ -103,7 +103,6 @@ describe('the document stylesheet', () => {
       '--panel-2',
       '--line',
       '--dim',
-      '--faint',
       '--fs-ident',
       '--fs-meta',
       '--fs-body-ui'
@@ -477,10 +476,11 @@ describe('the source tree', () => {
     expect(app).toMatch(/if \(!available\) \{\s*return <p className="doc-unavailable">bridge\/unavailable · the preload did not load<\/p>\s*\}/)
   })
 
-  it('leaves the Preview scaffolding in app.tsx untouched', () => {
+  it('keeps the Preview mounted under the shell, with neither the memlog feed nor a menu list', () => {
     const app = read('src/renderer/ui/app.tsx')
 
-    expect(app).toContain('PREVIEW_NOTES')
+    expect(app).not.toContain('PREVIEW_NOTES')
+    expect(app).not.toContain('snapshot.menus')
     expect(app).toMatch(/<Shell[^>]*rail=\{rail\}[^>]*railFailure=\{railFailure\}[^>]*>\s*<Preview/)
     expect(app).not.toMatch(/ui\/doc|docWindow|openDoc/)
   })

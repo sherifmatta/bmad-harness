@@ -93,7 +93,7 @@
 .output-row-owner {
   font-family: var(--mono);
   font-size: var(--fs-meta);
-  color: var(--faint);
+  color: var(--dim);
 }
 
 /* The state string, with its dot (only while changing) inside it. */
