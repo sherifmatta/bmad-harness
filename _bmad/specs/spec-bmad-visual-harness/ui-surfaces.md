@@ -5,7 +5,9 @@ Load-bearing surface decisions. The reference implementation is
 adopted as a binding companion: where this file and the mockup describe the same thing,
 the mockup is the detail of record. The token contract that makes those values binding — the
 palette, the layout constants, the radius family and the type scale — lives in
-`../../planning-artifacts/architecture/architecture-bmad-harness-2026-09-23/ARCHITECTURE-SPINE.md`.
+`../../planning-artifacts/architecture/architecture-bmad-harness-2026-09-23/ARCHITECTURE-SPINE.md`,
+except where this file records a supersession below (the party side panel width, the portrait
+legibility floor).
 
 ## Shell
 
@@ -22,7 +24,9 @@ It is a lifecycle control, not a next-step suggestion.
 - **Persona tiles** (top half): one per installed agent — portrait, name, title, and a state
   line. Current persona is marked with an accent edge.
 - **Outputs rail** (bottom half): one row per file under `_bmad/`, showing path, owner persona,
-  and state — `saved · <age>`, `writing · §N of M`, `appending · live`, `stopped · §N of M`.
+  and state — `saved · <age>`, `writing · §N`, `appending · live`, `stopped · §N`, with no
+  denominator (`../../planning-artifacts/ux-designs/ux-bmad-harness-2026-09-24/EXPERIENCE.md`,
+  *Progress, batch commit and revision*: "the rail annotation loses its denominator too").
   The row's file state comes from the watcher; the owner and section-in-flight are annotations
   from the run. They are separate fields and no source writes both.
 - **Skill buttons** sit inline in the conversation above the composer, labelled
@@ -59,13 +63,14 @@ Cards are conversation entries in time order. The **active** persona's card rend
 
 A card belonging to a persona the user is **not** currently looking at collapses to a single
 line carrying real state — persona · section · elapsed · stop — and expands on persona switch or
-click. A collapsed card is never a spinner; it is the same state, smaller.
+click (`ARCHITECTURE-SPINE.md` AD-11). A collapsed card is never a spinner; it is the same state,
+smaller, and it does not carry the prose body or the not-yet-written list.
 
 Progress is legible against a known plan rather than an opaque percentage, and elapsed time
 makes a stall visible without anyone having to guess at a spinner.
 
 The body streams from the run's event stream, not from re-reading the file — the prose appears
-while the write is still in flight. Where the section name, the section count and the
+while the write is still in flight. Where the section name, the section number and the
 not-yet-written list come from is specified in `execution-model.md`. During a run's
 subagent phases (research, reviewer gate) the document stream goes quiet; the card is fed by the
 run's `.memlog.md` entries so the beat never becomes a spinner.
@@ -89,7 +94,11 @@ therefore untrusted: it is rendered with HTML disabled and sanitized before inse
   *Write summary to `_bmad/`*.
 - **Transcript:** portrait + name + role + timestamp per turn.
 - **Side panel — *Room*:** topic, who opened it and when, context documents in scope, destination
-  path (`_bmad/party/<date>-<topic>.md`). All of it is harness-known.
+  path (`_bmad/party/<date>-<topic>.md`). All of it is harness-known. The panel is **240px**, in
+  place of the 288px that `ARCHITECTURE-SPINE.md` AD-14 binds, because v1 ships the Room section
+  only (`../../planning-artifacts/ux-designs/ux-bmad-harness-2026-09-24/DESIGN.md` *The party side
+  panel — 288px is superseded*; `../../planning-artifacts/epics.md` UX-DR8). 288px must not be
+  implemented, although the spine's token contract, which lists it as a literal, still states it.
 - No turn-taking gate: the user types at any point.
 - A party session carries no single agent — the room owns it, which is why a party summary's rail
   row shows the room rather than a persona as owner.
@@ -111,8 +120,14 @@ against the childish risk.
 
 Procedural inline SVG, parameterized per persona — skin and shade, hair colour with a style
 (`short`, `long`, `curly`, `bun`, `receding`) and fringe, optional beard, glasses, earrings,
-shirt and collar colour, background. Rendered at any size (20px in stacked faces, 32px in
-turns, larger in tiles and cast). No external image assets and no licensing dependency.
+shirt and collar colour, background. Rendered at the closed size set 32 (transcript), 36 (persona
+tile), 38 (chat header) and 44 (cast card). The legibility floor is **32px**, in place of the
+"legible from 20px" that `ARCHITECTURE-SPINE.md` AD-16 states: at 20px a portrait degrades to a
+colour blob, so the 20px case — stacked faces, the handoff chip — is served by the initials token
+instead (`../../planning-artifacts/ux-designs/ux-bmad-harness-2026-09-24/DESIGN.md`, the
+"Legibility — relaxed from 20px to 32px" paragraph under *Portrait*;
+`../../planning-artifacts/epics.md` FR79, FR82). No external image assets and no licensing
+dependency.
 
 The five core personas carry curated parameters. Any other installed agent derives its
 parameters deterministically from its agent id, so the same agent always wears the same face

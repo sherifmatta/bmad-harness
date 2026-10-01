@@ -6,9 +6,11 @@ recorded so the next planning pass starts from the decision already made.
 
 ## Deferred from a Must — party mode's structured tracking
 
-Cut from CAP-9 for want of a data source, not for want of value. `bmad-party-mode` emits prose
-and is explicitly instructed never to produce summaries or takeaways, so nothing here can be
-populated today.
+Cut from CAP-9 for want of a data source, not for want of value. CAP-9's disagreement-and-decision
+structure is therefore **not met in v1** (`SPEC.md` CAP-9;
+`../../planning-artifacts/architecture/architecture-bmad-harness-2026-09-23/ARCHITECTURE-SPINE.md`
+*Spec Amendments Required*). `bmad-party-mode` emits prose and is explicitly instructed never to
+produce summaries or takeaways, so nothing here can be populated today.
 
 | Item | Note |
 |---|---|

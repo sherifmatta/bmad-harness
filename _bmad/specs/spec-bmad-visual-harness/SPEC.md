@@ -31,7 +31,7 @@ pushing back on you, and a face attached to him.
 
 - **CAP-1** — zero-configuration install discovery
   - **intent:** A user points the harness at any BMad-installed project and the personas, their skills, and the project's pipeline position are all discovered from what is on disk.
-  - **success:** A project the harness has never seen opens with correct personas, correct per-persona skill buttons, and correct pipeline state, with no configuration step and no harness-side registry. Adding an agent to the install surfaces it without a harness change. Where a prerequisite is missing instead, launch names which one and its remedy rather than opening an empty room. See `bmad-install-contract.md`.
+  - **success:** A project the harness has never seen opens with correct personas, correct per-persona skill buttons, and correct pipeline state, with no configuration step and no harness-side registry. Adding an agent to the install surfaces it without a harness change. Where a prerequisite is missing instead, launch names which one and its remedy rather than opening an empty room (`ARCHITECTURE-SPINE.md` AD-17). See `bmad-install-contract.md`.
 
 - **CAP-2** — conversation and project state in one window
   - **intent:** The user holds a conversation and watches the project's artifacts accumulate at the same time, spanning planning and build without switching surfaces.
@@ -39,15 +39,15 @@ pushing back on you, and a face attached to him.
 
 - **CAP-3** — personas have faces and identities
   - **intent:** Each persona is present as a specific colleague rather than a label, wherever they speak or wait.
-  - **success:** Portrait, name, title and current state render in the chat header, the persona tiles and the party cast. The persona talks like the persona because its own agent skill is what is running — identity and communication style are never assembled by the harness.
+  - **success:** Portrait, name, title and current state render in the chat header, the persona tiles and the party cast. The persona talks like the persona because its own agent skill is what is running — identity and communication style are never assembled by the harness, and the roster comes from BMad's resolved configuration rather than raw `customize.toml` (`ARCHITECTURE-SPINE.md` AD-8, AD-10).
 
 - **CAP-4** — skills invoked in-conversation, scoped to the persona
   - **intent:** The user runs a skill by pressing a button belonging to whoever they are talking to, without leaving the conversation.
-  - **success:** The button row shows exactly the current persona's resolved menu entries and rebuilds on persona change. Every entry dispatches — those that name a skill and those that carry a prompt alike — and an entry that can dispatch neither is surfaced as an error, never a dead button. There is no separate skills list, launcher or command palette anywhere in the product.
+  - **success:** The button row shows exactly the current persona's resolved menu entries and rebuilds on persona change. Every entry dispatches — those that name a skill and those that carry a prompt alike — and an entry that can dispatch neither is surfaced as an error, never a dead button (a menu entry carries exactly one of `skill` or `prompt`: `ARCHITECTURE-SPINE.md` AD-9; the entries are the resolved ones, AD-8). There is no separate skills list, launcher or command palette anywhere in the product.
 
 - **CAP-5** — documents write visibly and live
   - **intent:** The user watches a document being authored as it happens, rather than waiting on a progress indicator.
-  - **success:** A running skill renders a document card in the conversation showing the file path, the section being written now, the prose streaming in, and the sections not yet written. A card belonging to a persona the user is not currently looking at collapses to one line carrying real state — persona, section, elapsed, stop — and expands on switch or click. No spinner substitutes for either form at any point in a run. The card is fed by the run's event stream, not by watching the file — see `execution-model.md`.
+  - **success:** A running skill renders a document card in the conversation showing the file path, the section being written now, the prose streaming in, and the sections not yet written. A card belonging to a persona the user is not currently looking at collapses to one line carrying real state — persona, section, elapsed, stop — and expands on switch or click (`ARCHITECTURE-SPINE.md` AD-11). No spinner substitutes for either form at any point in a run. The card is fed by the run's event stream, not by watching the file — see `execution-model.md`.
 
 - **CAP-6** — outputs rail is a live view of the filesystem
   - **intent:** The user sees the project's real files change as the work happens.
@@ -63,7 +63,7 @@ pushing back on you, and a face attached to him.
 
 - **CAP-9** — party mode
   - **intent:** The user convenes a room of personas in one conversation they participate in, before the pipeline starts.
-  - **success:** The user chooses the cast, defaulting to the five core personas. Every face in the room stays visible with the current speaker lit; the user can type at any moment with no turn-taking gate; the room panel names the topic, who opened it, the context documents in scope and the destination path; and the room writes its summary to `_bmad/`. Tracking disagreements and decisions as visible structure is deferred for want of a data source — see `scope-tiers.md`. Detail in `ui-surfaces.md`.
+  - **success:** The user chooses the cast, defaulting to the five core personas. Every face in the room stays visible with the current speaker lit; the user can type at any moment with no turn-taking gate; the room panel names the topic, who opened it, the context documents in scope and the destination path; and the room writes its summary to `_bmad/`. Tracking disagreements and decisions as visible structure is **not met in v1** — deferred for want of a data source (`ARCHITECTURE-SPINE.md` *Spec Amendments Required*; see `scope-tiers.md`). Detail in `ui-surfaces.md`.
 
 - **CAP-10** — every persona has a real portrait
   - **intent:** Each persona is represented by an illustrated headshot of a plausible colleague, including agents installed after v1.
@@ -79,13 +79,13 @@ pushing back on you, and a face attached to him.
 
 ## Constraints
 
-- Do not redesign the BMad method. The waterfall pipeline is good and stays — brief → PRD → epics and stories → build → review → launch. Only the surface is replaced. The serialism of the *method* is binding; the serialism of the *interaction* is not, and personas may run concurrently.
+- Do not redesign the BMad method. The waterfall pipeline is good and stays — brief → PRD → epics and stories → build → review → launch. Only the surface is replaced. The serialism of the *method* is binding; the serialism of the *interaction* is not, and personas may run concurrently (`ARCHITECTURE-SPINE.md` AD-11).
 - It must not read as a chat box with a portrait glued on. If it does, it has failed regardless of feature completeness.
 - No second source of truth. The rail reflects the filesystem; the harness never maintains its own model of project state. The live document card is the one thing that renders ahead of disk, because it shows a write still in flight — it is a view of the running skill, never a claim about what the project contains.
 - The harness writes nothing into the project. Every byte under `_bmad/` got there because the runtime wrote it; the harness's own transcripts, logs, caches and window state live outside the project root, persisted per project. This is what makes the previous constraint structural rather than a matter of discipline. A conversation survives a restart; the running sessions behind it do not, and an explicit end-session control is the only thing that clears one.
-- Effective BMad configuration comes only from BMad's own resolvers, never from reading its config files directly — raw files omit the project's overrides. The harness implements no configuration layering of its own. This is what stops it rotting when BMad updates.
+- Effective BMad configuration comes only from BMad's own resolvers, never from reading its config files directly — raw files omit the project's overrides (`ARCHITECTURE-SPINE.md` AD-8). The harness implements no configuration layering of its own. This is what stops it rotting when BMad updates.
 - The harness reads the BMad install; it never grows its own model of how BMad runs. A skill is executed by handing it to the installed runtime, not by reimplementing its steps.
-- Zero configuration is not zero prerequisites. Launch verifies its prerequisites and reports the specific one that is missing with its remedy; it never opens to an empty room with no explanation.
+- Zero configuration is not zero prerequisites. Launch verifies its prerequisites and reports the specific one that is missing with its remedy; it never opens to an empty room with no explanation (`ARCHITECTURE-SPINE.md` AD-17).
 - Animation must carry information, never decoration: a thinking face only because a skill is actually running, a pulse only because a file is actually being written.
 - No opinionated next-step guidance — no highlighting, badging or recommending the right next move. The skill buttons plus the output list are enough; the user decides.
 - Document windows are read-only previews. The harness is not an editor.
@@ -126,6 +126,6 @@ goes back.
 
 ## Open Questions
 
-- Can a run be stopped without also ending the persona's session? If it cannot, CAP-11's stop costs the session, and the constraint is that the trade is stated to the user rather than hidden. This is the cheapest thing to verify and the one CAP-11's shape depends on.
+- **Closed.** Can a run be stopped without also ending the persona's session? Yes: an in-band interrupt on the session's stdin stops the turn and leaves the session alive, while `SIGINT` ends it (`execution-model.md` *Stop and failure*; `../../spikes/spike-stop-semantics.md`).
 - Does a conversation that is continuous in transcript and artifacts, but not in process, satisfy the demonstrable form of the success signal and CAP-8? Needs confirming before the build commits.
 - Does a composer that queues a message typed during a twelve-minute run read as honest, or as broken? Queued-and-visible is the intent; only real use decides.

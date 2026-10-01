@@ -75,18 +75,24 @@ memlog text can never enter the document buffer or its section parser.
 
 ## Progress against a plan
 
-`writing · §4 of 9` needs a denominator the run does not supply. BMad adapts its template — one
-observed `bmad-prd` run expanded the template's 0–9 Essential Spine into 15 top-level sections.
+The head reads `writing · §4 Functional Requirements` — the section number and its name, with
+**no denominator**, here or on the rail row
+(`../../planning-artifacts/ux-designs/ux-bmad-harness-2026-09-24/EXPERIENCE.md`, *Progress, batch
+commit and revision*: "the denominator is deleted"). A total is not something the run supplies:
+BMad adapts its template — one observed `bmad-prd` run expanded the template's 0–9 Essential
+Spine into 15 top-level sections — and a counter going 9 → 15 reads as a defect.
 
-Predict the total from two places, in order:
+The plan is the foot's list of not-yet-written section names. Predict it from two places, in
+order:
 
 1. The skill's own template (`assets/prd-template.md` for `bmad-prd`) — the Essential Spine is
    stable and numbered.
 2. The run's `.memlog.md`, which records a concern-scan entry naming exactly which Adapt-In
    sections were pulled. This lands early, before the document is written.
 
-Render the numerator from headings already parsed. When the two disagree, the headings win and
-the denominator grows — never renumber a section the user has already seen.
+Render the head from headings already parsed, and the predicted plan as the foot's list. When the
+two disagree, the headings win and the list gains names — never renumber a section the user has
+already seen.
 
 ## Confirming a write
 
@@ -138,14 +144,20 @@ is in flight, and anything the user types during a run is queued and sent when t
 completes. This is what makes a `result` row unambiguously belong to the turn the harness is
 waiting on. Skill buttons are disabled whenever any turn is in flight; the composer is not.
 
-**Different sessions run concurrently.** Concurrent personas can still collide on one artifact —
-`bmad-correct-course` touches the PRD, epics, architecture and UX at once — and that collision is
-reported, never resolved.
+**Different sessions run concurrently** (`ARCHITECTURE-SPINE.md` AD-11). Concurrent personas can
+still collide on one artifact — `bmad-correct-course` touches the PRD, epics, architecture and UX
+at once — and that collision is reported, never resolved.
 
 ## Filesystem watcher constraints
 
 - `.memlog.md` is written by **atomic temp-file rename** (`_bmad/scripts/memlog.py`). Configure
   the watcher for atomic writes or it will miss or double-count appends.
+- The memlog's **kind vocabulary is open**: the host skill supplies it by how it calls `append`,
+  and the writer enforces none. An entry renders as `(kind)`, `(kind by who)` or `(by who)`, or with
+  no tag for a plain note. Entries carry **no per-entry timestamp** — the only time in the file is
+  the file-level `updated:` frontmatter field, restamped on every write. Nothing downstream may
+  assume a fixed set of kinds or a time per entry (`../../scripts/memlog.py`, module docstring and
+  `now()`).
 - Rapid appends **coalesce** — three landed inside 400ms in one observed run. Sub-second polling
   does not give one event per entry, and nothing downstream should assume it does.
 - Document commits are **whole-file `Write` calls, not appends**. An on-disk delta is a full

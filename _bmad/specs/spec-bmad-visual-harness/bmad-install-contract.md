@@ -6,7 +6,9 @@ keeps the harness from rotting when BMad updates — see the corresponding const
 ## Read it through BMad's own resolvers
 
 Configuration files are **never read directly**. Effective configuration comes from invoking
-BMad's own resolvers and consuming the merged JSON:
+BMad's own resolvers and consuming the merged JSON
+(`../../planning-artifacts/architecture/architecture-bmad-harness-2026-09-23/ARCHITECTURE-SPINE.md`
+AD-8, which replaces an earlier reading of each agent's `customize.toml`):
 
 | Resolver | Yields |
 |---|---|
@@ -26,7 +28,8 @@ install keeps its session and its stop control until the user closes it.
 
 ## The agent roster: `_bmad/config.toml` `[agents.*]`
 
-The `[agents.*]` tables in the resolved config are the authoritative roster.
+The `[agents.*]` tables in the resolved config are the authoritative roster, not each agent's
+`customize.toml` (`ARCHITECTURE-SPINE.md` AD-10).
 
 | Field | Feeds |
 |---|---|
@@ -46,7 +49,8 @@ persona (CAP-3).
 ## The menu: per-agent resolved customization
 
 Each menu entry carries `code` (the key), `description` (the button label) and **exactly one of
-`skill` or `prompt`**. The button shows `description` and keys off `code`.
+`skill` or `prompt`**, not always `skill` (`ARCHITECTURE-SPINE.md` AD-9). The button shows
+`description` and keys off `code`.
 
 Both dispatch as a turn into the live persona session:
 
@@ -77,7 +81,19 @@ Menu contents are read live; this table is the observed shape, not a hardcode ta
 
 - Every pipeline stage writes artifacts under `_bmad/`, so pipeline position is physically
   observable — the harness never asks the user where they are and never stores its own answer.
-- A sprint status file records what is planned, started and unstarted.
+- A sprint status file, `_bmad/implementation-artifacts/sprint-status.yaml`, records where each
+  epic, story and retrospective stands. Its `development_status` is a **flat map**: `epic-N`,
+  `N-M-<slug>` and `epic-N-retrospective` keys share one namespace, so the structure is in the
+  key shape, not in nesting. Its status vocabulary is **six values** — `backlog`,
+  `ready-for-dev`, `in-progress`, `review`, `done`, plus `optional` for a retrospective not yet
+  held — not the three-way `planned` / `started` / `unstarted` reading this contract once carried.
+  Timestamps are `MM-DD-YYYY HH:MM`, not ISO. A separate top-level `action_items` list, outside
+  `development_status`, carries its own `open` status. Read from
+  `../../../.claude/skills/bmad-sprint-planning/sprint-status-template.yaml` (an example, the
+  format's source) and this project's own `../../implementation-artifacts/sprint-status.yaml`. The
+  harness v1 reads the file's **presence only**, as one more artifact, and does not parse it; a
+  future parser must degrade on an unrecognised status rather than break
+  (`../../planning-artifacts/epics.md` FR10).
 - The outputs rail watches this tree (CAP-6). Observed artifact classes: `product-brief.md`,
   `PRD.md`, `architecture.md`, `sprint-status.yaml`, `DESIGN.md`, `EXPERIENCE.md`,
   research outputs, and party summaries under `_bmad/party/`.
@@ -90,8 +106,8 @@ Discovery is zero-configuration: pointing the harness at a project root is the w
 
 ## Prerequisites, checked at launch
 
-Zero configuration is not zero prerequisites. Launch verifies, and names the specific failure
-with its remedy rather than opening an empty room:
+Zero configuration is not zero prerequisites (`ARCHITECTURE-SPINE.md` AD-17). Launch verifies,
+and names the specific failure with its remedy rather than opening an empty room:
 
 - `claude` on `PATH` and authenticated.
 - `uv` with Python 3.11+, for the resolvers.
