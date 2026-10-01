@@ -7,7 +7,7 @@ paradigm: 'read-only projection — an event-sourced read model with no write si
 scope: 'The BMad Visual Harness desktop application: every surface, process and boundary needed to deliver CAP-1..CAP-12 of SPEC-bmad-visual-harness.'
 status: final
 created: '2026-09-23'
-updated: '2026-09-23'
+updated: '2026-10-01'
 binds: [CAP-1, CAP-2, CAP-3, CAP-4, CAP-5, CAP-6, CAP-7, CAP-8, CAP-9, CAP-10, CAP-11, CAP-12]
 sources:
   - ../../../specs/spec-bmad-visual-harness/SPEC.md
@@ -330,6 +330,13 @@ authenticates on the user's existing Claude Code login. One project per window.
 - **Multi-project windows and cross-project state.** One project per window is a spec assumption; nothing here depends on it staying true.
 - **Long scrollback virtualization.** **Revisit when** a persisted transcript is long enough to measure; AD-7 keeps it a renderer-local change.
 - **Scope-tier Should/Could items** (`scope-tiers.md`): help section, reactive persona faces, tile hover previews, second opinion, refusal-with-handoff, idle barks. None changes a boundary decided here — AD-16 already accepts `state` so the reactive face needs no signature change, and the shell reserves a help entry point.
+
+- **Newer BMad releases than 6.12.0.** The harness is built and verified against the installed BMad 6.12.0 and stays on it. The published docs (docs.bmad-method.org, read 2026-10-01 through a summarising fetch, so second-hand) describe a later layout; none of it overturns an AD, but four assumptions in this spine are coupled to 6.12.0 and should be checked on a real newer install before the harness is pointed at one. **Revisit when** the pinned BMad version is bumped or a user's project is on a newer one — start with a spike that installs the latest into a scratch project and runs the preflight and resolvers against it.
+  - **Artifact layout (AD-1, AD-2, AD-19, CAP-6).** The watch root is `_bmad/`. The newer default output root is `_bmad-output/`, in `<type>-<slug>/` folders inside initiative folders, with files named `prd-<slug>.md`, `spec-<slug>.md`, `architecture-<slug>.md` (this project has `SPEC.md` and `ARCHITECTURE-SPINE.md`). `sprint-status.yaml` is replaced by `tickets.toml`, epic envelopes, story files and `plan-<slug>.md`; `src/main/fold/artifact-owner.ts` maps `sprint-status.yaml` to `bmad-agent-pm`. The watch root should come from the resolved `output_folder`, and artifact classification should tolerate both naming schemes. Unchecked: whether `src/main/sources/project/` already derives the root or hardcodes it.
+  - **Pipeline position (CAP-1, AD-19).** The docs describe a loop (Clarify, Plan, Build and verify, Learn) with right-sizing, not a waterfall; PRD and architecture are optional and a small change skips both. Position is derived from artifacts, so the mechanism holds, but "correct pipeline state" needs a definition for a project that legitimately has no PRD. The SPEC wording "brief → PRD → epics and stories → build → review → launch" and CAP-8's "epics and sprint planning" describe 6.12.0 and drift on upgrade.
+  - **Resolver paths and install (AD-8, AD-17).** AD-8 names `_bmad/scripts/resolve_config.py` and `resolve_customization.py`. The docs say `bmad setup` installs the "shared runtime and module scripts" but not that those filenames survive. The install route is now `npx skills add` or a plugin marketplace; a marketplace install is probably user-scoped and so resolves no agents under `--setting-sources project,local` — the empty room AD-17 already checks for. Its remedy text should point at the project-scoped install.
+  - **Menus (AD-9, AD-10).** Menu codes change (Winston `CA, TK`, `IR` gone; John `PRD, CC, TK`). Resolved menus absorb this with no harness change; `bmad-ticket` replaces epics-and-stories and sprint planning as the planning skill.
+  - **Unattended runs.** `bmad-build-auto` and its loop orchestrator are the autonomy this product cut as a non-goal, so they stay out. If that is ever revisited, the plan file's `status` and `blocked_reason` fields are the machine-readable source CAP-12 lacks today.
 
 ## Open Items
 
