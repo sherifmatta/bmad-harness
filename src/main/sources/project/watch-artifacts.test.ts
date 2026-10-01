@@ -107,10 +107,14 @@ describe('watchArtifacts', () => {
     // The file-level event for the append is chokidar's and, on macOS, is now
     // and then dropped by the OS; what is held here is what the watcher says
     // about the events it does deliver.
+    //
+    // The first event's size is 1 or 2, not always 1: chokidar can report the
+    // `add` up to a second late (see `until`), by which time the append has
+    // already landed, and a loaded machine makes that the common case. The
+    // bound below is the property; the size of the first event is the race.
     expect(seen[0]).toMatchObject({
       type: 'artifact:written',
-      path: '_bmad/planning-artifacts/x.md',
-      size: 1
+      path: '_bmad/planning-artifacts/x.md'
     })
     expect(seen.every((o) => o.type === 'artifact:written' && o.size >= 1 && o.size <= 2)).toBe(true)
     expect(seen.every((o) => o.path === '_bmad/planning-artifacts/x.md')).toBe(true)

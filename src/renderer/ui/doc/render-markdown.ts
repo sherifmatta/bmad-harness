@@ -19,7 +19,8 @@ import type { StateCore, Token } from 'markdown-it'
  *     attributes. It **fails closed**: where DOMPurify is unsupported, which is
  *     what Node gives it and so what the test suite runs in, it returns `''`
  *     and never its input. Returning the input there would make every test of
- *     the pipeline pass through an unsanitised path.
+ *     the pipeline pass through an unsanitised path. The real sanitiser is
+ *     exercised in `render-markdown.dom.test.ts`, which opts into jsdom.
  *
  * The one place in the product that sets inner HTML is fed only by `renderMarkdown`.
  */
@@ -44,6 +45,7 @@ export const ALLOWED_TAGS: readonly string[] = [
   'code',
   'em',
   'strong',
+  's',
   'del',
   'hr',
   'br',
@@ -56,8 +58,12 @@ export const ALLOWED_TAGS: readonly string[] = [
   'span'
 ]
 
-/** The only attribute an element may carry. */
-export const ALLOWED_ATTR: readonly string[] = ['class']
+/**
+ * The only attributes an element may carry: `class` for the requirement-id span,
+ * and `start`, which markdown-it puts on an ordered list that resumes after a
+ * block (`<ol start="2">`). Without it a numbered list restarts at 1.
+ */
+export const ALLOWED_ATTR: readonly string[] = ['class', 'start']
 
 /** Named even though the allow-list already excludes them: a second, independent statement. */
 export const FORBID_TAGS: readonly string[] = ['style', 'img', 'script', 'iframe', 'form']

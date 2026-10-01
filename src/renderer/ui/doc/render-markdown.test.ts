@@ -220,7 +220,7 @@ describe('the allow-list', () => {
     expect([...ALLOWED_TAGS].sort()).toEqual(
       [
         'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'ul', 'ol', 'li', 'blockquote', 'pre', 'code',
-        'em', 'strong', 'del', 'hr', 'br', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'span'
+        'em', 'strong', 's', 'del', 'hr', 'br', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'span'
       ].sort()
     )
   })
@@ -232,8 +232,8 @@ describe('the allow-list', () => {
     expect([...FORBID_TAGS].sort()).toEqual(['form', 'iframe', 'img', 'script', 'style'])
   })
 
-  it('allows the class attribute and nothing else', () => {
-    expect(ALLOWED_ATTR).toEqual(['class'])
+  it('allows the class and start attributes and nothing else', () => {
+    expect(ALLOWED_ATTR).toEqual(['class', 'start'])
     expect(PURIFY_CONFIG.ALLOW_DATA_ATTR).toBe(false)
     expect(PURIFY_CONFIG.ALLOW_ARIA_ATTR).toBe(false)
   })

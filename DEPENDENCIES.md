@@ -73,6 +73,7 @@ moved on their own as long as `npm run lint`, `npm run typecheck`,
 | `@types/react-dom` | 19.3.0 | tracks the React pin |
 | `@types/node` | 24.19.0 | satisfies Electron 44's `@types/node ^24.9.0` and Vitest 5's `^22 \|\| >=24`, and matches the Node 24 runtime Electron 44 bundles — one copy in the tree rather than two |
 | `@types/markdown-it` | 14.2.0 | markdown-it 15 ships its own `.d.cts` types and wins resolution, so this is belt-and-braces only; drop it if it ever conflicts |
+| `jsdom` | 30.1.1 | the DOM for the test files that mount a component or run the real sanitiser — opted into per file with `// @vitest-environment jsdom`; `vitest.config.ts` stays `environment: 'node'` so the main-process, fold and source-text tests are unchanged. Vitest 5 lists it as an optional peer (`*`). Chosen over `happy-dom`, which dropped a list's `<ol>` wrapper through DOMPurify on real markdown-it output (Epic 1 retrospective). Declares `node ^22.22.2 \|\| ^24.15.0 \|\| >=26`, which is why `engines` is `^24.15.0` |
 | `husky` | 9.1.7 | the pre-commit gate — tooling only, not part of the pinned application stack, and not shipped in any bundle |
 
 `husky` is the one row here that nothing builds, lints or typechecks against:
