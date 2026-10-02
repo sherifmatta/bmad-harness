@@ -79,3 +79,36 @@
 .turn-words p:last-child {
   margin-bottom: 0;
 }
+
+/*
+ * A message typed while its persona works: the avatar and words dim to the
+ * hover opacity, and a mono line says what it waits for, with its cancel. The
+ * same container as a sent turn, so promotion only drops this modifier.
+ */
+
+.turn--queued .turn-av,
+.turn--queued .turn-words {
+  opacity: var(--opacity-hover);
+}
+
+.turn-queued {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-md-plus);
+  margin-top: var(--space-md);
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  color: var(--dim);
+}
+
+.turn-cancel {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  text-decoration: underline;
+  cursor: pointer;
+}

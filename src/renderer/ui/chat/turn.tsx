@@ -82,20 +82,40 @@ const YOU: UserIdentity = { name: 'You', title: 'you' }
 export function UserTurn({
   at,
   text,
-  user = YOU
+  user = YOU,
+  queuedFor,
+  onCancel
 }: {
   at: number
   text: string
   user?: UserIdentity
+  /** The persona this message waits for; set while it is queued, dimmed and marked. */
+  queuedFor?: string
+  onCancel?: () => void
 }): JSX.Element {
   return (
-    <div className="turn turn--user">
+    <div className={queuedFor === undefined ? 'turn turn--user' : 'turn turn--user turn--queued'}>
       <div className="turn-av">
         <Initials {...user} size={32} />
       </div>
       <div className="turn-body">
         <Head name={user.name} ident={user.title} at={at} />
         <Words text={text} />
+        {queuedFor !== undefined && (
+          <div className="turn-queued">
+            <span className="turn-queued-mark">{`queued · sends when ${queuedFor} finishes`}</span>
+            {onCancel !== undefined && (
+              <button
+                type="button"
+                className="turn-cancel"
+                aria-label="cancel queued message"
+                onClick={onCancel}
+              >
+                cancel
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

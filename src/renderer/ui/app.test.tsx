@@ -2,6 +2,7 @@
 import { createElement } from 'react'
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import type { ContractEvent } from '../../shared/events'
 import type { AgentView, InstallSnapshot } from '../../shared/install'
 import { App } from './app'
 import { mount, settle } from './testing/render-hook'
@@ -36,6 +37,7 @@ const snapshot: InstallSnapshot = {
 let mounted: Mounted | null
 let opened: string[]
 let sent: [string, string][]
+let listeners: ((event: ContractEvent) => void)[]
 
 function installBridge(): void {
   const bridge = {
@@ -54,7 +56,10 @@ function installBridge(): void {
     sendTurn: async (sessionId: string, text: string) => {
       sent.push([sessionId, text])
     },
-    onSessionEvent: () => () => {}
+    onSessionEvent: (listener: (event: ContractEvent) => void) => {
+      listeners.push(listener)
+      return () => {}
+    }
   }
   Object.defineProperty(window, 'harness', { value: bridge, configurable: true, writable: true })
 }
@@ -63,6 +68,7 @@ beforeEach(() => {
   mounted = null
   opened = []
   sent = []
+  listeners = []
   installBridge()
 })
 
@@ -134,5 +140,58 @@ describe('App, the conversation glue', () => {
     await settle()
 
     expect(opened).toEqual([mary.id])
+  })
+
+  it('queues a message typed while the persona works, leaves focus and the composer alone, and un-dims it in place when the turn ends', async () => {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
+    push({ name: 'session:opened', payload: { sessionId: 's-mary', agentId: mary.id, at: 1 } })
+
+    const input = field()
+    input.focus()
+    type(input, 'while you work')
+    act(() => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    })
+    await settle()
+
+    const turn = mounted.container.querySelector('.turn--user') as HTMLElement
+    expect(turn.className).toContain('turn--queued')
+    expect(turn.textContent).toContain('queued · sends when Mary finishes')
+    expect(sent).toEqual([])
+    expect(document.activeElement).toBe(field())
+    expect(field().disabled).toBe(false)
+    expect(field().readOnly).toBe(false)
+    expect(field().hasAttribute('aria-disabled')).toBe(false)
+
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 's-mary', at: 2 } })
+    expect(sent).toEqual([['s-mary', 'while you work']])
+    const same = mounted.container.querySelector('.turn--user') as HTMLElement
+    expect(same).toBe(turn)
+    expect(same.className).not.toContain('turn--queued')
+    expect(same.textContent).not.toContain('queued')
+    expect(document.activeElement).toBe(field())
+  })
+
+  it('takes a cancelled message out of the transcript and never sends it', async () => {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
+    push({ name: 'session:opened', payload: { sessionId: 's-mary', agentId: mary.id, at: 1 } })
+
+    type(field(), 'never mind')
+    act(() => {
+      field().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    })
+    await settle()
+    const cancel = mounted.container.querySelector('button.turn-cancel') as HTMLButtonElement
+    act(() => cancel.click())
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 's-mary', at: 2 } })
+
+    expect(mounted.container.querySelector('.turn--user')).toBeNull()
+    expect(sent).toEqual([])
   })
 })

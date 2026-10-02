@@ -21,12 +21,18 @@ const count = (text: string, pattern: RegExp): number => (text.match(pattern) ??
 
 describe('PersonaTurn', () => {
   const markup = renderToStaticMarkup(
-    <PersonaTurn agent={AGENT} at={Date.UTC(2026, 9, 1, 12, 5)} text={'First line.\n\nSecond line.'} />
+    <PersonaTurn
+      agent={AGENT}
+      at={Date.UTC(2026, 9, 1, 12, 5)}
+      text={'First line.\n\nSecond line.'}
+    />
   )
 
   it('is a turn with a 32px labelled portrait, the name, the role and a time', () => {
     expect(markup).toContain('class="turn turn--persona"')
-    expect(markup).toMatch(/<svg[^>]*width="32"[^>]*height="32"[^>]*aria-label="John, Product Manager"/)
+    expect(markup).toMatch(
+      /<svg[^>]*width="32"[^>]*height="32"[^>]*aria-label="John, Product Manager"/
+    )
     expect(markup).toContain('<span class="turn-name">John</span>')
     expect(markup).toContain('<span class="turn-role">Product Manager</span>')
     expect(markup).toMatch(/<span class="turn-time">\d{2}:\d{2}<\/span>/)
@@ -62,7 +68,9 @@ describe('PersonaTurn', () => {
 })
 
 describe('UserTurn', () => {
-  const markup = renderToStaticMarkup(<UserTurn at={Date.UTC(2026, 9, 1, 12, 5)} text="hello there" />)
+  const markup = renderToStaticMarkup(
+    <UserTurn at={Date.UTC(2026, 9, 1, 12, 5)} text="hello there" />
+  )
 
   it('is the same container on the user ground, with the 32px initials avatar', () => {
     expect(markup).toContain('class="turn turn--user"')
@@ -83,10 +91,44 @@ describe('UserTurn', () => {
 
   it('renders hostile text as text', () => {
     const out = renderToStaticMarkup(
-      <UserTurn at={0} text="<img src=x onerror=1>" user={{ name: '<b>x</b>', title: '<i>y</i>' }} />
+      <UserTurn
+        at={0}
+        text="<img src=x onerror=1>"
+        user={{ name: '<b>x</b>', title: '<i>y</i>' }}
+      />
     )
 
     expect(out).not.toMatch(/<img|<b>|<i>/)
+  })
+})
+
+describe('a queued UserTurn', () => {
+  const markup = renderToStaticMarkup(
+    <UserTurn at={0} text="later" queuedFor="John" onCancel={() => {}} />
+  )
+
+  it('is the user turn with a queued modifier, the marker and a cancel button', () => {
+    expect(markup).toContain('class="turn turn--user turn--queued"')
+    expect(markup).toContain(
+      '<span class="turn-queued-mark">queued · sends when John finishes</span>'
+    )
+    expect(markup).toMatch(/<button type="button" class="turn-cancel"[^>]*>cancel<\/button>/)
+    expect(markup).toContain('<p>later</p>')
+  })
+
+  it('carries no queued treatment once it is sent', () => {
+    const sent = renderToStaticMarkup(<UserTurn at={0} text="later" />)
+
+    expect(sent).toContain('class="turn turn--user"')
+    expect(sent).not.toMatch(/queued|<button/)
+  })
+
+  it('has no cancel without a handler, and renders the persona’s name as text', () => {
+    const out = renderToStaticMarkup(<UserTurn at={0} text="x" queuedFor="<b>J</b>" />)
+
+    expect(out).not.toContain('<button')
+    expect(out).not.toContain('<b>')
+    expect(out).toContain('sends when &lt;b&gt;J&lt;/b&gt; finishes')
   })
 })
 
@@ -100,7 +142,9 @@ describe('the time', () => {
     expect(EARLY).not.toBe(LATE)
     expect(formatTurnTime(EARLY)).not.toBe(formatTurnTime(LATE))
     for (const at of [EARLY, LATE]) {
-      expect(timeOf(renderToStaticMarkup(<PersonaTurn agent={AGENT} at={at} text="x" />))).toBe(formatTurnTime(at))
+      expect(timeOf(renderToStaticMarkup(<PersonaTurn agent={AGENT} at={at} text="x" />))).toBe(
+        formatTurnTime(at)
+      )
       expect(timeOf(renderToStaticMarkup(<UserTurn at={at} text="x" />))).toBe(formatTurnTime(at))
     }
   })
@@ -138,7 +182,11 @@ describe('orderEntries', () => {
   const at = (id: string, time: number) => ({ id, at: time })
 
   it('orders ascending by time', () => {
-    expect(orderEntries([at('c', 30), at('a', 10), at('b', 20)]).map((e) => e.id)).toEqual(['a', 'b', 'c'])
+    expect(orderEntries([at('c', 30), at('a', 10), at('b', 20)]).map((e) => e.id)).toEqual([
+      'a',
+      'b',
+      'c'
+    ])
   })
 
   it('keeps input order for ties', () => {
@@ -163,7 +211,13 @@ describe('orderEntries', () => {
 describe('Transcript', () => {
   const entries: TranscriptEntry[] = [
     { kind: 'persona', id: 'p2', at: 3000, agent: AGENT, text: 'third' },
-    { kind: 'user', id: 'u1', at: 1000, text: 'first', user: { name: 'Sherif Matta', title: 'owner' } },
+    {
+      kind: 'user',
+      id: 'u1',
+      at: 1000,
+      text: 'first',
+      user: { name: 'Sherif Matta', title: 'owner' }
+    },
     { kind: 'persona', id: 'p1', at: 2000, agent: AGENT, text: 'second' }
   ]
   const markup = renderToStaticMarkup(<Transcript entries={entries} />)

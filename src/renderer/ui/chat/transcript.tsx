@@ -9,8 +9,7 @@ import type { UserIdentity } from './turn'
  *
  * Entries arrive however the projection holds them; the transcript shows them
  * ascending by `at`, ties keeping their input order. Only persona and user
- * turns exist here: the sysline, decision block and queued marker are later
- * stories'. The markup is the shell's `.thread`, which already caps at
+ * turns exist here: the sysline and decision block are later stories'. The markup is the shell's `.thread`, which already caps at
  * `--thread-max`.
  */
 
@@ -30,6 +29,11 @@ export type UserEntry = {
   at: number
   text: string
   user?: UserIdentity
+  /**
+   * The name of the persona whose turn this waits for. Present while the message
+   * is queued, absent once it is sent; it is the only thing that differs.
+   */
+  queuedFor?: string
 }
 
 export type TranscriptEntry = PersonaEntry | UserEntry
@@ -56,14 +60,28 @@ export function orderEntries<T extends { at: number }>(entries: readonly T[]): T
  * The turns alone, with no thread around them: for a surface, like the shell,
  * that already provides the `.thread` they sit in.
  */
-export function Turns({ entries }: { entries: readonly TranscriptEntry[] }): JSX.Element {
+export function Turns({
+  entries,
+  onCancel
+}: {
+  entries: readonly TranscriptEntry[]
+  /** Take a queued message back, by its entry id. */
+  onCancel?: (entryId: string) => void
+}): JSX.Element {
   return (
     <>
       {orderEntries(entries).map((entry) =>
         entry.kind === 'persona' ? (
           <PersonaTurn key={entry.id} agent={entry.agent} at={entry.at} text={entry.text} />
         ) : (
-          <UserTurn key={entry.id} at={entry.at} text={entry.text} user={entry.user} />
+          <UserTurn
+            key={entry.id}
+            at={entry.at}
+            text={entry.text}
+            user={entry.user}
+            queuedFor={entry.queuedFor}
+            onCancel={onCancel === undefined ? undefined : () => onCancel(entry.id)}
+          />
         )
       )}
     </>

@@ -129,7 +129,7 @@ export function App(): JSX.Element | null {
           <ErrorLine key={`${error.code}-${index}`} error={error} />
         ))}
         {conversation.failure !== null && <ErrorLine error={conversation.failure} />}
-        <Turns entries={conversation.entries} />
+        <Turns entries={conversation.entries} onCancel={conversation.cancel} />
       </Shell>
       <LiveRegion key="live-region" announcer={announcer} />
     </>

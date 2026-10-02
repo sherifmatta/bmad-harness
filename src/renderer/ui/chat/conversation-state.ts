@@ -1,22 +1,29 @@
 import type { ContractEvent } from '../../../shared/events'
 import type { AgentView } from '../../../shared/install'
-import type { TranscriptEntry } from './transcript'
+import type { TranscriptEntry, UserEntry } from './transcript'
+
+/** A message typed for a persona, waiting for its turn to come: the entry that shows it, and its words. */
+export type QueuedMessage = { entryId: string; text: string }
 
 /**
  * The conversation as the window holds it: the transcript, which persona has a
- * live session, and the one message typed for a persona that had none. Pure
- * and apart from React, so a suite with no DOM can hold it.
+ * live session, which sessions have a turn in flight, and the messages typed
+ * while they did. Pure and apart from React, so a suite with no DOM can hold it.
  *
  * Everything here is a function of the events main pushed and the user's own
  * sends. The words of a persona are appended as they arrive and never edited:
- * no trimming, joining, summarising or framing.
+ * no trimming, joining, summarising or framing. A queued message and its
+ * transcript entry change together, in one state, so one is never shown
+ * without the other.
  */
 export type ConversationState = {
   entries: readonly TranscriptEntry[]
   /** Which session is live for a persona, by agent id. */
   sessions: ReadonlyMap<string, string>
-  /** The text typed for a persona with no session yet, sent when its first turn ends. */
-  pending: ReadonlyMap<string, string>
+  /** The sessions with a turn in flight, by session id. */
+  busy: ReadonlySet<string>
+  /** The messages waiting for a persona's turn to end, first in first, by agent id. */
+  queue: ReadonlyMap<string, readonly QueuedMessage[]>
   /** The next entry's key. */
   nextId: number
 }
@@ -24,48 +31,211 @@ export type ConversationState = {
 export const initialConversation: ConversationState = {
   entries: [],
   sessions: new Map(),
-  pending: new Map(),
+  busy: new Set(),
+  queue: new Map(),
   nextId: 0
 }
 
 /** Text that is to be sent into a session now. */
-export type Delivery = { sessionId: string; text: string }
+export type Delivery = {
+  sessionId: string
+  agentId: string
+  entryId: string
+  text: string
+}
 
 export function sessionOf(state: ConversationState, agentId: string): string | undefined {
   return state.sessions.get(agentId)
 }
 
 function withEntry(state: ConversationState, entry: TranscriptEntry): ConversationState {
-  return { ...state, entries: [...state.entries, entry], nextId: state.nextId + 1 }
+  return {
+    ...state,
+    entries: [...state.entries, entry],
+    nextId: state.nextId + 1
+  }
 }
 
-/** The user's own words, as a turn, at the time they sent them. */
-export function addUserTurn(state: ConversationState, at: number, text: string): ConversationState {
-  return withEntry(state, { kind: 'user', id: `entry-${state.nextId}`, at, text })
-}
-
-/** Record a live session for a persona. */
+/** Record a live session for a persona, idle: used for a session first met by the open's reply. */
 export function withSession(
   state: ConversationState,
   agentId: string,
   sessionId: string
 ): ConversationState {
-  return { ...state, sessions: new Map(state.sessions).set(agentId, sessionId) }
+  return {
+    ...state,
+    sessions: new Map(state.sessions).set(agentId, sessionId)
+  }
 }
 
-/** Hold text for a persona until its session can take it. */
-export function holdPending(
+function withBusy(state: ConversationState, sessionId: string, busy: boolean): ConversationState {
+  if (state.busy.has(sessionId) === busy) {
+    return state
+  }
+  const next = new Set(state.busy)
+  if (busy) {
+    next.add(sessionId)
+  } else {
+    next.delete(sessionId)
+  }
+  return { ...state, busy: next }
+}
+
+function withQueue(
   state: ConversationState,
   agentId: string,
-  text: string
+  messages: readonly QueuedMessage[]
 ): ConversationState {
-  return { ...state, pending: new Map(state.pending).set(agentId, text) }
+  const queue = new Map(state.queue)
+  if (messages.length === 0) {
+    queue.delete(agentId)
+  } else {
+    queue.set(agentId, messages)
+  }
+  return { ...state, queue }
 }
 
-export function clearPending(state: ConversationState, agentId: string): ConversationState {
-  const pending = new Map(state.pending)
-  pending.delete(agentId)
-  return { ...state, pending }
+function isQueued(entry: TranscriptEntry): boolean {
+  return entry.kind === 'user' && entry.queuedFor !== undefined
+}
+
+function withoutQueued(entry: UserEntry): UserEntry {
+  const plain: UserEntry = { ...entry }
+  delete plain.queuedFor
+  return plain
+}
+
+/**
+ * Send the first message waiting for a persona if its session can take one:
+ * the entry loses its queued marking in place, and the session is busy again.
+ */
+function drain(
+  state: ConversationState,
+  agentId: string
+): { state: ConversationState; deliver?: Delivery } {
+  const sessionId = state.sessions.get(agentId)
+  const [first, ...rest] = state.queue.get(agentId) ?? []
+  if (sessionId === undefined || state.busy.has(sessionId) || first === undefined) {
+    return { state }
+  }
+  const entries = state.entries.map((entry) => {
+    if (entry.kind === 'user' && entry.id === first.entryId) {
+      return withoutQueued(entry)
+    }
+    return entry
+  })
+  return {
+    state: withBusy(withQueue({ ...state, entries }, agentId, rest), sessionId, true),
+    deliver: { sessionId, agentId, entryId: first.entryId, text: first.text }
+  }
+}
+
+/**
+ * The user's own words, as a turn, at the time they sent them. The turn is
+ * queued, and shown so, when the persona's session is mid-turn, not yet up or
+ * not yet opened; it is sent, and plain, when the session can take it now. The
+ * entry and the queue change in this one state.
+ */
+export function sendMessage(
+  state: ConversationState,
+  agentId: string,
+  at: number,
+  text: string,
+  personaName: string
+): { state: ConversationState; deliver?: Delivery } {
+  const entryId = `entry-${state.nextId}`
+  const queued: QueuedMessage[] = [...(state.queue.get(agentId) ?? []), { entryId, text }]
+  const entered = withQueue(
+    withEntry(state, {
+      kind: 'user',
+      id: entryId,
+      at,
+      text,
+      queuedFor: personaName
+    }),
+    agentId,
+    queued
+  )
+  return drain(entered, agentId)
+}
+
+/** Take a queued message back: its entry and its queue item go, and nothing is sent. */
+export function cancelQueued(state: ConversationState, entryId: string): ConversationState {
+  for (const [agentId, messages] of state.queue) {
+    if (messages.some((message) => message.entryId === entryId)) {
+      return {
+        ...withQueue(
+          state,
+          agentId,
+          messages.filter((message) => message.entryId !== entryId)
+        ),
+        entries: state.entries.filter((entry) => entry.id !== entryId)
+      }
+    }
+  }
+  return state
+}
+
+/** Drop everything queued for a persona, with its entries: its session is not coming. */
+export function dropQueued(state: ConversationState, agentId: string): ConversationState {
+  const dropped = new Set((state.queue.get(agentId) ?? []).map((message) => message.entryId))
+  if (dropped.size === 0) {
+    return state
+  }
+  return {
+    ...withQueue(state, agentId, []),
+    entries: state.entries.filter((entry) => !dropped.has(entry.id))
+  }
+}
+
+/**
+ * The reply to opening a persona's session. A session the events already
+ * announced is as they left it; one the window meets only here (it was live
+ * before this window loaded) is taken to be idle.
+ */
+export function sessionReady(
+  state: ConversationState,
+  agentId: string,
+  sessionId: string
+): { state: ConversationState; deliver?: Delivery } {
+  if (state.sessions.get(agentId) === sessionId) {
+    return { state }
+  }
+  return drain(withSession(state, agentId, sessionId), agentId)
+}
+
+/** A send into a session was refused for a reason other than busy: it has no turn in flight on that account. */
+export function dispatchFailed(state: ConversationState, sessionId: string): ConversationState {
+  return withBusy(state, sessionId, false)
+}
+
+/**
+ * A send was refused as busy: main has a turn in flight that this window did
+ * not see (it met the session only through the open's reply). The session stays
+ * busy and the message goes back to the head of its persona's queue, queued
+ * again in place, to be sent when that turn ends.
+ */
+export function dispatchRefusedBusy(
+  state: ConversationState,
+  delivery: Delivery,
+  personaName: string
+): ConversationState {
+  if (state.sessions.get(delivery.agentId) !== delivery.sessionId) {
+    return state
+  }
+  const entries = state.entries.map((entry) =>
+    entry.kind === 'user' && entry.id === delivery.entryId
+      ? { ...entry, queuedFor: personaName }
+      : entry
+  )
+  return withBusy(
+    withQueue({ ...state, entries }, delivery.agentId, [
+      { entryId: delivery.entryId, text: delivery.text },
+      ...(state.queue.get(delivery.agentId) ?? [])
+    ]),
+    delivery.sessionId,
+    true
+  )
 }
 
 /** A persona the roster no longer names still has its words shown, under its id. */
@@ -85,40 +255,51 @@ export function foldEvent(
   switch (event.name) {
     case 'session:opened': {
       const { agentId, sessionId } = event.payload
-      return agentId === undefined ? { state } : { state: withSession(state, agentId, sessionId) }
+      // The activation turn is in flight until the session says it is awaiting.
+      return agentId === undefined
+        ? { state }
+        : {
+            state: withBusy(withSession(state, agentId, sessionId), sessionId, true)
+          }
     }
 
     case 'session:closed': {
       const { sessionId } = event.payload
-      const sessions = new Map(state.sessions)
-      const pending = new Map(state.pending)
-      for (const [agentId, live] of sessions) {
+      let next = withBusy(state, sessionId, false)
+      for (const [agentId, live] of state.sessions) {
         if (live === sessionId) {
+          const sessions = new Map(next.sessions)
           sessions.delete(agentId)
           // Text waiting for a session that is gone is not sent to the next one.
-          pending.delete(agentId)
+          next = dropQueued({ ...next, sessions }, agentId)
         }
       }
-      return { state: { ...state, sessions, pending } }
+      return { state: next }
     }
 
     case 'session:awaiting-turn': {
       const { sessionId } = event.payload
-      for (const [agentId, live] of state.sessions) {
-        const text = state.pending.get(agentId)
-        if (live === sessionId && text !== undefined) {
-          return { state: clearPending(state, agentId), deliver: { sessionId, text } }
+      const idle = withBusy(state, sessionId, false)
+      for (const [agentId, live] of idle.sessions) {
+        if (live === sessionId) {
+          return drain(idle, agentId)
         }
       }
-      return { state }
+      return { state: idle }
     }
 
     case 'persona:said': {
-      const { agentId, messageId, text, at } = event.payload
+      const { agentId, messageId, text, at: time } = event.payload
       if (agentId === undefined) {
         return { state }
       }
-      const last = state.entries[state.entries.length - 1]
+      // Messages queued while this one streams sit below it in the list; they
+      // do not end it.
+      let at = state.entries.length - 1
+      while (at >= 0 && isQueued(state.entries[at])) {
+        at -= 1
+      }
+      const last = at >= 0 ? state.entries[at] : undefined
       if (
         last !== undefined &&
         last.kind === 'persona' &&
@@ -126,13 +307,15 @@ export function foldEvent(
         last.messageId === messageId
       ) {
         const joined: TranscriptEntry = { ...last, text: last.text + text }
-        return { state: { ...state, entries: [...state.entries.slice(0, -1), joined] } }
+        const entries = [...state.entries]
+        entries[at] = joined
+        return { state: { ...state, entries } }
       }
       return {
         state: withEntry(state, {
           kind: 'persona',
           id: `entry-${state.nextId}`,
-          at,
+          at: time,
           agent: agentOf(agentId) ?? unknownAgent(agentId),
           text,
           messageId
