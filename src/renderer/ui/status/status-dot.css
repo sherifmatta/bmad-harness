@@ -54,3 +54,9 @@
   color: var(--dim);
   white-space: nowrap;
 }
+
+/* The elapsed counter beside `work`. Tabular figures so the line does not
+   shift as the seconds change; the font, size and colour are the line's own. */
+.state-elapsed {
+  font-variant-numeric: tabular-nums;
+}

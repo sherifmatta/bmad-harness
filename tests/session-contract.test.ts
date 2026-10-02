@@ -146,6 +146,44 @@ describe('the layers', () => {
   })
 })
 
+describe('the persona states', () => {
+  const fold = join(SRC, 'main/fold/persona-state.ts')
+
+  it('are folded in Fold alone: no I/O, no wall clock, no layer above it', () => {
+    const source = code(fold)
+
+    expect(source).not.toMatch(/from 'node:|from 'electron'|child_process|\bsetTimeout\b|\bsetInterval\b/)
+    expect(source).not.toMatch(/Date\.now|new Date\(|Math\.random|performance\.now/)
+    expect(source).not.toMatch(/from '\.\.\/(?:projections|sources|windows)\//)
+  })
+
+  it('are held by one projection that both bridges feed through the one per-window holder', () => {
+    expect(code(join(SRC, 'main/projections/personas.ts'))).toMatch(/from '\.\.\/fold\/persona-state'/)
+    for (const bridge of ['main/session-bridge.ts', 'main/rail-bridge.ts']) {
+      expect(code(join(SRC, bridge)), bridge).toMatch(/personaProjectionFor/)
+      expect(code(join(SRC, bridge)), bridge).toMatch(/from '\.\/persona-states'/)
+    }
+  })
+
+  it('travel on the one session channel, spelled once in main', () => {
+    const spelling = shipping.filter(
+      (path) => path.startsWith(join(SRC, 'main')) && code(path).includes("'session:event'")
+    )
+
+    expect(spelling.map(rel)).toEqual(['src/main/persona-states.ts'])
+  })
+
+  it('are set by no renderer file: the window only stores what main reports', () => {
+    const setters = shipping.filter(
+      (path) =>
+        path.startsWith(join(SRC, 'renderer')) &&
+        /name: 'persona:state'|\.state\s*=[^=]/.test(code(path))
+    )
+
+    expect(setters).toEqual([])
+  })
+})
+
 describe('the renderer', () => {
   const renderer = shipping.filter((path) => path.startsWith(join(SRC, 'renderer')))
 

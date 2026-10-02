@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { PersonaState } from '../persona/portrait'
-import { PERSONA_STATES, STATE_TEXT, stateOf } from './persona-state'
+import { PERSONA_STATES, STATE_TEXT, skillsDisabled, stateOf } from './persona-state'
 
 describe('the persona state vocabulary', () => {
   it('is the five states, in the order the dot table lists them', () => {
@@ -30,5 +30,17 @@ describe('stateOf', () => {
     expect(stateOf('a', states)).toBe('work')
     expect(stateOf('b', states)).toBe('idle')
     expect(stateOf('a', new Map())).toBe('idle')
+  })
+})
+
+describe('skillsDisabled', () => {
+  it.each<[PersonaState, boolean]>([
+    ['work', true],
+    ['live', false],
+    ['idle', false],
+    ['note', false],
+    ['error', false]
+  ])('is %s -> %s', (state, disabled) => {
+    expect(skillsDisabled(state)).toBe(disabled)
   })
 })

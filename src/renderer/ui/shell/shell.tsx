@@ -32,8 +32,11 @@ function RailHalf({ label, children }: { label: string; children?: ReactNode }):
   )
 }
 
-/** No sessions exist in this epic, so every persona reads `idle` from an empty map. */
+/** Nothing reported yet, so every persona reads `idle` from an empty map. */
 const NO_STATES: ReadonlyMap<string, PersonaState> = new Map()
+
+/** No state has begun, so no counter has anything to count from. */
+const NO_SINCE: ReadonlyMap<string, number> = new Map()
 
 /**
  * The furniture the open room lives in (Story 1.9): a topbar, two views behind
@@ -55,6 +58,7 @@ export function Shell({
   snapshot,
   initialView = DEFAULT_VIEW,
   states = NO_STATES,
+  since = NO_SINCE,
   rail = null,
   railFailure = null,
   onActivate,
@@ -67,8 +71,11 @@ export function Shell({
       so the other state can be rendered without a DOM. */
   initialView?: ViewId
   /** Each persona's state, by agent id. Read, never written here: an absent id
-      is `idle`, and with no sessions in this epic the map is empty. */
+      is `idle`. Main reports it; nothing in the renderer sets one. */
   states?: ReadonlyMap<string, PersonaState>
+  /** When each persona's state began, in epoch milliseconds, by agent id. Only
+      `work` reads it, as the instant its elapsed counter counts from. */
+  since?: ReadonlyMap<string, number>
   /** The project's files, as main last pushed them. `null` until the first. */
   rail?: RailSnapshot | null
   /** Why there is no rail snapshot, when there is not one. */
@@ -111,7 +118,7 @@ export function Shell({
       >
         <div className="chat">
           {current !== null && (
-            <ChatHeader key={current.id} agent={current} state={stateOf(current.id, states)} />
+            <ChatHeader key={current.id} agent={current} state={stateOf(current.id, states)} since={since.get(current.id)} />
           )}
           <div className="scroll">
             <div className="thread">{children}</div>
@@ -124,6 +131,7 @@ export function Shell({
               agents={snapshot.agents}
               menus={snapshot.menus}
               states={states}
+              since={since}
               currentId={current?.id ?? null}
               onSelect={select}
             />

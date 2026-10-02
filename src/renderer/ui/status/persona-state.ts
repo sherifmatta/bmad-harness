@@ -31,3 +31,11 @@ export const STATE_TEXT: Record<PersonaState, string> = {
 export function stateOf(id: string, states: ReadonlyMap<string, PersonaState>): PersonaState {
   return states.get(id) ?? 'idle'
 }
+
+/**
+ * Whether skill buttons are disabled in a state: a turn in flight and nothing
+ * else, so `live`, with no turn in flight, never disables them.
+ */
+export function skillsDisabled(state: PersonaState): boolean {
+  return state === 'work'
+}

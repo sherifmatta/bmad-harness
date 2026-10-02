@@ -194,4 +194,36 @@ describe('App, the conversation glue', () => {
     expect(mounted.container.querySelector('.turn--user')).toBeNull()
     expect(sent).toEqual([])
   })
+
+  it('shows what main reports on the tile and the chat header, with a counter for work and none after', async () => {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
+    const container = mounted.container
+    const header = (): Element => container.querySelector('.chat-head-state') as Element
+    const tileState = (name: string): Element => tile(name).querySelector('.tile-state') as Element
+
+    // Nothing reported: every dot reads idle and nothing counts.
+    expect(tileState('Mary').textContent).toBe('idle')
+    expect(header().textContent).toBe('idle')
+    expect(container.querySelector('.state-elapsed')).toBeNull()
+
+    push({
+      name: 'persona:state',
+      payload: { agentId: mary.id, state: 'work', at: Date.now() - 65_000 }
+    })
+
+    expect(tileState('Mary').textContent).toMatch(/^working · 1m 0\ds$/)
+    expect(header().textContent).toMatch(/^working · 1m 0\ds$/)
+    expect(tileState('John').textContent).toBe('idle')
+    expect(tile('Mary').getAttribute('aria-label')).toBe('Mary, Role, working')
+    expect(container.querySelectorAll('.status-dot--work')).toHaveLength(2)
+
+    push({ name: 'persona:state', payload: { agentId: mary.id, state: 'idle', at: Date.now() } })
+
+    expect(tileState('Mary').textContent).toBe('idle')
+    expect(header().textContent).toBe('idle')
+    expect(container.querySelector('.state-elapsed')).toBeNull()
+  })
 })

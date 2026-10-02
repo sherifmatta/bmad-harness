@@ -1,8 +1,13 @@
 import type { JSX } from 'react'
 
 import './status-dot.css'
+import { useNow } from '../outputs/use-now'
 import type { PersonaState } from '../persona/portrait'
+import { formatElapsed } from './format-elapsed'
 import { STATE_TEXT } from './persona-state'
+
+/** How often the counter re-reads the clock: the finest unit it writes is a second. */
+const COUNTER_TICK_MS = 1000
 
 /**
  * The status dot — FR22, UX-DR17, DESIGN.md's `components.status-dot`.
@@ -15,12 +20,38 @@ export function StatusDot({ state }: { state: PersonaState }): JSX.Element {
   return <span className={`status-dot status-dot--${state}`} aria-hidden="true" />
 }
 
-/** The dot and its word, in one row — the only way a state is ever drawn. */
-export function StateLine({ state }: { state: PersonaState }): JSX.Element {
+/**
+ * The elapsed time of a persona at work, counted from when the state began.
+ *
+ * Its own component, so that its one-second interval exists only while it is
+ * mounted and it is mounted only for `work`: with nobody working no timer runs.
+ * It is what carries liveness when reduced motion turns the pulse off.
+ */
+function ElapsedCounter({ since }: { since: number }): JSX.Element {
+  const now = useNow(COUNTER_TICK_MS)
+  return <span className="state-elapsed">{` · ${formatElapsed(now - since)}`}</span>
+}
+
+/**
+ * The dot and its word, in one row — the only way a state is ever drawn.
+ * Beside the word of `work` alone, and only when its start is known, the
+ * elapsed counter: it is never part of a label and never announced.
+ */
+export function StateLine({
+  state,
+  since
+}: {
+  state: PersonaState
+  /** When the state began, in epoch milliseconds. */
+  since?: number | undefined
+}): JSX.Element {
   return (
     <span className="state-line">
       <StatusDot state={state} />
-      <span className="state-text">{STATE_TEXT[state]}</span>
+      <span className="state-text">
+        {STATE_TEXT[state]}
+        {state === 'work' && since !== undefined && <ElapsedCounter since={since} />}
+      </span>
     </span>
   )
 }

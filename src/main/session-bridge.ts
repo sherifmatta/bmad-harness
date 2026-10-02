@@ -5,6 +5,8 @@ import type { ContractCommands } from '../shared/commands'
 import type { ContractEvent } from '../shared/events'
 import type { AgentId, SessionId } from '../shared/ids'
 import type { HarnessError } from '../shared/install'
+import type { PersonaProjection } from './projections/personas'
+import { SESSION_EVENT_CHANNEL, personaProjectionFor } from './persona-states'
 import { initialRouteState, routeFrame } from './fold/route-frame'
 import type { RouteState } from './fold/route-frame'
 import { endsTurn } from './fold/turn-end'
@@ -23,7 +25,7 @@ import { projectPathForWebContents } from './windows/main-window'
  */
 export const SESSION_OPEN_CHANNEL = 'session:open'
 export const TURN_SEND_CHANNEL = 'turn:send'
-export const SESSION_EVENT_CHANNEL = 'session:event'
+export { SESSION_EVENT_CHANNEL }
 
 /** The parts of a `WebContents` the bridge touches. */
 type Sender = {
@@ -61,6 +63,8 @@ type Entry = {
 type Service = {
   bySession: Map<SessionId, Entry>
   byAgent: Map<AgentId, Entry>
+  /** The window's persona states, shared with the rail bridge. */
+  personas: PersonaProjection
 }
 
 function failure(error: HarnessError): { ok: false; error: HarnessError } {
@@ -99,12 +103,22 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): void {
     }
   }
 
+  /** Tell the renderer, then let the persona states hear it: both from the one event. */
+  function announce(sender: Sender, service: Service, event: ContractEvent): void {
+    emit(sender, event)
+    service.personas.apply(event)
+  }
+
   function serviceFor(sender: Sender): Service {
     const existing = services.get(sender.id)
     if (existing !== undefined) {
       return existing
     }
-    const service: Service = { bySession: new Map(), byAgent: new Map() }
+    const service: Service = {
+      bySession: new Map(),
+      byAgent: new Map(),
+      personas: personaProjectionFor(sender, now)
+    }
     services.set(sender.id, service)
 
     // The window is gone: its processes go with it. The renderer is no longer
@@ -134,19 +148,19 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): void {
     if (service.byAgent.get(entry.agentId) === entry) {
       service.byAgent.delete(entry.agentId)
     }
-    emit(sender, {
+    announce(sender, service, {
       name: 'session:closed',
       payload: { sessionId: entry.sessionId, agentId: entry.agentId, reason, at: now() }
     })
   }
 
-  function onFrame(sender: Sender, entry: Entry, frame: unknown): void {
+  function onFrame(sender: Sender, service: Service, entry: Entry, frame: unknown): void {
     if (entry.closed) {
       return
     }
     if (endsTurn(frame)) {
       entry.inFlight = false
-      emit(sender, {
+      announce(sender, service, {
         name: 'session:awaiting-turn',
         payload: { sessionId: entry.sessionId, at: now() }
       })
@@ -164,6 +178,8 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): void {
       if (event.name === 'persona:said') {
         emit(sender, event)
       }
+      // Whatever the fold routed is heard by the persona states, which use only the run events.
+      service.personas.apply(event)
     }
   }
 
@@ -184,7 +200,7 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): void {
     entry.ready = start({
       agentId,
       cwd: projectRoot,
-      onFrame: (frame) => onFrame(sender, entry, frame),
+      onFrame: (frame) => onFrame(sender, service, entry, frame),
       onExit: () => finish(sender, service, entry, 'process-exited')
     }).then((outcome): OpenReply => {
       if (!outcome.ok) {
@@ -205,7 +221,7 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): void {
         return NOT_FOUND
       }
       entry.session = outcome.session
-      emit(sender, {
+      announce(sender, service, {
         name: 'session:opened',
         payload: { sessionId: entry.sessionId, agentId, at: now() }
       })
@@ -244,9 +260,9 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): void {
     TURN_SEND_CHANNEL,
     (event: IpcMainInvokeEvent, sessionId: unknown, text: unknown): SendReply => {
       const sender = event.sender as unknown as Sender
-      const entry =
-        typeof sessionId === 'string' ? services.get(sender.id)?.bySession.get(sessionId) : undefined
-      if (entry === undefined || entry.closed) {
+      const service = services.get(sender.id)
+      const entry = typeof sessionId === 'string' ? service?.bySession.get(sessionId) : undefined
+      if (service === undefined || entry === undefined || entry.closed) {
         return NOT_FOUND
       }
       if (entry.inFlight || entry.session === undefined) {
@@ -269,6 +285,10 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): void {
           message: 'session · the turn could not be written'
         })
       }
+      service.personas.apply({
+        name: 'turn:started',
+        payload: { sessionId: entry.sessionId }
+      })
       return { ok: true }
     }
   )

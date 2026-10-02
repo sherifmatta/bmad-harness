@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ContractEvent } from '../shared/events'
 import type { ArtifactObservation, RailSnapshot } from '../shared/rail'
 
 type Handler = (event: { sender: FakeSender }) => Promise<unknown>
@@ -10,14 +11,26 @@ vi.mock('electron', () => ({
 }))
 
 const { RAIL_CHANGED_CHANNEL, RAIL_GET_CHANNEL, registerRailBridge } = await import('./rail-bridge')
+const { SESSION_EVENT_CHANNEL } = await import('./persona-states')
 
 class FakeSender {
-  sent: [string, RailSnapshot][] = []
+  sent: [string, RailSnapshot | ContractEvent][] = []
   destroyed = false
   destroyedListeners: (() => void)[] = []
   constructor(readonly id: number) {}
-  send(channel: string, snapshot: RailSnapshot) {
-    this.sent.push([channel, snapshot])
+  send(channel: string, payload: RailSnapshot | ContractEvent) {
+    this.sent.push([channel, payload])
+  }
+  /** The rail pushes only: `persona:state` travels on the session channel and is read apart. */
+  get railPushes(): RailSnapshot[] {
+    return this.sent.flatMap(([channel, payload]) =>
+      channel === RAIL_CHANGED_CHANNEL ? [payload as RailSnapshot] : []
+    )
+  }
+  get personaStates(): ContractEvent[] {
+    return this.sent.flatMap(([channel, payload]) =>
+      channel === SESSION_EVENT_CHANNEL ? [payload as ContractEvent] : []
+    )
   }
   isDestroyed() {
     return this.destroyed
@@ -164,14 +177,12 @@ describe('rail:changed', () => {
     const sender = await open()
 
     watchers[0].emit({ type: 'artifact:written', path: '_bmad/x.md', size: 3, mtimeMs: 1_000_000 })
-    expect(sender.sent.map(([channel, snapshot]) => [channel, snapshot.rows[0].state])).toEqual([
-      [RAIL_CHANGED_CHANNEL, 'changing']
-    ])
+    expect(sender.railPushes.map((snapshot) => snapshot.rows[0].state)).toEqual(['changing'])
 
     await vi.advanceTimersByTimeAsync(400)
 
-    expect(sender.sent.map(([, snapshot]) => snapshot.rows[0].state)).toEqual(['changing', 'saved'])
-    expect(sender.sent[1][1].revision).toBeGreaterThan(sender.sent[0][1].revision)
+    expect(sender.railPushes.map((snapshot) => snapshot.rows[0].state)).toEqual(['changing', 'saved'])
+    expect(sender.railPushes[1].revision).toBeGreaterThan(sender.railPushes[0].revision)
   })
 
   it('writes a watcher error to the diagnostic line and throws nothing', async () => {
@@ -204,5 +215,57 @@ describe('rail:changed', () => {
     await again
 
     expect(watchers).toHaveLength(2)
+  })
+})
+
+describe('persona:state from the rail', () => {
+  const PRD = '_bmad/planning-artifacts/prd.md'
+  const stateEvents = (sender: FakeSender) =>
+    sender.personaStates.map((event) => (event.name === 'persona:state' ? event.payload : event))
+
+  async function openWith(rows: string[]): Promise<FakeSender> {
+    scanRows = rows.map(found)
+    const sender = new FakeSender(1)
+    const first = ask(sender)
+    watchers[0].finishScan()
+    await first
+    return sender
+  }
+
+  it('takes the first snapshot as the baseline: files already there raise no note', async () => {
+    const sender = await openWith([PRD])
+
+    expect(sender.personaStates).toEqual([])
+  })
+
+  it('raises note for the owner when an owned file is written after the baseline', async () => {
+    const sender = await openWith([PRD])
+
+    watchers[0].emit({ type: 'artifact:written', path: PRD, size: 9, mtimeMs: 1_000_000 })
+
+    expect(stateEvents(sender)).toEqual([{ agentId: 'bmad-agent-pm', state: 'note', at: 1_000_000 }])
+    expect(sender.sent.at(-1)?.[0]).toBe(SESSION_EVENT_CHANNEL)
+
+    await vi.advanceTimersByTimeAsync(400)
+
+    expect(stateEvents(sender)).toHaveLength(1)
+  })
+
+  it('raises nothing for a file nobody owns', async () => {
+    const sender = await openWith([PRD])
+
+    watchers[0].emit({ type: 'artifact:written', path: '_bmad/x.md', size: 9, mtimeMs: 1_000_000 })
+
+    expect(sender.railPushes).toHaveLength(1)
+    expect(sender.personaStates).toEqual([])
+  })
+
+  it('raises nothing once the window is destroyed', async () => {
+    const sender = await openWith([PRD])
+    sender.destroy()
+
+    watchers[0].emit({ type: 'artifact:written', path: PRD, size: 9, mtimeMs: 1 })
+
+    expect(sender.personaStates).toEqual([])
   })
 })

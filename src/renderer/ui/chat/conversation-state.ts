@@ -1,9 +1,12 @@
-import type { ContractEvent } from '../../../shared/events'
+import type { ContractEvent, PersonaState } from '../../../shared/events'
 import type { AgentView } from '../../../shared/install'
 import type { TranscriptEntry, UserEntry } from './transcript'
 
 /** A message typed for a persona, waiting for its turn to come: the entry that shows it, and its words. */
 export type QueuedMessage = { entryId: string; text: string }
+
+/** What main last said of a persona's state, and when that state began. */
+export type PersonaStateEntry = { state: PersonaState; at: number }
 
 /**
  * The conversation as the window holds it: the transcript, which persona has a
@@ -24,6 +27,8 @@ export type ConversationState = {
   busy: ReadonlySet<string>
   /** The messages waiting for a persona's turn to end, first in first, by agent id. */
   queue: ReadonlyMap<string, readonly QueuedMessage[]>
+  /** The last state main reported for each persona, by agent id; an absent persona is idle. */
+  personas: ReadonlyMap<string, PersonaStateEntry>
   /** The next entry's key. */
   nextId: number
 }
@@ -33,6 +38,7 @@ export const initialConversation: ConversationState = {
   sessions: new Map(),
   busy: new Set(),
   queue: new Map(),
+  personas: new Map(),
   nextId: 0
 }
 
@@ -320,6 +326,17 @@ export function foldEvent(
           text,
           messageId
         })
+      }
+    }
+
+    case 'persona:state': {
+      // Stored as main said it: nothing here decides a state or puts one in place.
+      const { agentId, state: personaState, at } = event.payload
+      return {
+        state: {
+          ...state,
+          personas: new Map(state.personas).set(agentId, { state: personaState, at })
+        }
       }
     }
 

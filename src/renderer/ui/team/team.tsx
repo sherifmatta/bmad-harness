@@ -18,18 +18,21 @@ import { tabStopId, tileMove } from './tile-nav'
  * tile current and takes the tab stop, and focus stays where it is.
  *
  * `states` is read and never written: a tile's state is `states.get(id)` or
- * `idle`, the seam Epic 2's sessions will feed.
+ * `idle`, fed by what main reports of each persona's sessions. `since` is when
+ * that state began, which a `work` tile counts its elapsed time from.
  */
 export function Team({
   agents,
   menus,
   states,
+  since,
   currentId,
   onSelect
 }: {
   agents: readonly AgentView[]
   menus: Readonly<Record<string, readonly MenuEntryView[]>>
   states: ReadonlyMap<string, PersonaState>
+  since?: ReadonlyMap<string, number>
   currentId: string | null
   onSelect: (id: string) => void
 }): JSX.Element | null {
@@ -81,6 +84,7 @@ export function Team({
                   (entry) => entry.code
                 )}
                 state={stateOf(agent.id, states)}
+                since={since?.get(agent.id)}
                 current={agent.id === currentId}
                 tabStop={agent.id === tabStop}
                 onSelect={select}

@@ -190,6 +190,16 @@ describe('what the layer rule deliberately permits', () => {
       code: ["import '../fold/elapsed'", "import '../sources/watch-project'"].join('\n')
     },
     {
+      what: 'the per-window holder reaching Projections and the bridges reaching the holder',
+      filePath: 'src/main/probe.ts',
+      code: ["import './projections/personas'", "import './persona-states'"].join('\n')
+    },
+    {
+      what: 'the persona-state projection reaching its fold and nothing above it',
+      filePath: 'src/main/projections/probe.ts',
+      code: ["import '../fold/persona-state'", "import '../../shared/events'"].join('\n')
+    },
+    {
       what: 'the composition root wiring the main side together',
       filePath: 'src/main/probe.ts',
       code: [

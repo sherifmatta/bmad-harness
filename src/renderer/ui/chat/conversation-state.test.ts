@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ContractEvent } from '../../../shared/events'
+import type { ContractEvent, PersonaState } from '../../../shared/events'
 import type { AgentView } from '../../../shared/install'
 import {
   cancelQueued,
@@ -366,14 +366,45 @@ describe('a persona’s reply while a message is queued', () => {
 describe('events the conversation has no use for', () => {
   it('leave the state as it was', () => {
     const events: ContractEvent[] = [
-      {
-        name: 'persona:state',
-        payload: { agentId: mary.id, state: 'work', at: 1 }
-      },
       { name: 'run:finished', payload: { runId: 'r', sessionId: 's', at: 1 } }
     ]
     for (const event of events) {
       expect(foldEvent(initialConversation, event, agentOf).state).toBe(initialConversation)
     }
+  })
+})
+
+describe('persona:state', () => {
+  const personaState = (state: PersonaState, at: number): ContractEvent => ({
+    name: 'persona:state',
+    payload: { agentId: mary.id, state, at }
+  })
+
+  it('is kept as main said it, with the instant the state began', () => {
+    const next = foldEvent(initialConversation, personaState('work', 5), agentOf).state
+
+    expect(next.personas.get(mary.id)).toEqual({ state: 'work', at: 5 })
+    expect(next.entries).toBe(initialConversation.entries)
+  })
+
+  it('is replaced by the next report for the same persona and leaves the others', () => {
+    let state = foldEvent(initialConversation, personaState('work', 5), agentOf).state
+    state = foldEvent(
+      state,
+      { name: 'persona:state', payload: { agentId: 'other', state: 'error', at: 6 } },
+      agentOf
+    ).state
+    state = foldEvent(state, personaState('idle', 9), agentOf).state
+
+    expect(state.personas.get(mary.id)).toEqual({ state: 'idle', at: 9 })
+    expect(state.personas.get('other')).toEqual({ state: 'error', at: 6 })
+  })
+
+  it('does not change what the conversation sends or holds busy', () => {
+    const folded = foldEvent(initialConversation, personaState('work', 5), agentOf)
+
+    expect(folded.deliver).toBeUndefined()
+    expect(folded.state.busy).toBe(initialConversation.busy)
+    expect(folded.state.sessions).toBe(initialConversation.sessions)
   })
 })

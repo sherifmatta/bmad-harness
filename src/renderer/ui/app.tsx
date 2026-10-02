@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
 
 import { Announcer } from './a11y/announcer'
@@ -37,6 +37,16 @@ export function App(): JSX.Element | null {
   const [announcer] = useState(() => new Announcer())
   const conversation = useConversation(snapshot?.agents ?? NO_AGENTS)
   const announced = useRef<ReadonlySet<string>>(new Set())
+
+  // The shell reads two maps, so the one main-reported entry per persona is split
+  // here; neither is ever written to by the window.
+  const { states, since } = useMemo(
+    () => ({
+      states: new Map([...conversation.personas].map(([id, entry]) => [id, entry.state])),
+      since: new Map([...conversation.personas].map(([id, entry]) => [id, entry.at]))
+    }),
+    [conversation.personas]
+  )
 
   // Each line is spoken once, when it first appears: `message` only, never
   // `detail`. The key set is of the lines now, so one that clears and returns
@@ -113,6 +123,8 @@ export function App(): JSX.Element | null {
         key="shell"
         projectPath={projectPath}
         snapshot={snapshot}
+        states={states}
+        since={since}
         rail={rail}
         railFailure={railFailure}
         onActivate={conversation.activate}

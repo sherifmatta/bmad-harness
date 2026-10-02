@@ -77,6 +77,10 @@ const said = (agentId: string, messageId: string, text: string): ContractEvent =
   name: 'persona:said',
   payload: { sessionId: 's1', agentId, messageId, text, at: 3 }
 })
+const personaState = (agentId: string, state: 'work' | 'idle', at: number): ContractEvent => ({
+  name: 'persona:state',
+  payload: { agentId, state, at }
+})
 const busy = (): Promise<void> =>
   Promise.reject({ code: 'session/busy', message: 'session · busy' })
 
@@ -84,7 +88,10 @@ let bridge: FakeBridge
 let clock: number
 
 function build() {
-  const published: { entries: readonly unknown[] }[] = []
+  const published: {
+    entries: readonly unknown[]
+    personas: ReadonlyMap<string, { state: string; at: number }>
+  }[] = []
   const failures: unknown[] = []
   const conversation = createConversation({
     bridge,
@@ -153,6 +160,30 @@ describe('events', () => {
     bridge.push(said(mary.id, 'm1', 'lo'))
 
     expect(last().entries).toMatchObject([{ kind: 'persona', agent: mary, text: 'Hello' }])
+  })
+
+  it('keep the last persona:state per persona, as main reported it, and leave the transcript alone', () => {
+    const { conversation, last } = build()
+    conversation.connect()
+    bridge.push(personaState(mary.id, 'work', 100))
+    bridge.push(personaState(john.id, 'work', 110))
+    bridge.push(personaState(mary.id, 'idle', 120))
+
+    expect([...last().personas]).toEqual([
+      [mary.id, { state: 'idle', at: 120 }],
+      [john.id, { state: 'work', at: 110 }]
+    ])
+    expect(last().entries).toEqual([])
+  })
+
+  it('set no state of their own: opening, sending and activating report nothing until main does', () => {
+    const { conversation, last } = build()
+    conversation.connect()
+    conversation.activate(mary.id)
+    bridge.push(opened('s1', mary.id))
+    conversation.send(mary.id, 'hi')
+
+    expect(last().personas.size).toBe(0)
   })
 
   it('stop listening and publishing once disconnected', () => {

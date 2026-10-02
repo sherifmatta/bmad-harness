@@ -13,7 +13,7 @@ import {
   sessionOf,
   sessionReady
 } from './conversation-state'
-import type { ConversationState, Delivery } from './conversation-state'
+import type { ConversationState, Delivery, PersonaStateEntry } from './conversation-state'
 import type { TranscriptEntry } from './transcript'
 
 /** The three bridge methods the conversation needs, and nothing else of the bridge. */
@@ -151,6 +151,8 @@ export function createConversation(deps: ConversationDeps): Conversation {
  */
 export function useConversation(agents: readonly AgentView[]): {
   entries: readonly TranscriptEntry[]
+  /** The state main last reported for each persona, with when it began. */
+  personas: ReadonlyMap<string, PersonaStateEntry>
   failure: HarnessError | null
   activate: (agentId: string) => void
   send: (agentId: string, text: string) => void
@@ -197,5 +199,5 @@ export function useConversation(agents: readonly AgentView[]): {
   )
   const cancel = useCallback((entryId: string) => conversation.current?.cancel(entryId), [])
 
-  return { entries: state.entries, failure, activate, send, cancel }
+  return { entries: state.entries, personas: state.personas, failure, activate, send, cancel }
 }

@@ -17,7 +17,16 @@ import { StateLine } from '../status/status-dot'
  * composer here — those are later stories'. Everything project-supplied is
  * React text.
  */
-export function ChatHeader({ agent, state }: { agent: AgentView; state: PersonaState }): JSX.Element {
+export function ChatHeader({
+  agent,
+  state,
+  since
+}: {
+  agent: AgentView
+  state: PersonaState
+  /** When the state began; `work` counts its elapsed time from here. */
+  since?: number | undefined
+}): JSX.Element {
   return (
     <div className="chat-head">
       {portrait(artParamsFor(agent.id), 38, state, agent)}
@@ -31,7 +40,7 @@ export function ChatHeader({ agent, state }: { agent: AgentView; state: PersonaS
         )}
       </div>
       <div className="chat-head-state">
-        <StateLine state={state} />
+        <StateLine state={state} since={since} />
       </div>
     </div>
   )

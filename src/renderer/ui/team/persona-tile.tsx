@@ -28,6 +28,7 @@ export function PersonaTile({
   agent,
   codes,
   state,
+  since,
   current,
   tabStop,
   onSelect,
@@ -37,6 +38,8 @@ export function PersonaTile({
   agent: AgentView
   codes: readonly string[]
   state: PersonaState
+  /** When the state began; a `work` tile counts its elapsed time from here. */
+  since?: number | undefined
   current: boolean
   tabStop: boolean
   onSelect: (id: string) => void
@@ -63,7 +66,7 @@ export function PersonaTile({
           <span className="tile-title">{agent.title}</span>
         </span>
         <span className="tile-state">
-          <StateLine state={state} />
+          <StateLine state={state} since={since} />
         </span>
         {codes.length > 0 && (
           <span className="menu-hint">

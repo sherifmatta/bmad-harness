@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-25-2026 17:00
-last_updated: 10-01-2026 15:53
+last_updated: 10-01-2026 20:40
 project: bmad-harness
 project_key: NOKEY
 tracking_system: file-system
@@ -58,7 +58,7 @@ development_status:
   2-3-the-turn-and-the-composer: done
   2-4-open-a-session-and-hear-back: done
   2-5-type-while-they-work: done
-  2-6-every-indicator-means-something: backlog
+  2-6-every-indicator-means-something: done
   2-7-the-conversation-is-still-there-tomorrow: backlog
   2-8-end-a-conversation-deliberately: backlog
   2-9-hand-the-work-to-the-next-persona: backlog

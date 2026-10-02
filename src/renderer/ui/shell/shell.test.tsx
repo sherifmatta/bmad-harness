@@ -267,6 +267,32 @@ describe('Shell, the team and the header', () => {
     expect(count(markup, /status-dot--error/g)).toBe(0)
   })
 
+  it('hands each persona’s start to its tile and, for the current one, to the header, counting only work', () => {
+    const states = new Map<string, PersonaState>([
+      ['bmad-agent-0', 'work'],
+      ['bmad-agent-1', 'work'],
+      ['bmad-agent-2', 'idle']
+    ])
+    const since = new Map([
+      ['bmad-agent-0', Date.now() - 5_000],
+      ['bmad-agent-1', Date.now() - 125_000],
+      ['bmad-agent-2', Date.now() - 5_000]
+    ])
+    const markup = renderToStaticMarkup(
+      <Shell projectPath="/p" snapshot={snapshot(3)} states={states} since={since} />
+    )
+    const header = markup.slice(markup.indexOf('class="chat-head"'), markup.indexOf('class="scroll"'))
+
+    expect(count(markup, /class="state-elapsed"/g)).toBe(3)
+    expect(header).toMatch(/class="state-elapsed"> · 5s</)
+    const whole = teamOf(markup).split('</button>').slice(0, 3)
+    expect(whole.map((tile) => tile.match(/class="state-elapsed">([^<]*)</)?.[1])).toEqual([
+      ' · 5s',
+      ' · 2m 05s',
+      undefined
+    ])
+  })
+
   it('hands each tile its own menu codes from snapshot.menus, and none to an agent without a menu', () => {
     const codes = (n: number): { code: string; description: string }[] =>
       Array.from({ length: n }, (_, index) => ({ code: `C${index + 1}`, description: 'never shown' }))

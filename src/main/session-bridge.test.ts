@@ -151,6 +151,10 @@ describe('session.open', () => {
       [
         SESSION_EVENT_CHANNEL,
         { name: 'session:opened', payload: { sessionId: 's1', agentId: 'bmad-agent-analyst', at: 1001 } }
+      ],
+      [
+        SESSION_EVENT_CHANNEL,
+        { name: 'persona:state', payload: { agentId: 'bmad-agent-analyst', state: 'work', at: 1001 } }
       ]
     ])
   })
@@ -160,7 +164,7 @@ describe('session.open', () => {
 
     await expect(open(sender, 'bmad-agent-analyst')).resolves.toEqual(reply)
     expect(processes).toHaveLength(1)
-    expect(sender.names).toEqual(['session:opened'])
+    expect(sender.names).toEqual(['session:opened', 'persona:state'])
   })
 
   it('shares one spawn between two opens that overlap', async () => {
@@ -182,8 +186,8 @@ describe('session.open', () => {
     await opened(two, 'bmad-agent-pm')
 
     expect(processes.map((proc) => proc.options.cwd)).toEqual(['/project-1', '/project-1', '/project-2'])
-    expect(one.names).toEqual(['session:opened', 'session:opened'])
-    expect(two.names).toEqual(['session:opened'])
+    expect(one.names).toEqual(['session:opened', 'persona:state', 'session:opened', 'persona:state'])
+    expect(two.names).toEqual(['session:opened', 'persona:state'])
   })
 
   it.each([['../x'], ['a b'], [''], [7], [undefined], ['-x']])(
@@ -250,7 +254,7 @@ describe('speech', () => {
     proc.frame(textStart)
     proc.frame(delta('private', 'toolu_9'))
 
-    expect(sender.names).toEqual(['session:opened'])
+    expect(sender.names).toEqual(['session:opened', 'persona:state'])
   })
 
   it('pushes only persona:said from the fold, never a frame', async () => {
@@ -268,7 +272,7 @@ describe('speech', () => {
       }
     })
 
-    expect(sender.names).toEqual(['session:opened'])
+    expect(sender.names).toEqual(['session:opened', 'persona:state'])
   })
 })
 
@@ -314,7 +318,7 @@ describe('turn end and turn.send', () => {
     const { sender, reply, proc } = await opened()
     proc.exit()
 
-    expect(sender.names).toEqual(['session:opened', 'session:closed'])
+    expect(sender.names).toEqual(['session:opened', 'persona:state', 'session:closed', 'persona:state'])
     expect(sender.names).not.toContain('session:awaiting-turn')
     expect(send(sender, reply.sessionId, 'hi')).toMatchObject({ error: { code: 'session/not-found' } })
   })
@@ -323,7 +327,7 @@ describe('turn end and turn.send', () => {
     const { sender, reply, proc } = await opened()
     proc.frame({ type: 'result', parent_tool_use_id: 'toolu_1' })
 
-    expect(sender.names).toEqual(['session:opened'])
+    expect(sender.names).toEqual(['session:opened', 'persona:state'])
     expect(send(sender, reply.sessionId, 'hi')).toMatchObject({ error: { code: 'session/busy' } })
   })
 
@@ -391,8 +395,14 @@ describe('close', () => {
     proc.exit()
     proc.frame(delta('after'))
 
-    expect(sender.names).toEqual(['session:opened', 'persona:said', 'session:closed'])
-    expect(sender.events[2].payload).toMatchObject({
+    expect(sender.names).toEqual([
+      'session:opened',
+      'persona:state',
+      'persona:said',
+      'session:closed',
+      'persona:state'
+    ])
+    expect(sender.events[3].payload).toMatchObject({
       sessionId: 's1',
       agentId: 'bmad-agent-analyst',
       reason: 'process-exited'
@@ -427,5 +437,66 @@ describe('close', () => {
     await expect(pending).resolves.toMatchObject({ ok: false })
     expect(processes[0].killed).toBe(true)
     expect(sender.sent).toEqual([])
+  })
+})
+
+describe('persona:state', () => {
+  const states = (sender: FakeSender) =>
+    sender.events.flatMap((event) => (event.name === 'persona:state' ? [event.payload] : []))
+
+  it('is work from the session opening, with the opening event’s own time, and idle when the turn ends', async () => {
+    const { sender, proc } = await opened()
+
+    expect(states(sender)).toEqual([{ agentId: 'bmad-agent-analyst', state: 'work', at: 1001 }])
+
+    proc.frame(result())
+    const awaiting = sender.events.find((event) => event.name === 'session:awaiting-turn')
+
+    expect(states(sender)).toEqual([
+      { agentId: 'bmad-agent-analyst', state: 'work', at: 1001 },
+      { agentId: 'bmad-agent-analyst', state: 'idle', at: awaiting?.payload.at }
+    ])
+  })
+
+  it('is work again from a successful send, and says nothing for a refused one', async () => {
+    const { sender, reply, proc } = await opened()
+    proc.frame(result())
+    send(sender, reply.sessionId, 'hi')
+    send(sender, reply.sessionId, 'again')
+
+    expect(states(sender).map((payload) => payload.state)).toEqual(['work', 'idle', 'work'])
+  })
+
+  it('says nothing for a send whose write failed', async () => {
+    const { sender, reply, proc } = await opened()
+    proc.frame(result())
+    proc.session.write = () => false
+    send(sender, reply.sessionId, 'hi')
+
+    expect(states(sender).map((payload) => payload.state)).toEqual(['work', 'idle'])
+  })
+
+  it('stays work through a quiet phase with no frames', async () => {
+    const { sender, proc } = await opened()
+    proc.frame({ type: 'system', subtype: 'task_progress' })
+
+    expect(states(sender).map((payload) => payload.state)).toEqual(['work'])
+  })
+
+  it('is idle again when the session closes mid-turn', async () => {
+    const { sender, proc } = await opened()
+    proc.exit()
+
+    expect(states(sender).map((payload) => payload.state)).toEqual(['work', 'idle'])
+  })
+
+  it('keeps each window’s personas apart', async () => {
+    const one = new FakeSender(1)
+    const two = new FakeSender(2)
+    await opened(one, 'bmad-agent-pm')
+    await opened(two, 'bmad-agent-pm')
+
+    expect(states(one)).toHaveLength(1)
+    expect(states(two)).toHaveLength(1)
   })
 })

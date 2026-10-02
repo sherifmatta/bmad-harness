@@ -58,6 +58,18 @@ describe('PersonaTile', () => {
     expect(render({ state })).toContain(`status-dot--${state}`)
   })
 
+  it('counts elapsed time beside the word for work alone, and keeps it out of the label', () => {
+    const since = Date.now() - 125_000
+    const working = render({ state: 'work', since })
+
+    expect(working).toMatch(/<span class="state-text">working<span class="state-elapsed"> · 2m 0\ds<\/span><\/span>/)
+    expect(working).toContain('aria-label="Mary, Business Analyst, working"')
+    for (const state of ['idle', 'live', 'note', 'error'] as const) {
+      expect(render({ state, since })).not.toContain('state-elapsed')
+    }
+    expect(render({ state: 'work' })).not.toContain('state-elapsed')
+  })
+
   it('carries aria-current only on the current tile', () => {
     expect(render({ current: true })).toContain('aria-current="true"')
     expect(render({ current: false })).not.toContain('aria-current')

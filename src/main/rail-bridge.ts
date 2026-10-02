@@ -1,7 +1,9 @@
 import { ipcMain } from 'electron'
 import type { IpcMainInvokeEvent } from 'electron'
+import type { ContractEvent } from '../shared/events'
 import type { HarnessError } from '../shared/install'
 import type { ArtifactObservation, RailReply, RailSnapshot } from '../shared/rail'
+import { personaProjectionFor } from './persona-states'
 import { createRailProjection } from './projections/rail'
 import type { RailProjection } from './projections/rail'
 import { watchArtifacts } from './sources/project/watch-artifacts'
@@ -18,7 +20,8 @@ export const RAIL_CHANGED_CHANNEL = 'rail:changed'
 /** The parts of a `WebContents` the bridge touches. */
 type Sender = {
   id: number
-  send(channel: string, snapshot: RailSnapshot): void
+  /** A rail snapshot on its own channel, and the window's `persona:state` on the session one. */
+  send(channel: string, payload: RailSnapshot | ContractEvent): void
   isDestroyed(): boolean
   once(event: 'destroyed', listener: () => void): unknown
 }
@@ -64,11 +67,13 @@ export function registerRailBridge(deps: RailBridgeDeps = {}): void {
       return existing
     }
 
+    const personas = personaProjectionFor(sender, deps.now)
     const projection = createRailProjection({
       onChange: (snapshot) => {
         if (!sender.isDestroyed()) {
           sender.send(RAIL_CHANGED_CHANNEL, snapshot)
         }
+        personas.apply({ name: 'rail:changed', payload: snapshot })
       },
       ...(deps.now !== undefined ? { now: deps.now } : {}),
       ...(deps.quietMs !== undefined ? { quietMs: deps.quietMs } : {})
@@ -82,7 +87,12 @@ export function registerRailBridge(deps: RailBridgeDeps = {}): void {
     const service = {
       projection,
       watcher,
-      ready: watcher.ready.then(() => projection.ready())
+      ready: watcher.ready.then(() => {
+        projection.ready()
+        // The first snapshot is the baseline for `note`: the files as they stand
+        // are not a change, and it is taken before any push can follow it.
+        personas.seedRail(projection.snapshot())
+      })
     }
     services.set(sender.id, service)
 
