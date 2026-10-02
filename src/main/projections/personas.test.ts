@@ -143,3 +143,39 @@ describe('the persona projection', () => {
     expect(raised).toEqual([])
   })
 })
+
+describe('the persona projection’s snapshot', () => {
+  it('is empty when nothing has happened, and holds no persona that is idle', () => {
+    expect(projection.snapshot()).toEqual([])
+
+    projection.apply(opened('s1', A, 10))
+    projection.apply(awaiting('s1', 20))
+
+    expect(projection.snapshot()).toEqual([])
+  })
+
+  it('holds each persona that is not idle with the instant its state began, as the raised events said', () => {
+    projection.apply(opened('s1', A, 10))
+    projection.apply(opened('s2', B, 12))
+    projection.apply(awaiting('s2', 15))
+    projection.apply({
+      name: 'run:failed',
+      payload: { runId: 'r', sessionId: 's2', error: { code: 'x', message: 'x' }, at: 16 }
+    })
+
+    expect(projection.snapshot()).toEqual([
+      { agentId: A, state: 'work', at: 10 },
+      { agentId: B, state: 'error', at: 16 }
+    ])
+  })
+
+  it('changes nothing it raises and nothing it holds', () => {
+    projection.apply(opened('s1', A, 10))
+    const before = states()
+    projection.snapshot()
+    projection.snapshot()
+
+    expect(states()).toEqual(before)
+    expect(projection.snapshot()).toHaveLength(1)
+  })
+})

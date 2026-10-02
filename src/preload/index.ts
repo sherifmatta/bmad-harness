@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { ContractCommands } from '../shared/commands'
+import type { ConversationReply } from '../shared/conversation'
 import type { DocAck } from '../shared/document'
 import type { ContractEvent } from '../shared/events'
 import type { InstallReply, InstallSnapshot } from '../shared/install'
@@ -7,7 +8,7 @@ import type { RailReply, RailSnapshot } from '../shared/rail'
 import type { HarnessApi } from './harness-api'
 
 // Kept in step with src/main/index.ts, src/main/install-bridge.ts,
-// src/main/project-bridge.ts and src/main/rail-bridge.ts by hand.
+// src/main/project-bridge.ts, src/main/rail-bridge.ts and src/main/session-bridge.ts by hand.
 // Exported so that tests/bridge-contract.test.ts fails the moment a pair of
 // literals diverges - renaming one silently would leave lint, typecheck and
 // build green while the window rendered an error.
@@ -22,6 +23,7 @@ export const DOC_CLOSED_CHANNEL = 'doc:closed'
 export const SESSION_OPEN_CHANNEL = 'session:open'
 export const TURN_SEND_CHANNEL = 'turn:send'
 export const SESSION_EVENT_CHANNEL = 'session:event'
+export const CONVERSATION_GET_CHANNEL = 'conversation:get'
 
 const harness: HarnessApi = {
   getProjectPath: () => ipcRenderer.invoke(PROJECT_PATH_CHANNEL) as Promise<string>,
@@ -105,6 +107,17 @@ const harness: HarnessApi = {
     if (!reply.ok) {
       throw reply.error
     }
+  },
+
+  // A read beside `getRail`: the transcript, which sessions are live and busy and
+  // which personas are not idle. The window makes it on connecting, so a reload
+  // finds the conversation where it was.
+  getConversation: async () => {
+    const reply = (await ipcRenderer.invoke(CONVERSATION_GET_CHANNEL)) as ConversationReply
+    if (reply.ok) {
+      return reply.snapshot
+    }
+    throw reply.error
   },
 
   onSessionEvent: (listener) => {

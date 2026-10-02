@@ -1,8 +1,7 @@
 import type { JSX } from 'react'
 
-import type { AgentView } from '../../../shared/install'
 import { PersonaTurn, UserTurn } from './turn'
-import type { UserIdentity } from './turn'
+import type { TranscriptEntry } from './transcript-entry'
 
 /**
  * The transcript — a thread of turns in time order (UX-DR25).
@@ -13,30 +12,7 @@ import type { UserIdentity } from './turn'
  * `--thread-max`.
  */
 
-export type PersonaEntry = {
-  kind: 'persona'
-  id: string
-  at: number
-  agent: AgentView
-  text: string
-  /** The model's id for the message these words belong to, when a session gave one. */
-  messageId?: string
-}
-
-export type UserEntry = {
-  kind: 'user'
-  id: string
-  at: number
-  text: string
-  user?: UserIdentity
-  /**
-   * The name of the persona whose turn this waits for. Present while the message
-   * is queued, absent once it is sent; it is the only thing that differs.
-   */
-  queuedFor?: string
-}
-
-export type TranscriptEntry = PersonaEntry | UserEntry
+export type { PersonaEntry, TranscriptEntry, UserEntry } from './transcript-entry'
 
 /**
  * The entries ascending by `at`, stable: equal times keep the order they came

@@ -7,6 +7,7 @@ import { Initials } from '../persona/initials'
 import { portrait } from '../persona/portrait'
 import type { PersonaState } from '../persona/portrait'
 import { formatTurnTime } from './format-turn-time'
+import type { UserIdentity } from './transcript-entry'
 
 /**
  * The conversation turn — UX-DR25, DESIGN.md's *Conversation turn*. One
@@ -70,8 +71,7 @@ export function PersonaTurn({
   )
 }
 
-/** Who the user is to the transcript: a name, and what it says under it. */
-export type UserIdentity = { name: string; title: string }
+export type { UserIdentity } from './transcript-entry'
 
 const YOU: UserIdentity = { name: 'You', title: 'you' }
 

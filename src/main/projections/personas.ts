@@ -26,6 +26,8 @@ export type PersonaProjection = {
   seedRail(snapshot: RailSnapshot): void
   attach(sessionId: SessionId): void
   detach(sessionId: SessionId): void
+  /** Every persona that is anything but `idle`, with when that state began: what a reloaded window is told. */
+  snapshot(): PersonaStateEvent['payload'][]
 }
 
 export function createPersonaProjection({
@@ -68,6 +70,12 @@ export function createPersonaProjection({
 
     detach(sessionId) {
       apply({ name: 'process:detached', payload: { sessionId } })
+    },
+
+    snapshot() {
+      return [...table.shown]
+        .filter(([, shown]) => shown.state !== 'idle')
+        .map(([agentId, shown]) => ({ agentId, state: shown.state, at: shown.at }))
     }
   }
 }

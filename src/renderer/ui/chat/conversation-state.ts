@@ -1,6 +1,7 @@
+import type { ConversationSnapshot } from '../../../shared/conversation'
 import type { ContractEvent, PersonaState } from '../../../shared/events'
 import type { AgentView } from '../../../shared/install'
-import type { TranscriptEntry, UserEntry } from './transcript'
+import type { TranscriptEntry, UserEntry } from './transcript-entry'
 
 /** A message typed for a persona, waiting for its turn to come: the entry that shows it, and its words. */
 export type QueuedMessage = { entryId: string; text: string }
@@ -247,6 +248,57 @@ export function dispatchRefusedBusy(
 /** A persona the roster no longer names still has its words shown, under its id. */
 function unknownAgent(id: string): AgentView {
   return { id, module: '', name: id, title: '', icon: '', description: '' }
+}
+
+/**
+ * Take what main holds as the conversation: the transcript, which sessions are
+ * live, which have a turn in flight and which personas are not idle replace
+ * whatever the window knew. What the window itself holds stays: a message typed
+ * before this arrived is still queued, after the transcript it continues, and is
+ * sent now if its persona's session can take it. One delivery at most per persona.
+ *
+ * Persona records resolve their `AgentView` from the roster as it is now, and
+ * fall back to the id as the name, so a window that connects before the install
+ * is read still shows who spoke.
+ */
+export function hydrate(
+  state: ConversationState,
+  snapshot: ConversationSnapshot,
+  agentOf: (agentId: string) => AgentView | undefined
+): { state: ConversationState; deliveries: Delivery[] } {
+  const stored: TranscriptEntry[] = snapshot.entries.map((record) =>
+    record.kind === 'persona'
+      ? {
+          kind: 'persona',
+          id: record.id,
+          at: record.at,
+          agent: agentOf(record.agentId) ?? unknownAgent(record.agentId),
+          text: record.text,
+          messageId: record.messageId
+        }
+      : { kind: 'user', id: record.id, at: record.at, text: record.text }
+  )
+  let next: ConversationState = {
+    ...state,
+    entries: [...stored, ...state.entries],
+    sessions: new Map(snapshot.sessions.map(({ agentId, sessionId }) => [agentId, sessionId])),
+    busy: new Set(snapshot.busy),
+    personas: new Map(
+      snapshot.personas.map(({ agentId, state: personaState, at }) => [
+        agentId,
+        { state: personaState, at }
+      ])
+    )
+  }
+  const deliveries: Delivery[] = []
+  for (const agentId of [...next.queue.keys()]) {
+    const drained = drain(next, agentId)
+    next = drained.state
+    if (drained.deliver !== undefined) {
+      deliveries.push(drained.deliver)
+    }
+  }
+  return { state: next, deliveries }
 }
 
 /**

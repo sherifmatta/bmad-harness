@@ -315,11 +315,26 @@ describe("no spinner, skeleton or stand-in sentence", () => {
 });
 
 describe("the document window has no refresh, edit or save", () => {
-  it("forces no reload, saves and writes nothing in main", () => {
+  // Story 2.7 gives main one store: the conversation's transcript under
+  // `userData`. It is the only file allowed to write, and what it may write is
+  // held by tests/persistence-contract.test.ts; everything else in main still
+  // writes nothing.
+  const TRANSCRIPT_STORE = "src/main/sources/persistence/transcript-file.ts";
+
+  it("forces no reload, saves and writes nothing in main but the transcript store", () => {
     expect(
       offenders(
-        MAIN_CODE,
+        MAIN_CODE.filter((path) => !path.endsWith(TRANSCRIPT_STORE)),
         /\bforceReload\b|\breloadIgnoringCache\b|\.reload\(|CommandOrControl|\bsaveAs\b|\bshowSaveDialog\b|\bsave\b|\bwriteFile(?:Sync)?\b|\bappendFile(?:Sync)?\b|\bcreateWriteStream\b/,
+      ),
+    ).toEqual([]);
+  });
+
+  it("lets the transcript store write a file and nothing else do any of the rest", () => {
+    expect(
+      offenders(
+        MAIN_CODE.filter((path) => path.endsWith(TRANSCRIPT_STORE)),
+        /\bforceReload\b|\breloadIgnoringCache\b|\.reload\(|CommandOrControl|\bsaveAs\b|\bshowSaveDialog\b|\bsave\b|\bappendFile(?:Sync)?\b|\bcreateWriteStream\b/,
       ),
     ).toEqual([]);
   });

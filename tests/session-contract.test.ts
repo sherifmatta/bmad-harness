@@ -197,7 +197,7 @@ describe('the renderer', () => {
   })
 
   it('reaches the session through the three preload methods and nothing else', () => {
-    const users = renderer.filter((path) => /window\.harness\??\.(?:openSession|sendTurn|onSessionEvent)/.test(code(path)))
+    const users = renderer.filter((path) => /window\.harness\??\.(?:openSession|sendTurn|getConversation|onSessionEvent)/.test(code(path)))
 
     expect(users.map(rel)).toEqual(['src/renderer/ui/chat/use-conversation.ts'])
   })

@@ -134,7 +134,7 @@ it('answers the document channels on the same literals from both sides', () => {
   }
 })
 
-it('exposes exactly eleven named methods, and no channel passthrough', () => {
+it('exposes exactly twelve named methods, and no channel passthrough', () => {
   const harness = exposedApis.get('harness')
 
   expect(harness).toBeDefined()
@@ -149,6 +149,7 @@ it('exposes exactly eleven named methods, and no channel passthrough', () => {
     'onDocClosed',
     'openSession',
     'sendTurn',
+    'getConversation',
     'onSessionEvent'
   ])
   expect(harness?.invoke).toBeUndefined()
@@ -392,6 +393,26 @@ it('answers the session channels on the same literals from both sides', () => {
   ])
   expect(registeredHandlers.has(sessionBridge.SESSION_OPEN_CHANNEL)).toBe(true)
   expect(registeredHandlers.has(sessionBridge.TURN_SEND_CHANNEL)).toBe(true)
+})
+
+it('answers the conversation channel on the same literal from both sides', () => {
+  expect(preload.CONVERSATION_GET_CHANNEL).toBe(sessionBridge.CONVERSATION_GET_CHANNEL)
+  expect(preload.CONVERSATION_GET_CHANNEL).toBe('conversation:get')
+  expect(registeredHandlers.has(sessionBridge.CONVERSATION_GET_CHANNEL)).toBe(true)
+})
+
+it('resolves the snapshot itself when conversation:get succeeds, and rejects with the envelope when it is refused', async () => {
+  const getConversation = exposedApis.get('harness')?.getConversation as () => Promise<unknown>
+  const snapshot = { entries: [], sessions: [], busy: [], personas: [] }
+  invoke.mockClear()
+  invoke.mockResolvedValue({ ok: true, snapshot })
+
+  await expect(getConversation()).resolves.toEqual(snapshot)
+  expect(invoke).toHaveBeenCalledWith(sessionBridge.CONVERSATION_GET_CHANNEL)
+
+  const error = { code: 'conversation/no-project', message: 'conversation · no project is open for this window' }
+  invoke.mockResolvedValue({ ok: false, error })
+  await expect(getConversation()).rejects.toEqual(error)
 })
 
 it('sends openSession down the open channel with the agent id, and resolves with the session id', async () => {

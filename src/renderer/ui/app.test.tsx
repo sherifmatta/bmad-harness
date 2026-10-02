@@ -56,6 +56,7 @@ function installBridge(): void {
     sendTurn: async (sessionId: string, text: string) => {
       sent.push([sessionId, text])
     },
+    getConversation: async () => ({ entries: [], sessions: [], busy: [], personas: [] }),
     onSessionEvent: (listener: (event: ContractEvent) => void) => {
       listeners.push(listener)
       return () => {}

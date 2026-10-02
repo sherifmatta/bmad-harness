@@ -1,10 +1,11 @@
+import type { ConversationSnapshot } from '../shared/conversation'
 import type { ContractEvent } from '../shared/events'
 import type { SessionId } from '../shared/ids'
 import type { InstallSnapshot } from '../shared/install'
 import type { RailSnapshot } from '../shared/rail'
 
 /**
- * The whole bridge surface. Explicitly enumerated: eleven named methods, no
+ * The whole bridge surface. Explicitly enumerated: twelve named methods, no
  * generic `invoke(channel, …)` passthrough, and no `ipcRenderer` in the
  * renderer's reach.
  */
@@ -46,6 +47,13 @@ export interface HarnessApi {
    * turn is in flight).
    */
   sendTurn(sessionId: SessionId, text: string): Promise<void>
+  /**
+   * The conversation as main holds it for this window's project: the
+   * transcript, the live and busy sessions and the personas that are not idle.
+   * Rejects with the `HarnessError` envelope. Made once on connecting; events
+   * that reach the window before it resolves are already in what it returns.
+   */
+  getConversation(): Promise<ConversationSnapshot>
   /**
    * Calls back with each contract event main pushes for this window's
    * sessions, as `{name, payload}`; returns the way to stop listening.

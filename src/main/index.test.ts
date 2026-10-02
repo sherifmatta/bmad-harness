@@ -15,6 +15,12 @@ const quit = vi.fn()
 const exit = vi.fn()
 const browserWindowConstructed = vi.fn()
 
+// The composition root's one registry: the bridge records into it and quitting flushes it.
+const registry = vi.hoisted(() => ({ forProject: vi.fn(), flush: vi.fn(), flushAll: vi.fn() }))
+const registerSessionBridge = vi.hoisted(() => vi.fn())
+vi.mock('./projections/transcript', () => ({ createTranscriptRegistry: () => registry }))
+vi.mock('./session-bridge', () => ({ registerSessionBridge }))
+
 vi.mock('electron', () => {
   class BrowserWindow {
     webContents = { id: 1, on() {} }
@@ -52,6 +58,8 @@ vi.mock('electron', () => {
 })
 
 await import('./index')
+// Taken at import: the registration happens once, as the module loads.
+const bridgeDeps = registerSessionBridge.mock.calls[0]?.[0]
 
 const existingDirectory = mkdtempSync(join(tmpdir(), 'harness-reopen-'))
 const originalArgv = process.argv
@@ -89,4 +97,16 @@ it('quits when the reopened chooser is cancelled', async () => {
   await vi.waitFor(() => expect(quit).toHaveBeenCalledTimes(1))
 
   expect(browserWindowConstructed).not.toHaveBeenCalled()
+})
+
+it('hands the session bridge the registry that quitting flushes', () => {
+  const beforeQuit = appHandlers.get('before-quit')
+
+  expect(bridgeDeps).toEqual({ transcripts: registry })
+  expect(beforeQuit).toBeDefined()
+  expect(registry.flushAll).not.toHaveBeenCalled()
+
+  beforeQuit?.()
+
+  expect(registry.flushAll).toHaveBeenCalledTimes(1)
 })

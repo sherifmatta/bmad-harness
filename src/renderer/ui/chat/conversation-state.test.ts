@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { ConversationSnapshot } from '../../../shared/conversation'
 import type { ContractEvent, PersonaState } from '../../../shared/events'
 import type { AgentView } from '../../../shared/install'
 import {
@@ -6,6 +7,7 @@ import {
   dispatchFailed,
   dropQueued,
   foldEvent,
+  hydrate,
   initialConversation,
   sendMessage,
   sessionOf,
@@ -406,5 +408,117 @@ describe('persona:state', () => {
     expect(folded.deliver).toBeUndefined()
     expect(folded.state.busy).toBe(initialConversation.busy)
     expect(folded.state.sessions).toBe(initialConversation.sessions)
+  })
+})
+
+describe('hydrate', () => {
+  const snapshot = (over: Partial<ConversationSnapshot> = {}): ConversationSnapshot => ({
+    entries: [],
+    sessions: [],
+    busy: [],
+    personas: [],
+    ...over
+  })
+  const stored: ConversationSnapshot['entries'] = [
+    { kind: 'user', id: 'm-0', at: 5, text: 'hello' },
+    { kind: 'persona', id: 'm-1', at: 6, agentId: mary.id, messageId: 'msg_1', text: 'Hel' }
+  ]
+
+  it('shows the stored turns as the window’s own, with the agent resolved from the roster', () => {
+    const { state } = hydrate(initialConversation, snapshot({ entries: stored }), agentOf)
+
+    expect(state.entries).toEqual([
+      { kind: 'user', id: 'm-0', at: 5, text: 'hello' },
+      { kind: 'persona', id: 'm-1', at: 6, agent: mary, text: 'Hel', messageId: 'msg_1' }
+    ])
+  })
+
+  it('names a persona the roster does not hold by its id', () => {
+    const { state } = hydrate(initialConversation, snapshot({ entries: stored }), () => undefined)
+
+    expect(state.entries[1]).toMatchObject({ agent: { id: mary.id, name: mary.id } })
+  })
+
+  it('takes the live sessions, the busy ones and the personas that are not idle from main', () => {
+    const { state } = hydrate(
+      initialConversation,
+      snapshot({
+        sessions: [{ agentId: mary.id, sessionId: 's1' }],
+        busy: ['s1'],
+        personas: [{ agentId: mary.id, state: 'work', at: 7 }]
+      }),
+      agentOf
+    )
+
+    expect(sessionOf(state, mary.id)).toBe('s1')
+    expect([...state.busy]).toEqual(['s1'])
+    expect(state.personas.get(mary.id)).toEqual({ state: 'work', at: 7 })
+    expect(state.personas.size).toBe(1)
+  })
+
+  it('lets a word that follows join the message that was in flight, and awaiting-turn free the session', () => {
+    const hydrated = hydrate(
+      initialConversation,
+      snapshot({ entries: stored, sessions: [{ agentId: mary.id, sessionId: 's1' }], busy: ['s1'] }),
+      agentOf
+    ).state
+    const joined = fold([said('msg_1', 'lo', 9), said('msg_2', 'next', 10)], hydrated)
+
+    expect(joined.entries.map((entry) => entry.text)).toEqual(['hello', 'Hello', 'next'])
+    expect(
+      foldEvent(
+        joined,
+        { name: 'session:awaiting-turn', payload: { sessionId: 's1', at: 11 } },
+        agentOf
+      ).state.busy.size
+    ).toBe(0)
+  })
+
+  it('queues a send into a session that is busy, and sends it when the turn ends', () => {
+    const hydrated = hydrate(
+      initialConversation,
+      snapshot({ sessions: [{ agentId: mary.id, sessionId: 's1' }], busy: ['s1'] }),
+      agentOf
+    ).state
+    const sent = send(hydrated, 'later')
+
+    expect(sent.deliver).toBeUndefined()
+    expect(sent.state.entries[0]).toMatchObject({ text: 'later', queuedFor: 'Mary' })
+    const ended = foldEvent(
+      sent.state,
+      { name: 'session:awaiting-turn', payload: { sessionId: 's1', at: 12 } },
+      agentOf
+    )
+    expect(ended.deliver).toMatchObject({ sessionId: 's1', text: 'later' })
+  })
+
+  it('keeps what was typed before it arrived, after the transcript, and sends it into an idle session', () => {
+    const typed = send(initialConversation, 'early', 50).state
+    const { state, deliveries } = hydrate(
+      typed,
+      snapshot({ entries: stored, sessions: [{ agentId: mary.id, sessionId: 's1' }] }),
+      agentOf
+    )
+
+    expect(state.entries.map((entry) => entry.text)).toEqual(['hello', 'Hel', 'early'])
+    expect(state.entries[2]).not.toHaveProperty('queuedFor')
+    expect(deliveries).toMatchObject([{ sessionId: 's1', text: 'early' }])
+    expect(state.busy.has('s1')).toBe(true)
+  })
+
+  it('keeps what was typed queued when the session is busy or not yet open', () => {
+    let typed = send(initialConversation, 'to-busy', 50, mary.id).state
+    typed = send(typed, 'to-nobody', 51, john.id).state
+    const { state, deliveries } = hydrate(
+      typed,
+      snapshot({ sessions: [{ agentId: mary.id, sessionId: 's1' }], busy: ['s1'] }),
+      agentOf
+    )
+
+    expect(deliveries).toEqual([])
+    expect(state.entries).toMatchObject([
+      { text: 'to-busy', queuedFor: 'Mary' },
+      { text: 'to-nobody', queuedFor: 'John' }
+    ])
   })
 })

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import type { ConversationSnapshot } from '../../../shared/conversation'
 import type { ContractEvent } from '../../../shared/events'
 import type { AgentView } from '../../../shared/install'
 import { inAct, renderHook, settle } from '../testing/render-hook'
@@ -38,6 +39,8 @@ function deferred<T>(): Deferred<T> {
   return { promise, resolve, reject }
 }
 
+const EMPTY: ConversationSnapshot = { entries: [], sessions: [], busy: [], personas: [] }
+
 class FakeBridge implements ConversationBridge {
   opens: string[] = []
   sends: [string, string][] = []
@@ -45,6 +48,9 @@ class FakeBridge implements ConversationBridge {
   openResult: Deferred<string>[] = []
   /** What the next send answers; one entry is consumed per send. */
   sendResults: (Promise<void> | undefined)[] = []
+  /** What the connecting read answers: the empty conversation unless a test says otherwise. */
+  conversation: Promise<ConversationSnapshot> = Promise.resolve(EMPTY)
+  reads = 0
 
   openSession(agentId: string): Promise<string> {
     this.opens.push(agentId)
@@ -55,6 +61,10 @@ class FakeBridge implements ConversationBridge {
   sendTurn(sessionId: string, text: string): Promise<void> {
     this.sends.push([sessionId, text])
     return this.sendResults.shift() ?? Promise.resolve()
+  }
+  getConversation(): Promise<ConversationSnapshot> {
+    this.reads += 1
+    return this.conversation
   }
   onSessionEvent(listener: (event: ContractEvent) => void): () => void {
     this.listeners.add(listener)
@@ -108,6 +118,13 @@ function build() {
   }
 }
 
+/** Connect and let main's snapshot arrive, as every window does before it is used. */
+async function connected(conversation: { connect(): () => void }): Promise<() => void> {
+  const stop = conversation.connect()
+  await settle()
+  return stop
+}
+
 beforeEach(() => {
   bridge = new FakeBridge()
   clock = 100
@@ -116,7 +133,7 @@ beforeEach(() => {
 describe('activate', () => {
   it('opens the persona’s session once, however often the tile is selected while it opens or after', async () => {
     const { conversation } = build()
-    conversation.connect()
+    await connected(conversation)
     conversation.activate(mary.id)
     conversation.activate(mary.id)
     expect(bridge.opens).toEqual([mary.id])
@@ -132,6 +149,7 @@ describe('activate', () => {
 
   it('shows a refused open as the envelope, and tries again on the next selection', async () => {
     const { conversation, failures } = build()
+    await connected(conversation)
     conversation.activate(mary.id)
     bridge.openResult[0].reject({
       code: 'session/spawn-failed',
@@ -153,18 +171,18 @@ describe('activate', () => {
 })
 
 describe('events', () => {
-  it('turn persona:said into the persona’s own turns, joined by message', () => {
+  it('turn persona:said into the persona’s own turns, joined by message', async () => {
     const { conversation, last } = build()
-    conversation.connect()
+    await connected(conversation)
     bridge.push(said(mary.id, 'm1', 'Hel'))
     bridge.push(said(mary.id, 'm1', 'lo'))
 
     expect(last().entries).toMatchObject([{ kind: 'persona', agent: mary, text: 'Hello' }])
   })
 
-  it('keep the last persona:state per persona, as main reported it, and leave the transcript alone', () => {
+  it('keep the last persona:state per persona, as main reported it, and leave the transcript alone', async () => {
     const { conversation, last } = build()
-    conversation.connect()
+    await connected(conversation)
     bridge.push(personaState(mary.id, 'work', 100))
     bridge.push(personaState(john.id, 'work', 110))
     bridge.push(personaState(mary.id, 'idle', 120))
@@ -176,9 +194,9 @@ describe('events', () => {
     expect(last().entries).toEqual([])
   })
 
-  it('set no state of their own: opening, sending and activating report nothing until main does', () => {
+  it('set no state of their own: opening, sending and activating report nothing until main does', async () => {
     const { conversation, last } = build()
-    conversation.connect()
+    await connected(conversation)
     conversation.activate(mary.id)
     bridge.push(opened('s1', mary.id))
     conversation.send(mary.id, 'hi')
@@ -186,14 +204,15 @@ describe('events', () => {
     expect(last().personas.size).toBe(0)
   })
 
-  it('stop listening and publishing once disconnected', () => {
+  it('stop listening and publishing once disconnected', async () => {
     const { conversation, published } = build()
-    const disconnect = conversation.connect()
+    const disconnect = await connected(conversation)
+    const before = published.length
     disconnect()
 
     expect(bridge.listeners.size).toBe(0)
     conversation.send(mary.id, 'x')
-    expect(published).toEqual([])
+    expect(published).toHaveLength(before)
   })
 })
 
@@ -201,9 +220,9 @@ const userTurns = (state: { entries: readonly unknown[] }) =>
   state.entries.filter((entry) => (entry as { kind: string }).kind === 'user')
 
 describe('send to a persona whose session is idle', () => {
-  it('shows a plain user turn at once, writes the text to that session, and makes it busy', () => {
+  it('shows a plain user turn at once, writes the text to that session, and makes it busy', async () => {
     const { conversation, last, failures } = build()
-    conversation.connect()
+    await connected(conversation)
     bridge.push(opened('s1', mary.id))
     bridge.push(awaiting('s1'))
     conversation.send(mary.id, 'hello')
@@ -219,7 +238,7 @@ describe('send to a persona whose session is idle', () => {
 
   it('clears busy and shows the envelope when the write is refused, so the next send is written', async () => {
     const { conversation, failures, last } = build()
-    conversation.connect()
+    await connected(conversation)
     bridge.push(opened('s1', mary.id))
     bridge.push(awaiting('s1'))
     bridge.sendResults.push(
@@ -247,9 +266,9 @@ describe('send to a persona whose session is idle', () => {
 })
 
 describe('send while a turn is in flight', () => {
-  it('shows a queued user turn in the same commit and transmits nothing', () => {
+  it('shows a queued user turn in the same commit and transmits nothing', async () => {
     const { conversation, published, last } = build()
-    conversation.connect()
+    await connected(conversation)
     bridge.push(opened('s1', mary.id))
     const before = published.length
     conversation.send(mary.id, 'too soon')
@@ -268,9 +287,9 @@ describe('send while a turn is in flight', () => {
     expect(bridge.sends).toEqual([])
   })
 
-  it('sends queued messages first in first, one per awaiting-turn, un-dimming each in place', () => {
+  it('sends queued messages first in first, one per awaiting-turn, un-dimming each in place', async () => {
     const { conversation, last } = build()
-    conversation.connect()
+    await connected(conversation)
     bridge.push(opened('s1', mary.id))
     conversation.send(mary.id, 'one')
     conversation.send(mary.id, 'two')
@@ -292,9 +311,9 @@ describe('send while a turn is in flight', () => {
     expect(bridge.sends).toHaveLength(2)
   })
 
-  it('removes a cancelled message and never sends it, leaving later sends unaffected', () => {
+  it('removes a cancelled message and never sends it, leaving later sends unaffected', async () => {
     const { conversation, last } = build()
-    conversation.connect()
+    await connected(conversation)
     bridge.push(opened('s1', mary.id))
     conversation.send(mary.id, 'one')
     conversation.send(mary.id, 'two')
@@ -306,9 +325,9 @@ describe('send while a turn is in flight', () => {
     expect(bridge.opens).toEqual([])
   })
 
-  it('writes nothing to main when a message is cancelled', () => {
+  it('writes nothing to main when a message is cancelled', async () => {
     const { conversation } = build()
-    conversation.connect()
+    await connected(conversation)
     bridge.push(opened('s1', mary.id))
     conversation.send(mary.id, 'one')
     conversation.cancel('entry-0')
@@ -319,7 +338,7 @@ describe('send while a turn is in flight', () => {
 
   it('puts a message main refused as busy back at the head of the queue, queued again, with no error', async () => {
     const { conversation, failures, last } = build()
-    conversation.connect()
+    await connected(conversation)
     bridge.push(opened('s1', mary.id))
     conversation.send(mary.id, 'one')
     conversation.send(mary.id, 'two')
@@ -345,9 +364,9 @@ describe('send while a turn is in flight', () => {
     ])
   })
 
-  it('lets another persona’s idle session take a send at once', () => {
+  it('lets another persona’s idle session take a send at once', async () => {
     const { conversation } = build()
-    conversation.connect()
+    await connected(conversation)
     bridge.push(opened('s1', mary.id))
     bridge.push(opened('s2', john.id))
     bridge.push(awaiting('s2'))
@@ -361,7 +380,7 @@ describe('send while a turn is in flight', () => {
 describe('send to a persona with no session', () => {
   it('opens the session, shows the turn queued, and writes it after the activation turn ends', async () => {
     const { conversation, last } = build()
-    conversation.connect()
+    await connected(conversation)
     conversation.send(john.id, 'hello john')
 
     expect(bridge.opens).toEqual([john.id])
@@ -385,7 +404,7 @@ describe('send to a persona with no session', () => {
 
   it('sends on awaiting-turn alone when the event beats the open reply', async () => {
     const { conversation } = build()
-    conversation.connect()
+    await connected(conversation)
     conversation.send(john.id, 'hello john')
     bridge.push(opened('s7', john.id))
     bridge.push(awaiting('s7'))
@@ -398,7 +417,7 @@ describe('send to a persona with no session', () => {
 
   it('sends at once when the session was already live and idle, as after a window reload', async () => {
     const { conversation, last } = build()
-    conversation.connect()
+    await connected(conversation)
     conversation.send(john.id, 'hello again')
     bridge.openResult[0].resolve('s7')
     await settle()
@@ -409,7 +428,7 @@ describe('send to a persona with no session', () => {
 
   it('queues a second message behind the first rather than refusing it', async () => {
     const { conversation, failures, last } = build()
-    conversation.connect()
+    await connected(conversation)
     conversation.send(john.id, 'one')
     conversation.send(john.id, 'two')
 
@@ -433,7 +452,7 @@ describe('send to a persona with no session', () => {
 describe('messages waiting on a session that is lost', () => {
   it('are dropped with their entries when the open is refused, and the failure still shows', async () => {
     const { conversation, failures, last } = build()
-    conversation.connect()
+    await connected(conversation)
     conversation.send(john.id, 'one')
     bridge.openResult[0].reject({
       code: 'session/spawn-failed',
@@ -452,7 +471,7 @@ describe('messages waiting on a session that is lost', () => {
 
   it('are dropped with their entries on session:closed, and never sent to a later session', async () => {
     const { conversation, last } = build()
-    conversation.connect()
+    await connected(conversation)
     conversation.send(john.id, 'stale')
     bridge.push(opened('s7', john.id))
     bridge.push({
@@ -466,6 +485,148 @@ describe('messages waiting on a session that is lost', () => {
     expect(bridge.sends).toEqual([])
     conversation.send(john.id, 'fresh')
     expect(bridge.sends).toEqual([['s8', 'fresh']])
+  })
+})
+
+describe('connecting to a conversation that already exists', () => {
+  const snapshotOf = (over: Partial<ConversationSnapshot>): ConversationSnapshot => ({ ...EMPTY, ...over })
+  const stored: ConversationSnapshot['entries'] = [
+    { kind: 'user', id: 'm-0', at: 5, text: 'hello' },
+    { kind: 'persona', id: 'm-1', at: 6, agentId: mary.id, messageId: 'msg_1', text: 'Hel' }
+  ]
+
+  it('shows a turn that was in flight, joins what follows to it, reads the persona as working and ends as normal', async () => {
+    bridge.conversation = Promise.resolve(
+      snapshotOf({
+        entries: stored,
+        sessions: [{ agentId: mary.id, sessionId: 's1' }],
+        busy: ['s1'],
+        personas: [{ agentId: mary.id, state: 'work', at: 40 }]
+      })
+    )
+    const { conversation, last } = build()
+    await connected(conversation)
+
+    expect(last().entries).toMatchObject([
+      { kind: 'user', text: 'hello' },
+      { kind: 'persona', text: 'Hel', agent: mary }
+    ])
+    expect(last().personas.get(mary.id)).toEqual({ state: 'work', at: 40 })
+
+    bridge.push(said(mary.id, 'msg_1', 'lo'))
+    expect(last().entries[1]).toMatchObject({ text: 'Hello' })
+
+    conversation.send(mary.id, 'meanwhile')
+    expect(last().entries[2]).toMatchObject({ queuedFor: 'Mary' })
+    expect(bridge.sends).toEqual([])
+    expect(bridge.opens).toEqual([])
+
+    bridge.push(awaiting('s1'))
+    expect(bridge.sends).toEqual([['s1', 'meanwhile']])
+    expect(last().entries[2]).not.toHaveProperty('queuedFor')
+  })
+
+  it('drops what arrives before the snapshot, which already holds it', async () => {
+    const pending = deferred<ConversationSnapshot>()
+    bridge.conversation = pending.promise
+    const { conversation, last } = build()
+    conversation.connect()
+
+    bridge.push(said(mary.id, 'msg_1', 'Hel'))
+    bridge.push(personaState(mary.id, 'work', 3))
+    pending.resolve(snapshotOf({ entries: stored }))
+    await settle()
+    bridge.push(said(mary.id, 'msg_1', 'lo'))
+
+    expect(last().entries).toMatchObject([{ text: 'hello' }, { text: 'Hello' }])
+    expect(last().personas.size).toBe(0)
+  })
+
+  it('keeps a message typed before the snapshot queued, then sends it after, in order', async () => {
+    const pending = deferred<ConversationSnapshot>()
+    bridge.conversation = pending.promise
+    const { conversation, last } = build()
+    conversation.connect()
+    conversation.activate(mary.id)
+    conversation.send(mary.id, 'one')
+    conversation.send(mary.id, 'two')
+
+    expect(last().entries).toMatchObject([
+      { text: 'one', queuedFor: 'Mary' },
+      { text: 'two', queuedFor: 'Mary' }
+    ])
+    expect(bridge.sends).toEqual([])
+    expect(bridge.opens).toEqual([])
+
+    pending.resolve(snapshotOf({ entries: stored, sessions: [{ agentId: mary.id, sessionId: 's1' }] }))
+    await settle()
+
+    expect(last().entries).toMatchObject([
+      { text: 'hello' },
+      { text: 'Hel' },
+      { text: 'one' },
+      { text: 'two' }
+    ])
+    expect(bridge.sends).toEqual([['s1', 'one']])
+    expect(bridge.opens).toEqual([])
+    bridge.push(awaiting('s1'))
+    expect(bridge.sends).toEqual([['s1', 'one'], ['s1', 'two']])
+  })
+
+  it('opens the session for what was typed before the snapshot when none is live', async () => {
+    const pending = deferred<ConversationSnapshot>()
+    bridge.conversation = pending.promise
+    const { conversation } = build()
+    conversation.connect()
+    conversation.send(john.id, 'hi')
+    expect(bridge.opens).toEqual([])
+
+    pending.resolve(snapshotOf({}))
+    await settle()
+
+    expect(bridge.opens).toEqual([john.id])
+  })
+
+  it('sends into a session that is busy only after its turn ends', async () => {
+    bridge.conversation = Promise.resolve(
+      snapshotOf({ sessions: [{ agentId: mary.id, sessionId: 's1' }], busy: ['s1'] })
+    )
+    const { conversation } = build()
+    await connected(conversation)
+    conversation.send(mary.id, 'x')
+
+    expect(bridge.sends).toEqual([])
+    bridge.push(awaiting('s1'))
+    expect(bridge.sends).toEqual([['s1', 'x']])
+  })
+
+  it('carries on from an empty conversation, and shows the failure, when the read is refused', async () => {
+    bridge.conversation = Promise.reject({
+      code: 'conversation/no-project',
+      message: 'conversation · no project is open for this window'
+    })
+    const { conversation, failures, last } = build()
+    await connected(conversation)
+
+    expect(failures.at(-1)).toMatchObject({ code: 'conversation/no-project' })
+    bridge.push(said(mary.id, 'm1', 'Hello'))
+    expect(last().entries).toMatchObject([{ text: 'Hello' }])
+  })
+})
+
+describe('a window that goes before main answers', () => {
+  it('opens nothing for a persona asked for meanwhile when the read is then refused', async () => {
+    const refused = deferred<ConversationSnapshot>()
+    bridge.conversation = refused.promise
+    const { conversation } = build()
+    const stop = conversation.connect()
+    conversation.activate(mary.id)
+    stop()
+
+    refused.reject({ code: 'conversation/no-project', message: 'conversation · none' })
+    await settle()
+
+    expect(bridge.opens).toEqual([])
   })
 })
 
@@ -486,7 +647,7 @@ describe('useConversation', () => {
     install(undefined)
   })
 
-  it('does nothing and throws nothing when the preload has no session methods', () => {
+  it('does nothing and throws nothing when the preload has no session methods', async () => {
     install({})
     hook = renderHook(() => useConversation(agents))
 
@@ -497,10 +658,28 @@ describe('useConversation', () => {
     expect(hook.current.failure).toBeNull()
   })
 
+  it('names a stored persona turn from the roster as it is now, and by id until the roster is read', async () => {
+    bridge.conversation = Promise.resolve({
+      ...EMPTY,
+      entries: [{ kind: 'persona', id: 'm-0', at: 6, agentId: mary.id, messageId: 'msg_1', text: 'Hi' }]
+    })
+    install(bridge)
+    let roster: readonly AgentView[] = []
+    hook = renderHook(() => useConversation(roster))
+    await settle()
+    expect(hook.current.entries[0]).toMatchObject({ agent: { id: mary.id, name: mary.id } })
+
+    // The roster is read: the next render names the persona, with no new transcript.
+    roster = agents
+    inAct(() => bridge.push(personaState(mary.id, 'work', 9)))
+    expect(hook.current.entries[0]).toMatchObject({ agent: mary })
+  })
+
   it('subscribes on mount, renders pushed speech and sends, and unsubscribes on unmount', async () => {
     install(bridge)
     hook = renderHook(() => useConversation(agents))
     expect(bridge.listeners.size).toBe(1)
+    await settle()
 
     inAct(() => bridge.push(said(mary.id, 'm1', 'Hello')))
     expect(hook.current.entries).toMatchObject([{ kind: 'persona', agent: mary, text: 'Hello' }])

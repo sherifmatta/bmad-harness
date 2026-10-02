@@ -2,6 +2,7 @@ import { BrowserWindow, app, ipcMain } from 'electron'
 import { registerDocBridge } from './doc-bridge'
 import { registerInstallBridge } from './install-bridge'
 import { registerProjectBridge } from './project-bridge'
+import { createTranscriptRegistry } from './projections/transcript'
 import { registerRailBridge } from './rail-bridge'
 import { registerSessionBridge } from './session-bridge'
 import { installApplicationMenu } from './windows/app-menu'
@@ -71,7 +72,14 @@ registerInstallBridge()
 registerProjectBridge()
 registerRailBridge()
 registerDocBridge()
-registerSessionBridge()
+// The conversations under `userData`, flushed when the app quits so nothing a
+// scheduled write had yet to reach is lost. `userData` is read on first use.
+const transcripts = createTranscriptRegistry({ userDataPath: () => app.getPath('userData') })
+registerSessionBridge({ transcripts })
+
+app.on('before-quit', () => {
+  transcripts.flushAll()
+})
 
 /**
  * Anything `openProjectWindow` did not expect. It is attached at every call

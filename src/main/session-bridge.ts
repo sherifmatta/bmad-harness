@@ -1,11 +1,14 @@
 import { randomUUID } from 'node:crypto'
-import { ipcMain } from 'electron'
+import { app, ipcMain } from 'electron'
 import type { IpcMainInvokeEvent } from 'electron'
 import type { ContractCommands } from '../shared/commands'
+import type { ConversationReply } from '../shared/conversation'
 import type { ContractEvent } from '../shared/events'
 import type { AgentId, SessionId } from '../shared/ids'
 import type { HarnessError } from '../shared/install'
 import type { PersonaProjection } from './projections/personas'
+import { createTranscriptRegistry } from './projections/transcript'
+import type { TranscriptRegistry } from './projections/transcript'
 import { SESSION_EVENT_CHANNEL, personaProjectionFor } from './persona-states'
 import { initialRouteState, routeFrame } from './fold/route-frame'
 import type { RouteState } from './fold/route-frame'
@@ -19,12 +22,14 @@ import type {
 import { projectPathForWebContents } from './windows/main-window'
 
 /**
- * The three channels behind the preload's three session methods. Exported so
+ * The channels behind the preload's four session methods. Exported so
  * tests/bridge-contract.test.ts can tie them to the preload's own literals.
- * Every event travels on the one `session:event` channel as `{name, payload}`.
+ * Every event travels on the one `session:event` channel as `{name, payload}`;
+ * `conversation:get` is the read a window makes on connecting.
  */
 export const SESSION_OPEN_CHANNEL = 'session:open'
 export const TURN_SEND_CHANNEL = 'turn:send'
+export const CONVERSATION_GET_CHANNEL = 'conversation:get'
 export { SESSION_EVENT_CHANNEL }
 
 /** The parts of a `WebContents` the bridge touches. */
@@ -45,6 +50,12 @@ export type SessionBridgeDeps = {
   /** The clock every event is stamped from, injected so the fold never reads one. */
   now?: () => number
   newSessionId?: () => SessionId
+  /**
+   * The transcripts, per project, that survive a reload and a relaunch. The
+   * real one keeps them under `userData`; the composition root holds it so it
+   * can flush them when the app quits.
+   */
+  transcripts?: TranscriptRegistry
 }
 
 type Entry = {
@@ -61,6 +72,8 @@ type Entry = {
 }
 
 type Service = {
+  /** The project this window was opened for, which its transcript is kept under. */
+  projectRoot: string
   bySession: Map<SessionId, Entry>
   byAgent: Map<AgentId, Entry>
   /** The window's persona states, shared with the rail bridge. */
@@ -94,6 +107,8 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): void {
   const start = deps.spawn ?? spawnSession
   const now = deps.now ?? (() => Date.now())
   const newSessionId = deps.newSessionId ?? (() => randomUUID())
+  const transcripts =
+    deps.transcripts ?? createTranscriptRegistry({ userDataPath: () => app.getPath('userData') })
 
   const services = new Map<number, Service>()
 
@@ -109,12 +124,13 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): void {
     service.personas.apply(event)
   }
 
-  function serviceFor(sender: Sender): Service {
+  function serviceFor(sender: Sender, projectRoot: string): Service {
     const existing = services.get(sender.id)
     if (existing !== undefined) {
       return existing
     }
     const service: Service = {
+      projectRoot,
       bySession: new Map(),
       byAgent: new Map(),
       personas: personaProjectionFor(sender, now)
@@ -124,12 +140,14 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): void {
     // The window is gone: its processes go with it. The renderer is no longer
     // there to hear `session:closed`, so `emit` says nothing to a destroyed
     // sender, but the entries are closed all the same so nothing speaks again.
+    // The transcript is kept, and written now rather than when its timer fires.
     sender.once('destroyed', () => {
       for (const entry of [...service.bySession.values()]) {
         entry.session?.kill()
         finish(sender, service, entry, 'closed')
       }
       services.delete(sender.id)
+      transcripts.flush(projectRoot)
     })
     return service
   }
@@ -174,8 +192,9 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): void {
     })
     entry.route = routed.state
     for (const event of routed.events) {
-      // A chat turn: the words are all the renderer is told.
+      // A chat turn: the words are all the renderer is told, and the transcript keeps them.
       if (event.name === 'persona:said') {
+        transcripts.forProject(entry.projectRoot).recordPersonaSaid(event.payload)
         emit(sender, event)
       }
       // Whatever the fold routed is heard by the persona states, which use only the run events.
@@ -247,7 +266,7 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): void {
           message: 'session · not a valid agent id'
         })
       }
-      const service = serviceFor(sender)
+      const service = serviceFor(sender, projectRoot)
       const existing = service.byAgent.get(agentId)
       if (existing !== undefined) {
         return existing.ready
@@ -285,11 +304,41 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): void {
           message: 'session · the turn could not be written'
         })
       }
+      // The user's turn is recorded once it is written, at the instant it started.
+      const at = now()
+      transcripts.forProject(entry.projectRoot).recordUserTurn(text, at)
       service.personas.apply({
         name: 'turn:started',
-        payload: { sessionId: entry.sessionId }
+        payload: { sessionId: entry.sessionId, at }
       })
       return { ok: true }
     }
   )
+
+  // Synchronous on purpose: everything main sent before this reply is in the
+  // snapshot and everything after it is not, which is what lets the window drop
+  // the events that arrive first and fold the ones that follow.
+  ipcMain.handle(CONVERSATION_GET_CHANNEL, (event: IpcMainInvokeEvent): ConversationReply => {
+    const sender = event.sender as unknown as Sender
+    const projectRoot = projectPathFor(sender.id)
+    if (projectRoot === undefined) {
+      return failure({
+        code: 'conversation/no-project',
+        message: 'conversation · no project is open for this window'
+      })
+    }
+    // A session still starting has told the window nothing yet, and is not one.
+    const live = [...(services.get(sender.id)?.bySession.values() ?? [])].filter(
+      (entry) => !entry.closed && entry.session !== undefined
+    )
+    return {
+      ok: true,
+      snapshot: {
+        entries: [...transcripts.forProject(projectRoot).entries()],
+        sessions: live.map(({ agentId, sessionId }) => ({ agentId, sessionId })),
+        busy: live.filter((entry) => entry.inFlight).map((entry) => entry.sessionId),
+        personas: personaProjectionFor(sender, now).snapshot()
+      }
+    }
+  })
 }

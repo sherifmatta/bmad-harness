@@ -200,6 +200,20 @@ describe('what the layer rule deliberately permits', () => {
       code: ["import '../fold/persona-state'", "import '../../shared/events'"].join('\n')
     },
     {
+      what: 'the transcript projection reaching its fold and the persistence source, and the fold reaching only the contract',
+      filePath: 'src/main/projections/probe.ts',
+      code: [
+        "import '../fold/transcript'",
+        "import '../sources/persistence/transcript-file'",
+        "import '../../shared/conversation'"
+      ].join('\n')
+    },
+    {
+      what: 'the persistence source reaching only the contract it stores',
+      filePath: 'src/main/sources/persistence/probe.ts',
+      code: "import '../../../shared/conversation'"
+    },
+    {
       what: 'the composition root wiring the main side together',
       filePath: 'src/main/probe.ts',
       code: [
