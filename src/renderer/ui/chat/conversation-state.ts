@@ -245,6 +245,23 @@ export function dispatchRefusedBusy(
   )
 }
 
+/**
+ * The conversation ended: the transcript, the queue, the live sessions and the
+ * busy set are gone, so the window starts empty. The personas stay as main
+ * reported them (the `session:closed` events it folded before the reply have
+ * already settled them), and `nextId` is kept so an entry key is never reused
+ * by something still holding an old one.
+ */
+export function ended(state: ConversationState): ConversationState {
+  return {
+    ...state,
+    entries: [],
+    sessions: new Map(),
+    busy: new Set(),
+    queue: new Map()
+  }
+}
+
 /** A persona the roster no longer names still has its words shown, under its id. */
 function unknownAgent(id: string): AgentView {
   return { id, module: '', name: id, title: '', icon: '', description: '' }

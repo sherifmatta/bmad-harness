@@ -6,7 +6,7 @@ import type { ConversationReply } from '../shared/conversation'
 import type { ContractEvent } from '../shared/events'
 import { createTranscriptRegistry } from './projections/transcript'
 import type { TranscriptRegistry, TranscriptRegistryDeps } from './projections/transcript'
-import { transcriptFilePath } from './sources/persistence/transcript-file'
+import { transcriptFilePath, writeTranscript as writeThrough } from './sources/persistence/transcript-file'
 import type { SessionProcess, SpawnOutcome, SpawnSessionOptions } from './sources/session/session-process'
 
 type OpenHandler = (event: { sender: FakeSender }, agentId: unknown) => Promise<unknown>
@@ -22,6 +22,7 @@ vi.mock('electron', () => ({
 }))
 
 const {
+  CONVERSATION_END_CHANNEL,
   CONVERSATION_GET_CHANNEL,
   SESSION_EVENT_CHANNEL,
   SESSION_OPEN_CHANNEL,
@@ -179,13 +180,20 @@ const textStart = {
 const result = (subtype = 'success', is_error = false) => ({ type: 'result', subtype, is_error })
 
 describe('channels', () => {
-  it('are the four literals the preload shares', () => {
+  it('are the five literals the preload shares', () => {
     expect([
       SESSION_OPEN_CHANNEL,
       TURN_SEND_CHANNEL,
       SESSION_EVENT_CHANNEL,
-      CONVERSATION_GET_CHANNEL
-    ]).toEqual(['session:open', 'turn:send', 'session:event', 'conversation:get'])
+      CONVERSATION_GET_CHANNEL,
+      CONVERSATION_END_CHANNEL
+    ]).toEqual([
+      'session:open',
+      'turn:send',
+      'session:event',
+      'conversation:get',
+      'conversation:end'
+    ])
   })
 })
 
@@ -803,6 +811,228 @@ describe('reclaim', () => {
       ok: true,
       snapshot: { entries: [{ text: 'Bye' }], sessions: [], busy: [], personas: [] }
     })
+  })
+})
+
+describe('conversation.end', () => {
+  const A = 'bmad-agent-analyst'
+  type EndReply = { ok: true } | { ok: false; error: { code: string; message: string; detail?: string } }
+  const end = (sender: FakeSender, projectId: unknown): EndReply =>
+    (handlers.get(CONVERSATION_END_CHANNEL) as unknown as (e: { sender: FakeSender }, id: unknown) => EndReply)(
+      { sender },
+      projectId
+    )
+  const get = (sender: FakeSender): ConversationReply =>
+    (handlers.get(CONVERSATION_GET_CHANNEL) as unknown as (e: { sender: FakeSender }) => ConversationReply)({ sender })
+  const entriesOf = (sender: FakeSender) => {
+    const reply = get(sender)
+    if (!reply.ok) throw new Error('expected a snapshot')
+    return reply.snapshot.entries
+  }
+  const say = (proc: FakeProcess, id: string, text: string) => {
+    proc.frame(messageStart(id))
+    proc.frame(textStart)
+    proc.frame(delta(text))
+  }
+  const closedEvents = (sender: FakeSender) => sender.events.filter((event) => event.name === 'session:closed')
+  const fileOf = (project: string) => transcriptFilePath(userData, project)
+
+  it('clears the file to entries: [], closes the idle live session and replies ok', async () => {
+    const { sender, reply, proc } = await opened()
+    say(proc, 'msg_1', 'Hi')
+    proc.frame(result())
+    send(sender, reply.sessionId, 'thanks')
+    registry.flushAll()
+    expect(JSON.parse(readFileSync(fileOf('/project-1'), 'utf8')).entries).toHaveLength(2)
+
+    expect(end(sender, '/project-1')).toEqual({ ok: true })
+
+    expect(JSON.parse(readFileSync(fileOf('/project-1'), 'utf8'))).toEqual({
+      version: 1,
+      projectPath: '/project-1',
+      entries: []
+    })
+    expect(proc.killed).toBe(true)
+    expect(closedEvents(sender)).toMatchObject([{ payload: { sessionId: 's1', agentId: A, reason: 'closed' } }])
+    expect(get(sender)).toMatchObject({
+      ok: true,
+      snapshot: { entries: [], sessions: [], busy: [], personas: [] }
+    })
+  })
+
+  it('closes a session killed mid-turn, and records and emits nothing from it afterwards', async () => {
+    const { sender, proc } = await opened()
+    say(proc, 'msg_1', 'Hel')
+    const before = sender.sent.length
+
+    expect(end(sender, '/project-1')).toEqual({ ok: true })
+    const afterEnd = sender.sent.length
+    proc.frame(delta('lo'))
+    proc.frame(result())
+    proc.exit()
+
+    expect(proc.killed).toBe(true)
+    expect(afterEnd).toBeGreaterThan(before)
+    expect(sender.sent).toHaveLength(afterEnd)
+    expect(closedEvents(sender)).toHaveLength(1)
+    expect(entriesOf(sender)).toEqual([])
+    // Nothing is left to write: the cleared file stays cleared.
+    registry.flushAll()
+    expect(JSON.parse(readFileSync(fileOf('/project-1'), 'utf8')).entries).toEqual([])
+  })
+
+  it('emits session:closed for each live session', async () => {
+    const sender = new FakeSender(1)
+    await opened(sender, 'bmad-agent-pm')
+    await opened(sender, A)
+
+    end(sender, '/project-1')
+
+    expect(closedEvents(sender)).toMatchObject([
+      { payload: { sessionId: 's1', reason: 'closed' } },
+      { payload: { sessionId: 's2', reason: 'closed' } }
+    ])
+    expect(processes.every((proc) => proc.killed)).toBe(true)
+  })
+
+  it('opens a fresh session for the next message, and the transcript begins again at m-0', async () => {
+    const { sender, proc } = await opened()
+    say(proc, 'msg_1', 'Hi')
+    end(sender, '/project-1')
+
+    const next = await opened(sender)
+    expect(next.reply.sessionId).toBe('s2')
+    expect(processes).toHaveLength(2)
+    say(next.proc, 'msg_9', 'Again')
+    expect(entriesOf(sender)).toMatchObject([{ id: 'm-0', text: 'Again' }])
+  })
+
+  it('relaunch after an end: the transcript is empty and every persona idle', async () => {
+    const { sender, proc } = await opened()
+    say(proc, 'msg_1', 'Hi')
+    registry.flushAll()
+    end(sender, '/project-1')
+
+    launch()
+    expect(get(new FakeSender(1))).toEqual({
+      ok: true,
+      snapshot: { entries: [], sessions: [], busy: [], personas: [] }
+    })
+  })
+
+  it('refuses another project’s id and touches nothing', async () => {
+    const { sender, proc } = await opened()
+    say(proc, 'msg_1', 'Hi')
+    registry.flushAll()
+    const before = sender.sent.length
+
+    expect(end(sender, '/project-2')).toEqual({
+      ok: false,
+      error: { code: 'conversation/wrong-project', message: 'conversation · not the project this window holds' }
+    })
+
+    expect(proc.killed).toBe(false)
+    expect(sender.sent).toHaveLength(before)
+    expect(entriesOf(sender)).toHaveLength(1)
+    expect(JSON.parse(readFileSync(fileOf('/project-1'), 'utf8')).entries).toHaveLength(1)
+  })
+
+  it.each([undefined, 1, null, {}, ['/project-1']])('refuses a non-string id (%j)', async (id) => {
+    const { sender, proc } = await opened()
+
+    expect(end(sender, id)).toMatchObject({ ok: false, error: { code: 'conversation/wrong-project' } })
+    expect(proc.killed).toBe(false)
+    expect(closedEvents(sender)).toEqual([])
+  })
+
+  it('refuses a window with no project', () => {
+    expect(end(new FakeSender(500), '/project-500')).toEqual({
+      ok: false,
+      error: { code: 'conversation/no-project', message: 'conversation · no project is open for this window' }
+    })
+  })
+
+  it('on a failed write changes nothing: the transcript, the sessions and the file stay', async () => {
+    let failing = false
+    launch({ write: (file, project, entries) => (failing ? { ok: false, errno: 'EACCES' } : writeThrough(file, project, entries)) })
+    const { sender, proc } = await opened()
+    say(proc, 'msg_1', 'Hi')
+    registry.flushAll()
+    failing = true
+    const before = sender.sent.length
+
+    expect(end(sender, '/project-1')).toEqual({
+      ok: false,
+      error: {
+        code: 'conversation/end-failed',
+        message: 'conversation · could not end the conversation',
+        detail: 'EACCES'
+      }
+    })
+
+    expect(logs).toEqual(['persist/write-failed · EACCES'])
+    expect(proc.killed).toBe(false)
+    expect(sender.sent).toHaveLength(before)
+    expect(entriesOf(sender)).toMatchObject([{ text: 'Hi' }])
+    expect(JSON.parse(readFileSync(fileOf('/project-1'), 'utf8')).entries).toMatchObject([{ text: 'Hi' }])
+    // The session still speaks into the transcript.
+    say(proc, 'msg_2', 'More')
+    expect(entriesOf(sender)).toHaveLength(2)
+  })
+
+  it('refuses a transcript path inside the project, with the errno', async () => {
+    const project = mkdtempSync(join(tmpdir(), 'harness-project-'))
+    const inside = join(project, 'data')
+    mkdirSync(inside)
+    userData = inside
+    projectOf = () => project
+    launch()
+    try {
+      const { sender } = await opened()
+      expect(end(sender, project)).toMatchObject({
+        ok: false,
+        error: { code: 'conversation/end-failed', detail: 'inside-project' }
+      })
+      expect(readdirSync(inside)).toEqual([])
+    } finally {
+      rmSync(project, { recursive: true, force: true })
+    }
+  })
+
+  it('kills the process of an open still starting, closes it, and the open answers not-found', async () => {
+    const sender = new FakeSender(1)
+    const pending = open(sender, A)
+
+    expect(end(sender, '/project-1')).toEqual({ ok: true })
+    expect(closedEvents(sender)).toMatchObject([{ payload: { sessionId: 's1', reason: 'closed' } }])
+    await processes[0].up()
+
+    expect(await pending).toMatchObject({ ok: false, error: { code: 'session/not-found' } })
+    expect(processes[0].killed).toBe(true)
+    expect(sender.names).not.toContain('session:opened')
+  })
+
+  it('clears only its own project: another project’s file and sessions stay', async () => {
+    const one = await opened(new FakeSender(1), A)
+    const two = await opened(new FakeSender(2), A)
+    say(one.proc, 'a', 'first')
+    say(two.proc, 'b', 'second')
+    registry.flushAll()
+
+    end(one.sender, '/project-1')
+
+    expect(JSON.parse(readFileSync(fileOf('/project-1'), 'utf8')).entries).toEqual([])
+    expect(JSON.parse(readFileSync(fileOf('/project-2'), 'utf8')).entries).toMatchObject([{ text: 'second' }])
+    expect(two.proc.killed).toBe(false)
+    expect(closedEvents(two.sender)).toEqual([])
+    expect(entriesOf(two.sender)).toHaveLength(1)
+  })
+
+  it('works for a window that never opened a session', () => {
+    const sender = new FakeSender(1)
+
+    expect(end(sender, '/project-1')).toEqual({ ok: true })
+    expect(sender.sent).toEqual([])
   })
 })
 

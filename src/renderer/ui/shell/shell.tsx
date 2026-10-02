@@ -62,6 +62,7 @@ export function Shell({
   rail = null,
   railFailure = null,
   onActivate,
+  onEndSession,
   composer,
   children
 }: {
@@ -82,6 +83,8 @@ export function Shell({
   railFailure?: HarnessError | null
   /** Called with the agent's id on every tile selection, the current tile's too. */
   onActivate?: (agentId: string) => void
+  /** Called when the end-session control is activated. Without it the control is not rendered. */
+  onEndSession?: () => void
   /** The composer for the current persona, rendered in the chat column under the thread. */
   composer?: (agent: AgentView) => ReactNode
   children?: ReactNode
@@ -110,6 +113,7 @@ export function Shell({
         branch={branch}
         view={view}
         onView={setView}
+        onEndSession={onEndSession}
       />
       <section
         className="view view-conversation"

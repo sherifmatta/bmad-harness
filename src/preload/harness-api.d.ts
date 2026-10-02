@@ -5,7 +5,7 @@ import type { InstallSnapshot } from '../shared/install'
 import type { RailSnapshot } from '../shared/rail'
 
 /**
- * The whole bridge surface. Explicitly enumerated: twelve named methods, no
+ * The whole bridge surface. Explicitly enumerated: thirteen named methods, no
  * generic `invoke(channel, …)` passthrough, and no `ipcRenderer` in the
  * renderer's reach.
  */
@@ -54,6 +54,14 @@ export interface HarnessApi {
    * that reach the window before it resolves are already in what it returns.
    */
   getConversation(): Promise<ConversationSnapshot>
+  /**
+   * End this window's conversation: main checks `projectId` is the project the
+   * window was opened for, clears its stored transcript and closes its
+   * sessions. Resolves when it has; rejects with the `HarnessError` envelope
+   * (`conversation/wrong-project`, `conversation/end-failed`, …) and then
+   * changes nothing.
+   */
+  endConversation(projectId: string): Promise<void>
   /**
    * Calls back with each contract event main pushes for this window's
    * sessions, as `{name, payload}`; returns the way to stop listening.

@@ -24,6 +24,7 @@ export const SESSION_OPEN_CHANNEL = 'session:open'
 export const TURN_SEND_CHANNEL = 'turn:send'
 export const SESSION_EVENT_CHANNEL = 'session:event'
 export const CONVERSATION_GET_CHANNEL = 'conversation:get'
+export const CONVERSATION_END_CHANNEL = 'conversation:end'
 
 const harness: HarnessApi = {
   getProjectPath: () => ipcRenderer.invoke(PROJECT_PATH_CHANNEL) as Promise<string>,
@@ -118,6 +119,19 @@ const harness: HarnessApi = {
       return reply.snapshot
     }
     throw reply.error
+  },
+
+  // A command (AD-13): the project's id, which is its path, goes to main, which
+  // checks it is this window's own, clears the stored transcript and ends the
+  // window's sessions. Nothing comes back but whether it did.
+  endConversation: async (projectId) => {
+    const reply = (await ipcRenderer.invoke(
+      CONVERSATION_END_CHANNEL,
+      projectId
+    )) as ContractCommands['conversation.end']['reply']
+    if (!reply.ok) {
+      throw reply.error
+    }
   },
 
   onSessionEvent: (listener) => {

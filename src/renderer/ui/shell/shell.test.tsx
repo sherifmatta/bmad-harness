@@ -108,6 +108,62 @@ describe('Topbar', () => {
   })
 })
 
+describe('Topbar, the end-session control', () => {
+  it('is not rendered without a handler', () => {
+    expect(topbar()).not.toContain('End session')
+    expect(count(topbar(), /<button/g)).toBe(2)
+  })
+
+  it('is a native, always-enabled button after the view switch, with no title, accent, badge or state', () => {
+    const markup = topbar({ onEndSession: () => {} })
+
+    expect(count(markup, /<button/g)).toBe(3)
+    expect(markup).toContain('<button type="button" class="end-session">End session</button>')
+    expect(markup.indexOf('End session')).toBeGreaterThan(markup.indexOf('Party Mode'))
+    const control = markup.match(/<button[^>]*end-session[^>]*>/)?.[0] ?? ''
+    expect(control).not.toMatch(/title=|disabled|aria-|tabindex|style=/)
+    expect(markup).not.toContain('tabindex')
+    expect(count(markup, /aria-pressed/g)).toBe(2)
+  })
+
+  it('is rendered by the shell only when it is given an end handler', () => {
+    const without = renderToStaticMarkup(<Shell projectPath="/work/falcon" snapshot={snapshot(2)} />)
+    const withHandler = renderToStaticMarkup(
+      <Shell projectPath="/work/falcon" snapshot={snapshot(2)} onEndSession={() => {}} />
+    )
+
+    expect(without).not.toContain('End session')
+    expect(count(withHandler, /End session/g)).toBe(1)
+  })
+
+  it('dispatches directly on activation, with no confirm step', () => {
+    const calls: string[] = []
+    const element = Topbar({
+      projectPath: '/work/falcon',
+      agentCount: 1,
+      branch: null,
+      view: 'conversation',
+      onView: () => {},
+      onEndSession: () => void calls.push('end')
+    })
+    const found: ReactElement[] = []
+    const walk = (node: ReactNode): void => {
+      if (isValidElement(node)) {
+        const props = node.props as { onEnd?: () => void; children?: ReactNode }
+        if (props.onEnd !== undefined) found.push(node)
+        walk(props.children)
+      } else if (Array.isArray(node)) {
+        node.forEach(walk)
+      }
+    }
+    walk(element)
+
+    expect(found).toHaveLength(1)
+    ;(found[0].props as { onEnd: () => void }).onEnd()
+    expect(calls).toEqual(['end'])
+  })
+})
+
 describe('Shell', () => {
   const markup = renderToStaticMarkup(
     <Shell projectPath="/work/falcon" snapshot={snapshot(5)}>

@@ -421,6 +421,14 @@ describe('the shell stylesheets', () => {
     expect(withoutAnyComments(sourceText.get(SHELL_CSS) ?? '')).not.toMatch(/:focus/)
   })
 
+  it('leave the end-session control to the shared ring and the native button: no tabindex, no key handler, no live region of its own', () => {
+    const control = withoutAnyComments(sourceText.get('src/renderer/ui/shell/end-session.tsx') ?? '')
+
+    expect(control).toMatch(/<button type="button"/)
+    expect(control).not.toMatch(/tabIndex|onKeyDown|onKeyUp|aria-live|role=/)
+    expect(withoutAnyComments(sourceText.get(SHELL_CSS) ?? '')).toContain('.end-session {')
+  })
+
   it('mount the live region once per window, hidden by the component and not by its caller', () => {
     // Two windows, two pages, one region each: the project window's (app.tsx)
     // and the document window's own (Story 1.12), which shares no file with it.

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { ConversationSnapshot } from '../../../shared/conversation'
 import type { ContractEvent } from '../../../shared/events'
@@ -51,6 +52,9 @@ class FakeBridge implements ConversationBridge {
   /** What the connecting read answers: the empty conversation unless a test says otherwise. */
   conversation: Promise<ConversationSnapshot> = Promise.resolve(EMPTY)
   reads = 0
+  ends: string[] = []
+  /** What the next end answers; one entry is consumed per end. */
+  endResults: (Promise<void> | undefined)[] = []
 
   openSession(agentId: string): Promise<string> {
     this.opens.push(agentId)
@@ -65,6 +69,10 @@ class FakeBridge implements ConversationBridge {
   getConversation(): Promise<ConversationSnapshot> {
     this.reads += 1
     return this.conversation
+  }
+  endConversation(projectId: string): Promise<void> {
+    this.ends.push(projectId)
+    return this.endResults.shift() ?? Promise.resolve()
   }
   onSessionEvent(listener: (event: ContractEvent) => void): () => void {
     this.listeners.add(listener)
@@ -630,6 +638,145 @@ describe('a window that goes before main answers', () => {
   })
 })
 
+const closed = (sessionId: string, agentId: string): ContractEvent => ({
+  name: 'session:closed',
+  payload: { sessionId, agentId, reason: 'closed', at: 9 }
+})
+
+describe('end', () => {
+  it('sends the project id, and on the reply the window holds no entries, queue, sessions or busy set', async () => {
+    const { conversation, last, failures } = build()
+    await connected(conversation)
+    bridge.push(opened('s1', mary.id))
+    bridge.push(said(mary.id, 'm1', 'Hello'))
+    bridge.push(personaState(mary.id, 'work', 4))
+    conversation.send(mary.id, 'queued while busy')
+    expect(last().entries).toHaveLength(2)
+
+    // Main closes the sessions before it replies, and the window folds that first.
+    bridge.push(closed('s1', mary.id))
+    bridge.push(personaState(mary.id, 'idle', 10))
+    const result = conversation.end('/work/falcon')
+    await settle()
+
+    expect(await result).toBe(true)
+    expect(bridge.ends).toEqual(['/work/falcon'])
+    expect(last().entries).toEqual([])
+    expect([...last().personas]).toEqual([[mary.id, { state: 'idle', at: 10 }]])
+    expect(failures.filter((failure) => failure !== null)).toEqual([])
+
+    // A next message opens a fresh session rather than waiting on the old one.
+    conversation.send(mary.id, 'again')
+    expect(bridge.opens).toEqual([mary.id])
+    expect(last().entries).toMatchObject([{ text: 'again', queuedFor: 'Mary' }])
+  })
+
+  it('shows a refusal as the failure line and leaves everything as it was', async () => {
+    const { conversation, last, failures } = build()
+    await connected(conversation)
+    bridge.push(opened('s1', mary.id))
+    bridge.push(said(mary.id, 'm1', 'Hello'))
+    bridge.endResults.push(
+      Promise.reject({
+        code: 'conversation/end-failed',
+        message: 'conversation · could not end the conversation',
+        detail: 'EACCES'
+      })
+    )
+
+    expect(await conversation.end('/work/falcon')).toBe(false)
+
+    expect(failures.at(-1)).toMatchObject({ code: 'conversation/end-failed', detail: 'EACCES' })
+    expect(last().entries).toMatchObject([{ text: 'Hello' }])
+    // The session is still the persona’s: a send is written to it.
+    bridge.push(awaiting('s1'))
+    conversation.send(mary.id, 'still here')
+    expect(bridge.sends).toEqual([['s1', 'still here']])
+  })
+
+  it('clears an earlier failure line when it starts', async () => {
+    const { conversation, failures } = build()
+    await connected(conversation)
+    await conversation.end('/work/falcon')
+
+    expect(failures).toEqual([null])
+  })
+
+  it('does not show an open still in flight at the end as a failure, and loses nothing sent afterwards', async () => {
+    const { conversation, failures, last } = build()
+    await connected(conversation)
+    conversation.activate(mary.id)
+    bridge.push(closed('s-pending', mary.id))
+    const result = conversation.end('/work/falcon')
+    await settle()
+    await result
+
+    // Main kills the process that finishes starting after the end: its open is answered not-found.
+    bridge.openResult[0].reject({ code: 'session/not-found', message: 'session · no such session is open' })
+    await settle()
+
+    expect(failures.filter((failure) => failure !== null)).toEqual([])
+    // The stale open is not what a send after the end waits on.
+    conversation.send(mary.id, 'fresh')
+    expect(bridge.opens).toEqual([mary.id, mary.id])
+    bridge.openResult[1].resolve('s2')
+    await settle()
+    expect(bridge.sends).toEqual([['s2', 'fresh']])
+    expect(last().entries).toMatchObject([{ text: 'fresh' }])
+  })
+
+  it('keeps a second open tracked as in flight when the first, begun before the end, settles after it', async () => {
+    const { conversation } = build()
+    await connected(conversation)
+    conversation.activate(mary.id)
+    await conversation.end('/work/falcon')
+    conversation.send(mary.id, 'fresh')
+    expect(bridge.opens).toEqual([mary.id, mary.id])
+
+    bridge.openResult[0].reject({ code: 'session/not-found', message: 'session · no such session is open' })
+    await settle()
+    conversation.send(mary.id, 'more')
+
+    // The first open's settling did not forget the second: no third open starts.
+    expect(bridge.opens).toEqual([mary.id, mary.id])
+  })
+
+  it('opens nothing for a persona asked for before the snapshot when the conversation ends before it arrives', async () => {
+    const pending = deferred<ConversationSnapshot>()
+    bridge.conversation = pending.promise
+    const { conversation } = build()
+    conversation.connect()
+    conversation.activate(mary.id)
+    await conversation.end('/work/falcon')
+
+    pending.resolve(EMPTY)
+    await settle()
+
+    expect(bridge.opens).toEqual([])
+  })
+
+  it('still shows an open that fails after the end for an open begun after it', async () => {
+    const { conversation, failures } = build()
+    await connected(conversation)
+    await conversation.end('/work/falcon')
+    conversation.activate(mary.id)
+    bridge.openResult[0].reject({ code: 'session/spawn-failed', message: 'session · could not start the session' })
+    await settle()
+
+    expect(failures.at(-1)).toMatchObject({ code: 'session/spawn-failed' })
+  })
+
+  it('changes nothing once disconnected', async () => {
+    const { conversation, published } = build()
+    const disconnect = await connected(conversation)
+    disconnect()
+    const before = published.length
+
+    expect(await conversation.end('/work/falcon')).toBe(true)
+    expect(published).toHaveLength(before)
+  })
+})
+
 describe('useConversation', () => {
   let hook: MountedHook<ReturnType<typeof useConversation>> | null
 
@@ -654,6 +801,7 @@ describe('useConversation', () => {
     expect(() => hook?.current.activate(mary.id)).not.toThrow()
     expect(() => hook?.current.send(mary.id, 'x')).not.toThrow()
     expect(() => hook?.current.cancel('entry-0')).not.toThrow()
+    await expect(hook.current.end('/work/falcon')).resolves.toBe(false)
     expect(hook.current.entries).toEqual([])
     expect(hook.current.failure).toBeNull()
   })
@@ -695,5 +843,34 @@ describe('useConversation', () => {
     hook.unmount()
     expect(bridge.listeners.size).toBe(0)
     hook = null
+  })
+
+  it('ends the conversation through the hook: the entries go and it resolves true', async () => {
+    install(bridge)
+    hook = renderHook(() => useConversation(agents))
+    await settle()
+    inAct(() => bridge.push(said(mary.id, 'm1', 'Hello')))
+    expect(hook.current.entries).toHaveLength(1)
+
+    let ended: boolean | undefined
+    await act(async () => {
+      ended = await hook?.current.end('/work/falcon')
+    })
+
+    expect(ended).toBe(true)
+    expect(bridge.ends).toEqual(['/work/falcon'])
+    expect(hook.current.entries).toEqual([])
+  })
+
+  it('does nothing when the preload lacks endConversation', async () => {
+    install({
+      openSession: bridge.openSession.bind(bridge),
+      sendTurn: bridge.sendTurn.bind(bridge),
+      getConversation: bridge.getConversation.bind(bridge),
+      onSessionEvent: bridge.onSessionEvent.bind(bridge)
+    })
+    hook = renderHook(() => useConversation(agents))
+
+    await expect(hook.current.end('/work/falcon')).resolves.toBe(false)
   })
 })

@@ -134,7 +134,7 @@ it('answers the document channels on the same literals from both sides', () => {
   }
 })
 
-it('exposes exactly twelve named methods, and no channel passthrough', () => {
+it('exposes exactly thirteen named methods, and no channel passthrough', () => {
   const harness = exposedApis.get('harness')
 
   expect(harness).toBeDefined()
@@ -150,6 +150,7 @@ it('exposes exactly twelve named methods, and no channel passthrough', () => {
     'openSession',
     'sendTurn',
     'getConversation',
+    'endConversation',
     'onSessionEvent'
   ])
   expect(harness?.invoke).toBeUndefined()
@@ -399,6 +400,25 @@ it('answers the conversation channel on the same literal from both sides', () =>
   expect(preload.CONVERSATION_GET_CHANNEL).toBe(sessionBridge.CONVERSATION_GET_CHANNEL)
   expect(preload.CONVERSATION_GET_CHANNEL).toBe('conversation:get')
   expect(registeredHandlers.has(sessionBridge.CONVERSATION_GET_CHANNEL)).toBe(true)
+})
+
+it('answers the end channel on the same literal from both sides', () => {
+  expect(preload.CONVERSATION_END_CHANNEL).toBe(sessionBridge.CONVERSATION_END_CHANNEL)
+  expect(preload.CONVERSATION_END_CHANNEL).toBe('conversation:end')
+  expect(registeredHandlers.has(sessionBridge.CONVERSATION_END_CHANNEL)).toBe(true)
+})
+
+it('sends endConversation down the end channel with the project id, resolves with nothing and rejects with the envelope', async () => {
+  const endConversation = exposedApis.get('harness')?.endConversation as (id: string) => Promise<unknown>
+  invoke.mockClear()
+  invoke.mockResolvedValue({ ok: true })
+
+  await expect(endConversation('/work/project')).resolves.toBeUndefined()
+  expect(invoke).toHaveBeenCalledWith(sessionBridge.CONVERSATION_END_CHANNEL, '/work/project')
+
+  const error = { code: 'conversation/end-failed', message: 'conversation · could not end the conversation', detail: 'EACCES' }
+  invoke.mockResolvedValue({ ok: false, error })
+  await expect(endConversation('/work/project')).rejects.toEqual(error)
 })
 
 it('resolves the snapshot itself when conversation:get succeeds, and rejects with the envelope when it is refused', async () => {

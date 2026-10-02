@@ -22,14 +22,16 @@ import type {
 import { projectPathForWebContents } from './windows/main-window'
 
 /**
- * The channels behind the preload's four session methods. Exported so
+ * The channels behind the preload's five session methods. Exported so
  * tests/bridge-contract.test.ts can tie them to the preload's own literals.
  * Every event travels on the one `session:event` channel as `{name, payload}`;
- * `conversation:get` is the read a window makes on connecting.
+ * `conversation:get` is the read a window makes on connecting and
+ * `conversation:end` the one command that clears a conversation.
  */
 export const SESSION_OPEN_CHANNEL = 'session:open'
 export const TURN_SEND_CHANNEL = 'turn:send'
 export const CONVERSATION_GET_CHANNEL = 'conversation:get'
+export const CONVERSATION_END_CHANNEL = 'conversation:end'
 export { SESSION_EVENT_CHANNEL }
 
 /** The parts of a `WebContents` the bridge touches. */
@@ -42,6 +44,7 @@ type Sender = {
 
 type OpenReply = ContractCommands['session.open']['reply']
 type SendReply = ContractCommands['turn.send']['reply']
+type EndReply = ContractCommands['conversation.end']['reply']
 
 export type SessionBridgeDeps = {
   projectPathFor?: (webContentsId: number) => string | undefined
@@ -142,14 +145,23 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): void {
     // sender, but the entries are closed all the same so nothing speaks again.
     // The transcript is kept, and written now rather than when its timer fires.
     sender.once('destroyed', () => {
-      for (const entry of [...service.bySession.values()]) {
-        entry.session?.kill()
-        finish(sender, service, entry, 'closed')
-      }
+      closeSessions(sender, service)
       services.delete(sender.id)
       transcripts.flush(projectRoot)
     })
     return service
+  }
+
+  /**
+   * Kill every session of a window and close each one: a session still
+   * starting is closed too, and the process it was starting is killed when it
+   * arrives. Each emits `session:closed`, so none is reclaimed silently.
+   */
+  function closeSessions(sender: Sender, service: Service): void {
+    for (const entry of [...service.bySession.values()]) {
+      entry.session?.kill()
+      finish(sender, service, entry, 'closed')
+    }
   }
 
   function finish(
@@ -311,6 +323,43 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): void {
         name: 'turn:started',
         payload: { sessionId: entry.sessionId, at }
       })
+      return { ok: true }
+    }
+  )
+
+  // The one way a transcript is cleared (FR15). The file is cleared first: if
+  // that fails nothing else happens and the window keeps everything it has.
+  // Only then are the window's sessions killed and closed, so the reply, sent
+  // after their `session:closed` events, finds the window's own state settled.
+  ipcMain.handle(
+    CONVERSATION_END_CHANNEL,
+    (event: IpcMainInvokeEvent, projectId: unknown): EndReply => {
+      const sender = event.sender as unknown as Sender
+      const projectRoot = projectPathFor(sender.id)
+      if (projectRoot === undefined) {
+        return failure({
+          code: 'conversation/no-project',
+          message: 'conversation · no project is open for this window'
+        })
+      }
+      if (projectId !== projectRoot) {
+        return failure({
+          code: 'conversation/wrong-project',
+          message: 'conversation · not the project this window holds'
+        })
+      }
+      const cleared = transcripts.forProject(projectRoot).clear()
+      if (!cleared.ok) {
+        return failure({
+          code: 'conversation/end-failed',
+          message: 'conversation · could not end the conversation',
+          detail: cleared.errno
+        })
+      }
+      const service = services.get(sender.id)
+      if (service !== undefined) {
+        closeSessions(sender, service)
+      }
       return { ok: true }
     }
   )

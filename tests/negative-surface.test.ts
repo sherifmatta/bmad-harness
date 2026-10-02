@@ -391,6 +391,38 @@ describe("the document window has no refresh, edit or save", () => {
   });
 });
 
+describe("the end-session control is a lifecycle control and nothing more", () => {
+  const COMPONENT = "src/renderer/ui/shell/end-session.tsx";
+  const STYLESHEET = "src/renderer/ui/shell/shell.css";
+
+  it("is one native button with no title, tooltip, confirm step, count or pressed state", () => {
+    const text = code.get(COMPONENT) ?? "";
+
+    expect(text).toMatch(/<button type="button" className="end-session" onClick=\{onEnd\}>/);
+    expect(text).toContain("End session");
+    expect(offenders([COMPONENT], /\btitle=|aria-describedby|aria-label|aria-pressed|aria-live|tabIndex|role=|disabled|style=/)).toEqual([]);
+    expect(offenders([COMPONENT], /\b(?:tooltip|confirm|dialog|badge|count|undo)\b/i)).toEqual([]);
+  });
+
+  it("takes no accent, highlight or state colour in its stylesheet rule", () => {
+    const css = code.get(STYLESHEET) ?? "";
+    const rule = [...css.matchAll(/\.end-session[^{]*\{[^}]*\}/g)].map(([text]) => text).join("\n");
+
+    expect(rule).toContain(".end-session");
+    expect(rule).not.toMatch(/accent|amber|warn|danger|error|red|green|animation|transition|box-shadow|::(?:before|after)/i);
+    expect(rule).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(|\d+px/i);
+  });
+
+  it("is mounted by the topbar alone, and told what to do by the app alone", () => {
+    expect(sources(RENDERER, [".tsx"]).filter((path) => /<EndSession\b/.test(code.get(path) ?? ""))).toEqual([
+      "src/renderer/ui/shell/topbar.tsx",
+    ]);
+    expect(sources(RENDERER, [".tsx"]).filter((path) => /\.end\(/.test(code.get(path) ?? ""))).toEqual([
+      "src/renderer/ui/app.tsx",
+    ]);
+  });
+});
+
 describe("the product is silent", () => {
   it("names no audio element, API or flag in any source", () => {
     expect(

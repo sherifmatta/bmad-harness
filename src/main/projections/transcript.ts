@@ -1,6 +1,6 @@
 import type { PersonaSaid } from '../../shared/events'
 import type { TranscriptRecord } from '../../shared/conversation'
-import { foldPersonaSaid, foldUserTurn, transcriptFrom } from '../fold/transcript'
+import { EMPTY_TRANSCRIPT, foldPersonaSaid, foldUserTurn, transcriptFrom } from '../fold/transcript'
 import type { TranscriptState } from '../fold/transcript'
 import {
   loadTranscript,
@@ -29,6 +29,14 @@ export type ProjectTranscript = {
   entries(): readonly TranscriptRecord[]
   recordPersonaSaid(said: PersonaSaid): void
   recordUserTurn(text: string, at: number): void
+  /**
+   * Empty the transcript, the file first: it is written as `entries: []` at
+   * once, and only when that succeeds is the in-memory transcript reset, the
+   * pending write cancelled and the ids begun again. On a failure the errno is
+   * logged and returned, and nothing has changed. Only a deliberate end of the
+   * conversation calls it.
+   */
+  clear(): WriteOutcome
   flush(): void
 }
 
@@ -105,10 +113,24 @@ export function createTranscriptRegistry(deps: TranscriptRegistryDeps): Transcri
       }, debounceMs)
     }
 
+    function clear(): WriteOutcome {
+      const outcome = write(filePath, projectPath, [])
+      if (!outcome.ok) {
+        log(`persist/write-failed · ${outcome.errno}`)
+        return outcome
+      }
+      cancel?.()
+      cancel = undefined
+      state = EMPTY_TRANSCRIPT
+      dirty = false
+      return outcome
+    }
+
     return {
       entries: () => state.entries,
       recordPersonaSaid: (said) => changed(foldPersonaSaid(state, said)),
       recordUserTurn: (text, at) => changed(foldUserTurn(state, text, at)),
+      clear,
       flush
     }
   }

@@ -227,3 +227,81 @@ describe('the transcript registry', () => {
     expect(lines).toEqual(['persist/write-failed · EACCES\n'])
   })
 })
+
+describe('clearing a transcript', () => {
+  it('writes entries: [] first, empties the transcript, cancels the pending write and begins ids again at m-0', () => {
+    const transcripts = registry()
+    const transcript = transcripts.forProject(project)
+    transcript.recordUserTurn('one', 1)
+    transcript.recordPersonaSaid(said('m1', 'two'))
+    transcripts.flush(project)
+    transcript.recordUserTurn('three', 3)
+    expect(timers.filter((timer) => !timer.cancelled)).toHaveLength(1)
+
+    expect(transcript.clear()).toEqual({ ok: true })
+
+    expect(onDisk()).toEqual({ version: 1, projectPath: project, entries: [] })
+    expect(transcript.entries()).toEqual([])
+    expect(timers.every((timer) => timer.cancelled)).toBe(true)
+    transcripts.flushAll()
+    expect(onDisk().entries).toEqual([])
+
+    transcript.recordUserTurn('again', 9)
+    expect(transcript.entries()).toEqual([{ kind: 'user', id: 'm-0', at: 9, text: 'again' }])
+    tick()
+    expect(onDisk().entries).toEqual([{ kind: 'user', id: 'm-0', at: 9, text: 'again' }])
+  })
+
+  it.each(['EACCES', 'ENOSPC'])(
+    'on a failed write (%s) logs it, returns the errno and changes nothing',
+    (errno) => {
+      let failing = false
+      const transcripts = registry({
+        write: (file, path, entries) =>
+          failing ? { ok: false, errno } : writeTranscript(file, path, entries)
+      })
+      const transcript = transcripts.forProject(project)
+      transcript.recordUserTurn('one', 1)
+      transcripts.flush(project)
+      transcript.recordUserTurn('two', 2)
+      failing = true
+
+      expect(transcript.clear()).toEqual({ ok: false, errno })
+
+      expect(logs).toEqual([`persist/write-failed · ${errno}`])
+      expect(transcript.entries()).toHaveLength(2)
+      expect(timers.filter((timer) => !timer.cancelled)).toHaveLength(1)
+      expect(onDisk().entries).toHaveLength(1)
+
+      // The pending write still covers the unwritten change.
+      failing = false
+      tick()
+      expect(onDisk().entries).toHaveLength(2)
+    }
+  )
+
+  it('clears only its own project', () => {
+    const other = join(root, 'other')
+    const transcripts = registry()
+    transcripts.forProject(project).recordUserTurn('one', 1)
+    transcripts.forProject(other).recordUserTurn('two', 2)
+    transcripts.flushAll()
+
+    transcripts.forProject(project).clear()
+
+    expect(onDisk(project).entries).toEqual([])
+    expect(onDisk(other).entries).toHaveLength(1)
+    expect(transcripts.forProject(other).entries()).toHaveLength(1)
+  })
+
+  it('refuses a data directory inside the project root', () => {
+    const inside = join(project, 'userData')
+    mkdirSync(inside)
+    const transcript = registry({ userDataPath: () => inside }).forProject(project)
+    transcript.recordUserTurn('x', 1)
+
+    expect(transcript.clear()).toEqual({ ok: false, errno: 'inside-project' })
+    expect(transcript.entries()).toHaveLength(1)
+    expect(readdirSync(inside)).toEqual([])
+  })
+})

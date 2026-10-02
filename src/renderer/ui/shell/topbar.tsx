@@ -1,5 +1,6 @@
 import type { JSX } from 'react'
 
+import { EndSession } from './end-session'
 import { ViewSwitch } from './view-switch'
 import type { ViewId } from './view'
 
@@ -22,13 +23,15 @@ export function Topbar({
   agentCount,
   branch,
   view,
-  onView
+  onView,
+  onEndSession
 }: {
   projectPath: string
   agentCount: number
   branch: string | null
   view: ViewId
   onView: (next: ViewId) => void
+  onEndSession?: () => void
 }): JSX.Element {
   return (
     <header className="topbar">
@@ -46,6 +49,7 @@ export function Topbar({
       </div>
       <div className="spacer" />
       <ViewSwitch view={view} onChange={onView} />
+      {onEndSession !== undefined && <EndSession onEnd={onEndSession} />}
     </header>
   )
 }

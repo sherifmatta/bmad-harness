@@ -8,6 +8,7 @@ import {
   dispatchFailed,
   dispatchRefusedBusy,
   dropQueued,
+  ended,
   foldEvent,
   hydrate,
   initialConversation,
@@ -18,11 +19,12 @@ import {
 import type { ConversationState, Delivery, PersonaStateEntry } from './conversation-state'
 import type { TranscriptEntry } from './transcript-entry'
 
-/** The four bridge methods the conversation needs, and nothing else of the bridge. */
+/** The five bridge methods the conversation needs, and nothing else of the bridge. */
 export type ConversationBridge = {
   openSession(agentId: string): Promise<string>
   sendTurn(sessionId: string, text: string): Promise<void>
   getConversation(): Promise<ConversationSnapshot>
+  endConversation(projectId: string): Promise<void>
   onSessionEvent(listener: (event: ContractEvent) => void): () => void
 }
 
@@ -35,6 +37,13 @@ export type Conversation = {
   send(agentId: string, text: string): void
   /** The user took a queued message back, by its transcript entry's id. */
   cancel(entryId: string): void
+  /**
+   * End the conversation of `projectId`: main clears its transcript and closes
+   * its sessions, and on its reply the window starts empty. Resolves true when
+   * it ended; false when main refused, with the refusal shown as the failure
+   * line and everything the window holds as it was.
+   */
+  end(projectId: string): Promise<boolean>
 }
 
 type ConversationDeps = {
@@ -72,6 +81,8 @@ export function createConversation(deps: ConversationDeps): Conversation {
   let hydrated = false
   /** The personas a session was asked for before the snapshot arrived, in order. */
   const awaitingSnapshot: string[] = []
+  /** How many times the conversation has ended: an open begun before an end belongs to the one before it. */
+  let endings = 0
 
   function commit(next: ConversationState): void {
     state = next
@@ -111,6 +122,7 @@ export function createConversation(deps: ConversationDeps): Conversation {
     if (sessionOf(state, agentId) !== undefined || opening.has(agentId)) {
       return
     }
+    const generation = endings
     const attempt = bridge
       .openSession(agentId)
       .then((sessionId) => {
@@ -119,12 +131,21 @@ export function createConversation(deps: ConversationDeps): Conversation {
         transmit(ready.deliver)
       })
       .catch((reason: unknown) => {
+        // An open still starting when the conversation ended was closed by
+        // main, and that is not a failure: what was waiting on it went with the end.
+        if (generation !== endings) {
+          return
+        }
         // Messages waiting on a session that could not open are not kept: the
         // next send tries the open again.
         commit(dropQueued(state, agentId))
         fail(reason)
       })
-      .finally(() => void opening.delete(agentId))
+      .finally(() => {
+        if (opening.get(agentId) === attempt) {
+          opening.delete(agentId)
+        }
+      })
     opening.set(agentId, attempt)
   }
 
@@ -190,6 +211,26 @@ export function createConversation(deps: ConversationDeps): Conversation {
 
     cancel(entryId) {
       commit(cancelQueued(state, entryId))
+    },
+
+    async end(projectId) {
+      onFailure(null)
+      try {
+        await bridge.endConversation(projectId)
+      } catch (reason) {
+        fail(reason)
+        return false
+      }
+      if (!live) {
+        return true
+      }
+      endings += 1
+      // An open still pending belongs to the conversation that ended; the next
+      // send starts a new one rather than waiting on it.
+      opening.clear()
+      awaitingSnapshot.length = 0
+      commit(ended(state))
+      return true
     }
   }
 }
@@ -207,6 +248,7 @@ export function useConversation(agents: readonly AgentView[]): {
   activate: (agentId: string) => void
   send: (agentId: string, text: string) => void
   cancel: (entryId: string) => void
+  end: (projectId: string) => Promise<boolean>
 } {
   const [state, setState] = useState<ConversationState>(initialConversation)
   const [failure, setFailure] = useState<HarnessError | null>(null)
@@ -222,6 +264,7 @@ export function useConversation(agents: readonly AgentView[]): {
     typeof window.harness?.openSession === 'function' &&
     typeof window.harness?.sendTurn === 'function' &&
     typeof window.harness?.getConversation === 'function' &&
+    typeof window.harness?.endConversation === 'function' &&
     typeof window.harness?.onSessionEvent === 'function'
 
   useEffect(() => {
@@ -249,6 +292,10 @@ export function useConversation(agents: readonly AgentView[]): {
     []
   )
   const cancel = useCallback((entryId: string) => conversation.current?.cancel(entryId), [])
+  const end = useCallback(
+    async (projectId: string) => (await conversation.current?.end(projectId)) ?? false,
+    []
+  )
 
   // Who spoke is read from the roster as it is now, so a window that met the
   // transcript before the install was read names them once it is.
@@ -262,5 +309,5 @@ export function useConversation(agents: readonly AgentView[]): {
     [state.entries, agents]
   )
 
-  return { entries, personas: state.personas, failure, activate, send, cancel }
+  return { entries, personas: state.personas, failure, activate, send, cancel, end }
 }

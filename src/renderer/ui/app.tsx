@@ -128,6 +128,13 @@ export function App(): JSX.Element | null {
         rail={rail}
         railFailure={railFailure}
         onActivate={conversation.activate}
+        onEndSession={() => {
+          void conversation.end(projectPath).then((ended) => {
+            if (ended) {
+              announcer.announce('conversation · ended', performance.now())
+            }
+          })
+        }}
         composer={(agent) => (
           <Composer
             key={agent.id}

@@ -138,6 +138,20 @@ describe('what is stored, and where', () => {
     expect(code(join(SRC, 'shared/conversation.ts'))).toMatch(/version: 1/)
   })
 
+  it('is cleared only by ending the conversation: one caller of clear(), and one writer of an empty transcript', () => {
+    const callers = shipping.filter((path) => /forProject\([^)]*\)\.clear\(\)/.test(code(path)))
+    const writers = shipping.filter((path) => /\bwriteTranscript\(|\bwrite\(filePath/.test(code(path)))
+
+    expect(callers.map(rel)).toEqual(['src/main/session-bridge.ts'])
+    expect(code(join(SRC, 'main/session-bridge.ts')).match(/forProject\([^)]*\)\.clear\(\)/g)).toHaveLength(1)
+    // The file is written by the projection (through the source's own function) and nowhere else, and it writes an empty list only in `clear`.
+    expect(writers.map(rel)).toEqual([
+      'src/main/projections/transcript.ts',
+      'src/main/sources/persistence/transcript-file.ts'
+    ])
+    expect(code(join(SRC, 'main/projections/transcript.ts')).match(/write\(filePath, projectPath, \[\]\)/g)).toHaveLength(1)
+  })
+
   it('names no command or event the contract did not already have', () => {
     const events = code(join(SRC, 'shared/events.ts'))
     const commands = code(join(SRC, 'shared/commands.ts'))

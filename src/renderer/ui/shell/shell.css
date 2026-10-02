@@ -154,6 +154,27 @@
   box-shadow: var(--inset-pressed);
 }
 
+/* ---------- the end-session control ---------- */
+
+/* Neutral, in the view switch's own tokens: the same ground, rule, type and
+   dim text, and the same hover. It owns no ring, accent or state of its own. */
+.end-session {
+  flex: 0 0 auto;
+  padding: var(--switch-padding);
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--r);
+  background: var(--panel-2);
+  font-family: var(--sans);
+  font-size: var(--fs-control);
+  letter-spacing: var(--track-control);
+  color: var(--dim);
+  cursor: pointer;
+}
+
+.end-session:hover {
+  color: var(--text);
+}
+
 /* ---------- views ---------- */
 
 .view {

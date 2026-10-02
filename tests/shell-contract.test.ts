@@ -287,15 +287,30 @@ describe('the shell furniture stays within scope', () => {
     }
   })
 
-  it('renders only the view switch as controls', () => {
+  it('renders only the view switch and the end-session control as controls', () => {
     const controls = shipped.flatMap((path) =>
       [...code(path).matchAll(/<button|<input|role=/g)].map(() => relative(ROOT, join(ROOT, path)))
     )
 
     expect(controls.sort()).toEqual([
+      'src/renderer/ui/shell/end-session.tsx',
       'src/renderer/ui/shell/view-switch.tsx',
       'src/renderer/ui/shell/view-switch.tsx'
     ])
+  })
+
+  it('draws the end-session control in the view switch’s own tokens', () => {
+    const body = ruleBody(shellCss, '.end-session') ?? ''
+
+    expect(body).toContain('padding: var(--switch-padding)')
+    expect(body).toContain('border: var(--rule-width) solid var(--line)')
+    expect(body).toContain('border-radius: var(--r)')
+    expect(body).toContain('background: var(--panel-2)')
+    expect(body).toContain('font-family: var(--sans)')
+    expect(body).toContain('font-size: var(--fs-control)')
+    expect(body).toContain('letter-spacing: var(--track-control)')
+    expect(body).toContain('color: var(--dim)')
+    expect(ruleBody(shellCss, '.end-session:hover')).toContain('color: var(--text)')
   })
 
   it('draws the group heading once, for both rail halves to reuse', () => {

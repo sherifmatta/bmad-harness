@@ -37,6 +37,7 @@ const snapshot: InstallSnapshot = {
 let mounted: Mounted | null
 let opened: string[]
 let sent: [string, string][]
+let ended: string[]
 let listeners: ((event: ContractEvent) => void)[]
 
 function installBridge(): void {
@@ -57,6 +58,9 @@ function installBridge(): void {
       sent.push([sessionId, text])
     },
     getConversation: async () => ({ entries: [], sessions: [], busy: [], personas: [] }),
+    endConversation: async (projectId: string) => {
+      ended.push(projectId)
+    },
     onSessionEvent: (listener: (event: ContractEvent) => void) => {
       listeners.push(listener)
       return () => {}
@@ -69,6 +73,7 @@ beforeEach(() => {
   mounted = null
   opened = []
   sent = []
+  ended = []
   listeners = []
   installBridge()
 })
@@ -226,5 +231,80 @@ describe('App, the conversation glue', () => {
     expect(tileState('Mary').textContent).toBe('idle')
     expect(header().textContent).toBe('idle')
     expect(container.querySelector('.state-elapsed')).toBeNull()
+  })
+
+  it('ends the conversation from the topbar: sends this window’s project, empties the thread, announces it once, and leaves no new live region', async () => {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
+    push({ name: 'session:opened', payload: { sessionId: 's-mary', agentId: mary.id, at: 1 } })
+    push({
+      name: 'persona:said',
+      payload: { sessionId: 's-mary', agentId: mary.id, messageId: 'm1', text: 'Hello', at: 2 }
+    })
+    expect(mounted.container.querySelectorAll('.turn')).toHaveLength(1)
+
+    const buttons = [...mounted.container.querySelectorAll<HTMLButtonElement>('.topbar button')]
+    expect(buttons.map((button) => button.textContent)).toEqual(['1:1 Conversation', 'Party Mode', 'End session'])
+    const control = buttons[2]
+    expect(control.type).toBe('button')
+    expect(control.disabled).toBe(false)
+    expect(control.hasAttribute('title')).toBe(false)
+
+    act(() => control.click())
+    // Main closes the sessions before it replies.
+    push({
+      name: 'session:closed',
+      payload: { sessionId: 's-mary', agentId: mary.id, reason: 'closed', at: 3 }
+    })
+    await settle()
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 300))
+    })
+
+    expect(ended).toEqual(['/work/falcon'])
+    expect(mounted.container.querySelectorAll('.turn')).toHaveLength(0)
+    expect(mounted.container.querySelectorAll('.visually-hidden')).toHaveLength(1)
+    expect(mounted.container.querySelector('.visually-hidden')?.textContent).toBe('conversation · ended')
+    // Nothing else changed: the composer is there and the next message opens a fresh session.
+    type(field(), 'new start')
+    act(() => {
+      field().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    })
+    await settle()
+    expect(opened).toEqual([mary.id])
+  })
+
+  it('shows a refused end as an error line, announces nothing, and keeps the thread', async () => {
+    const harness = window.harness as unknown as { endConversation: (id: string) => Promise<void> }
+    harness.endConversation = async () =>
+      Promise.reject({
+        code: 'conversation/end-failed',
+        message: 'conversation · could not end the conversation',
+        detail: 'EACCES'
+      })
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    act(() =>
+      listeners.forEach((listener) =>
+        listener({
+          name: 'persona:said',
+          payload: { sessionId: 's', agentId: mary.id, messageId: 'm1', text: 'Hello', at: 2 }
+        })
+      )
+    )
+
+    const control = [...mounted.container.querySelectorAll<HTMLButtonElement>('.topbar button')][2]
+    act(() => control.click())
+    await settle()
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 300))
+    })
+
+    expect(mounted.container.textContent).toContain('conversation · could not end the conversation')
+    expect(mounted.container.querySelectorAll('.turn')).toHaveLength(1)
+    expect(mounted.container.querySelector('.visually-hidden')?.textContent).toBe('')
   })
 })

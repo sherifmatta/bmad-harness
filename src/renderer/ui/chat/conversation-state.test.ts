@@ -6,6 +6,7 @@ import {
   cancelQueued,
   dispatchFailed,
   dropQueued,
+  ended,
   foldEvent,
   hydrate,
   initialConversation,
@@ -520,5 +521,38 @@ describe('hydrate', () => {
       { text: 'to-busy', queuedFor: 'Mary' },
       { text: 'to-nobody', queuedFor: 'John' }
     ])
+  })
+})
+
+describe('ended', () => {
+  it('drops the entries, queue, live sessions and busy set, and keeps the personas as main reported them', () => {
+    let state = fold([
+      { name: 'session:opened', payload: { sessionId: 's1', agentId: mary.id, at: 1 } },
+      said('m1', 'Hello'),
+      { name: 'persona:state', payload: { agentId: mary.id, state: 'work', at: 5 } }
+    ])
+    state = send(state, 'queued while busy').state
+    expect(state.entries).toHaveLength(2)
+    expect(state.busy.size).toBe(1)
+    expect(state.queue.size).toBe(1)
+
+    const after = ended(state)
+
+    expect(after.entries).toEqual([])
+    expect(after.sessions.size).toBe(0)
+    expect(after.busy.size).toBe(0)
+    expect(after.queue.size).toBe(0)
+    expect([...after.personas]).toEqual([[mary.id, { state: 'work', at: 5 }]])
+  })
+
+  it('does not reuse an entry key, so the next message is a new entry', () => {
+    const state = ended(send(initialConversation, 'one').state)
+    const next = send(state, 'two').state
+
+    expect(next.entries).toMatchObject([{ id: 'entry-1', text: 'two' }])
+  })
+
+  it('leaves an empty conversation empty', () => {
+    expect(ended(initialConversation)).toEqual(initialConversation)
   })
 })
