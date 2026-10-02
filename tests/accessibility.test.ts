@@ -512,3 +512,33 @@ describe('the decision block', () => {
     expect(sourceText.get(BLOCK_CSS) ?? '').not.toMatch(/outline|:focus/i)
   })
 })
+
+// ---------------------------------------------------------------------------
+// The orphan header's close control is a native button: one tab stop (Story 2.11).
+// ---------------------------------------------------------------------------
+
+describe('the orphan header', () => {
+  const HEADER = 'src/renderer/ui/chat/orphan-header.tsx'
+  const HEADER_CSS = 'src/renderer/ui/chat/orphan-header.css'
+
+  it('makes its close control a native button, so it is a tab stop and Enter or Space activates it with no key code', () => {
+    const header = withoutAnyComments(sourceText.get(HEADER) ?? '')
+
+    expect(header).toMatch(/<button\s+type="button"\s+className="orphan-close"/)
+    expect(header).toMatch(/aria-label=\{`close session · \$\{agent\.name\}`\}/)
+    expect(header).not.toMatch(/tabIndex|onKey|role="button"|aria-disabled|aria-pressed|aria-selected/)
+    expect([...header.matchAll(/<button\b/g)]).toHaveLength(1)
+  })
+
+  it('is governed by the literal guard and swept by the focus-stroke sweep, and leaves the ring to the shared one', () => {
+    expect(guardedStylesheets()).toContain(HEADER_CSS)
+    expect(sources).toContain(HEADER_CSS)
+    expect(literalsIn(HEADER_CSS, sourceText.get(HEADER_CSS) ?? '')).toEqual([])
+    expect(sourceText.get(HEADER_CSS) ?? '').not.toMatch(/outline|:focus/i)
+  })
+
+  it('adds no live region: there is still exactly one in the shipping tree', () => {
+    expect(sourcesMatching(/aria-live/)).toEqual([LIVE_REGION])
+    expect(withoutAnyComments(sourceText.get(HEADER) ?? '')).not.toMatch(/aria-live|role="(?:status|alert|log)"/)
+  })
+})

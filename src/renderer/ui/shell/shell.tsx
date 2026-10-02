@@ -5,6 +5,7 @@ import './shell.css'
 import type { AgentView, HarnessError, InstallSnapshot } from '../../../shared/install'
 import type { RailSnapshot } from '../../../shared/rail'
 import { ChatHeader } from '../chat/chat-header'
+import { OrphanHeader } from '../chat/orphan-header'
 import type { PersonaState } from '../persona/portrait'
 import { ConnectedOutputs } from '../outputs/outputs'
 import { stateOf } from '../status/persona-state'
@@ -31,6 +32,12 @@ function RailHalf({ label, children }: { label: string; children?: ReactNode }):
     </section>
   )
 }
+
+/** No session outlives the roster: no orphan header. */
+const NO_ORPHANS: readonly AgentView[] = []
+
+/** A shell given no way to close an orphan still shows it. */
+function ignore(): void {}
 
 /** Nothing reported yet, so every persona reads `idle` from an empty map. */
 const NO_STATES: ReadonlyMap<string, PersonaState> = new Map()
@@ -67,6 +74,8 @@ export function Shell({
   onCurrentChange,
   onActivate,
   onEndSession,
+  orphans = NO_ORPHANS,
+  onCloseOrphan,
   composer,
   children
 }: {
@@ -94,6 +103,11 @@ export function Shell({
   onActivate?: (agentId: string) => void
   /** Called when the end-session control is activated. Without it the control is not rendered. */
   onEndSession?: () => void
+  /** The personas the roster no longer names whose session is still open, in session
+      order. Each gets a header of its own above the current persona's, and no tile. */
+  orphans?: readonly AgentView[]
+  /** Called with the agent's id when an orphan header's close control is activated. */
+  onCloseOrphan?: (agentId: string) => void
   /** The composer for the current persona, rendered in the chat column under the thread. */
   composer?: (agent: AgentView) => ReactNode
   children?: ReactNode
@@ -132,6 +146,10 @@ export function Shell({
         hidden={view !== 'conversation'}
       >
         <div className="chat">
+          {orphans.map((orphan) => (
+            // Prefixed: keeps these keys apart from the current persona's header key.
+            <OrphanHeader key={`orphan-${orphan.id}`} agent={orphan} onClose={onCloseOrphan ?? ignore} />
+          ))}
           {current !== null && (
             <ChatHeader key={current.id} agent={current} state={stateOf(current.id, states)} since={since.get(current.id)} />
           )}

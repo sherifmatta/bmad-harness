@@ -538,3 +538,37 @@ describe('Shell, the composer slot', () => {
     ).not.toContain('class="slot"')
   })
 })
+
+describe('Shell, the orphan headers', () => {
+  const orphan = (id: string, name: string) => ({ ...agent(id), name })
+  const markup = (props: Partial<Parameters<typeof Shell>[0]> = {}): string =>
+    renderToStaticMarkup(<Shell projectPath="/work/falcon" snapshot={snapshot(2)} {...props} />)
+
+  it('draws none by default', () => {
+    expect(markup()).not.toContain('orphan-head')
+  })
+
+  it('draws one per orphan, in order, above the current persona’s header and before the thread', () => {
+    const html = markup({
+      orphans: [orphan('bmad-agent-x', 'Xena'), orphan('bmad-agent-y', 'Yves')],
+      onCloseOrphan: () => {},
+      children: <b className="turns" />
+    })
+
+    expect(count(html, /orphan-head"/g)).toBe(2)
+    expect(html.indexOf('Xena')).toBeLessThan(html.indexOf('Yves'))
+    expect(html.indexOf('Yves')).toBeLessThan(html.indexOf('bmad-agent-0'))
+    expect(html.indexOf('bmad-agent-0')).toBeLessThan(html.indexOf('class="scroll"'))
+    expect(html).toContain('aria-label="close session · Xena"')
+    expect(html).toContain('aria-label="close session · Yves"')
+  })
+
+  it('gives an orphan no tile, and the roster alone decides the current persona', () => {
+    const html = markup({ orphans: [orphan('bmad-agent-x', 'Xena')], currentId: 'bmad-agent-x' })
+
+    expect(html).not.toContain('persona-tile" aria-label="Xena')
+    expect(count(html, /class="persona-tile/g)).toBe(2)
+    // The chosen id is not in the roster, so the topmost tile is current.
+    expect(count(html, /aria-current="true"/g)).toBe(1)
+  })
+})

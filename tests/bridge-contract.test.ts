@@ -134,7 +134,7 @@ it('answers the document channels on the same literals from both sides', () => {
   }
 })
 
-it('exposes exactly thirteen named methods, and no channel passthrough', () => {
+it('exposes exactly fourteen named methods, and no channel passthrough', () => {
   const harness = exposedApis.get('harness')
 
   expect(harness).toBeDefined()
@@ -148,6 +148,7 @@ it('exposes exactly thirteen named methods, and no channel passthrough', () => {
     'openDoc',
     'onDocClosed',
     'openSession',
+    'closeSession',
     'sendTurn',
     'getConversation',
     'endConversation',
@@ -394,6 +395,25 @@ it('answers the session channels on the same literals from both sides', () => {
   ])
   expect(registeredHandlers.has(sessionBridge.SESSION_OPEN_CHANNEL)).toBe(true)
   expect(registeredHandlers.has(sessionBridge.TURN_SEND_CHANNEL)).toBe(true)
+})
+
+it('answers the close channel on the same literal from both sides', () => {
+  expect(preload.SESSION_CLOSE_CHANNEL).toBe(sessionBridge.SESSION_CLOSE_CHANNEL)
+  expect(preload.SESSION_CLOSE_CHANNEL).toBe('session:close')
+  expect(registeredHandlers.has(sessionBridge.SESSION_CLOSE_CHANNEL)).toBe(true)
+})
+
+it('sends closeSession down the close channel with the session id, resolves with nothing and rejects with the envelope', async () => {
+  const closeSession = exposedApis.get('harness')?.closeSession as (id: string) => Promise<unknown>
+  invoke.mockClear()
+  invoke.mockResolvedValue({ ok: true })
+
+  await expect(closeSession('s1')).resolves.toBeUndefined()
+  expect(invoke).toHaveBeenCalledWith(sessionBridge.SESSION_CLOSE_CHANNEL, 's1')
+
+  const error = { code: 'session/not-found', message: 'session · no such session is open' }
+  invoke.mockResolvedValue({ ok: false, error })
+  await expect(closeSession('s1')).rejects.toEqual(error)
 })
 
 it('answers the conversation channel on the same literal from both sides', () => {

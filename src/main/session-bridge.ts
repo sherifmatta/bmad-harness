@@ -25,13 +25,14 @@ import type {
 import { projectPathForWebContents } from './windows/main-window'
 
 /**
- * The channels behind the preload's five session methods. Exported so
+ * The channels behind the preload's session methods. Exported so
  * tests/bridge-contract.test.ts can tie them to the preload's own literals.
  * Every event travels on the one `session:event` channel as `{name, payload}`;
  * `conversation:get` is the read a window makes on connecting and
  * `conversation:end` the one command that clears a conversation.
  */
 export const SESSION_OPEN_CHANNEL = 'session:open'
+export const SESSION_CLOSE_CHANNEL = 'session:close'
 export const TURN_SEND_CHANNEL = 'turn:send'
 export const CONVERSATION_GET_CHANNEL = 'conversation:get'
 export const CONVERSATION_END_CHANNEL = 'conversation:end'
@@ -46,6 +47,7 @@ type Sender = {
 }
 
 type OpenReply = SessionOpenReply
+type CloseReply = ContractCommands['session.close']['reply']
 type SendReply = ContractCommands['turn.send']['reply']
 type EndReply = ContractCommands['conversation.end']['reply']
 
@@ -393,6 +395,25 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): void {
         name: 'turn:started',
         payload: { sessionId: entry.sessionId, at }
       })
+      return { ok: true }
+    }
+  )
+
+  // Ends one session of this window: its process is killed and it is closed
+  // through `finish`, so `session:closed` is emitted. The transcript is not
+  // touched, and neither is any other session. Nothing else ends a session
+  // short of the conversation ending, the process exiting or the window going.
+  ipcMain.handle(
+    SESSION_CLOSE_CHANNEL,
+    (event: IpcMainInvokeEvent, sessionId: unknown): CloseReply => {
+      const sender = event.sender as unknown as Sender
+      const service = services.get(sender.id)
+      const entry = typeof sessionId === 'string' ? service?.bySession.get(sessionId) : undefined
+      if (service === undefined || entry === undefined || entry.closed) {
+        return NOT_FOUND
+      }
+      entry.session?.kill()
+      finish(sender, service, entry, 'closed')
       return { ok: true }
     }
   )

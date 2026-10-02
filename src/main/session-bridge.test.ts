@@ -26,6 +26,7 @@ vi.mock('electron', () => ({
 const {
   CONVERSATION_END_CHANNEL,
   CONVERSATION_GET_CHANNEL,
+  SESSION_CLOSE_CHANNEL,
   SESSION_EVENT_CHANNEL,
   SESSION_OPEN_CHANNEL,
   TURN_SEND_CHANNEL,
@@ -159,6 +160,11 @@ afterEach(() => {
 
 const open = (sender: FakeSender, agentId: unknown) =>
   (handlers.get(SESSION_OPEN_CHANNEL) as unknown as OpenHandler)({ sender }, agentId)
+const closeSession = (sender: FakeSender, sessionId: unknown) =>
+  (handlers.get(SESSION_CLOSE_CHANNEL) as unknown as (e: { sender: FakeSender }, id: unknown) => unknown)(
+    { sender },
+    sessionId
+  )
 const send = (sender: FakeSender, sessionId: unknown, text: unknown) =>
   (handlers.get(TURN_SEND_CHANNEL) as unknown as SendHandler)({ sender }, sessionId, text)
 
@@ -187,15 +193,17 @@ const textStart = {
 const result = (subtype = 'success', is_error = false) => ({ type: 'result', subtype, is_error })
 
 describe('channels', () => {
-  it('are the five literals the preload shares', () => {
+  it('are the six literals the preload shares', () => {
     expect([
       SESSION_OPEN_CHANNEL,
+      SESSION_CLOSE_CHANNEL,
       TURN_SEND_CHANNEL,
       SESSION_EVENT_CHANNEL,
       CONVERSATION_GET_CHANNEL,
       CONVERSATION_END_CHANNEL
     ]).toEqual([
       'session:open',
+      'session:close',
       'turn:send',
       'session:event',
       'conversation:get',
@@ -503,6 +511,93 @@ describe('close', () => {
     await expect(pending).resolves.toMatchObject({ ok: false })
     expect(processes[0].killed).toBe(true)
     expect(sender.sent).toEqual([])
+  })
+})
+
+describe('session.close', () => {
+  const say = (proc: FakeProcess, text: string) => {
+    proc.frame(messageStart('m1'))
+    proc.frame(textStart)
+    proc.frame(delta(text))
+  }
+
+  it('kills that one process, emits session:closed with reason closed, and replies ok', async () => {
+    const sender = new FakeSender(1)
+    const first = await opened(sender, 'bmad-agent-pm')
+    const second = await opened(sender, 'bmad-agent-analyst')
+    const before = sender.sent.length
+
+    expect(closeSession(sender, first.reply.sessionId)).toEqual({ ok: true })
+
+    expect(first.proc.killed).toBe(true)
+    expect(second.proc.killed).toBe(false)
+    const closed = sender.events.slice(before).filter((event) => event.name === 'session:closed')
+    expect(closed).toEqual([
+      {
+        name: 'session:closed',
+        payload: {
+          sessionId: first.reply.sessionId,
+          agentId: 'bmad-agent-pm',
+          reason: 'closed',
+          at: expect.any(Number)
+        }
+      }
+    ])
+  })
+
+  it('keeps the transcript and leaves the other sessions working', async () => {
+    const sender = new FakeSender(1)
+    const first = await opened(sender, 'bmad-agent-pm')
+    const second = await opened(sender, 'bmad-agent-analyst')
+    say(first.proc, 'kept')
+    const turns = registry.forProject('/project-1').entries()
+
+    closeSession(sender, first.reply.sessionId)
+
+    expect(registry.forProject('/project-1').entries()).toEqual(turns)
+    expect(turns).toHaveLength(1)
+    second.proc.frame(result())
+    expect(send(sender, second.reply.sessionId, 'still here')).toEqual({ ok: true })
+    // The closed one is gone, and a late frame from it says nothing.
+    const before = sender.sent.length
+    first.proc.frame(delta('late'))
+    expect(sender.sent).toHaveLength(before)
+    expect(send(sender, first.reply.sessionId, 'hi')).toMatchObject({ error: { code: 'session/not-found' } })
+  })
+
+  it('lets the agent open afresh after its session was closed', async () => {
+    const sender = new FakeSender(1)
+    const first = await opened(sender, 'bmad-agent-pm')
+    closeSession(sender, first.reply.sessionId)
+
+    const again = open(sender, 'bmad-agent-pm')
+    await processes[1].up()
+    await expect(again).resolves.toEqual({ ok: true, sessionId: 's2' })
+  })
+
+  it('answers session/not-found for an unknown id, a closed one, a non-string and a window with none', async () => {
+    const sender = new FakeSender(1)
+    const { reply } = await opened(sender)
+    const notFound = { ok: false, error: { code: 'session/not-found' } }
+
+    expect(closeSession(sender, 'nope')).toMatchObject(notFound)
+    expect(closeSession(sender, undefined)).toMatchObject(notFound)
+    expect(closeSession(sender, 7)).toMatchObject(notFound)
+    expect(closeSession(new FakeSender(9), reply.sessionId)).toMatchObject(notFound)
+    expect(closeSession(new FakeSender(2), reply.sessionId)).toMatchObject(notFound)
+
+    expect(closeSession(sender, reply.sessionId)).toEqual({ ok: true })
+    const before = sender.sent.length
+    expect(closeSession(sender, reply.sessionId)).toMatchObject(notFound)
+    expect(sender.sent).toHaveLength(before)
+  })
+
+  it('closes a session whose turn is in flight', async () => {
+    const sender = new FakeSender(1)
+    const { reply, proc } = await opened(sender)
+
+    expect(closeSession(sender, reply.sessionId)).toEqual({ ok: true })
+    expect(proc.killed).toBe(true)
   })
 })
 

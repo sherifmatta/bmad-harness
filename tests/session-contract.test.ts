@@ -197,8 +197,52 @@ describe('the renderer', () => {
   })
 
   it('reaches the session through its preload methods and nothing else', () => {
-    const users = renderer.filter((path) => /window\.harness\??\.(?:openSession|sendTurn|getConversation|endConversation|onSessionEvent)/.test(code(path)))
+    const users = renderer.filter((path) => /window\.harness\??\.(?:openSession|closeSession|sendTurn|getConversation|endConversation|onSessionEvent)/.test(code(path)))
 
     expect(users.map(rel)).toEqual(['src/renderer/ui/chat/use-conversation.ts'])
+  })
+})
+
+describe('a session outlives the install changing under it (Story 2.11)', () => {
+  const installPath = [
+    'main/install-bridge.ts',
+    'main/install-model.ts',
+    'main/projections/install.ts',
+    ...filesUnder(join(SRC, 'main/sources/install'))
+      .filter((path) => /\.ts$/.test(path) && !/\.test\.ts$/.test(path))
+      .map((path) => relative(SRC, path)),
+    ...filesUnder(join(SRC, 'main/sources/preflight'))
+      .filter((path) => /\.ts$/.test(path) && !/\.test\.ts$/.test(path))
+      .map((path) => relative(SRC, path))
+  ]
+
+  it('reads the install path it claims to sweep', () => {
+    expect(installPath.length).toBeGreaterThanOrEqual(6)
+  })
+
+  it('has an install path that imports, calls and signals no session: no session, transcript, persona-state or conversation module', () => {
+    for (const path of installPath) {
+      const text = code(join(SRC, path))
+      expect(text, path).not.toMatch(
+        /from '[^']*(?:session-bridge|session-process|persona-states|projections\/personas|projections\/transcript|fold\/(?:route-frame|turn-end|persona-state|written-paths|transcript))'/
+      )
+      expect(text, path).not.toMatch(/session:close|closeSession|closeSessions|SESSION_/)
+    }
+  })
+
+  it('lets a session end by exactly four causes in main: the command, conversation.end, the process and the window', () => {
+    const bridge = code(join(SRC, 'main/session-bridge.ts'))
+    const finishes = [...bridge.matchAll(/\bfinish\(/g)].length
+    const kills = [...bridge.matchAll(/\.kill\(\)/g)].map(([text]) => text)
+
+    // The definition, closeSessions (conversation.end and the window), the process's exit and session.close.
+    expect(finishes).toBe(4)
+    expect(kills.length).toBe(3)
+    expect(bridge).toMatch(/SESSION_CLOSE_CHANNEL,/)
+  })
+
+  it('reads install in one direction: the session bridge asks for a name, the install modules never ask the session', () => {
+    expect(code(join(SRC, 'main/session-bridge.ts'))).toMatch(/from '\.\/install-model'/)
+    expect(code(join(SRC, 'main/install-model.ts'))).not.toMatch(/session/i)
   })
 })

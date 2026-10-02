@@ -68,6 +68,13 @@ class FakeBridge implements ConversationBridge {
       handoff === undefined ? { sessionId } : { sessionId, handoff }
     )
   }
+  closed: string[] = []
+  /** What the next close answers; one entry is consumed per close. */
+  closeResults: (Promise<void> | undefined)[] = []
+  closeSession(sessionId: string): Promise<void> {
+    this.closed.push(sessionId)
+    return this.closeResults.shift() ?? Promise.resolve()
+  }
   sendTurn(sessionId: string, text: string): Promise<void> {
     this.sends.push([sessionId, text])
     return this.sendResults.shift() ?? Promise.resolve()
@@ -740,6 +747,66 @@ const closed = (sessionId: string, agentId: string): ContractEvent => ({
   payload: { sessionId, agentId, reason: 'closed', at: 9 }
 })
 
+describe('close', () => {
+  it('sends the persona’s session to main and resolves true; the session is removed by main’s session:closed, not by the call', async () => {
+    const { conversation, last, failures } = build()
+    await connected(conversation)
+    bridge.push(opened('s1', mary.id))
+    bridge.push(opened('s2', john.id))
+    bridge.push(said(mary.id, 'm1', 'Hello'))
+
+    expect(await conversation.close(mary.id)).toBe(true)
+    expect(bridge.closed).toEqual(['s1'])
+    expect(failures.filter((failure) => failure !== null)).toEqual([])
+
+    bridge.push(closed('s1', mary.id))
+    // Its turns stay and the other persona’s session is untouched.
+    expect(last().entries).toMatchObject([{ text: 'Hello' }])
+    bridge.push(awaiting('s2'))
+    conversation.send(john.id, 'still here')
+    expect(bridge.sends).toEqual([['s2', 'still here']])
+  })
+
+  it('shows a refusal as the failure line and keeps the session', async () => {
+    const { conversation, failures } = build()
+    await connected(conversation)
+    bridge.push(opened('s1', mary.id))
+    bridge.closeResults.push(
+      Promise.reject({ code: 'session/not-found', message: 'session · no such session is open' })
+    )
+
+    expect(await conversation.close(mary.id)).toBe(false)
+
+    expect(failures.at(-1)).toMatchObject({ code: 'session/not-found' })
+    bridge.push(awaiting('s1'))
+    conversation.send(mary.id, 'still here')
+    expect(bridge.sends).toEqual([['s1', 'still here']])
+  })
+
+  it('resolves true and shows no failure when main refuses as not-found after its session:closed was folded', async () => {
+    const { conversation, failures } = build()
+    await connected(conversation)
+    bridge.push(opened('s1', mary.id))
+    const refused = deferred<void>()
+    bridge.closeResults.push(refused.promise)
+
+    const result = conversation.close(mary.id)
+    bridge.push(closed('s1', mary.id))
+    refused.reject({ code: 'session/not-found', message: 'session · no such session is open' })
+
+    expect(await result).toBe(true)
+    expect(failures.filter((failure) => failure !== null)).toEqual([])
+  })
+
+  it('asks main for nothing when the persona has no session', async () => {
+    const { conversation } = build()
+    await connected(conversation)
+
+    expect(await conversation.close(mary.id)).toBe(false)
+    expect(bridge.closed).toEqual([])
+  })
+})
+
 describe('end', () => {
   it('sends the project id, and on the reply the window holds no entries, queue, sessions or busy set', async () => {
     const { conversation, last, failures } = build()
@@ -957,6 +1024,50 @@ describe('useConversation', () => {
     expect(ended).toBe(true)
     expect(bridge.ends).toEqual(['/work/falcon'])
     expect(hook.current.entries).toEqual([])
+  })
+
+  it('derives an orphan from the sessions and the roster: a live session whose agent the roster lacks, and not once it returns', async () => {
+    install(bridge)
+    let roster: readonly AgentView[] = agents
+    hook = renderHook(() => useConversation(roster))
+    await settle()
+    inAct(() => bridge.push(opened('s1', mary.id)))
+    inAct(() => bridge.push(opened('s2', john.id)))
+    inAct(() => bridge.push(said(mary.id, 'm1', 'Hello')))
+    expect(hook.current.orphans).toEqual([])
+
+    roster = [john]
+    inAct(() => bridge.push(awaiting('s2')))
+    expect(hook.current.orphans).toEqual([mary])
+    // Nothing else changed: the turns, the sessions and the busy flag stay as they were.
+    expect(hook.current.entries).toMatchObject([{ kind: 'persona', text: 'Hello' }])
+    expect(hook.current.canAnswer(john.id)).toBe(true)
+    expect(hook.current.canAnswer(mary.id)).toBe(false)
+
+    roster = agents
+    inAct(() => bridge.push(awaiting('s1')))
+    expect(hook.current.orphans).toEqual([])
+    expect(hook.current.canAnswer(mary.id)).toBe(true)
+  })
+
+  it('closes an orphan through the hook, after which main’s session:closed removes it and the turns stay', async () => {
+    install(bridge)
+    hook = renderHook(() => useConversation([john]))
+    await settle()
+    inAct(() => bridge.push(opened('s1', mary.id)))
+    inAct(() => bridge.push(said(mary.id, 'm1', 'Hello')))
+    expect(hook.current.orphans).toHaveLength(1)
+
+    let closedOk: boolean | undefined
+    await act(async () => {
+      closedOk = await hook?.current.close(mary.id)
+    })
+    expect(closedOk).toBe(true)
+    expect(bridge.closed).toEqual(['s1'])
+    inAct(() => bridge.push(closed('s1', mary.id)))
+
+    expect(hook.current.orphans).toEqual([])
+    expect(hook.current.entries).toMatchObject([{ text: 'Hello' }])
   })
 
   it('says a persona can answer only while it has a live session with no turn in flight', async () => {

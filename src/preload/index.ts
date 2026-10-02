@@ -21,6 +21,7 @@ export const RAIL_CHANGED_CHANNEL = 'rail:changed'
 export const DOC_OPEN_CHANNEL = 'doc:open'
 export const DOC_CLOSED_CHANNEL = 'doc:closed'
 export const SESSION_OPEN_CHANNEL = 'session:open'
+export const SESSION_CLOSE_CHANNEL = 'session:close'
 export const TURN_SEND_CHANNEL = 'turn:send'
 export const SESSION_EVENT_CHANNEL = 'session:event'
 export const CONVERSATION_GET_CHANNEL = 'conversation:get'
@@ -99,6 +100,18 @@ const harness: HarnessApi = {
       opened.handoff = reply.handoff
     }
     return opened
+  },
+
+  // A command (AD-13): the session's id goes to main, which ends that one
+  // session of this window. Nothing comes back but whether it did.
+  closeSession: async (sessionId) => {
+    const reply = (await ipcRenderer.invoke(
+      SESSION_CLOSE_CHANNEL,
+      sessionId
+    )) as ContractCommands['session.close']['reply']
+    if (!reply.ok) {
+      throw reply.error
+    }
   },
 
   sendTurn: async (sessionId, text) => {

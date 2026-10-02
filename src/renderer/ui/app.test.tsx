@@ -39,6 +39,10 @@ let mounted: Mounted | null
 let opened: string[]
 let sent: [string, string][]
 let ended: string[]
+/** The sessions the window asked main to close. */
+let closedSessions: string[]
+/** Who `onInstallChanged` subscribed, to be pushed a new install snapshot. */
+let installListeners: ((next: InstallSnapshot) => void)[]
 let listeners: ((event: ContractEvent) => void)[]
 /** The sysline main answers the next open with, one per open, `undefined` for none. */
 let handoffs: (SyslineRecord | undefined)[]
@@ -47,7 +51,10 @@ function installBridge(): void {
   const bridge = {
     getProjectPath: async () => '/work/falcon',
     getInstall: async () => snapshot,
-    onInstallChanged: () => () => {},
+    onInstallChanged: (listener: (next: InstallSnapshot) => void) => {
+      installListeners.push(listener)
+      return () => {}
+    },
     getBranch: async () => 'main',
     getRail: async () => ({ revision: 1, rows: [] }),
     onRailChanged: () => () => {},
@@ -59,6 +66,9 @@ function installBridge(): void {
       return handoff === undefined
         ? { sessionId: `session-of-${agentId}` }
         : { sessionId: `session-of-${agentId}`, handoff }
+    },
+    closeSession: async (sessionId: string) => {
+      closedSessions.push(sessionId)
     },
     sendTurn: async (sessionId: string, text: string) => {
       sent.push([sessionId, text])
@@ -80,6 +90,8 @@ beforeEach(() => {
   opened = []
   sent = []
   ended = []
+  closedSessions = []
+  installListeners = []
   listeners = []
   handoffs = []
   installBridge()
@@ -620,5 +632,142 @@ describe('App, when a persona stops to ask', () => {
 
     expect(mounted!.container.querySelectorAll('.visually-hidden')).toHaveLength(1)
     expect(mounted!.container.querySelector('.decision [role="status"], .decision .visually-hidden')).toBeNull()
+  })
+})
+
+describe('App, a session that outlives the install changing under it', () => {
+  const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
+  let revision = 1
+  const reinstall = (agents: AgentView[]): void => {
+    revision += 1
+    act(() => installListeners.forEach((listener) => listener({ ...snapshot, revision, agents })))
+  }
+  const headers = (): HTMLElement[] => [...mounted!.container.querySelectorAll<HTMLElement>('.orphan-head')]
+  const closeButtons = (): HTMLButtonElement[] => [
+    ...mounted!.container.querySelectorAll<HTMLButtonElement>('button.orphan-close')
+  ]
+  const tiles = (): string[] =>
+    [...mounted!.container.querySelectorAll('button.persona-tile')].map((button) =>
+      (button.getAttribute('aria-label') ?? '').split(',')[0]
+    )
+
+  /** Mary's session is live and has spoken; John has one too, idle. */
+  async function live(): Promise<void> {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    push({ name: 'session:opened', payload: { sessionId: 's-mary', agentId: mary.id, at: 1 } })
+    push({ name: 'session:opened', payload: { sessionId: 's-john', agentId: john.id, at: 1 } })
+    push({
+      name: 'persona:said',
+      payload: { sessionId: 's-mary', agentId: mary.id, messageId: 'm1', text: 'Hello from Mary', at: 2 }
+    })
+    push({
+      name: 'persona:said',
+      payload: { sessionId: 's-john', agentId: john.id, messageId: 'm2', text: 'Hello from John', at: 2 }
+    })
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 's-john', at: 3 } })
+  }
+
+  it('shows no orphan header while the roster names every live session', async () => {
+    await live()
+
+    expect(headers()).toHaveLength(0)
+    expect(tiles()).toEqual(['Mary', 'John'])
+  })
+
+  it('changes the roster alone: the tile goes, the turns, the busy flag and the sessions stay, and a header appears', async () => {
+    await live()
+    const turnsBefore = mounted!.container.querySelector('.thread')?.textContent
+
+    reinstall([john])
+
+    expect(tiles()).toEqual(['John'])
+    expect(mounted!.container.querySelector('.thread')?.textContent).toBe(turnsBefore)
+    expect(mounted!.container.querySelector('.turn--persona .turn-name, .turn--persona')?.textContent).toContain('Mary')
+    expect(closedSessions).toEqual([])
+    const [header] = headers()
+    expect(headers()).toHaveLength(1)
+    expect(header.querySelector('.chat-head-name')?.textContent).toBe('Mary')
+    expect(header.textContent).toContain('no longer in the install · session still open')
+    expect(closeButtons()).toHaveLength(1)
+    expect(closeButtons()[0].getAttribute('aria-label')).toBe('close session · Mary')
+    expect(closeButtons()[0].textContent).toBe('close session')
+    // Above the current persona's own header.
+    const heads = [...mounted!.container.querySelectorAll('.chat-head')]
+    expect(heads[0]).toBe(header)
+    expect(heads).toHaveLength(2)
+    // John, still rostered, still takes a message in his live session.
+    type(field(), 'hi john')
+    act(() => {
+      field().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    })
+    expect(sent).toEqual([['s-john', 'hi john']])
+  })
+
+  it('shows her header again as a rostered persona with the same session when the agent returns', async () => {
+    await live()
+    reinstall([john])
+    expect(headers()).toHaveLength(1)
+
+    reinstall([mary, john])
+
+    expect(headers()).toHaveLength(0)
+    expect(tiles()).toEqual(['Mary', 'John'])
+    expect(closedSessions).toEqual([])
+  })
+
+  it('closes only that session on the button, keeps the transcript, and lands focus in the current persona’s composer', async () => {
+    await live()
+    reinstall([john])
+    const button = closeButtons()[0]
+    button.focus()
+    expect(document.activeElement).toBe(button)
+
+    act(() => button.click())
+    await settle()
+    expect(closedSessions).toEqual(['s-mary'])
+    // The header goes with main's report, not with the click.
+    push({ name: 'session:closed', payload: { sessionId: 's-mary', agentId: mary.id, reason: 'closed', at: 5 } })
+
+    expect(headers()).toHaveLength(0)
+    expect(mounted!.container.textContent).toContain('Hello from Mary')
+    expect(document.activeElement).toBe(field())
+    expect(field().getAttribute('aria-label')).toBe('Message John')
+    expect(closedSessions).toEqual(['s-mary'])
+  })
+
+  it('stacks one header per orphan in session order, each closing only its own', async () => {
+    await live()
+    reinstall([agent('bmad-agent-dev', 'Amelia')])
+
+    expect(headers().map((header) => header.querySelector('.chat-head-name')?.textContent)).toEqual(['Mary', 'John'])
+
+    act(() => closeButtons()[1].click())
+    await settle()
+    expect(closedSessions).toEqual(['s-john'])
+  })
+
+  it('keeps a header, and its failure line off the orphan, when main refuses the close', async () => {
+    await live()
+    reinstall([john])
+    ;(window.harness as unknown as { closeSession: (id: string) => Promise<void> }).closeSession = async () => {
+      throw { code: 'session/not-found', message: 'session · no such session is open' }
+    }
+
+    act(() => closeButtons()[0].click())
+    await settle()
+
+    expect(headers()).toHaveLength(1)
+    expect(mounted!.container.textContent).toContain('session · no such session is open')
+  })
+
+  it('shows no orphan header for a window that has no sessions, as after a relaunch', async () => {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    reinstall([john])
+
+    expect(headers()).toHaveLength(0)
   })
 })

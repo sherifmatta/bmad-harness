@@ -784,7 +784,8 @@ describe("the handoff says only what is true and parses no skill (Story 2.9)", (
   it("adds no event, command or bridge method for it: the open's reply carries the line", () => {
     const preload = code.get("src/preload/index.ts") ?? "";
 
-    expect([...preload.matchAll(/^ {2}([a-zA-Z]+): (?:async )?\(/gm)]).toHaveLength(13);
+    // Thirteen before Story 2.11, whose one new method is closeSession; none is the handoff's.
+    expect([...preload.matchAll(/^ {2}([a-zA-Z]+): (?:async )?\(/gm)]).toHaveLength(14);
     expect(code.get("src/shared/commands.ts") ?? "").not.toMatch(/handoff|sysline/i);
     expect(code.get("src/shared/events.ts") ?? "").not.toMatch(/handoff|sysline/i);
   });
@@ -858,5 +859,76 @@ describe("the decision block marks and decides nothing (Story 2.10)", () => {
     expect(words).not.toMatch(/decision/i);
     // The persona's turn hands `Words` its text whole, with the block drawn after it.
     expect(turn).toContain("<Words text={text} />");
+  });
+});
+
+describe("an orphaned session has one header and one control, and nothing else (Story 2.11)", () => {
+  const HEADER = [
+    "src/renderer/ui/chat/orphan-header.tsx",
+    "src/renderer/ui/chat/orphan-header.css",
+  ];
+
+  it("reads the header's own sources", () => {
+    for (const path of HEADER) {
+      expect(code.get(path), path).toBeDefined();
+    }
+  });
+
+  it("has no tile, tooltip, title, badge, count, sound, animation, confirm step or live region", () => {
+    for (const path of HEADER) {
+      expect(code.get(path) ?? "", path).not.toMatch(
+        /persona-tile|\btitle=|tooltip|badge|confirm|aria-live|role=["'](?:status|alert|dialog|alertdialog)|animation|transition|transform|new Audio|\.play\(|window\.(?:confirm|alert)|<dialog/i,
+      );
+    }
+  });
+
+  it("is a native button with no key code, tab index, outline or focus rule of its own", () => {
+    const component = code.get("src/renderer/ui/chat/orphan-header.tsx") ?? "";
+
+    expect(component).toMatch(/<button\s+type="button"/);
+    expect(component).not.toMatch(/tabIndex|onKey|role="button"|\.key\b|aria-disabled|\bdisabled\b/);
+    expect(code.get("src/renderer/ui/chat/orphan-header.css") ?? "").not.toMatch(
+      /outline|:focus|:active/,
+    );
+  });
+
+  it("is derived at render and never stored: no orphan field in the state, the transcript or the contract", () => {
+    for (const path of [
+      "src/renderer/ui/chat/transcript-entry.ts",
+      "src/shared/commands.ts",
+      "src/shared/events.ts",
+      "src/shared/conversation.ts",
+    ]) {
+      expect(code.get(path) ?? "", path).not.toMatch(/orphan/i);
+    }
+    const state = code.get("src/renderer/ui/chat/conversation-state.ts") ?? "";
+    expect(state).toMatch(/export function orphansOf/);
+    expect(state).not.toMatch(/^ {2}orphans\??:/m);
+    expect(offenders(MAIN_CODE, /orphan/i)).toEqual([]);
+    expect(offenders(sources("src/preload/"), /orphan/i)).toEqual([]);
+  });
+
+  it("closes through the declared session.close and builds no stop control or document card (both are Epic 3's)", () => {
+    for (const path of HEADER) {
+      expect(code.get(path) ?? "", path).not.toMatch(
+        /\bstop\b|run\.stop|runId|document-card|doc-card|run:started/i,
+      );
+    }
+    expect(code.get("src/shared/commands.ts") ?? "").toContain("'session.close'");
+  });
+
+  it("never closes, reopens or resumes by itself: the renderer closes only from the button's handler", () => {
+    const app = code.get("src/renderer/ui/app.tsx") ?? "";
+    const hook = code.get("src/renderer/ui/chat/use-conversation.ts") ?? "";
+    const closers = RENDERER_CODE.filter((path) => /conversation\.close\(|\.closeSession\(/.test(code.get(path) ?? ""));
+
+    expect(closers.sort()).toEqual([
+      "src/renderer/ui/app.tsx",
+      "src/renderer/ui/chat/use-conversation.ts",
+    ]);
+    expect(app.match(/conversation\.close\(/g)).toHaveLength(1);
+    expect(app).toMatch(/onCloseOrphan=\{\(agentId\) => \{\s*void conversation\.close\(/);
+    expect(hook.match(/bridge\.closeSession\(/g)).toHaveLength(1);
+    expect(hook).not.toMatch(/useEffect\([^)]*close\(/);
   });
 });

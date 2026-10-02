@@ -13,6 +13,7 @@ import { announceable, newAnnouncements, roomState } from './install/install-sta
 import { useInstall } from './install/use-install'
 import { useRail } from './outputs/use-rail'
 import { Shell } from './shell/shell'
+import { currentAgent, displayOrder, groupAgents } from './team/tile-groups'
 import type { SyslineRecord } from '../../shared/conversation'
 import type { AgentView } from '../../shared/install'
 
@@ -162,9 +163,24 @@ export function App(): JSX.Element | null {
             }
           })
         }}
+        orphans={conversation.orphans}
+        onCloseOrphan={(agentId) => {
+          void conversation.close(agentId).then((closed) => {
+            // The close control goes with the header that held focus, so the user's
+            // place is the current persona's composer, as after a decision answer.
+            const current = currentAgent(displayOrder(groupAgents(snapshot.agents)), currentId)
+            if (closed && current !== null) {
+              setComposerFocus((held) => ({
+                id: current.id,
+                n: held?.id === current.id ? held.n + 1 : 1
+              }))
+            }
+          })
+        }}
         composer={(agent) => (
+          // Keyed apart from the chat header, which carries the same agent id in the same list.
           <Composer
-            key={agent.id}
+            key={`composer-${agent.id}`}
             agentName={agent.name}
             focusOnMount={composerFocus?.id === agent.id}
             refocus={composerFocus?.id === agent.id ? composerFocus.n : 0}

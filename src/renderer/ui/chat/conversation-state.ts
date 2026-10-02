@@ -290,6 +290,33 @@ function unknownAgent(id: string): AgentView {
 }
 
 /**
+ * The personas whose session is live although the roster no longer has them,
+ * in session order. Derived, never stored: it is a function of the sessions and
+ * the roster, so a persona that returns to the roster stops being one. Each is
+ * the persona as the transcript last knew it, else the id standing as the name.
+ */
+export function orphansOf(
+  state: ConversationState,
+  agents: readonly AgentView[]
+): readonly AgentView[] {
+  const orphans: AgentView[] = []
+  for (const agentId of state.sessions.keys()) {
+    if (agents.some((agent) => agent.id === agentId)) {
+      continue
+    }
+    let known: AgentView | undefined
+    for (let at = state.entries.length - 1; at >= 0 && known === undefined; at -= 1) {
+      const entry = state.entries[at]
+      if (entry.kind === 'persona' && entry.agent.id === agentId) {
+        known = entry.agent
+      }
+    }
+    orphans.push(known ?? unknownAgent(agentId))
+  }
+  return orphans
+}
+
+/**
  * Take what main holds as the conversation: the transcript, which sessions are
  * live, which have a turn in flight and which personas are not idle replace
  * whatever the window knew. What the window itself holds stays: a message typed

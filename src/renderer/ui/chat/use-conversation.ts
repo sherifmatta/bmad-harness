@@ -13,6 +13,7 @@ import {
   foldEvent,
   hydrate,
   initialConversation,
+  orphansOf,
   sendMessage,
   sessionOf,
   sessionReady,
@@ -21,9 +22,10 @@ import {
 import type { ConversationState, Delivery, PersonaStateEntry } from './conversation-state'
 import type { TranscriptEntry } from './transcript-entry'
 
-/** The five bridge methods the conversation needs, and nothing else of the bridge. */
+/** The six bridge methods the conversation needs, and nothing else of the bridge. */
 export type ConversationBridge = {
   openSession(agentId: string): Promise<OpenedSession>
+  closeSession(sessionId: string): Promise<void>
   sendTurn(sessionId: string, text: string): Promise<void>
   getConversation(): Promise<ConversationSnapshot>
   endConversation(projectId: string): Promise<void>
@@ -45,6 +47,13 @@ export type Conversation = {
   send(agentId: string, text: string): void
   /** The user took a queued message back, by its transcript entry's id. */
   cancel(entryId: string): void
+  /**
+   * The user closes a persona's session: main ends that one session, and its
+   * `session:closed` is what removes it here. Resolves true when it was closed;
+   * false when the persona has no session or main refused, the refusal shown as
+   * the failure line. The transcript is untouched either way.
+   */
+  close(agentId: string): Promise<boolean>
   /**
    * End the conversation of `projectId`: main clears its transcript and closes
    * its sessions, and on its reply the window starts empty. Resolves true when
@@ -245,6 +254,26 @@ export function createConversation(deps: ConversationDeps): Conversation {
       commit(cancelQueued(state, entryId))
     },
 
+    async close(agentId) {
+      onFailure(null)
+      const sessionId = sessionOf(state, agentId)
+      if (sessionId === undefined) {
+        return false
+      }
+      try {
+        await bridge.closeSession(sessionId)
+      } catch (reason) {
+        // Already gone: main's `session:closed` was folded before this refusal,
+        // so the session did close and there is nothing to report.
+        if (sessionOf(state, agentId) !== sessionId) {
+          return true
+        }
+        fail(reason)
+        return false
+      }
+      return true
+    },
+
     async end(projectId) {
       onFailure(null)
       try {
@@ -284,6 +313,10 @@ export function useConversation(
   send: (agentId: string, text: string) => void
   cancel: (entryId: string) => void
   end: (projectId: string) => Promise<boolean>
+  /** Close a persona's session; true when main did. */
+  close: (agentId: string) => Promise<boolean>
+  /** Personas with a live session the roster no longer has, in session order. */
+  orphans: readonly AgentView[]
   /** Whether a persona has a live session with no turn in flight. */
   canAnswer: (agentId: string) => boolean
 } {
@@ -340,6 +373,12 @@ export function useConversation(
     []
   )
 
+  const close = useCallback(
+    async (agentId: string) => (await conversation.current?.close(agentId)) ?? false,
+    []
+  )
+  const orphans = useMemo(() => orphansOf(state, agents), [state, agents])
+
   // Who spoke is read from the roster as it is now, so a window that met the
   // transcript before the install was read names them once it is.
   const entries = useMemo(
@@ -362,6 +401,8 @@ export function useConversation(
     send,
     cancel,
     end,
+    close,
+    orphans,
     canAnswer: answerable
   }
 }

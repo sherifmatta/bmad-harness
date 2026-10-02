@@ -11,6 +11,7 @@ import {
   foldEvent,
   hydrate,
   initialConversation,
+  orphansOf,
   sendMessage,
   sessionOf,
   sessionReady,
@@ -168,6 +169,46 @@ describe('sessions', () => {
     expect(state.entries.map((entry) => entry.kind === 'user' && entry.text)).toEqual(['b'])
     expect(state.busy.has('s1')).toBe(false)
     expect(state.busy.has('s2')).toBe(true)
+  })
+
+  describe('orphansOf', () => {
+    it('is a live session whose agent the roster lacks, in session order, as the transcript last knew it', () => {
+      const state = fold([
+        opened('s1'),
+        opened('s2', john.id),
+        said('m1', 'Hello', 1, john.id),
+        said('m2', 'Hi', 2, mary.id)
+      ])
+
+      expect(orphansOf(state, [mary, john])).toEqual([])
+      expect(orphansOf(state, [john])).toEqual([mary])
+      expect(orphansOf(state, [mary])).toEqual([john])
+      expect(orphansOf(state, [])).toEqual([mary, john])
+    })
+
+    it('is the agent id as the name when no turn of the persona is held', () => {
+      const state = fold([opened('s1', 'bmad-agent-gone')])
+
+      expect(orphansOf(state, [mary])).toEqual([
+        { id: 'bmad-agent-gone', module: '', name: 'bmad-agent-gone', title: '', icon: '', description: '' }
+      ])
+    })
+
+    it('is gone with its session, and is not a function of the roster alone', () => {
+      const state = fold([opened('s1'), said('m1', 'Hello')])
+
+      expect(orphansOf(state, [john])).toEqual([mary])
+      expect(orphansOf(fold([closed('s1')], state), [john])).toEqual([])
+      expect(orphansOf(initialConversation, [])).toEqual([])
+    })
+
+    it('does not touch the state it reads', () => {
+      const state = fold([opened('s1'), said('m1', 'Hello')])
+      const before = JSON.stringify([state.entries, [...state.sessions], [...state.busy]])
+      orphansOf(state, [])
+
+      expect(JSON.stringify([state.entries, [...state.sessions], [...state.busy]])).toBe(before)
+    })
   })
 
   it('has no session for an inherited key', () => {

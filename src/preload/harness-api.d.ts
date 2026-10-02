@@ -5,7 +5,7 @@ import type { InstallSnapshot } from '../shared/install'
 import type { RailSnapshot } from '../shared/rail'
 
 /**
- * The whole bridge surface. Explicitly enumerated: thirteen named methods, no
+ * The whole bridge surface. Explicitly enumerated: fourteen named methods, no
  * generic `invoke(channel, …)` passthrough, and no `ipcRenderer` in the
  * renderer's reach.
  */
@@ -42,6 +42,13 @@ export interface HarnessApi {
    * main refused or could not start it.
    */
   openSession(agentId: string): Promise<OpenedSession>
+  /**
+   * End one session: main kills its process and closes it, which it reports as
+   * `session:closed`. Resolves when it has; rejects with the `HarnessError`
+   * envelope (`session/not-found` for an unknown or already closed id). The
+   * transcript and every other session are untouched.
+   */
+  closeSession(sessionId: SessionId): Promise<void>
   /**
    * Send one turn into a session. Resolves when it was written and rejects
    * with the `HarnessError` envelope when it was not (`session/busy` while a

@@ -1,0 +1,31 @@
+/*
+ * The orphan header — Story 2.11. It is a `.chat-head` and borrows every one of
+ * that header's classes; only what differs is here: the note is set in the mono
+ * register, and the close control is neutral, in the end-session control's own
+ * tokens (same ground, rule, type and dim text, same hover).
+ *
+ * No focus rule, no motion, no stacking index, no accent. Every value reaches
+ * the design system through `var()`.
+ */
+
+.orphan-head-note {
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+}
+
+.orphan-close {
+  flex: 0 0 auto;
+  padding: var(--switch-padding);
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--r);
+  background: var(--panel-2);
+  font-family: var(--sans);
+  font-size: var(--fs-control);
+  letter-spacing: var(--track-control);
+  color: var(--dim);
+  cursor: pointer;
+}
+
+.orphan-close:hover {
+  color: var(--text);
+}
