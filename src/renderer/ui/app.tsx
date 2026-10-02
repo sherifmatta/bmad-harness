@@ -41,8 +41,9 @@ export function App(): JSX.Element | null {
   const { snapshot: rail, failure: railFailure } = useRail()
   const [announcer] = useState(() => new Announcer())
   const [currentId, setCurrentId] = useState<string | null>(null)
-  // The persona whose composer takes focus when it appears: only after an `@` handoff.
-  const [composerFocusId, setComposerFocusId] = useState<string | null>(null)
+  // The persona whose composer takes focus when it appears, or when `n` moves: after an
+  // `@` handoff, and after the user answers a decision with an option (`n` counts those).
+  const [composerFocus, setComposerFocus] = useState<{ id: string; n: number } | null>(null)
   // A handoff is announced once, with the line the transcript shows.
   const announceHandoff = useCallback(
     (record: SyslineRecord) => announcer.announce(record.text, performance.now()),
@@ -112,6 +113,13 @@ export function App(): JSX.Element | null {
   if (projectPath === null) {
     return null
   }
+  // A decision option is a message to the persona who asked, like any other. The
+  // button that held focus goes with the block, so the user's place is that composer.
+  const answer = (agentId: string, text: string): void => {
+    conversation.send(agentId, text)
+    setCurrentId(agentId)
+    setComposerFocus((held) => ({ id: agentId, n: held?.id === agentId ? held.n + 1 : 1 }))
+  }
   const room = roomState(snapshot, installFailure)
   if (room === 'pending') {
     return null
@@ -144,7 +152,7 @@ export function App(): JSX.Element | null {
         onCurrentChange={setCurrentId}
         onActivate={(agentId) => {
           // A tile never moves focus, so nothing is waiting to take it.
-          setComposerFocusId(null)
+          setComposerFocus(null)
           void conversation.activate(agentId)
         }}
         onEndSession={() => {
@@ -158,7 +166,8 @@ export function App(): JSX.Element | null {
           <Composer
             key={agent.id}
             agentName={agent.name}
-            focusOnMount={composerFocusId === agent.id}
+            focusOnMount={composerFocus?.id === agent.id}
+            refocus={composerFocus?.id === agent.id ? composerFocus.n : 0}
             onSend={(text) => {
               const target = handoffTarget(text, snapshot.agents, agent.id)
               if (target === null) {
@@ -168,7 +177,7 @@ export function App(): JSX.Element | null {
               // The handoff first: the session opens and the sysline lands, and only
               // then does any text after the name go to the new persona as a turn.
               setCurrentId(target.agent.id)
-              setComposerFocusId(target.agent.id)
+              setComposerFocus({ id: target.agent.id, n: 0 })
               const handedOff = conversation.activate(target.agent.id)
               if (target.text !== '') {
                 void handedOff.then(() => conversation.send(target.agent.id, target.text))
@@ -182,7 +191,7 @@ export function App(): JSX.Element | null {
           <ErrorLine key={`${error.code}-${index}`} error={error} />
         ))}
         {conversation.failure !== null && <ErrorLine error={conversation.failure} />}
-        <Turns entries={conversation.entries} onCancel={conversation.cancel} />
+        <Turns entries={conversation.entries} onCancel={conversation.cancel} canAnswer={conversation.canAnswer} onChoose={answer} />
       </Shell>
       <LiveRegion key="live-region" announcer={announcer} />
     </>

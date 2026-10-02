@@ -496,3 +496,129 @@ describe('App, handing the work to the next persona', () => {
   })
 })
 
+describe('App, when a persona stops to ask', () => {
+  const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
+  const QUESTION = 'Which one?\n\nA. Postgres\nB. SQLite (I lean here)'
+  const options = (): HTMLButtonElement[] => [
+    ...mounted!.container.querySelectorAll<HTMLButtonElement>('button.decision-option')
+  ]
+
+  /** Mary's session is open and idle after she asked. */
+  async function asked(): Promise<void> {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    push({ name: 'session:opened', payload: { sessionId: 's-mary', agentId: mary.id, at: 1 } })
+    push({
+      name: 'persona:said',
+      payload: { sessionId: 's-mary', agentId: mary.id, messageId: 'm1', text: QUESTION, at: 2 }
+    })
+  }
+
+  it('shows no block while her turn is in flight, and the block once she awaits the user', async () => {
+    await asked()
+    expect(options()).toHaveLength(0)
+
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 's-mary', at: 3 } })
+
+    expect(mounted!.container.querySelector('.turn--persona .turn-body .decision')).not.toBeNull()
+    expect(options().map((button) => button.textContent)).toEqual(['APostgres', 'BSQLite (I lean here)'])
+  })
+
+  it('sends the option as typed, removes the block in the same render, and puts focus in her composer', async () => {
+    await asked()
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 's-mary', at: 3 } })
+    const sqlite = options()[1]
+    sqlite.focus()
+
+    act(() => sqlite.click())
+
+    expect(sent).toEqual([['s-mary', 'SQLite (I lean here)']])
+    expect(mounted!.container.querySelector('.decision')).toBeNull()
+    const user = mounted!.container.querySelector('.turn--user') as HTMLElement
+    expect(user.textContent).toContain('SQLite (I lean here)')
+    expect(user.className).not.toContain('queued')
+    expect(document.activeElement).toBe(field())
+    // Nothing is left of the block but the persona's own words and the answer.
+    expect(mounted!.container.querySelectorAll('.turn')).toHaveLength(2)
+    expect(mounted!.container.querySelector('.turn--persona')?.textContent).toContain('A. Postgres')
+  })
+
+  it('is gone the same way when the user types an answer instead', async () => {
+    await asked()
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 's-mary', at: 3 } })
+    expect(options()).toHaveLength(2)
+
+    type(field(), 'Neither')
+    act(() => {
+      field().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    })
+    await settle()
+
+    expect(mounted!.container.querySelector('.decision')).toBeNull()
+    expect(sent).toEqual([['s-mary', 'Neither']])
+  })
+
+  it('puts focus back in her composer on every answer, not only the first', async () => {
+    await asked()
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 's-mary', at: 3 } })
+    act(() => options()[0].click())
+    push({
+      name: 'persona:said',
+      payload: { sessionId: 's-mary', agentId: mary.id, messageId: 'm2', text: QUESTION, at: Date.now() + 60_000 }
+    })
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 's-mary', at: 6 } })
+    const again = options()[1]
+    again.focus()
+    expect(document.activeElement).toBe(again)
+
+    act(() => again.click())
+
+    expect(sent[sent.length - 1]).toEqual(['s-mary', 'SQLite (I lean here)'])
+    expect(document.activeElement).toBe(field())
+  })
+
+  it('is gone while her next turn runs, and does not come back with nothing new said', async () => {
+    await asked()
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 's-mary', at: 3 } })
+    act(() => options()[0].click())
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 's-mary', at: 4 } })
+
+    expect(mounted!.container.querySelector('.decision')).toBeNull()
+  })
+
+  it('is absent when the session is gone, as after a relaunch', async () => {
+    await asked()
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 's-mary', at: 3 } })
+    expect(options()).toHaveLength(2)
+
+    push({ name: 'session:closed', payload: { sessionId: 's-mary', reason: 'process-exited', at: 4 } })
+
+    expect(mounted!.container.querySelector('.decision')).toBeNull()
+  })
+
+  it('answers the persona who asked even when another tile is current, and lands focus in that persona’s composer', async () => {
+    await asked()
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 's-mary', at: 3 } })
+    act(() => tile('John').click())
+    await settle()
+    expect(field().getAttribute('aria-label')).toBe('Message John')
+    expect(options()).toHaveLength(2)
+
+    act(() => options()[0].click())
+    await settle()
+
+    expect(sent).toEqual([['s-mary', 'Postgres']])
+    expect(field().getAttribute('aria-label')).toBe('Message Mary')
+    expect(tile('Mary').getAttribute('aria-current')).toBe('true')
+    expect(document.activeElement).toBe(field())
+  })
+
+  it('adds no live region and no announcement for the block', async () => {
+    await asked()
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 's-mary', at: 3 } })
+
+    expect(mounted!.container.querySelectorAll('.visually-hidden')).toHaveLength(1)
+    expect(mounted!.container.querySelector('.decision [role="status"], .decision .visually-hidden')).toBeNull()
+  })
+})

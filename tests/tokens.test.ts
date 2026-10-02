@@ -1081,3 +1081,56 @@ describe('the sysline (Story 2.9)', () => {
     expect(css).not.toMatch(/box-shadow|border|radius|animation|transition|opacity|\.turn\b/)
   })
 })
+
+describe('the decision block (Story 2.10)', () => {
+  const css = withoutComments(
+    readFileSync(join(ROOT, 'src/renderer/ui/chat/decision-block.css'), 'utf8')
+  )
+  const design = readFileSync(DESIGN, 'utf8')
+  const section = design.slice(
+    design.indexOf('### Decision option'),
+    design.indexOf('### Focus')
+  )
+
+  it('takes its padding from DESIGN.md’s Decision option, as one token of its own', () => {
+    expect(section, 'DESIGN.md ### Decision option').toContain('`9px 11px`')
+    expect(tokens.get('--decision-padding')).toBe('9px 11px')
+    expect(css).toMatch(/\.decision\s*\{[^}]*padding:\s*var\(--decision-padding\)/)
+    // The ladder keeps its ten rungs.
+    expect(namesMatching('--space-')).toHaveLength(10)
+  })
+
+  it('is a panel-2 block in the base radius with a 1px line, its options stacked at the sm rung', () => {
+    expect(section).toContain('`panel-2` ground, 1px `line`')
+    expect(css).toMatch(/\.decision\s*\{[^}]*background:\s*var\(--panel-2\)/)
+    expect(css).toMatch(/\.decision\s*\{[^}]*border:\s*var\(--rule-width\) solid var\(--line\)/)
+    expect(css).toMatch(/\.decision\s*\{[^}]*border-radius:\s*var\(--r\)/)
+    expect(css).toMatch(/\.decision\s*\{[^}]*flex-direction:\s*column[^}]*gap:\s*var\(--space-sm\)/)
+    expect(tokens.get('--space-sm')).toBe(designValue('spacing', 'sm'))
+  })
+
+  it('sets the title at the name size, strong, in text-strong, and the options at body-ui over the tight line-height', () => {
+    expect(css).toMatch(
+      /\.decision-title\s*\{[^}]*font-size:\s*var\(--fs-name\)[^}]*font-weight:\s*var\(--weight-strong\)[^}]*color:\s*var\(--text-strong\)/
+    )
+    expect(css).toMatch(
+      /\.decision-option\s*\{[^}]*font-size:\s*var\(--fs-body-ui\)[^}]*line-height:\s*var\(--lh-tight\)/
+    )
+    expect(tokens.get('--lh-tight')).toBe('1.45')
+  })
+
+  it('draws the key as label mono in accent on accent-bg, 1px accent-border, chip radius: the only accent use', () => {
+    expect(css).toMatch(
+      /\.decision-key\s*\{[^}]*border:\s*var\(--rule-width\) solid var\(--accent-border\)[^}]*border-radius:\s*var\(--radius-chip\)[^}]*background:\s*var\(--accent-bg\)[^}]*color:\s*var\(--accent\)[^}]*font-family:\s*var\(--mono\)[^}]*font-size:\s*var\(--fs-label\)/
+    )
+    expect([...css.matchAll(/var\(--accent(?:-bg|-border)?\)/g)]).toHaveLength(3)
+    expect(css.match(/--accent\b(?!-)/g)).toHaveLength(1)
+  })
+
+  it('is governed by the literal guard and has no ring, hover, motion or literal of its own', () => {
+    const path = 'src/renderer/ui/chat/decision-block.css'
+    expect(guardedStylesheets()).toContain(path)
+    expect(literalsIn(path, readFileSync(join(ROOT, path), 'utf8'))).toEqual([])
+    expect(css).not.toMatch(/outline|:focus|:hover|animation|transition|box-shadow|opacity/)
+  })
+})

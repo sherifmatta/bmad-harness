@@ -485,3 +485,30 @@ describe('the team, status and chat stylesheets', () => {
     expect(sourcesMatching(/aria-live/)).toEqual([LIVE_REGION])
   })
 })
+
+// ---------------------------------------------------------------------------
+// The decision block's options are native buttons: a tab stop each (Story 2.10).
+// ---------------------------------------------------------------------------
+
+describe('the decision block', () => {
+  const BLOCK = 'src/renderer/ui/chat/decision-block.tsx'
+  const BLOCK_CSS = 'src/renderer/ui/chat/decision-block.css'
+
+  it('makes each option a native button, so each is a tab stop and Enter or Space activates it with no key code', () => {
+    const block = withoutAnyComments(sourceText.get(BLOCK) ?? '')
+
+    expect(block).toMatch(/<button\s+key=\{index\}\s+type="button"\s+className="decision-option"\s+onClick=/)
+    expect(block).not.toMatch(/tabIndex|onKey|role="button"|aria-disabled|aria-pressed|aria-selected/)
+    expect(sourcesMatching(/tabIndex=\{?-?\d/).filter((path) => path === BLOCK)).toEqual([])
+  })
+
+  it('is a group named by its title, adds no live region, and leaves the ring to the shared one', () => {
+    const block = withoutAnyComments(sourceText.get(BLOCK) ?? '')
+
+    expect(block).toContain('role="group"')
+    expect(block).toContain('aria-labelledby={titleId}')
+    expect(block).not.toMatch(/aria-live|role="(?:status|alert|log)"/)
+    expect(sourcesMatching(/aria-live/)).toEqual([LIVE_REGION])
+    expect(sourceText.get(BLOCK_CSS) ?? '').not.toMatch(/outline|:focus/i)
+  })
+})

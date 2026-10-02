@@ -959,6 +959,23 @@ describe('useConversation', () => {
     expect(hook.current.entries).toEqual([])
   })
 
+  it('says a persona can answer only while it has a live session with no turn in flight', async () => {
+    install(bridge)
+    hook = renderHook(() => useConversation(agents))
+    await settle()
+    expect(hook.current.canAnswer(mary.id)).toBe(false)
+
+    inAct(() => bridge.push(opened('s1', mary.id)))
+    expect(hook.current.canAnswer(mary.id)).toBe(false)
+    inAct(() => bridge.push(awaiting('s1')))
+    expect(hook.current.canAnswer(mary.id)).toBe(true)
+    expect(hook.current.canAnswer(john.id)).toBe(false)
+
+    inAct(() => hook?.current.send(mary.id, 'Postgres'))
+    expect(hook.current.canAnswer(mary.id)).toBe(false)
+    expect(bridge.sends).toEqual([['s1', 'Postgres']])
+  })
+
   it('does nothing when the preload lacks endConversation', async () => {
     install({
       openSession: bridge.openSession.bind(bridge),

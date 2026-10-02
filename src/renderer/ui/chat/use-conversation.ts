@@ -5,6 +5,7 @@ import type { AgentView, HarnessError } from '../../../shared/install'
 import { asHarnessError } from '../install/install-state'
 import {
   cancelQueued,
+  canAnswer,
   dispatchFailed,
   dispatchRefusedBusy,
   dropQueued,
@@ -283,6 +284,8 @@ export function useConversation(
   send: (agentId: string, text: string) => void
   cancel: (entryId: string) => void
   end: (projectId: string) => Promise<boolean>
+  /** Whether a persona has a live session with no turn in flight. */
+  canAnswer: (agentId: string) => boolean
 } {
   const [state, setState] = useState<ConversationState>(initialConversation)
   const [failure, setFailure] = useState<HarnessError | null>(null)
@@ -349,5 +352,16 @@ export function useConversation(
     [state.entries, agents]
   )
 
-  return { entries, personas: state.personas, failure, activate, send, cancel, end }
+  const answerable = useCallback((agentId: string) => canAnswer(state, agentId), [state])
+
+  return {
+    entries,
+    personas: state.personas,
+    failure,
+    activate,
+    send,
+    cancel,
+    end,
+    canAnswer: answerable
+  }
 }

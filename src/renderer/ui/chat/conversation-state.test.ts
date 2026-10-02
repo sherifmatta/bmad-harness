@@ -3,6 +3,7 @@ import type { ConversationSnapshot, SyslineRecord } from '../../../shared/conver
 import type { ContractEvent, PersonaState } from '../../../shared/events'
 import type { AgentView } from '../../../shared/install'
 import {
+  canAnswer,
   cancelQueued,
   dispatchFailed,
   dropQueued,
@@ -609,5 +610,47 @@ describe('a handoff sysline', () => {
     const handed = withHandoff(queued, record)
 
     expect(handed.entries.map((entry) => entry.kind)).toEqual(['persona', 'user', 'sysline'])
+  })
+})
+
+describe('canAnswer', () => {
+  it('is false for a persona with no live session', () => {
+    expect(canAnswer(initialConversation, mary.id)).toBe(false)
+  })
+
+  it('is false while the session has a turn in flight, true once it awaits one, false once it closes', () => {
+    const open = fold([openedEvent('s1', mary.id)])
+    expect(canAnswer(open, mary.id)).toBe(false)
+
+    const idle = fold([awaitingTurn('s1')], open)
+    expect(canAnswer(idle, mary.id)).toBe(true)
+    expect(canAnswer(idle, john.id)).toBe(false)
+
+    const sent = send(idle, 'hello').state
+    expect(canAnswer(sent, mary.id)).toBe(false)
+
+    const closed = fold(
+      [{ name: 'session:closed', payload: { sessionId: 's1', reason: 'process-exited', at: 9 } }],
+      idle
+    )
+    expect(canAnswer(closed, mary.id)).toBe(false)
+  })
+
+  it('is false after a relaunch: a snapshot with no live session leaves nothing to answer', () => {
+    const { state } = hydrate(
+      initialConversation,
+      { entries: [], sessions: [], busy: [], personas: [] },
+      agentOf
+    )
+    expect(canAnswer(state, mary.id)).toBe(false)
+  })
+
+  it('is true for a session the window met only through a snapshot, if main says it is idle', () => {
+    const { state } = hydrate(
+      initialConversation,
+      { entries: [], sessions: [{ agentId: mary.id, sessionId: 's1' }], busy: [], personas: [] },
+      agentOf
+    )
+    expect(canAnswer(state, mary.id)).toBe(true)
   })
 })

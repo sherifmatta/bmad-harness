@@ -2,6 +2,7 @@
 import { createElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act } from 'react'
+import { createRoot } from 'react-dom/client'
 
 import { mount } from '../testing/render-hook'
 import type { Mounted } from '../testing/render-hook'
@@ -239,6 +240,37 @@ describe('focusOnMount', () => {
       expect(document.activeElement).toBe(before)
     } finally {
       before.remove()
+    }
+  })
+})
+
+describe('refocus', () => {
+  it('takes focus when the number moves to a positive one, mounted already, and again for the next', () => {
+    const before = document.createElement('button')
+    const host = document.createElement('div')
+    document.body.append(before, host)
+    const root = createRoot(host)
+    const show = (refocus: number): void =>
+      act(() => root.render(createElement(Composer, { agentName: 'John', refocus })))
+    try {
+      show(0)
+      const field = host.querySelector('textarea') as HTMLTextAreaElement
+      before.focus()
+      expect(document.activeElement).toBe(before)
+
+      show(1)
+      expect(document.activeElement).toBe(field)
+
+      before.focus()
+      show(1)
+      expect(document.activeElement).toBe(before)
+
+      show(2)
+      expect(document.activeElement).toBe(field)
+    } finally {
+      act(() => root.unmount())
+      before.remove()
+      host.remove()
     }
   })
 })

@@ -6,6 +6,8 @@ import { artParamsFor } from '../persona/art-params'
 import { Initials } from '../persona/initials'
 import { portrait } from '../persona/portrait'
 import type { PersonaState } from '../persona/portrait'
+import { DecisionBlock } from './decision-block'
+import type { Decision } from './decision'
 import { formatTurnTime } from './format-turn-time'
 import type { UserIdentity } from './transcript-entry'
 
@@ -48,17 +50,27 @@ function Head({ name, ident, at }: { name: string; ident: string; at: number }):
   )
 }
 
-/** A persona's turn: their 32px portrait, name, role, time, and their words. */
+/**
+ * A persona's turn: their 32px portrait, name, role, time, and their words. A
+ * decision they raised draws after the words, inside the turn; the words are
+ * rendered whole either way.
+ */
 export function PersonaTurn({
   agent,
   at,
   text,
-  state = 'idle'
+  state = 'idle',
+  decision,
+  onChoose
 }: {
   agent: AgentView
   at: number
   text: string
   state?: PersonaState
+  /** The question this turn ends in, when it can be answered now. */
+  decision?: Decision
+  /** Send an option's text as the user's turn. */
+  onChoose?: (text: string) => void
 }): JSX.Element {
   return (
     <div className="turn turn--persona">
@@ -66,6 +78,9 @@ export function PersonaTurn({
       <div className="turn-body">
         <Head name={agent.name} ident={agent.title} at={at} />
         <Words text={text} />
+        {decision !== undefined && onChoose !== undefined && (
+          <DecisionBlock decision={decision} onChoose={onChoose} />
+        )}
       </div>
     </div>
   )

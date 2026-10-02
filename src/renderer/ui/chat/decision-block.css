@@ -1,0 +1,63 @@
+/*
+ * The decision block — DESIGN.md's *Decision option*: a `panel-2` block in the
+ * base radius, 1px `line`, padded by `--decision-padding`, holding a title and
+ * the options stacked at `--space-sm`. The key badge is the block's single use
+ * of the accent.
+ *
+ * Nothing here marks an option as more than another: no hover treatment, no
+ * selected, disabled or default ground, no ordering. An option is a native
+ * button with its chrome taken off; its focus ring is the shared one from
+ * `design/focus.css`, so this file has no focus rule of its own.
+ *
+ * Every value reaches the design system through `var()`.
+ */
+
+.decision {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+  padding: var(--decision-padding);
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--r);
+  background: var(--panel-2);
+}
+
+.decision-title {
+  font-family: var(--sans);
+  font-size: var(--fs-name);
+  font-weight: var(--weight-strong);
+  color: var(--text-strong);
+}
+
+.decision-option {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-md);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: var(--fs-body-ui);
+  line-height: var(--lh-tight);
+  text-align: left;
+  cursor: pointer;
+}
+
+.decision-key {
+  flex: 0 0 auto;
+  padding: 0 var(--space-xxs);
+  border: var(--rule-width) solid var(--accent-border);
+  border-radius: var(--radius-chip);
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+}
+
+.decision-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

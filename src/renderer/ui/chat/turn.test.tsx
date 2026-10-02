@@ -67,6 +67,42 @@ describe('PersonaTurn', () => {
   })
 })
 
+describe('PersonaTurn with a decision', () => {
+  const words = 'Which one?\n\nA. Postgres\nB. SQLite'
+  const markup = renderToStaticMarkup(
+    <PersonaTurn
+      agent={AGENT}
+      at={0}
+      text={words}
+      decision={{ title: 'Which one?', options: ['Postgres', 'SQLite'] }}
+      onChoose={() => {}}
+    />
+  )
+
+  it('draws the block inside the turn body after the words, and leaves the words whole', () => {
+    expect(markup).toContain('<p>A. Postgres\nB. SQLite</p></div><div class="decision"')
+    expect(markup.indexOf('class="decision"')).toBeGreaterThan(markup.indexOf('turn-words'))
+    expect(markup.indexOf('class="decision"')).toBeLessThan(markup.lastIndexOf('</div></div>'))
+    expect(count(markup, /<button/g)).toBe(2)
+  })
+
+  it('draws no block without a decision, or with nothing to call', () => {
+    expect(renderToStaticMarkup(<PersonaTurn agent={AGENT} at={0} text={words} />)).not.toContain(
+      'decision'
+    )
+    expect(
+      renderToStaticMarkup(
+        <PersonaTurn
+          agent={AGENT}
+          at={0}
+          text={words}
+          decision={{ title: 't', options: ['a', 'b'] }}
+        />
+      )
+    ).not.toContain('decision')
+  })
+})
+
 describe('UserTurn', () => {
   const markup = renderToStaticMarkup(
     <UserTurn at={Date.UTC(2026, 9, 1, 12, 5)} text="hello there" />

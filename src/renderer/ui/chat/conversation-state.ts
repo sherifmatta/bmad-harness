@@ -55,6 +55,15 @@ export function sessionOf(state: ConversationState, agentId: string): string | u
   return state.sessions.get(agentId)
 }
 
+/**
+ * Whether a persona can take a reply this moment: it has a live session and that
+ * session has no turn in flight. The decision block is shown only while this holds.
+ */
+export function canAnswer(state: ConversationState, agentId: string): boolean {
+  const sessionId = state.sessions.get(agentId)
+  return sessionId !== undefined && !state.busy.has(sessionId)
+}
+
 function withEntry(state: ConversationState, entry: TranscriptEntry): ConversationState {
   return {
     ...state,

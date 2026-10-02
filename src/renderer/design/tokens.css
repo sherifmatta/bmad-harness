@@ -420,6 +420,12 @@
      turns'. */
   --sysline-margin:14px 2px 10px;
 
+  /* The decision block (Story 2.10): DESIGN.md's *Decision option* pads the
+     block `9px 11px`, the same pair the tile uses (--tile-padding) but named for
+     its own component so neither moves the other. Its radius is --r, its gap
+     --space-sm, its ground --panel-2. */
+  --decision-padding:9px 11px;
+
   /* The composer: `.composer` (:246) is padded 9px 16px 11px, `.inputwrap`
      (:257) 7px 8px 7px 11px, and the textarea (:259-262) 2px 0. The field's focus
      border is #3c4a60 (:258) and the placeholder #5c646f (:263). The send

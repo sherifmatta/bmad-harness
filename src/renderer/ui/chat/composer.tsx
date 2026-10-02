@@ -30,7 +30,8 @@ import './composer.css'
 export function Composer({
   agentName,
   onSend,
-  focusOnMount = false
+  focusOnMount = false,
+  refocus = 0
 }: {
   agentName: string
   onSend?: (text: string) => void
@@ -40,6 +41,13 @@ export function Composer({
    * persona by tile never does, because that keeps focus on the tile.
    */
   focusOnMount?: boolean
+  /**
+   * Take focus whenever this number changes to a positive one, mounted or not. A
+   * counter and not a flag so the same request can be made again: choosing a
+   * decision option removes the button that held focus, and the user's place is
+   * this composer.
+   */
+  refocus?: number
 }): JSX.Element {
   const [text, setText] = useState('')
   const field = useRef<HTMLTextAreaElement>(null)
@@ -61,6 +69,12 @@ export function Composer({
       field.current?.focus()
     }
   }, [focusOnMount])
+
+  useEffect(() => {
+    if (refocus > 0) {
+      field.current?.focus()
+    }
+  }, [refocus])
 
   function send(): void {
     if (onSend === undefined || text.trim() === '') {

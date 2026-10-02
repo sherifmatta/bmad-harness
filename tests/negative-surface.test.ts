@@ -789,3 +789,74 @@ describe("the handoff says only what is true and parses no skill (Story 2.9)", (
     expect(code.get("src/shared/events.ts") ?? "").not.toMatch(/handoff|sysline/i);
   });
 });
+
+describe("the decision block marks and decides nothing (Story 2.10)", () => {
+  const BLOCK = [
+    "src/renderer/ui/chat/decision.ts",
+    "src/renderer/ui/chat/decision-block.tsx",
+    "src/renderer/ui/chat/decision-block.css",
+  ];
+
+  it("reads the block's own sources", () => {
+    for (const path of BLOCK) {
+      expect(code.get(path), path).toBeDefined();
+    }
+  });
+
+  it("has no chosen, selected, disabled, hover, default, recommended or sorted state, and no pressed, selected or disabled aria", () => {
+    for (const path of BLOCK) {
+      expect(code.get(path) ?? "", path).not.toMatch(
+        /aria-(?:pressed|selected|disabled|checked|current)|\bdisabled\b|\bchosen\b|\bselected\b|\brecommend|\bdefault\b|:hover|:active|\.sort\(|\btoSorted\(|\.reverse\(|\blean\b|\bpreferred\b|\bbest\b/i,
+      );
+    }
+  });
+
+  it("takes no key, owns no focus rule and no outline, and adds no live region, animation or sound", () => {
+    for (const path of BLOCK) {
+      expect(code.get(path) ?? "", path).not.toMatch(
+        /onKey|keydown|keyup|keypress|\.key\b|:focus|outline|aria-live|role=["']status|animation|transition|transform|new Audio|\.play\(/,
+      );
+    }
+  });
+
+  it("is built of native buttons and draws no tab stop of its own", () => {
+    const block = code.get("src/renderer/ui/chat/decision-block.tsx") ?? "";
+
+    expect(block).toMatch(/<button\s+key=\{index\}\s+type="button"/);
+    expect(block).not.toMatch(/tabIndex|role="button"|<(?:a|div|span)[^>]*onClick/);
+  });
+
+  it("reads only the persona's own words and imports nothing: no skill name, menu, roster or bridge", () => {
+    const parser = code.get("src/renderer/ui/chat/decision.ts") ?? "";
+
+    expect(parser).not.toMatch(/^import\b|require\(/m);
+    expect(parser).not.toMatch(/skill|\bmenus?\b|agent|window\./i);
+  });
+
+  it("adds no event, command, bridge method, persisted field or record kind for it", () => {
+    for (const path of [
+      "src/shared/commands.ts",
+      "src/shared/events.ts",
+      "src/shared/conversation.ts",
+      "src/preload/index.ts",
+    ]) {
+      expect(code.get(path) ?? "", path).not.toMatch(/decision|choose|answer/i);
+    }
+    expect(code.get("src/renderer/ui/chat/transcript-entry.ts") ?? "").not.toMatch(
+      /decision/i,
+    );
+    expect(code.get("src/renderer/ui/chat/conversation-state.ts") ?? "").not.toMatch(
+      /decisionOf|chosen|Decision\b/,
+    );
+    expect(offenders(MAIN_CODE, /decision/i)).toEqual([]);
+  });
+
+  it("leaves the persona's words as they were: `Words` never sees the decision and is handed the text whole", () => {
+    const turn = code.get("src/renderer/ui/chat/turn.tsx") ?? "";
+    const words = turn.slice(turn.indexOf("function Words"), turn.indexOf("function Head"));
+
+    expect(words).not.toMatch(/decision/i);
+    // The persona's turn hands `Words` its text whole, with the block drawn after it.
+    expect(turn).toContain("<Words text={text} />");
+  });
+});
