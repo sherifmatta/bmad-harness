@@ -932,3 +932,347 @@ describe("an orphaned session has one header and one control, and nothing else (
     expect(hook).not.toMatch(/useEffect\([^)]*close\(/);
   });
 });
+
+describe("Epic 2's conversational surface asserts the rest of its prohibitions (Story 2.13)", () => {
+  // Epic 2's prohibitions (UX-DR38) are all of the form "this is not there", so
+  // each is pinned as a sweep over the sources, and the rendered half lives in
+  // `src/renderer/ui/chat/negative-surface.test.tsx`. Where Stories 1.14 and
+  // 2.9-2.11 already pin a surface, these widen the pattern; none narrows one.
+  const CHAT = "src/renderer/ui/chat/";
+  const CHAT_CODE = sources(CHAT, [".ts", ".tsx"]);
+  const CHAT_ALL = sources(CHAT, [".ts", ".tsx", ".css"]);
+  const PARSER = "src/renderer/ui/chat/handoff-target.ts";
+  const BRIDGE = "src/main/session-bridge.ts";
+  const APP = "src/renderer/ui/app.tsx";
+  const TURN = "src/renderer/ui/chat/turn.tsx";
+  const TRANSCRIPT = "src/renderer/ui/chat/transcript.tsx";
+  const SYSLINE = "src/renderer/ui/chat/sysline.tsx";
+  const BLOCK_COMPONENT = "src/renderer/ui/chat/decision-block.tsx";
+
+  /**
+   * What a source says to a person: the contents of its string and template
+   * literals, and the text between JSX tags. Identifiers are not copy, so a
+   * variable named `opening` is not a sentence that says so.
+   */
+  function copyOf(path: string): string[] {
+    const text = code.get(path) ?? "";
+    const literals = [...text.matchAll(/(['"`])((?:\\.|(?!\1)[^\\\n])*)\1/g)].map(
+      ([, , body]) => body,
+    );
+    // Text beside an expression is copy too: `<p>Opening {name}</p>` reads as
+    // "Opening", so the braces are blanked first and the rest is swept.
+    const jsx = path.endsWith(".tsx")
+      ? [...text.replace(/\{[^{}]*\}/g, " ").matchAll(/(?<![=-])>([^<>{}]*[A-Za-z][^<>{}]*)</g)].map(
+          ([, body]) => body,
+        )
+      : [];
+    return [...literals, ...jsx]
+      .map((line) => line.trim())
+      .filter((line) => /[A-Za-z]/.test(line));
+  }
+
+  /** Every file whose copy matches, naming the string and not the file's whole text. */
+  function copyOffenders(paths: string[], pattern: RegExp): string[] {
+    return paths.flatMap((path) =>
+      copyOf(path)
+        .filter((line) => pattern.test(line))
+        .map((line) => `${path}: ${line}`),
+    );
+  }
+
+  it("reads the chat column's own sources", () => {
+    expect(CHAT_CODE.length).toBeGreaterThan(10);
+    for (const path of [PARSER, BRIDGE, APP, TURN, TRANSCRIPT, SYSLINE, BLOCK_COMPONENT]) {
+      expect(code.get(path), path).toBeDefined();
+    }
+    // The extractor finds the copy it is meant to sweep, or every copy sweep is empty.
+    expect(copyOf(TURN)).toContain("cancel");
+    expect(copyOf(TURN).join("\n")).toContain("queued · sends when");
+    expect(copyOf("src/renderer/ui/status/persona-state.ts")).toContain("working");
+    // Copy written beside an expression is found: this is the commonest way to write a status sentence in JSX.
+    expect(copyOf("src/renderer/ui/chat/orphan-header.tsx")).toContain("close session");
+    expect(copyOf("src/renderer/ui/app.tsx").length).toBeGreaterThan(0);
+  });
+
+  it("finds a stand-in sentence written beside an expression, and a bare ellipsis", () => {
+    const probe = "src/renderer/ui/chat/__probe__.tsx";
+    code.set(probe, "const a = <p>Opening {name}</p>;\nconst b = <p>{x} loading</p>;\nconst c = '…';");
+    try {
+      expect(copyOf(probe)).toEqual(expect.arrayContaining(["Opening", "loading"]));
+    } finally {
+      code.delete(probe);
+    }
+  });
+
+  describe("the composer parses no skill and offers no completion", () => {
+    it("parses `@` in exactly one file, which reads the roster's display name and nothing else", () => {
+      expect(
+        offenders(
+          RENDERER_CODE,
+          /(['"`])@|\^@|\[@\]|startsWith\(\s*['"`]@|\bcharAt\(\s*0\s*\)\s*===?\s*['"`]@|\[\s*0\s*\]\s*===?\s*['"`]@/,
+        ).map((hit) => hit.split(":")[0]),
+      ).toEqual([PARSER]);
+      expect(
+        RENDERER_CODE.filter((path) => /\bhandoffTarget\b/.test(code.get(path) ?? "")),
+      ).toEqual([APP, PARSER]);
+
+      const parser = code.get(PARSER) ?? "";
+      expect(parser.match(/\.name\b/g)).toHaveLength(1);
+      expect(parser).not.toMatch(/\.(?:id|title|module|description|icon)\s*===?|===?\s*\w+\.(?:id|title|module|description|icon)\b/);
+      // The one id comparison is the current persona's exclusion, never a match.
+      expect(parser.match(/\.id\b/g)).toHaveLength(1);
+      expect(parser).toContain("agent.id !== currentId");
+    });
+
+    it("reads no menu, skill, code or description anywhere in chat/, the persona's own description apart", () => {
+      expect(
+        offenders(CHAT_CODE, /\bmenus?\b|\bskills?\b|\bMenuEntry\b|\bcode\s*:|\bcodes\b/i),
+      ).toEqual([]);
+      // The one `.code` in chat/ is the error code of a refused send, never a menu's.
+      expect(
+        CHAT_CODE.flatMap((path) =>
+          [...(code.get(path) ?? "").matchAll(/\w[\w.()]*\.code\b/g)].map(([hit]) => `${path}: ${hit}`),
+        ),
+      ).toEqual(["src/renderer/ui/chat/use-conversation.ts: asHarnessError(reason).code"]);
+      const descriptions = CHAT_CODE.flatMap((path) =>
+        [...(code.get(path) ?? "").matchAll(/[\w.]*\.description\b/g)].map(
+          ([hit]) => `${path}: ${hit}`,
+        ),
+      );
+      // The chat header's quiet line is the roster's own description of the persona.
+      expect(descriptions).toEqual([
+        "src/renderer/ui/chat/chat-header.tsx: agent.description",
+        "src/renderer/ui/chat/chat-header.tsx: agent.description",
+      ]);
+    });
+
+    it("parses no leading `/` and no other prefix anywhere between the composer and the session", () => {
+      const SLASH =
+        /\/\^\\\/|startsWith\(\s*['"`]\/|\bcharAt\(\s*0\s*\)\s*===?\s*['"`]\/|\[\s*0\s*\]\s*===?\s*['"`]\/|\^\/[a-z]/;
+      const PROCESS = "src/main/sources/session/session-process.ts";
+      expect(code.has(PROCESS), PROCESS).toBe(true);
+      const BETWEEN = [...CHAT_CODE, APP, BRIDGE, PROCESS];
+
+      expect(offenders(BETWEEN, SLASH)).toEqual([]);
+      const composer = code.get("src/renderer/ui/chat/composer.tsx") ?? "";
+      // The composer hands the trimmed draft on and looks at no character of it.
+      expect(composer).toContain("onSend(text.trim())");
+      expect(composer).not.toMatch(/\.(?:startsWith|charAt|match|test|split|replace|slice|indexOf)\(/);
+    });
+
+    it("writes the user's text into the session as given: `turn.send` hands `text` to `write` untouched", () => {
+      const bridge = code.get(BRIDGE) ?? "";
+      const handler = bridge.slice(bridge.indexOf("TURN_SEND_CHANNEL,"));
+      const body = handler.slice(0, handler.indexOf("\n  )\n"));
+
+      expect(body).toContain("entry.session.write(text)");
+      expect(body).toContain("recordUserTurn(text, at)");
+      expect(body).not.toMatch(/text\s*(?:=[^=]|\.(?:replace|trim|slice|split|startsWith|match))/);
+    });
+
+    it("draws no completion surface: no listbox, datalist, autocomplete, active descendant or popup", () => {
+      expect(
+        offenders(
+          RENDERER_CODE,
+          /\blistbox\b|<datalist\b|\blist=["{]|aria-autocomplete|aria-activedescendant|aria-haspopup|aria-controls|aria-owns|autoComplete|\bcompletions?\b|\bsuggest/i,
+        ),
+      ).toEqual([]);
+    });
+  });
+
+  describe("a persona's turn carries no tooltip and no chrome derived from a skill", () => {
+    it("has no `title=`, `data-*`, `aria-describedby`, tooltip, popover or CSS `attr(` anywhere in the renderer", () => {
+      expect(
+        offenders(
+          RENDERER_ALL,
+          /(?<![\w-])title\s*=|(?<![\w-])data-[a-z]|aria-describedby|role=["']tooltip|\btooltip\b|\bpopover\b|\battr\(|\bdataset\b|\bsetAttribute\(/i,
+        ),
+      ).toEqual([]);
+    });
+
+    it("builds the turn, the transcript, the sysline and the decision block from no menu entry", () => {
+      for (const path of [TURN, TRANSCRIPT, SYSLINE, BLOCK_COMPONENT]) {
+        const text = code.get(path) ?? "";
+        const imports = [...text.matchAll(/^import\b[^;]*?from\s+['"]([^'"]+)['"]/gm)].map(
+          ([, from]) => from,
+        );
+
+        expect(imports.filter((from) => /team|menu|skill|install-state|use-install/.test(from)), path).toEqual([]);
+        expect(text, path).not.toMatch(/\bmenus?\b|\bskills?\b|\bMenuEntry\b|\.code\b|\.description\b/i);
+      }
+    });
+
+    it("styles a turn by its speaker alone: no class or rule is built from an agent id, a code or a name", () => {
+      expect(offenders([TURN, TRANSCRIPT, SYSLINE, BLOCK_COMPONENT], /className=\{\s*`|className=\{[^}]*\+|\bclassName=\{[^}]*(?:agent|name|id)\b/)).toEqual([]);
+      expect(offenders(CHAT_ALL.filter((path) => path.endsWith(".css")), /\[class[*^$~|]?=|\[aria-label|\[data-/)).toEqual([]);
+    });
+  });
+
+  describe("nothing offers a handoff: it is the user's, by tile or `@name`", () => {
+    it("has no refusal, deflection or handoff-offer copy in any source", () => {
+      expect(
+        copyOffenders(
+          ALL_CODE,
+          /\b(?:can(?:'|’)?t|cannot|unable to|not able to|won(?:'|’)?t) (?:help|do|answer|assist)|\boutside (?:of )?(?:my|their|this|the) (?:scope|speciality|specialty|expertise|remit|area)|\bnot my (?:area|job|speciality|specialty)|\bbetter (?:suited|placed|handled|asked)|\bask \w+ (?:instead|about)|\b(?:hand|handing|handoff|hand-off|switch|switching|talk|speak|turn|pass)\b[^"'`]*\b(?:to|over to|with) (?:@|\w+ (?:instead|for that))|\byou (?:may|might|could|should|can) (?:want to )?(?:ask|try|talk|switch|hand)|\bwould you like|\bwant me to\b|\btry @|\bsuggest/i,
+        ),
+      ).toEqual([]);
+    });
+
+    it("resolves a handoff in `App` alone, and opens a session for it from the user's send or tile only", () => {
+      const app = code.get(APP) ?? "";
+      expect(app.match(/\bhandoffTarget\(/g)).toHaveLength(1);
+      // The call sits inside the composer's `onSend`, which only the user's send runs.
+      const send = app.slice(app.indexOf("onSend={"));
+      expect(send.indexOf("handoffTarget(")).toBeGreaterThan(-1);
+      expect(app.slice(0, app.indexOf("onSend={"))).not.toContain("handoffTarget(");
+      // `activate` is called from the tile, from the composer's `@` and from nowhere else.
+      expect(app.match(/conversation\.activate\(/g)).toHaveLength(2);
+      for (const path of RENDERER_CODE.filter((p) => p !== APP && p !== "src/renderer/ui/chat/use-conversation.ts")) {
+        expect(code.get(path) ?? "", path).not.toMatch(/\.activate\(/);
+      }
+    });
+
+    it("writes a handoff sysline from the open's reply alone: `handoffFor` is defined once and called once", () => {
+      const bridge = code.get(BRIDGE) ?? "";
+      const open = bridge.slice(bridge.indexOf("SESSION_OPEN_CHANNEL,"));
+
+      expect(bridge.match(/\bhandoffFor\b/g)).toHaveLength(2);
+      expect(open.match(/\bhandoffFor\(/g)).toHaveLength(1);
+      expect(offenders(MAIN_CODE.filter((path) => path !== BRIDGE), /\bhandoffFor\b|recordSysline/).map((hit) => hit.split(":")[0])).toEqual([
+        "src/main/projections/transcript.ts",
+      ]);
+      // The persona's words are never read for a handoff: no fold parses `said` text for a name.
+      expect(offenders(MAIN_CODE, /\bpersona:said\b[^\n]*(?:handoff|handed)/)).toEqual([]);
+    });
+
+    it("has no button in the turn, the transcript or the sysline but the queued message's cancel", () => {
+      expect(code.get(TURN)?.match(/<button\b/g)).toHaveLength(1);
+      expect(code.get(TURN)).toMatch(/<button\s+type="button"\s+className="turn-cancel"/);
+      expect(offenders([TRANSCRIPT, SYSLINE], /<button\b|role=["']button|onClick/)).toEqual([]);
+    });
+  });
+
+  describe("nothing stands in for a spinner, while a session opens or at any other time", () => {
+    const STAND_IN =
+      /\b(?:loading|resolving|scanning|fetching|connecting|initiali[sz]ing|please wait|spinner|skeleton|shimmer|opening|starting|thinking|typing|waiting|processing|preparing|booting|launching|warming|getting ready|in progress|one moment|just a moment|hold on|stand by|working)\b|\.\.\.|…/i;
+
+    it("has no stand-in word in any string or JSX text, and `working` only where the state words live", () => {
+      const swept = [...ALL_CODE, ...RENDERER_ALL.filter((path) => path.endsWith(".css"))];
+      const hits = copyOffenders(swept, STAND_IN);
+
+      expect(
+        hits.filter((hit) => !hit.startsWith("src/renderer/ui/status/persona-state.ts: working")),
+      ).toEqual([]);
+      expect(hits).toEqual(["src/renderer/ui/status/persona-state.ts: working"]);
+      // The word is rendered through the state text and written nowhere else.
+      expect(
+        offenders(RENDERER_CODE, /\bworking\b/).map((hit) => hit.split(":")[0]),
+      ).toEqual(["src/renderer/ui/status/persona-state.ts"]);
+    });
+
+    it("has the queued mark in `turn.tsx` and nowhere else, and no other status line beside the persona's state", () => {
+      expect([...new Set(ALL_CODE.concat(RENDERER_ALL))].filter((path) => /queued\s*·/.test(code.get(path) ?? ""))).toEqual([TURN]);
+      expect(copyOf(TURN).filter((line) => /^queued\b/i.test(line))).toEqual([
+        "queued · sends when ${queuedFor} finishes",
+      ]);
+      // A stylesheet rule has no generated content to put a word there either.
+      expect(offenders(RENDERER_ALL.filter((path) => path.endsWith(".css")), /(?<![\w-])content\s*:(?!\s*(?:none\b|normal\b|''|""))/)).toEqual([]);
+    });
+
+    it("has no progress, busy, status or alert element, and no live region of its own, in chat/", () => {
+      expect(
+        offenders(
+          CHAT_CODE,
+          /<progress\b|<meter\b|aria-busy|aria-live|aria-valuenow|role=["'](?:progressbar|status|alert|log|marquee|timer)|<output\b|<svg\b[^>]*\banimate|<animate/i,
+        ),
+      ).toEqual([]);
+      expect(offenders(RENDERER_ALL.filter((path) => path.endsWith(".css")), /@keyframes\s+(?!blink\b|eq\b|pulse\b)/)).toEqual([]);
+    });
+
+    it("keeps no opening, pending or starting state in the conversation: a session that is not up is a queued message", () => {
+      const state = code.get("src/renderer/ui/chat/conversation-state.ts") ?? "";
+      const start = state.indexOf("export type ConversationState = {");
+      const type = state.slice(start, state.indexOf("\n}", start));
+
+      expect(start).toBeGreaterThan(-1);
+      expect([...type.matchAll(/^ {2}(\w+)\??:/gm)].map(([, field]) => field)).toEqual([
+        "entries",
+        "sessions",
+        "busy",
+        "queue",
+        "personas",
+        "nextId",
+      ]);
+      for (const path of [
+        "src/renderer/ui/chat/conversation-state.ts",
+        "src/renderer/ui/chat/transcript-entry.ts",
+        "src/shared/conversation.ts",
+      ]) {
+        expect(code.get(path) ?? "", path).not.toMatch(
+          /\b(?:opening|pending|starting|connecting|loading|booting|launching)\s*\??:|kind:\s*['"](?:opening|pending|status|progress|placeholder)/i,
+        );
+      }
+      // A transcript entry is a persona's, the user's or the harness's sysline: no fourth kind.
+      expect([...(code.get("src/renderer/ui/chat/transcript-entry.ts") ?? "").matchAll(/kind:\s*'(\w+)'/g)].map(([, kind]) => kind)).toEqual([
+        "persona",
+        "user",
+        "sysline",
+      ]);
+    });
+  });
+
+  describe("the whole epic is silent and badge-free", () => {
+    it("names no sound, Dock, badge, bounce, progress, attention or notification API in any source, preload and shared included", () => {
+      expect(
+        offenders(
+          ALL_CODE,
+          /\bflashFrame\b|\brequestUserAttention\b|\bsetProgressBar\b|\bsetOverlayIcon\b|\bsetBadgeCount\b|\bbadgeCount\b|\bBadgeCount\b|\bapp\.dock\b|\bdock\b|\bbounce\b|\bsetBadge\b|\bsetTrayTitle\b|\bnew Tray\b|\bTray\b|\bNotification\b|\bshowNotification\b|\bshell\.beep\b|\bbeep\b|\bsystemPreferences\.(?:setUserDefault|postNotification|subscribeNotification)|\bsetWindowButtonVisibility\b|\bsetDocumentEdited\b|\bsetRepresentedFilename\b|\bnew Audio\b|\bAudioContext\b|<audio|<video|\.play\(/,
+        ),
+      ).toEqual([]);
+    });
+
+    it("lets the preload and the shared contract carry no word for any of it", () => {
+      expect(
+        offenders(
+          [...sources("src/preload/"), ...sources("src/shared/")],
+          /\b(?:sound|audio|badge|dock|bounce|progress|attention|notif\w*|chime|ding|alert)\b/i,
+        ),
+      ).toEqual([]);
+    });
+  });
+
+  describe("the decision block's marks are absent in the places the first pins did not look", () => {
+    const BLOCK = [
+      "src/renderer/ui/chat/decision.ts",
+      "src/renderer/ui/chat/decision-block.tsx",
+      "src/renderer/ui/chat/decision-block.css",
+    ];
+
+    it("has no focus, autofocus, default check, positional or reversed-order rule, and no index-dependent style", () => {
+      for (const path of BLOCK) {
+        expect(code.get(path) ?? "", path).not.toMatch(
+          /\bautoFocus\b|\bautofocus\b|\bdefaultChecked\b|\bdefaultValue\b|\.focus\(|\bref=|useRef|:first-child|:last-child|:nth-|:first-of-type|:last-of-type|:only-child|:not\(|:is\(|:where\(|(?<![\w-])order\s*:|-reverse|[+~]\s*\.decision|\bfilter\b|\bopacity\b/,
+        );
+      }
+      const block = code.get("src/renderer/ui/chat/decision-block.tsx") ?? "";
+      // One class for every option, written as a literal: nothing about the index changes it.
+      expect(block.match(/className=/g)).toHaveLength(5);
+      expect(offenders([BLOCK_COMPONENT], /className=\{/)).toEqual([]);
+      // The only thing the index becomes is the key badge's letter, in `keyOf`.
+      const component = block.slice(block.indexOf("export function DecisionBlock"));
+      expect(component).not.toMatch(/index\s*(?:===?|[<>]=?|%)|\bindex\s*\?|\?\s*[^:\n]*\bindex\b/);
+      expect(component.match(/\bindex\b/g)).toHaveLength(3);
+    });
+
+    it("leaves no residue: no state, memory or storage in the block or its parser", () => {
+      for (const path of BLOCK.slice(0, 2)) {
+        expect(code.get(path) ?? "", path).not.toMatch(
+          /\buse(?:State|Reducer|Effect|LayoutEffect|Ref|Memo|Callback|SyncExternalStore)\b|localStorage|sessionStorage|indexedDB|\bcookie\b|window\.|new Map|new Set|\blet\s+(?!end\b|first\b|pending\b|above\b|at\b)\w+\s*=\s*(?:true|false|null)/,
+        );
+      }
+      expect(code.get(BLOCK_COMPONENT) ?? "").toMatch(/import \{ useId \} from 'react'/);
+      // The transcript keeps no answered decision either: the block is a function of the last entry.
+      expect(code.get(TRANSCRIPT) ?? "").not.toMatch(/\buse(?:State|Reducer|Ref|Effect)\b|answered|chosen|dismiss/i);
+    });
+  });
+});
