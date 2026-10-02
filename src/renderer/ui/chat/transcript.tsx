@@ -1,5 +1,6 @@
 import type { JSX } from 'react'
 
+import { Sysline } from './sysline'
 import { PersonaTurn, UserTurn } from './turn'
 import type { TranscriptEntry } from './transcript-entry'
 
@@ -7,12 +8,12 @@ import type { TranscriptEntry } from './transcript-entry'
  * The transcript — a thread of turns in time order (UX-DR25).
  *
  * Entries arrive however the projection holds them; the transcript shows them
- * ascending by `at`, ties keeping their input order. Only persona and user
- * turns exist here: the sysline and decision block are later stories'. The markup is the shell's `.thread`, which already caps at
- * `--thread-max`.
+ * ascending by `at`, ties keeping their input order. Persona and user turns, and
+ * the harness's own sysline between them; the decision block is a later story's.
+ * The markup is the shell's `.thread`, which already caps at `--thread-max`.
  */
 
-export type { PersonaEntry, TranscriptEntry, UserEntry } from './transcript-entry'
+export type { PersonaEntry, SyslineEntry, TranscriptEntry, UserEntry } from './transcript-entry'
 
 /**
  * The entries ascending by `at`, stable: equal times keep the order they came
@@ -46,10 +47,14 @@ export function Turns({
 }): JSX.Element {
   return (
     <>
-      {orderEntries(entries).map((entry) =>
-        entry.kind === 'persona' ? (
-          <PersonaTurn key={entry.id} agent={entry.agent} at={entry.at} text={entry.text} />
-        ) : (
+      {orderEntries(entries).map((entry) => {
+        if (entry.kind === 'sysline') {
+          return <Sysline key={entry.id} text={entry.text} />
+        }
+        if (entry.kind === 'persona') {
+          return <PersonaTurn key={entry.id} agent={entry.agent} at={entry.at} text={entry.text} />
+        }
+        return (
           <UserTurn
             key={entry.id}
             at={entry.at}
@@ -59,7 +64,7 @@ export function Turns({
             onCancel={onCancel === undefined ? undefined : () => onCancel(entry.id)}
           />
         )
-      )}
+      })}
     </>
   )
 }

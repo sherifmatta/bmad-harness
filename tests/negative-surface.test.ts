@@ -608,6 +608,10 @@ describe("the text ramp", () => {
       kind: "label",
       why: "the clock time of a turn; the thread is in time order, so position carries the sequence and the time only refines it",
     },
+    "ui/chat/sysline.css: .sysline": {
+      kind: "restated",
+      why: "the handoff is announced once through the live region in the same words, and the header, the tile and aria-current already name who the work moved to",
+    },
     "ui/chat/composer.css: .composer-hint": {
       kind: "restated",
       why: "the two keys the field answers to; Enter sending is how every message field behaves and nothing is lost by missing the line",
@@ -718,5 +722,70 @@ describe("no configuration path and none of the four cut strings", () => {
         text,
       ).toEqual([]);
     }
+  });
+});
+
+describe("the handoff says only what is true and parses no skill (Story 2.9)", () => {
+  const PARSER = "src/renderer/ui/chat/handoff-target.ts";
+  const BRIDGE = "src/main/session-bridge.ts";
+
+  it("parses `@<name>` against the roster's display names alone: no skill, menu, code, description or id match", () => {
+    const parser = code.get(PARSER) ?? "";
+
+    expect(parser).toMatch(/\.name\b/);
+    expect(parser).not.toMatch(
+      /skill|\bmenus?\b|\bcode\b|description|\.title\b|\.module\b|toml/i,
+    );
+    expect(parser).not.toMatch(/\.id\s*===?|===?\s*\w+\.id\b/);
+  });
+
+  it("puts no `@` code in the composer, and leaves its hint as the two keys it answers to", () => {
+    const composer = code.get("src/renderer/ui/chat/composer.tsx") ?? "";
+
+    expect(composer).not.toMatch(/['"`]@|handoff|\bagents?\b/i);
+    expect(composer).toContain("<span>enter sends</span>");
+    expect(composer).toContain("<span>shift+enter adds a line</span>");
+    expect(offenders(RENDERER_CODE, /autocomplete|typeahead|suggest(?:ion)?s?\b|popup/i)).toEqual([]);
+  });
+
+  it("authors the handoff text with no claim that context continues and no restart or cleared framing", () => {
+    const bridge = code.get(BRIDGE) ?? "";
+    const start = bridge.indexOf("function handoffFor");
+    const handler = bridge.indexOf("SESSION_OPEN_CHANNEL,", start);
+
+    expect(start).toBeGreaterThan(-1);
+    const text = bridge.slice(start, handler);
+    expect(text).toContain("handed off · ");
+    expect(text).toContain(" → ");
+    expect(text).toContain(" · picking up from ");
+    expect(text).not.toMatch(/context|continu|new thread|cleared|restart|resum/i);
+  });
+
+  it("orders the written files by when they were written: no sort in the fold or the bridge that keeps them", () => {
+    expect(
+      offenders(
+        ["src/main/fold/written-paths.ts", BRIDGE],
+        /\.sort\(|\.toSorted\(|localeCompare/,
+      ),
+    ).toEqual([]);
+  });
+
+  it("styles and builds the sysline as nothing a persona is: no turn, portrait, initials, agent or name in it", () => {
+    for (const path of [
+      "src/renderer/ui/chat/sysline.tsx",
+      "src/renderer/ui/chat/sysline.css",
+    ]) {
+      expect(code.get(path) ?? "", path).not.toMatch(
+        /\.turn|turn-|portrait|initials|agent|persona|\bname\b|formatTurnTime/i,
+      );
+    }
+  });
+
+  it("adds no event, command or bridge method for it: the open's reply carries the line", () => {
+    const preload = code.get("src/preload/index.ts") ?? "";
+
+    expect([...preload.matchAll(/^ {2}([a-zA-Z]+): (?:async )?\(/gm)]).toHaveLength(13);
+    expect(code.get("src/shared/commands.ts") ?? "").not.toMatch(/handoff|sysline/i);
+    expect(code.get("src/shared/events.ts") ?? "").not.toMatch(/handoff|sysline/i);
   });
 });

@@ -413,6 +413,13 @@
   --turn-head-bottom:3px;
   --inset-turn-user:inset 2px 0 0 var(--accent-edge);
 
+  /* The sysline (Story 2.9): `.sysline` (:191) sits 14px under what precedes it,
+     2px in from either side and 10px over what follows; DESIGN.md's `sysline`
+     block gives the same `14px 2px 10px`. It is a margin of its own, not a gap
+     on the ladder: the 2px inset is on no rung, and `--turn-stack-gap` is the
+     turns'. */
+  --sysline-margin:14px 2px 10px;
+
   /* The composer: `.composer` (:246) is padded 9px 16px 11px, `.inputwrap`
      (:257) 7px 8px 7px 11px, and the textarea (:259-262) 2px 0. The field's focus
      border is #3c4a60 (:258) and the placeholder #5c646f (:263). The send

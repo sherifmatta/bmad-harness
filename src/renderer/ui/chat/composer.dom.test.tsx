@@ -212,3 +212,33 @@ describe('autogrow', () => {
     expect(field.style.height).toBe('20px')
   })
 })
+
+describe('focusOnMount', () => {
+  function mountComposer(focusOnMount?: boolean): HTMLTextAreaElement {
+    mounted = mount(
+      createElement(Composer, { agentName: 'John', ...(focusOnMount === undefined ? {} : { focusOnMount }) })
+    )
+    return mounted.container.querySelector('textarea') as HTMLTextAreaElement
+  }
+
+  it('takes focus when it appears if asked to', () => {
+    const field = mountComposer(true)
+
+    expect(document.activeElement).toBe(field)
+  })
+
+  it('never takes focus otherwise: a composer that appears by default or by a tile leaves it where it was', () => {
+    const before = document.createElement('button')
+    document.body.append(before)
+    before.focus()
+    try {
+      mountComposer()
+      expect(document.activeElement).toBe(before)
+      mounted?.unmount()
+      mountComposer(false)
+      expect(document.activeElement).toBe(before)
+    } finally {
+      before.remove()
+    }
+  })
+})

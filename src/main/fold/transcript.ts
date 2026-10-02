@@ -10,6 +10,8 @@ import type { TranscriptRecord } from '../../shared/conversation'
  * separator or edited. Anything else starts a record of its own. Ids are
  * `m-<n>`, assigned here, continuing past the highest a loaded transcript holds.
  * A `persona:said` without an `agentId` belongs to the room and is not recorded.
+ * A sysline is the harness's own line and is always a record of its own: it ends
+ * whatever persona message came before it, so later words open a new one.
  */
 export type TranscriptState = {
   entries: readonly TranscriptRecord[]
@@ -54,4 +56,9 @@ export function foldPersonaSaid(state: TranscriptState, said: PersonaSaid): Tran
 
 export function foldUserTurn(state: TranscriptState, text: string, at: number): TranscriptState {
   return withRecord(state, { kind: 'user', id: `m-${state.nextId}`, at, text })
+}
+
+/** The harness's own line, appended as a record that no persona message joins. */
+export function foldSysline(state: TranscriptState, text: string, at: number): TranscriptState {
+  return withRecord(state, { kind: 'sysline', id: `m-${state.nextId}`, at, text })
 }

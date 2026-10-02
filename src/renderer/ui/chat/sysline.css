@@ -1,0 +1,36 @@
+/*
+ * The sysline — DESIGN.md's `sysline`, harness-mockup.html's `.sysline`
+ * (:191-195): the harness's own voice in the transcript, a centred mono line in
+ * the faint ink with a 1px rule filling the space either side.
+ *
+ * It is not a turn and shares nothing with one: no `.turn` container, so
+ * `.turn + .turn` does not reach it and its margin is its own; no portrait, name
+ * or time; no ground, no motion. Every value reaches the design system through
+ * `var()`.
+ */
+
+.sysline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  margin: var(--sysline-margin);
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  color: var(--faint);
+}
+
+.sysline::before,
+.sysline::after {
+  content: '';
+  flex: 1 1 auto;
+  min-width: var(--space-xxl);
+  height: var(--rule-width);
+  background: var(--line);
+}
+
+/* A long file list wraps rather than pushing the rules out of the thread. */
+.sysline-text {
+  min-width: 0;
+  text-align: center;
+  overflow-wrap: anywhere;
+}

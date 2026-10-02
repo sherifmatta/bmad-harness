@@ -193,6 +193,30 @@ describe('Team, activation', () => {
     ])
   })
 
+  it('hands the tab stop to the current persona when it changes without a tile being selected, and to it alone', () => {
+    const tiles = renderTeam(teamProps({ currentId: 'a' }))
+    register(tiles)
+    tiles[0].onKeyDown(keyEvent(DOWN).event)
+    // Arrow travel moved the tab stop to c while a stayed current.
+    expect(renderTeam(teamProps({ currentId: 'a' })).map((tile) => tile.tabStop)).toEqual([false, true, false])
+
+    // `@<name>` made b current: the render that sees it clears the moved-to tile, and the next shows b.
+    renderTeam(teamProps({ currentId: 'b' }))
+    const after = renderTeam(teamProps({ currentId: 'b' }))
+
+    expect(after.map((tile) => tile.current)).toEqual([false, false, true])
+    expect(after.map((tile) => tile.tabStop)).toEqual([false, false, true])
+  })
+
+  it('leaves arrow travel alone while the current persona stays the same', () => {
+    const tiles = renderTeam(teamProps({ currentId: 'a' }))
+    register(tiles)
+    tiles[0].onKeyDown(keyEvent(DOWN).event)
+    renderTeam(teamProps({ currentId: 'a' }))
+
+    expect(renderTeam(teamProps({ currentId: 'a' })).map((tile) => tile.tabStop)).toEqual([false, true, false])
+  })
+
   it('renders nothing for an empty roster', () => {
     hooks.begin('team')
 
@@ -385,6 +409,37 @@ describe('Shell, the chain from a click to the header', () => {
 
     expect(activated).toEqual(['bmad-agent-2', 'bmad-agent-2', 'bmad-agent-0'])
     expect(render().props.currentId).toBe('bmad-agent-0')
+  })
+
+  it('takes the current persona from the window when it holds one, and reports a tile selection instead of keeping it', () => {
+    const changed: string[] = []
+    const renderHeld = (currentId: string | null): ReturnType<typeof renderShell> => {
+      hooks.begin('shell')
+      const tree = Shell({
+        projectPath: '/p',
+        snapshot,
+        currentId,
+        onCurrentChange: (id) => void changed.push(id)
+      })
+      const team = elementsOfType<TeamProps>(tree, Team)[0]
+      return {
+        header: elementsOfType<{ agent: AgentView; state: PersonaState }>(tree, ChatHeader),
+        team,
+        tiles: renderTeam(team.props)
+      }
+    }
+
+    expect(renderHeld(null).header[0].props.agent.id).toBe('bmad-agent-0')
+    const held = renderHeld('bmad-agent-2')
+    expect(held.header[0].props.agent.id).toBe('bmad-agent-2')
+    expect(held.header[0].key).toBe('bmad-agent-2')
+    expect(held.team.props.currentId).toBe('bmad-agent-2')
+
+    held.team.props.onSelect('bmad-agent-1')
+    expect(changed).toEqual(['bmad-agent-1'])
+    // Still the window's to say: until it passes the new id, the shell shows the old one.
+    expect(renderHeld('bmad-agent-2').header[0].props.agent.id).toBe('bmad-agent-2')
+    expect(renderHeld('bmad-agent-1').header[0].props.agent.id).toBe('bmad-agent-1')
   })
 
   it('renders the composer slot for the current agent only, and nothing without one', () => {

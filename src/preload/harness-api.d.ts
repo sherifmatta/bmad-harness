@@ -1,4 +1,4 @@
-import type { ConversationSnapshot } from '../shared/conversation'
+import type { ConversationSnapshot, OpenedSession } from '../shared/conversation'
 import type { ContractEvent } from '../shared/events'
 import type { SessionId } from '../shared/ids'
 import type { InstallSnapshot } from '../shared/install'
@@ -37,10 +37,11 @@ export interface HarnessApi {
   onDocClosed(listener: (path: string) => void): () => void
   /**
    * Open the session for a persona, or find the one already open for it, and
-   * resolve with its id. Rejects with the `HarnessError` envelope when main
-   * refused or could not start it.
+   * resolve with its id, and with the sysline main wrote when this open was a
+   * handoff from another persona. Rejects with the `HarnessError` envelope when
+   * main refused or could not start it.
    */
-  openSession(agentId: string): Promise<SessionId>
+  openSession(agentId: string): Promise<OpenedSession>
   /**
    * Send one turn into a session. Resolves when it was written and rejects
    * with the `HarnessError` envelope when it was not (`session/busy` while a

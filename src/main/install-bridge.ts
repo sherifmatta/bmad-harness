@@ -1,6 +1,7 @@
 import { BrowserWindow, ipcMain } from 'electron'
 import type { IpcMainInvokeEvent, WebContents } from 'electron'
 import type { HarnessError, InstallReply, InstallSnapshot } from '../shared/install'
+import { forgetInstall, rememberInstall } from './install-model'
 import { createInstallProjection } from './projections/install'
 import type { InstallProjection } from './projections/install'
 import { createInstallSource } from './sources/install/resolvers'
@@ -94,6 +95,7 @@ export function registerInstallBridge(deps: InstallBridgeDeps = {}): void {
     const watcher = watch({ projectRoot, onChange: () => void projection.refresh() })
     const service = { projection, watcher, ready: projection.refresh() }
     services.set(sender.id, service)
+    rememberInstall(sender.id, projection)
 
     // Following the remedy (install uv, sign in) changes nothing in the
     // project, so no watcher notices; coming back to the window is the signal.
@@ -108,6 +110,7 @@ export function registerInstallBridge(deps: InstallBridgeDeps = {}): void {
 
     sender.once('destroyed', () => {
       unsubscribeFocus()
+      forgetInstall(sender.id, projection)
       projection.dispose()
       void watcher.close()
       services.delete(sender.id)

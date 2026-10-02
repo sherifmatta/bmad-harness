@@ -1052,3 +1052,32 @@ describe('the guard rule sets', () => {
     expect(RULE_KINDS.declaration.length).toBeGreaterThan(0)
   })
 })
+
+describe('the sysline (Story 2.9)', () => {
+  const sysline = componentBlock('sysline')
+  const css = withoutComments(readFileSync(join(ROOT, 'src/renderer/ui/chat/sysline.css'), 'utf8'))
+
+  it('takes its margin from DESIGN.md components.sysline.margin, as one token of its own', () => {
+    expect(sysline['margin'], 'DESIGN.md components.sysline.margin').toBe('14px 2px 10px')
+    expect(tokens.get('--sysline-margin')).toBe(sysline['margin'])
+    // The ladder keeps its ten rungs: the 2px inset is on none of them.
+    expect(namesMatching('--space-')).toHaveLength(10)
+  })
+
+  it('is mono at the label size, centred with a rule either side, in the faint ink and its own margin', () => {
+    expect(sysline['type']).toContain('label')
+    expect(css).toMatch(/\.sysline\s*\{[^}]*display:\s*flex[^}]*align-items:\s*center/)
+    expect(css).toMatch(/\.sysline\s*\{[^}]*font-family:\s*var\(--mono\)/)
+    expect(css).toMatch(/\.sysline\s*\{[^}]*font-size:\s*var\(--fs-label\)/)
+    expect(css).toMatch(/\.sysline\s*\{[^}]*color:\s*var\(--faint\)/)
+    expect(css).toMatch(/\.sysline\s*\{[^}]*margin:\s*var\(--sysline-margin\)/)
+    expect(css).toMatch(
+      /\.sysline::before,\s*\.sysline::after\s*\{[^}]*height:\s*var\(--rule-width\)[^}]*background:\s*var\(--line\)/
+    )
+  })
+
+  it('has no ground, border, shadow, radius, animation or transition, and is not a .turn', () => {
+    expect(css).not.toMatch(/\bbackground(?:-color)?:\s*var\(--(?!line\b)/)
+    expect(css).not.toMatch(/box-shadow|border|radius|animation|transition|opacity|\.turn\b/)
+  })
+})

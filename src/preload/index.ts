@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { ContractCommands } from '../shared/commands'
-import type { ConversationReply } from '../shared/conversation'
+import type { ConversationReply, OpenedSession, SessionOpenReply } from '../shared/conversation'
 import type { DocAck } from '../shared/document'
 import type { ContractEvent } from '../shared/events'
 import type { InstallReply, InstallSnapshot } from '../shared/install'
@@ -87,16 +87,18 @@ const harness: HarnessApi = {
   },
 
   // Commands (AD-13): the agent id goes to main, which validates it and starts
-  // or finds the session. What comes back is the session id, or the envelope.
+  // or finds the session. What comes back is the session id, and the sysline
+  // when the open was a handoff, or the envelope.
   openSession: async (agentId) => {
-    const reply = (await ipcRenderer.invoke(
-      SESSION_OPEN_CHANNEL,
-      agentId
-    )) as ContractCommands['session.open']['reply']
+    const reply = (await ipcRenderer.invoke(SESSION_OPEN_CHANNEL, agentId)) as SessionOpenReply
     if (!reply.ok) {
       throw reply.error
     }
-    return reply.sessionId
+    const opened: OpenedSession = { sessionId: reply.sessionId }
+    if (reply.handoff !== undefined) {
+      opened.handoff = reply.handoff
+    }
+    return opened
   },
 
   sendTurn: async (sessionId, text) => {

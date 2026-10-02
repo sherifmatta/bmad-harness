@@ -32,5 +32,16 @@ export type UserEntry = {
   queuedFor?: string
 }
 
-export type TranscriptEntry = PersonaEntry | UserEntry
+/**
+ * A line the harness wrote in its own voice, such as a handoff notice. It has no
+ * agent, name, portrait or time: nothing about it can be mistaken for a persona.
+ */
+export type SyslineEntry = {
+  kind: 'sysline'
+  id: string
+  at: number
+  text: string
+}
+
+export type TranscriptEntry = PersonaEntry | UserEntry | SyslineEntry
 

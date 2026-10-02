@@ -16,6 +16,7 @@ vi.mock('electron', () => ({
 }))
 
 import type { InstallBridgeDeps } from './install-bridge'
+import { agentNameFor } from './install-model'
 
 const { INSTALL_CHANGED_CHANNEL, INSTALL_GET_CHANNEL, registerInstallBridge } = await import(
   './install-bridge'
@@ -360,5 +361,19 @@ describe('window focus, through the real window', () => {
     sender.destroy()
 
     expect(removeListener).not.toHaveBeenCalled()
+  })
+})
+
+describe('the install model the session bridge reads', () => {
+  it('holds the window’s roster names from its first answer until the window is destroyed', async () => {
+    const sender = new FakeSender(7)
+    expect(agentNameFor(7, mary.id)).toBeUndefined()
+
+    await ask(sender)
+    expect(agentNameFor(7, mary.id)).toBe('Mary')
+    expect(agentNameFor(8, mary.id)).toBeUndefined()
+
+    sender.destroy()
+    expect(agentNameFor(7, mary.id)).toBeUndefined()
   })
 })

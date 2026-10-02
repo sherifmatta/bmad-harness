@@ -1,3 +1,4 @@
+import type { CommandReply } from './commands'
 import type { PersonaStateChanged } from './events'
 import type { HarnessError } from './install'
 import type { AgentId, EpochMs, MessageId, SessionId } from './ids'
@@ -32,7 +33,29 @@ export type UserRecord = {
   text: string
 }
 
-export type TranscriptRecord = PersonaRecord | UserRecord
+/**
+ * A line the harness wrote into the transcript in its own voice: a handoff
+ * notice today. It has no agent, portrait, name or timestamp of its own and is
+ * never joined into what a persona said.
+ */
+export type SyslineRecord = {
+  kind: 'sysline'
+  id: string
+  at: EpochMs
+  text: string
+}
+
+export type TranscriptRecord = PersonaRecord | UserRecord | SyslineRecord
+
+/**
+ * What `session.open` answers: the session, and, when the open was a handoff,
+ * the sysline main wrote for it. `session.open` keeps its declaration in the
+ * contract; the reply only gains this one optional field.
+ */
+export type SessionOpenReply = CommandReply<{ sessionId: SessionId; handoff?: SyslineRecord }>
+
+/** What opening a session resolves with in the renderer, once the envelope is unwrapped. */
+export type OpenedSession = { sessionId: SessionId; handoff?: SyslineRecord }
 
 /** The transcript as it lies on disk, one file per project. */
 export type TranscriptFile = {

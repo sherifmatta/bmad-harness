@@ -15,7 +15,8 @@ import { tabStopId, tileMove } from './tile-nav'
  * The list is one tab stop (NFR20). Exactly one tile holds `tabindex="0"` —
  * the one last moved to or activated, else the current one — and arrow travel
  * between tiles is `tileMove`'s. Activation is the native click; it makes that
- * tile current and takes the tab stop, and focus stays where it is.
+ * tile current and takes the tab stop, and focus stays where it is. When the
+ * current persona changes some other way, the tab stop follows it.
  *
  * `states` is read and never written: a tile's state is `states.get(id)` or
  * `idle`, fed by what main reports of each persona's sessions. `since` is when
@@ -37,7 +38,16 @@ export function Team({
   onSelect: (id: string) => void
 }): JSX.Element | null {
   const [movedToId, setMovedToId] = useState<string | null>(null)
+  const [seenCurrentId, setSeenCurrentId] = useState(currentId)
   const tiles = useRef(new Map<string, HTMLButtonElement>())
+
+  // The current persona can change without a tile being touched (`@<name>` in
+  // the composer): the tab stop and `aria-current` then follow it, so the two
+  // never name different tiles. Arrow travel still moves the tab stop alone.
+  if (seenCurrentId !== currentId) {
+    setSeenCurrentId(currentId)
+    setMovedToId(null)
+  }
 
   const groups = groupAgents(agents)
   const order = displayOrder(groups)

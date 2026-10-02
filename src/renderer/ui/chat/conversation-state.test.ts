@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ConversationSnapshot } from '../../../shared/conversation'
+import type { ConversationSnapshot, SyslineRecord } from '../../../shared/conversation'
 import type { ContractEvent, PersonaState } from '../../../shared/events'
 import type { AgentView } from '../../../shared/install'
 import {
@@ -12,7 +12,8 @@ import {
   initialConversation,
   sendMessage,
   sessionOf,
-  sessionReady
+  sessionReady,
+  withHandoff
 } from './conversation-state'
 import type { ConversationState, Delivery } from './conversation-state'
 
@@ -554,5 +555,59 @@ describe('ended', () => {
 
   it('leaves an empty conversation empty', () => {
     expect(ended(initialConversation)).toEqual(initialConversation)
+  })
+})
+
+describe('a handoff sysline', () => {
+  const record: SyslineRecord = {
+    kind: 'sysline',
+    id: 'm-2',
+    at: 20,
+    text: 'handed off · Mary → John · picking up from a.md, b.md'
+  }
+  const spoken = fold([said('msg_1', 'Hello', 10)])
+
+  it('joins the transcript at the end as an entry of its own, with no agent, name or portrait', () => {
+    const handed = withHandoff(spoken, record)
+
+    expect(handed.entries).toEqual([
+      expect.objectContaining({ kind: 'persona', text: 'Hello' }),
+      { kind: 'sysline', id: 'm-2', at: 20, text: record.text }
+    ])
+    expect(Object.keys(handed.entries[1]).sort()).toEqual(['at', 'id', 'kind', 'text'])
+  })
+
+  it('is added once, however often the same record arrives', () => {
+    const once = withHandoff(spoken, record)
+
+    expect(withHandoff(once, record)).toBe(once)
+  })
+
+  it('ends the persona message before it: that persona’s later words open a new one after the line', () => {
+    const handed = withHandoff(spoken, record)
+    const later = fold([said('msg_1', ' and more', 30)], handed)
+
+    expect(later.entries.map((entry) => entry.kind)).toEqual(['persona', 'sysline', 'persona'])
+    expect(later.entries.map((entry) => entry.text)).toEqual(['Hello', record.text, ' and more'])
+  })
+
+  it('is hydrated from the stored transcript like any record, and nothing else is added', () => {
+    const { state } = hydrate(
+      initialConversation,
+      { entries: [{ kind: 'user', id: 'm-0', at: 5, text: 'hi' }, record], sessions: [], busy: [], personas: [] },
+      agentOf
+    )
+
+    expect(state.entries).toEqual([
+      { kind: 'user', id: 'm-0', at: 5, text: 'hi' },
+      { kind: 'sysline', id: 'm-2', at: 20, text: record.text }
+    ])
+  })
+
+  it('does not end a queued message: words that arrive while one is queued still join the message before it', () => {
+    const queued = send(spoken, 'typed meanwhile').state
+    const handed = withHandoff(queued, record)
+
+    expect(handed.entries.map((entry) => entry.kind)).toEqual(['persona', 'user', 'sysline'])
   })
 })

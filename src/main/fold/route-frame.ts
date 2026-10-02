@@ -68,15 +68,15 @@ export type RouteState = {
 export const initialRouteState: RouteState = { messageId: undefined, blocks: {} }
 
 /** The tools whose input is a document write, and the field holding the words. */
-const WRITE_FIELDS: Readonly<Record<string, string>> = { Write: 'content', Edit: 'new_string' }
+export const WRITE_FIELDS: Readonly<Record<string, string>> = { Write: 'content', Edit: 'new_string' }
 
-const MEMLOG = '.memlog.md'
+export const MEMLOG = '.memlog.md'
 
 /**
  * A path as the project sees it: relative, POSIX, with nothing escaping the
  * root. Anything else is outside the project and has no such path.
  */
-function projectRelative(filePath: string, projectRoot: string): string | undefined {
+export function projectRelative(filePath: string, projectRoot: string): string | undefined {
   if (filePath === '') return undefined
   const absolute = posix.resolve(projectRoot, filePath)
   const relative = posix.relative(posix.resolve(projectRoot), absolute)

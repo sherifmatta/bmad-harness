@@ -2,10 +2,11 @@ import { randomUUID } from 'node:crypto'
 import { app, ipcMain } from 'electron'
 import type { IpcMainInvokeEvent } from 'electron'
 import type { ContractCommands } from '../shared/commands'
-import type { ConversationReply } from '../shared/conversation'
+import type { ConversationReply, SessionOpenReply, SyslineRecord } from '../shared/conversation'
 import type { ContractEvent } from '../shared/events'
 import type { AgentId, SessionId } from '../shared/ids'
 import type { HarnessError } from '../shared/install'
+import { agentNameFor } from './install-model'
 import type { PersonaProjection } from './projections/personas'
 import { createTranscriptRegistry } from './projections/transcript'
 import type { TranscriptRegistry } from './projections/transcript'
@@ -13,6 +14,8 @@ import { SESSION_EVENT_CHANNEL, personaProjectionFor } from './persona-states'
 import { initialRouteState, routeFrame } from './fold/route-frame'
 import type { RouteState } from './fold/route-frame'
 import { endsTurn } from './fold/turn-end'
+import { foldWrittenPaths, initialWrittenState, withWrittenPaths } from './fold/written-paths'
+import type { WrittenState } from './fold/written-paths'
 import { isAgentId, spawnSession } from './sources/session/session-process'
 import type {
   SessionProcess,
@@ -42,7 +45,7 @@ type Sender = {
   once(event: 'destroyed', listener: () => void): unknown
 }
 
-type OpenReply = ContractCommands['session.open']['reply']
+type OpenReply = SessionOpenReply
 type SendReply = ContractCommands['turn.send']['reply']
 type EndReply = ContractCommands['conversation.end']['reply']
 
@@ -53,6 +56,11 @@ export type SessionBridgeDeps = {
   /** The clock every event is stamped from, injected so the fold never reads one. */
   now?: () => number
   newSessionId?: () => SessionId
+  /**
+   * A persona's display name from main's own install model, for the window with
+   * this id. The real one reads the install bridge's projection.
+   */
+  agentName?: (webContentsId: number, agentId: string) => string | undefined
   /**
    * The transcripts, per project, that survive a reload and a relaunch. The
    * real one keeps them under `userData`; the composition root holds it so it
@@ -70,6 +78,8 @@ type Entry = {
   inFlight: boolean
   closed: boolean
   route: RouteState
+  /** The writes of this session's chat turns that have begun and not yet closed. */
+  written: WrittenState
   /** What `session.open` answers, for a second open that arrives mid-spawn. */
   ready: Promise<OpenReply>
 }
@@ -81,6 +91,17 @@ type Service = {
   byAgent: Map<AgentId, Entry>
   /** The window's persona states, shared with the rail bridge. */
   personas: PersonaProjection
+  /**
+   * The persona whose session this window last opened successfully. Memory only:
+   * it is reset by `conversation:get` and by ending the conversation, so a window
+   * that reloaded has no `from` rather than a wrong one.
+   */
+  lastOpened: AgentId | undefined
+  /**
+   * The project-relative files each persona's chat turns wrote this conversation,
+   * in write order, each once. Memory only, cleared when the conversation ends.
+   */
+  written: Map<AgentId, readonly string[]>
 }
 
 function failure(error: HarnessError): { ok: false; error: HarnessError } {
@@ -110,6 +131,7 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): void {
   const start = deps.spawn ?? spawnSession
   const now = deps.now ?? (() => Date.now())
   const newSessionId = deps.newSessionId ?? (() => randomUUID())
+  const nameOf = deps.agentName ?? agentNameFor
   const transcripts =
     deps.transcripts ?? createTranscriptRegistry({ userDataPath: () => app.getPath('userData') })
 
@@ -136,7 +158,9 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): void {
       projectRoot,
       bySession: new Map(),
       byAgent: new Map(),
-      personas: personaProjectionFor(sender, now)
+      personas: personaProjectionFor(sender, now),
+      lastOpened: undefined,
+      written: new Map()
     }
     services.set(sender.id, service)
 
@@ -203,6 +227,12 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): void {
       now: now()
     })
     entry.route = routed.state
+    const wrote = foldWrittenPaths(entry.written, frame, entry.projectRoot)
+    entry.written = wrote.state
+    if (wrote.paths.length > 0) {
+      const before = service.written.get(entry.agentId) ?? []
+      service.written.set(entry.agentId, withWrittenPaths(before, wrote.paths))
+    }
     for (const event of routed.events) {
       // A chat turn: the words are all the renderer is told, and the transcript keeps them.
       if (event.name === 'persona:said') {
@@ -223,6 +253,7 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): void {
       inFlight: true,
       closed: false,
       route: initialRouteState,
+      written: initialWrittenState,
       ready: Promise.resolve(NOT_FOUND)
     }
     service.bySession.set(entry.sessionId, entry)
@@ -261,6 +292,41 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): void {
     return entry
   }
 
+  /**
+   * Whether an open that succeeded was a handoff, and if so the sysline it wrote.
+   * It was one when the transcript already has an entry and the window's last
+   * opened persona is a different one; that persona is `from`, and the files it
+   * wrote are what the new one picks up from. A persona the roster does not name
+   * is not announced, and the open itself is unchanged. Either way this open is
+   * now the last one.
+   */
+  function handoffFor(
+    sender: Sender,
+    service: Service,
+    projectRoot: string,
+    agentId: AgentId
+  ): SyslineRecord | undefined {
+    const from = service.lastOpened
+    service.lastOpened = agentId
+    if (from === undefined || from === agentId) {
+      return undefined
+    }
+    const transcript = transcripts.forProject(projectRoot)
+    if (transcript.entries().length === 0) {
+      return undefined
+    }
+    const fromName = nameOf(sender.id, from)
+    const toName = nameOf(sender.id, agentId)
+    if (fromName === undefined || toName === undefined) {
+      return undefined
+    }
+    const files = service.written.get(from) ?? []
+    const text =
+      `handed off · ${fromName} → ${toName}` +
+      (files.length === 0 ? '' : ` · picking up from ${files.join(', ')}`)
+    return transcript.recordSysline(text, now())
+  }
+
   ipcMain.handle(
     SESSION_OPEN_CHANNEL,
     async (event: IpcMainInvokeEvent, agentId: unknown): Promise<OpenReply> => {
@@ -280,10 +346,14 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): void {
       }
       const service = serviceFor(sender, projectRoot)
       const existing = service.byAgent.get(agentId)
-      if (existing !== undefined) {
-        return existing.ready
+      const reply = await (existing !== undefined
+        ? existing.ready
+        : open(sender, service, projectRoot, agentId).ready)
+      if (!reply.ok) {
+        return reply
       }
-      return open(sender, service, projectRoot, agentId).ready
+      const handoff = handoffFor(sender, service, projectRoot, agentId)
+      return handoff === undefined ? reply : { ...reply, handoff }
     }
   )
 
@@ -359,6 +429,8 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): void {
       const service = services.get(sender.id)
       if (service !== undefined) {
         closeSessions(sender, service)
+        service.lastOpened = undefined
+        service.written.clear()
       }
       return { ok: true }
     }
@@ -376,8 +448,14 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): void {
         message: 'conversation · no project is open for this window'
       })
     }
+    const service = services.get(sender.id)
+    // A window that reads the conversation again has reloaded: which persona it
+    // was with is no longer known, and a handoff from a guess would be wrong.
+    if (service !== undefined) {
+      service.lastOpened = undefined
+    }
     // A session still starting has told the window nothing yet, and is not one.
-    const live = [...(services.get(sender.id)?.bySession.values() ?? [])].filter(
+    const live = [...(service?.bySession.values() ?? [])].filter(
       (entry) => !entry.closed && entry.session !== undefined
     )
     return {

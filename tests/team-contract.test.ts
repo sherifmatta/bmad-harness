@@ -343,6 +343,22 @@ describe('the shell mounts the team', () => {
     expect(shell).toContain('states = NO_STATES')
   })
 
+  it('takes the current persona from the window when it holds one, and still derives it at render', () => {
+    expect(shell).toContain('currentId: chosenId')
+    expect(shell).toContain('onCurrentChange')
+    expect(code('src/renderer/ui/app.tsx')).toMatch(/currentId=\{currentId\}/)
+    expect(code('src/renderer/ui/app.tsx')).toMatch(/onCurrentChange=\{setCurrentId\}/)
+  })
+
+  it('moves focus on no activation: a tile click never calls focus, and only an arrow move does in the team', () => {
+    expect(code('src/renderer/ui/team/persona-tile.tsx')).not.toMatch(/\.focus\(/)
+    const team = code('src/renderer/ui/team/team.tsx')
+    expect(team.match(/\.focus\(/g)).toHaveLength(1)
+    expect(team.indexOf('.focus(')).toBeLessThan(team.indexOf('function select('))
+    expect(team.slice(team.indexOf('function select('))).not.toMatch(/\.focus\(/)
+    expect(code('src/renderer/ui/shell/shell.tsx')).not.toMatch(/\.focus\(/)
+  })
+
   it('writes no per-agent state and branches on no agent id', () => {
     for (const path of [...shippedSources, 'src/renderer/ui/shell/shell.tsx']) {
       expect(code(path), path).not.toMatch(/bmad-agent-|states\.set\(|\.state\s*=/)

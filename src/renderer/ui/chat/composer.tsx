@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { JSX, KeyboardEvent } from 'react'
 
 import './composer.css'
@@ -29,10 +29,17 @@ import './composer.css'
  */
 export function Composer({
   agentName,
-  onSend
+  onSend,
+  focusOnMount = false
 }: {
   agentName: string
   onSend?: (text: string) => void
+  /**
+   * Take focus when this composer appears. Only a handoff the user made from the
+   * keyboard sets it, so the user lands in the new persona's composer; choosing a
+   * persona by tile never does, because that keeps focus on the tile.
+   */
+  focusOnMount?: boolean
 }): JSX.Element {
   const [text, setText] = useState('')
   const field = useRef<HTMLTextAreaElement>(null)
@@ -48,6 +55,12 @@ export function Composer({
     element.style.height = 'auto'
     element.style.height = `${element.scrollHeight}px`
   }, [text])
+
+  useEffect(() => {
+    if (focusOnMount) {
+      field.current?.focus()
+    }
+  }, [focusOnMount])
 
   function send(): void {
     if (onSend === undefined || text.trim() === '') {

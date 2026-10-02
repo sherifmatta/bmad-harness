@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ConversationSnapshot } from '../../../shared/conversation'
+import type { ConversationSnapshot, OpenedSession, SyslineRecord } from '../../../shared/conversation'
 import type { ContractEvent } from '../../../shared/events'
 import type { AgentView, HarnessError } from '../../../shared/install'
 import { asHarnessError } from '../install/install-state'
@@ -14,14 +14,15 @@ import {
   initialConversation,
   sendMessage,
   sessionOf,
-  sessionReady
+  sessionReady,
+  withHandoff
 } from './conversation-state'
 import type { ConversationState, Delivery, PersonaStateEntry } from './conversation-state'
 import type { TranscriptEntry } from './transcript-entry'
 
 /** The five bridge methods the conversation needs, and nothing else of the bridge. */
 export type ConversationBridge = {
-  openSession(agentId: string): Promise<string>
+  openSession(agentId: string): Promise<OpenedSession>
   sendTurn(sessionId: string, text: string): Promise<void>
   getConversation(): Promise<ConversationSnapshot>
   endConversation(projectId: string): Promise<void>
@@ -31,8 +32,14 @@ export type ConversationBridge = {
 export type Conversation = {
   /** Subscribe to main's events; returns the way to stop. */
   connect(): () => void
-  /** A persona's tile was selected: make sure it has a session. */
-  activate(agentId: string): void
+  /**
+   * A persona was chosen, by tile or by `@<name>`: open its session, which main
+   * answers with the sysline when this is a handoff. Always asks main, so a
+   * switch back to a persona that is already live is seen by it. Resolves when
+   * the open has settled and its handoff, if any, is in the transcript; never
+   * rejects.
+   */
+  activate(agentId: string): Promise<void>
   /** The user sent `text` to a persona. */
   send(agentId: string, text: string): void
   /** The user took a queued message back, by its transcript entry's id. */
@@ -52,6 +59,8 @@ type ConversationDeps = {
   now: () => number
   publish: (state: ConversationState) => void
   onFailure: (error: HarnessError | null) => void
+  /** A handoff's sysline has just joined the transcript, live: not one the snapshot brought. */
+  onHandoff?: (record: SyslineRecord) => void
 }
 
 /**
@@ -64,23 +73,26 @@ type ConversationDeps = {
  * not opened; both wait for the snapshot, so a send into a session that is busy
  * is queued and one into a session that is idle is sent, in the order typed.
  *
- * A persona's session is opened when its tile is activated and, for a message
- * typed to a persona that has none, on that first send: the composer is never
- * disabled, and a window that opened on a default persona nobody activated must
- * still take a message. A session has one turn in flight at a time, so a
+ * A persona's session is opened whenever its tile is activated, the current
+ * persona's too, and for a message typed to a persona that has none, on that
+ * first send: the composer is never disabled, and a window that opened on a
+ * default persona nobody activated must still take a message. An activation the
+ * session is already live for is still an open, which main answers with the same
+ * session and, when another persona was the last, with the handoff sysline that
+ * joins the transcript here in the order the replies arrive. A session has one turn in flight at a time, so a
  * message typed meanwhile — or before the session is up — is shown at once as
  * queued and is sent when the turn ends, first in first, one per turn. Nothing
  * is transmitted to be refused as busy.
  */
 export function createConversation(deps: ConversationDeps): Conversation {
-  const { bridge, agentOf, now, publish, onFailure } = deps
+  const { bridge, agentOf, now, publish, onFailure, onHandoff } = deps
   let state = initialConversation
   let live = true
   const opening = new Map<string, Promise<void>>()
   /** False from connecting until main's snapshot has been taken (or has failed). */
   let hydrated = false
   /** The personas a session was asked for before the snapshot arrived, in order. */
-  const awaitingSnapshot: string[] = []
+  const awaitingSnapshot: { agentId: string; always: boolean; settled: () => void }[] = []
   /** How many times the conversation has ended: an open begun before an end belongs to the one before it. */
   let endings = 0
 
@@ -114,20 +126,38 @@ export function createConversation(deps: ConversationDeps): Conversation {
     })
   }
 
-  function ensureSession(agentId: string): void {
+  /**
+   * Open a persona's session. A send only needs one when the persona has none;
+   * an activation (`always`) asks main whether or not the window already holds
+   * one. Either way one open per persona is in flight at a time, and the promise
+   * is that open's, settled when its reply has been folded.
+   */
+  function ensureSession(agentId: string, always: boolean): Promise<void> {
     if (!hydrated) {
-      awaitingSnapshot.push(agentId)
-      return
+      return new Promise<void>((settled) => {
+        awaitingSnapshot.push({ agentId, always, settled })
+      })
     }
-    if (sessionOf(state, agentId) !== undefined || opening.has(agentId)) {
-      return
+    const pending = opening.get(agentId)
+    if (pending !== undefined) {
+      return pending
+    }
+    if (!always && sessionOf(state, agentId) !== undefined) {
+      return Promise.resolve()
     }
     const generation = endings
-    const attempt = bridge
+    const attempt: Promise<void> = bridge
       .openSession(agentId)
-      .then((sessionId) => {
+      .then(({ sessionId, handoff }) => {
+        // An open that outlived the conversation it began in found it ended.
+        if (generation !== endings) {
+          return
+        }
         const ready = sessionReady(state, agentId, sessionId)
-        commit(ready.state)
+        commit(handoff === undefined ? ready.state : withHandoff(ready.state, handoff))
+        if (handoff !== undefined && live) {
+          onHandoff?.(handoff)
+        }
         transmit(ready.deliver)
       })
       .catch((reason: unknown) => {
@@ -147,6 +177,7 @@ export function createConversation(deps: ConversationDeps): Conversation {
         }
       })
     opening.set(agentId, attempt)
+    return attempt
   }
 
   return {
@@ -162,8 +193,8 @@ export function createConversation(deps: ConversationDeps): Conversation {
       })
       const begin = (): void => {
         hydrated = true
-        for (const agentId of awaitingSnapshot.splice(0)) {
-          ensureSession(agentId)
+        for (const { agentId, always, settled } of awaitingSnapshot.splice(0)) {
+          void ensureSession(agentId, always).then(settled)
         }
       }
       bridge
@@ -196,7 +227,7 @@ export function createConversation(deps: ConversationDeps): Conversation {
 
     activate(agentId) {
       onFailure(null)
-      ensureSession(agentId)
+      return ensureSession(agentId, true)
     },
 
     send(agentId, text) {
@@ -205,7 +236,7 @@ export function createConversation(deps: ConversationDeps): Conversation {
       commit(sent.state)
       transmit(sent.deliver)
       if (sessionOf(sent.state, agentId) === undefined) {
-        ensureSession(agentId)
+        void ensureSession(agentId, false)
       }
     },
 
@@ -240,12 +271,15 @@ export function createConversation(deps: ConversationDeps): Conversation {
  * and the user's sends have made, the last refusal if there is one, and the
  * things the window can do. Nothing is shown before the first turn.
  */
-export function useConversation(agents: readonly AgentView[]): {
+export function useConversation(
+  agents: readonly AgentView[],
+  onHandoff?: (record: SyslineRecord) => void
+): {
   entries: readonly TranscriptEntry[]
   /** The state main last reported for each persona, with when it began. */
   personas: ReadonlyMap<string, PersonaStateEntry>
   failure: HarnessError | null
-  activate: (agentId: string) => void
+  activate: (agentId: string) => Promise<void>
   send: (agentId: string, text: string) => void
   cancel: (entryId: string) => void
   end: (projectId: string) => Promise<boolean>
@@ -253,11 +287,13 @@ export function useConversation(agents: readonly AgentView[]): {
   const [state, setState] = useState<ConversationState>(initialConversation)
   const [failure, setFailure] = useState<HarnessError | null>(null)
   const agentsRef = useRef(agents)
+  const onHandoffRef = useRef(onHandoff)
   const conversation = useRef<Conversation | null>(null)
 
   useEffect(() => {
     agentsRef.current = agents
-  }, [agents])
+    onHandoffRef.current = onHandoff
+  }, [agents, onHandoff])
 
   // A preload that failed to load leaves no bridge at all.
   const bridgeAvailable =
@@ -276,7 +312,8 @@ export function useConversation(agents: readonly AgentView[]): {
       agentOf: (agentId) => agentsRef.current.find((agent) => agent.id === agentId),
       now: () => Date.now(),
       publish: setState,
-      onFailure: setFailure
+      onFailure: setFailure,
+      onHandoff: (record) => onHandoffRef.current?.(record)
     })
     conversation.current = created
     const disconnect = created.connect()
@@ -286,7 +323,10 @@ export function useConversation(agents: readonly AgentView[]): {
     }
   }, [bridgeAvailable])
 
-  const activate = useCallback((agentId: string) => conversation.current?.activate(agentId), [])
+  const activate = useCallback(
+    async (agentId: string) => void (await conversation.current?.activate(agentId)),
+    []
+  )
   const send = useCallback(
     (agentId: string, text: string) => conversation.current?.send(agentId, text),
     []

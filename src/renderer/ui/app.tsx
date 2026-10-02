@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
 
 import { Announcer } from './a11y/announcer'
 import { LiveRegion } from './a11y/live-region'
 import { Composer } from './chat/composer'
+import { handoffTarget } from './chat/handoff-target'
 import { Turns } from './chat/transcript'
 import { useConversation } from './chat/use-conversation'
 import { ErrorLine } from './install/error-line'
@@ -12,6 +13,7 @@ import { announceable, newAnnouncements, roomState } from './install/install-sta
 import { useInstall } from './install/use-install'
 import { useRail } from './outputs/use-rail'
 import { Shell } from './shell/shell'
+import type { SyslineRecord } from '../../shared/conversation'
 import type { AgentView } from '../../shared/install'
 
 /** No roster yet: the conversation is mounted before the install has answered. */
@@ -25,9 +27,12 @@ const NO_AGENTS: readonly AgentView[] = []
  * anything. A literal colour, dimension or font stack here would be a defect.
  *
  * The thread holds the install's errors, then the conversation's turns: a
- * persona's own words as they arrive and the user's own sends. Selecting a tile
- * opens that persona's session; the composer under the thread is keyed by the
- * current persona and sends to theirs.
+ * persona's own words as they arrive and the user's own sends, and the sysline
+ * main writes when the work is handed on. Selecting a tile opens that persona's
+ * session, and leaves focus on the tile; the composer under the thread is keyed
+ * by the current persona and sends to theirs, except that `@<name>` at the start
+ * of a message hands the conversation to that persona instead (Story 2.9). The
+ * window holds which persona is current so both ways move it.
  */
 export function App(): JSX.Element | null {
   const [projectPath, setProjectPath] = useState<string | null>(null)
@@ -35,7 +40,15 @@ export function App(): JSX.Element | null {
   const { snapshot, failure: installFailure } = useInstall()
   const { snapshot: rail, failure: railFailure } = useRail()
   const [announcer] = useState(() => new Announcer())
-  const conversation = useConversation(snapshot?.agents ?? NO_AGENTS)
+  const [currentId, setCurrentId] = useState<string | null>(null)
+  // The persona whose composer takes focus when it appears: only after an `@` handoff.
+  const [composerFocusId, setComposerFocusId] = useState<string | null>(null)
+  // A handoff is announced once, with the line the transcript shows.
+  const announceHandoff = useCallback(
+    (record: SyslineRecord) => announcer.announce(record.text, performance.now()),
+    [announcer]
+  )
+  const conversation = useConversation(snapshot?.agents ?? NO_AGENTS, announceHandoff)
   const announced = useRef<ReadonlySet<string>>(new Set())
 
   // The shell reads two maps, so the one main-reported entry per persona is split
@@ -127,7 +140,13 @@ export function App(): JSX.Element | null {
         since={since}
         rail={rail}
         railFailure={railFailure}
-        onActivate={conversation.activate}
+        currentId={currentId}
+        onCurrentChange={setCurrentId}
+        onActivate={(agentId) => {
+          // A tile never moves focus, so nothing is waiting to take it.
+          setComposerFocusId(null)
+          void conversation.activate(agentId)
+        }}
         onEndSession={() => {
           void conversation.end(projectPath).then((ended) => {
             if (ended) {
@@ -139,7 +158,22 @@ export function App(): JSX.Element | null {
           <Composer
             key={agent.id}
             agentName={agent.name}
-            onSend={(text) => conversation.send(agent.id, text)}
+            focusOnMount={composerFocusId === agent.id}
+            onSend={(text) => {
+              const target = handoffTarget(text, snapshot.agents, agent.id)
+              if (target === null) {
+                conversation.send(agent.id, text)
+                return
+              }
+              // The handoff first: the session opens and the sysline lands, and only
+              // then does any text after the name go to the new persona as a turn.
+              setCurrentId(target.agent.id)
+              setComposerFocusId(target.agent.id)
+              const handedOff = conversation.activate(target.agent.id)
+              if (target.text !== '') {
+                void handedOff.then(() => conversation.send(target.agent.id, target.text))
+              }
+            }}
           />
         )}
       >

@@ -440,8 +440,17 @@ it('sends openSession down the open channel with the agent id, and resolves with
   invoke.mockResolvedValue({ ok: true, sessionId: 's1' })
   const openSession = exposedApis.get('harness')?.openSession as (id: string) => Promise<unknown>
 
-  await expect(openSession('bmad-agent-pm')).resolves.toBe('s1')
+  await expect(openSession('bmad-agent-pm')).resolves.toEqual({ sessionId: 's1' })
   expect(invoke).toHaveBeenCalledWith(sessionBridge.SESSION_OPEN_CHANNEL, 'bmad-agent-pm')
+})
+
+it('resolves openSession with the handoff sysline when main answered with one, and with no other field', async () => {
+  const handoff = { kind: 'sysline', id: 'm-3', at: 9, text: 'handed off · Mary → John' }
+  invoke.mockClear()
+  invoke.mockResolvedValue({ ok: true, sessionId: 's2', handoff, stray: 'x' })
+  const openSession = exposedApis.get('harness')?.openSession as (id: string) => Promise<unknown>
+
+  await expect(openSession('bmad-agent-pm')).resolves.toEqual({ sessionId: 's2', handoff })
 })
 
 it('turns a refused session:open into a rejection carrying the envelope', async () => {

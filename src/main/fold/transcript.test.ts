@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PersonaSaid } from '../../shared/events'
-import { EMPTY_TRANSCRIPT, foldPersonaSaid, foldUserTurn, transcriptFrom } from './transcript'
+import { EMPTY_TRANSCRIPT, foldPersonaSaid, foldSysline, foldUserTurn, transcriptFrom } from './transcript'
 import type { TranscriptState } from './transcript'
 
 const said = (messageId: string, text: string, at = 1, agentId: string | null = 'a'): PersonaSaid => ({
@@ -87,5 +87,36 @@ describe('the transcript fold', () => {
     ])
 
     expect(foldAll([said('m1', 'lo', 5)], loaded).entries).toMatchObject([{ id: 'm-0', text: 'Hello' }])
+  })
+})
+
+describe('the sysline fold', () => {
+  it('appends a record of its own with a main-assigned id, and nothing but kind, id, time and text', () => {
+    const state = foldSysline(foldAll([said('m1', 'a', 10)]), 'handed off · A → B', 20)
+
+    expect(state.entries[1]).toEqual({ kind: 'sysline', id: 'm-1', at: 20, text: 'handed off · A → B' })
+    expect(state.nextId).toBe(2)
+  })
+
+  it('ends the persona message before it: the same persona and message start a new record after it', () => {
+    let state = foldAll([said('m1', 'Hel', 10)])
+    state = foldSysline(state, 'handed off · A → B', 20)
+    state = foldAll([said('m1', 'lo', 30)], state)
+
+    expect(state.entries.map((entry) => [entry.kind, entry.id, entry.text])).toEqual([
+      ['persona', 'm-0', 'Hel'],
+      ['sysline', 'm-1', 'handed off · A → B'],
+      ['persona', 'm-2', 'lo']
+    ])
+  })
+
+  it('leaves the state it was given as it was, and continues ids past a loaded sysline', () => {
+    const before = foldAll([said('m1', 'a')])
+    const frozen = JSON.stringify(before)
+    foldSysline(before, 'x', 2)
+    expect(JSON.stringify(before)).toBe(frozen)
+
+    const loaded = transcriptFrom([{ kind: 'sysline', id: 'm-6', at: 1, text: 'x' }])
+    expect(foldUserTurn(loaded, 'next', 2).entries.at(-1)?.id).toBe('m-7')
   })
 })

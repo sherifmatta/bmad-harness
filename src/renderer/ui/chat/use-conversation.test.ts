@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import type { ConversationSnapshot } from '../../../shared/conversation'
+import type { ConversationSnapshot, OpenedSession, SyslineRecord } from '../../../shared/conversation'
 import type { ContractEvent } from '../../../shared/events'
 import type { AgentView } from '../../../shared/install'
 import { inAct, renderHook, settle } from '../testing/render-hook'
@@ -56,11 +56,17 @@ class FakeBridge implements ConversationBridge {
   /** What the next end answers; one entry is consumed per end. */
   endResults: (Promise<void> | undefined)[] = []
 
-  openSession(agentId: string): Promise<string> {
+  /** The sysline the open at this position answers with, if any; one entry is read per open. */
+  handoffs: (SyslineRecord | undefined)[] = []
+
+  openSession(agentId: string): Promise<OpenedSession> {
+    const handoff = this.handoffs[this.opens.length]
     this.opens.push(agentId)
     const pending = deferred<string>()
     this.openResult.push(pending)
-    return pending.promise
+    return pending.promise.then((sessionId) =>
+      handoff === undefined ? { sessionId } : { sessionId, handoff }
+    )
   }
   sendTurn(sessionId: string, text: string): Promise<void> {
     this.sends.push([sessionId, text])
@@ -139,7 +145,7 @@ beforeEach(() => {
 })
 
 describe('activate', () => {
-  it('opens the persona’s session once, however often the tile is selected while it opens or after', async () => {
+  it('opens idempotently, with one open in flight per persona, and asks main again for a persona that is already live', async () => {
     const { conversation } = build()
     await connected(conversation)
     conversation.activate(mary.id)
@@ -148,11 +154,101 @@ describe('activate', () => {
 
     bridge.openResult[0].resolve('s1')
     await settle()
+    // Live now, and still an open: main is what notices a switch back to a persona.
     conversation.activate(mary.id)
-    expect(bridge.opens).toEqual([mary.id])
+    expect(bridge.opens).toEqual([mary.id, mary.id])
+    bridge.openResult[1].resolve('s1')
+    await settle()
 
     conversation.activate(john.id)
-    expect(bridge.opens).toEqual([mary.id, john.id])
+    expect(bridge.opens).toEqual([mary.id, mary.id, john.id])
+  })
+
+  it('resolves once the open has settled, whether it opened or was refused', async () => {
+    const { conversation } = build()
+    await connected(conversation)
+    const settled: string[] = []
+    void conversation.activate(mary.id).then(() => settled.push('mary'))
+    void conversation.activate(john.id).then(() => settled.push('john'))
+    await settle()
+    expect(settled).toEqual([])
+
+    bridge.openResult[0].resolve('s1')
+    bridge.openResult[1].reject({ code: 'session/spawn-failed', message: 'session · could not start the session' })
+    await settle()
+    expect(settled).toEqual(['mary', 'john'])
+  })
+
+  it('waits for the snapshot before asking, then asks, and resolves after', async () => {
+    const pending = deferred<ConversationSnapshot>()
+    bridge.conversation = pending.promise
+    const { conversation } = build()
+    conversation.connect()
+    const settled: string[] = []
+    void conversation.activate(mary.id).then(() => settled.push('mary'))
+    expect(bridge.opens).toEqual([])
+
+    pending.resolve(EMPTY)
+    await settle()
+    expect(bridge.opens).toEqual([mary.id])
+    expect(settled).toEqual([])
+    bridge.openResult[0].resolve('s1')
+    await settle()
+    expect(settled).toEqual(['mary'])
+  })
+
+  it('folds the handoff the open answers with once, after what came before, and announces it once', async () => {
+    const handoff: SyslineRecord = { kind: 'sysline', id: 'm-4', at: 150, text: 'handed off · Mary → John' }
+    bridge.handoffs = [undefined, handoff]
+    const announced: SyslineRecord[] = []
+    const published: { entries: readonly unknown[] }[] = []
+    const conversation = createConversation({
+      bridge,
+      agentOf: (id) => agents.find((agent) => agent.id === id),
+      now: () => (clock += 1),
+      publish: (state) => void published.push(state),
+      onFailure: () => {},
+      onHandoff: (record) => void announced.push(record)
+    })
+    await connected(conversation)
+    void conversation.activate(mary.id)
+    bridge.openResult[0].resolve('s1')
+    await settle()
+    bridge.push(said(mary.id, 'm1', 'Hello'))
+
+    void conversation.activate(john.id)
+    bridge.openResult[1].resolve('s2')
+    await settle()
+
+    const entries = published[published.length - 1].entries
+    expect(entries).toMatchObject([
+      { kind: 'persona', text: 'Hello' },
+      { kind: 'sysline', id: 'm-4', at: 150, text: 'handed off · Mary → John' }
+    ])
+    expect(announced).toEqual([handoff])
+  })
+
+  it('does not fold or announce a handoff for an open that outlived the conversation', async () => {
+    const handoff: SyslineRecord = { kind: 'sysline', id: 'm-4', at: 150, text: 'handed off · Mary → John' }
+    bridge.handoffs = [handoff]
+    const announced: SyslineRecord[] = []
+    const published: { entries: readonly unknown[] }[] = []
+    const conversation = createConversation({
+      bridge,
+      agentOf: (id) => agents.find((agent) => agent.id === id),
+      now: () => (clock += 1),
+      publish: (state) => void published.push(state),
+      onFailure: () => {},
+      onHandoff: (record) => void announced.push(record)
+    })
+    await connected(conversation)
+    void conversation.activate(john.id)
+    await conversation.end('/work/falcon')
+    bridge.openResult[0].resolve('s2')
+    await settle()
+
+    expect(published[published.length - 1].entries).toEqual([])
+    expect(announced).toEqual([])
   })
 
   it('shows a refused open as the envelope, and tries again on the next selection', async () => {
@@ -576,7 +672,8 @@ describe('connecting to a conversation that already exists', () => {
       { text: 'two' }
     ])
     expect(bridge.sends).toEqual([['s1', 'one']])
-    expect(bridge.opens).toEqual([])
+    // The activation is still an open: main answers it with the session it already holds.
+    expect(bridge.opens).toEqual([mary.id])
     bridge.push(awaiting('s1'))
     expect(bridge.sends).toEqual([['s1', 'one'], ['s1', 'two']])
   })
@@ -832,7 +929,7 @@ describe('useConversation', () => {
     inAct(() => bridge.push(said(mary.id, 'm1', 'Hello')))
     expect(hook.current.entries).toMatchObject([{ kind: 'persona', agent: mary, text: 'Hello' }])
 
-    inAct(() => hook?.current.activate(john.id))
+    inAct(() => void hook?.current.activate(john.id))
     expect(bridge.opens).toEqual([john.id])
     inAct(() => hook?.current.send(john.id, 'hi'))
     expect(hook.current.entries).toHaveLength(2)

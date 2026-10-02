@@ -49,9 +49,11 @@ const NO_SINCE: ReadonlyMap<string, number> = new Map()
  * empty body. The Party view is an empty region: its side panel is a later
  * story's, and no slot is reserved for it. `children` is what the thread holds.
  *
- * The shell owns which persona is current. It is derived at render from the
- * display order — the chosen id if the roster still has it, else the topmost
- * tile — so a roster change that removes the current agent lands in one frame.
+ * Which persona is current is derived at render from the display order — the
+ * chosen id if the roster still has it, else the topmost tile — so a roster
+ * change that removes the current agent lands in one frame. The chosen id is the
+ * window's (`App` passes it, so `@<name>` can change it as a tile can) or, where
+ * none is passed, the shell's own.
  */
 export function Shell({
   projectPath,
@@ -61,6 +63,8 @@ export function Shell({
   since = NO_SINCE,
   rail = null,
   railFailure = null,
+  currentId: chosenId,
+  onCurrentChange,
   onActivate,
   onEndSession,
   composer,
@@ -81,6 +85,11 @@ export function Shell({
   rail?: RailSnapshot | null
   /** Why there is no rail snapshot, when there is not one. */
   railFailure?: HarnessError | null
+  /** The current persona when the window holds it: `App` does, so `@<name>` can move it
+      too. Left out, the shell keeps its own and selecting a tile is what changes it. */
+  currentId?: string | null
+  /** Called with the agent's id when a tile selection makes it current. */
+  onCurrentChange?: (agentId: string) => void
   /** Called with the agent's id on every tile selection, the current tile's too. */
   onActivate?: (agentId: string) => void
   /** Called when the end-session control is activated. Without it the control is not rendered. */
@@ -90,19 +99,21 @@ export function Shell({
   children?: ReactNode
 }): JSX.Element {
   const [view, setView] = useState<ViewId>(initialView)
-  const [currentId, setCurrentId] = useState<string | null>(null)
+  const [ownId, setOwnId] = useState<string | null>(null)
   const branch = useBranch()
 
+  const currentId = chosenId === undefined ? ownId : chosenId
   const ordered = displayOrder(groupAgents(snapshot.agents))
   const current = currentAgent(ordered, currentId)
 
   // With nobody listening, selecting is only choosing the current persona.
   const select =
-    onActivate === undefined
-      ? setCurrentId
+    onActivate === undefined && onCurrentChange === undefined
+      ? setOwnId
       : (agentId: string): void => {
-          setCurrentId(agentId)
-          onActivate(agentId)
+          setOwnId(agentId)
+          onCurrentChange?.(agentId)
+          onActivate?.(agentId)
         }
 
   return (

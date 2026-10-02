@@ -75,7 +75,7 @@ function isRecord(value: unknown): value is TranscriptRecord {
   ) {
     return false
   }
-  if (record.kind === 'user') return true
+  if (record.kind === 'user' || record.kind === 'sysline') return true
   return (
     record.kind === 'persona' &&
     typeof record.agentId === 'string' &&

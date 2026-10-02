@@ -1,6 +1,12 @@
 import type { PersonaSaid } from '../../shared/events'
-import type { TranscriptRecord } from '../../shared/conversation'
-import { EMPTY_TRANSCRIPT, foldPersonaSaid, foldUserTurn, transcriptFrom } from '../fold/transcript'
+import type { SyslineRecord, TranscriptRecord } from '../../shared/conversation'
+import {
+  EMPTY_TRANSCRIPT,
+  foldPersonaSaid,
+  foldSysline,
+  foldUserTurn,
+  transcriptFrom
+} from '../fold/transcript'
 import type { TranscriptState } from '../fold/transcript'
 import {
   loadTranscript,
@@ -13,7 +19,7 @@ import type { WriteOutcome } from '../sources/persistence/transcript-file'
  * The transcript read model: one per project path, shared by every window and
  * session that speaks into it, and kept in step with its file.
  *
- * It changes only by recording what was said or sent. Each change schedules a
+ * It changes only by recording what was said or sent, or a line the harness wrote. Each change schedules a
  * write through the injected scheduler; a write already scheduled covers the
  * changes that follow it, so the file is at most one interval behind. `flush`
  * writes at once and is what a window's destruction and the app's quitting call.
@@ -29,6 +35,8 @@ export type ProjectTranscript = {
   entries(): readonly TranscriptRecord[]
   recordPersonaSaid(said: PersonaSaid): void
   recordUserTurn(text: string, at: number): void
+  /** Write the harness's own line into the transcript and return the record it became. */
+  recordSysline(text: string, at: number): SyslineRecord
   /**
    * Empty the transcript, the file first: it is written as `entries: []` at
    * once, and only when that succeeds is the in-memory transcript reset, the
@@ -126,10 +134,16 @@ export function createTranscriptRegistry(deps: TranscriptRegistryDeps): Transcri
       return outcome
     }
 
+    function recordSysline(text: string, at: number): SyslineRecord {
+      changed(foldSysline(state, text, at))
+      return state.entries[state.entries.length - 1] as SyslineRecord
+    }
+
     return {
       entries: () => state.entries,
       recordPersonaSaid: (said) => changed(foldPersonaSaid(state, said)),
       recordUserTurn: (text, at) => changed(foldUserTurn(state, text, at)),
+      recordSysline,
       clear,
       flush
     }

@@ -38,7 +38,8 @@ afterEach(() => {
 
 const entries: TranscriptRecord[] = [
   { kind: 'user', id: 'm-0', at: 1, text: 'hi' },
-  { kind: 'persona', id: 'm-1', at: 2, agentId: 'a', messageId: 'msg', text: 'hello' }
+  { kind: 'persona', id: 'm-1', at: 2, agentId: 'a', messageId: 'msg', text: 'hello' },
+  { kind: 'sysline', id: 'm-2', at: 3, text: 'handed off · A → B · picking up from a.md' }
 ]
 
 describe('transcriptFilePath', () => {
@@ -72,6 +73,15 @@ describe('writeTranscript and loadTranscript', () => {
 
     expect(readdirSync(join(userData, 'conversations'))).toEqual([`${file.split('/').pop()}`])
     expect(loadTranscript(file, project)).toEqual(entries.slice(0, 1))
+  })
+
+  it('keeps every earlier record when a sysline sits among them, at version 1', () => {
+    const file = transcriptFilePath(userData, project)
+    writeTranscript(file, project, entries)
+
+    expect(JSON.parse(readFileSync(file, 'utf8')).version).toBe(1)
+    expect(TRANSCRIPT_VERSION).toBe(1)
+    expect(loadTranscript(file, project).map((record) => record.kind)).toEqual(['user', 'persona', 'sysline'])
   })
 
   it('reports the errno code and throws nothing when the write cannot happen', () => {
@@ -114,6 +124,7 @@ describe('writeTranscript and loadTranscript', () => {
     ['another project’s', JSON.stringify({ version: 1, projectPath: 'other', entries: [] })],
     ['without entries', JSON.stringify({ version: 1, projectPath: 'P' })],
     ['with a malformed record', JSON.stringify({ version: 1, projectPath: 'P', entries: [{ kind: 'user', id: 'm-0' }] })],
+    ['with a sysline that has no text', JSON.stringify({ version: 1, projectPath: 'P', entries: [{ kind: 'sysline', id: 'm-0', at: 1 }] })],
     [
       'with an unknown kind',
       JSON.stringify({ version: 1, projectPath: 'P', entries: [{ kind: 'x', id: 'm-0', at: 1, text: '' }] })

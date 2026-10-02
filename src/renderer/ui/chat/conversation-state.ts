@@ -1,4 +1,4 @@
-import type { ConversationSnapshot } from '../../../shared/conversation'
+import type { ConversationSnapshot, SyslineRecord } from '../../../shared/conversation'
 import type { ContractEvent, PersonaState } from '../../../shared/events'
 import type { AgentView } from '../../../shared/install'
 import type { TranscriptEntry, UserEntry } from './transcript-entry'
@@ -262,6 +262,19 @@ export function ended(state: ConversationState): ConversationState {
   }
 }
 
+/**
+ * A handoff main wrote and returned on the open's reply: its sysline joins the
+ * transcript, once and at the end, where the persona's later words will follow
+ * it as a message of their own. A record already held (by its id) is not added
+ * again.
+ */
+export function withHandoff(state: ConversationState, record: SyslineRecord): ConversationState {
+  if (state.entries.some((entry) => entry.id === record.id)) {
+    return state
+  }
+  return withEntry(state, { kind: 'sysline', id: record.id, at: record.at, text: record.text })
+}
+
 /** A persona the roster no longer names still has its words shown, under its id. */
 function unknownAgent(id: string): AgentView {
   return { id, module: '', name: id, title: '', icon: '', description: '' }
@@ -293,7 +306,9 @@ export function hydrate(
           text: record.text,
           messageId: record.messageId
         }
-      : { kind: 'user', id: record.id, at: record.at, text: record.text }
+      : record.kind === 'sysline'
+        ? { kind: 'sysline', id: record.id, at: record.at, text: record.text }
+        : { kind: 'user', id: record.id, at: record.at, text: record.text }
   )
   let next: ConversationState = {
     ...state,

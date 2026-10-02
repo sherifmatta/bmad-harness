@@ -4,8 +4,8 @@ import { describe, expect, it } from 'vitest'
 
 import type { ContractEvent } from '../src/shared/events'
 import type { AgentView } from '../src/shared/install'
-import { foldEvent, hydrate, initialConversation } from '../src/renderer/ui/chat/conversation-state'
-import { EMPTY_TRANSCRIPT, foldPersonaSaid } from '../src/main/fold/transcript'
+import { foldEvent, hydrate, initialConversation, withHandoff } from '../src/renderer/ui/chat/conversation-state'
+import { EMPTY_TRANSCRIPT, foldPersonaSaid, foldSysline, foldUserTurn } from '../src/main/fold/transcript'
 
 /**
  * Story 2.7's persistence, asserted from the two folds and the sources. The
@@ -110,6 +110,51 @@ describe('the transcript main keeps and the one the window folds', () => {
   })
 })
 
+describe('a sysline in main’s transcript and in the window’s', () => {
+  const line = 'handed off · Mary → John · picking up from a.md'
+
+  it('is the same record in both, and hydrating it gives the line the window had before it reloaded', () => {
+    let main = foldPersonaSaid(EMPTY_TRANSCRIPT, {
+      sessionId: 's1',
+      agentId: mary.id,
+      messageId: 'msg_1',
+      text: 'Hello',
+      at: 10
+    })
+    main = foldSysline(main, line, 20)
+    const record = main.entries[1]
+    if (record.kind !== 'sysline') throw new Error('expected a sysline')
+
+    let steady = foldEvent(initialConversation, said(mary.id, 'msg_1', 'Hello', 10), agentOf).state
+    steady = withHandoff(steady, record)
+    const reloaded = hydrate(
+      initialConversation,
+      { entries: [...main.entries], sessions: [], busy: [], personas: [] },
+      agentOf
+    ).state
+
+    const shown = (entries: typeof steady.entries) => entries.map((entry) => [entry.kind, entry.at, entry.text])
+    expect(shown(reloaded.entries)).toEqual(shown(steady.entries))
+    expect(shown(reloaded.entries)[1]).toEqual(['sysline', 20, line])
+  })
+
+  it('ends the persona message before it in both, so what she says after is a message of its own', () => {
+    let main = foldPersonaSaid(EMPTY_TRANSCRIPT, { sessionId: 's', agentId: mary.id, messageId: 'm', text: 'a', at: 1 })
+    main = foldSysline(main, line, 2)
+    main = foldPersonaSaid(main, { sessionId: 's', agentId: mary.id, messageId: 'm', text: 'b', at: 3 })
+    main = foldUserTurn(main, 'user', 4)
+
+    let window = foldEvent(initialConversation, said(mary.id, 'm', 'a', 1), agentOf).state
+    window = withHandoff(window, { kind: 'sysline', id: 'm-1', at: 2, text: line })
+    window = foldEvent(window, said(mary.id, 'm', 'b', 3), agentOf).state
+
+    expect(main.entries.slice(0, 3).map((entry) => [entry.kind, entry.text])).toEqual(
+      window.entries.map((entry) => [entry.kind, entry.text])
+    )
+    expect(main.entries.map((entry) => entry.kind)).toEqual(['persona', 'sysline', 'persona', 'user'])
+  })
+})
+
 describe('what is stored, and where', () => {
   it('is written by the one persistence source and nowhere else', () => {
     const writers = shipping.filter((path) =>
@@ -150,6 +195,18 @@ describe('what is stored, and where', () => {
       'src/main/sources/persistence/transcript-file.ts'
     ])
     expect(code(join(SRC, 'main/projections/transcript.ts')).match(/write\(filePath, projectPath, \[\]\)/g)).toHaveLength(1)
+  })
+
+  it('stores the sysline and nothing of what made it: not the last persona, the written files or a name', () => {
+    const projection = code(join(SRC, 'main/projections/transcript.ts'))
+    const file = code(join(SRC, 'main/sources/persistence/transcript-file.ts'))
+    const bridge = code(join(SRC, 'main/session-bridge.ts'))
+
+    expect(file).toMatch(/TRANSCRIPT_VERSION = 1/)
+    expect(file + projection).not.toMatch(/lastOpened|written|agentName|handoff/i)
+    // The two memories of the handoff live on the window's service and are never handed to a writer.
+    expect(bridge.match(/lastOpened/g)?.length).toBeGreaterThan(0)
+    expect(bridge).not.toMatch(/writeTranscript|writeFileSync/)
   })
 
   it('names no command or event the contract did not already have', () => {
