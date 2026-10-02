@@ -1,0 +1,28 @@
+{
+ "fixedBeforeAnyRunAt": "2026-10-02T15:48:38Z",
+ "sha256OfPlantedFactFiles": {
+  "planted-facts-pass1.json": "5d1b3f6c35c7e3567fa572b0629aa44cdaa01b6c31e4fdc8c3efb3580b63a580",
+  "planted-facts-pass2.json": "745ec823fd02fe056f3a78e03b0d28a399952fa4c7f2ef1374408652c6895232"
+ },
+ "source": "spec-2-12-confirm-continuity-actually-holds.md, Boundaries & Constraints (rubric and verdict mapping), copied unchanged",
+ "rubric": {
+  "trialPassesOnlyIf (spec: 'A trial passes only if B, unprompted:')": [
+   "(1) opens A's artifact without being told its path",
+   "(2) restates >=3 planted facts accurately",
+   "(3) proposes or begins a next step that builds on them rather than asking where to start"
+  ],
+  "failsInSubstance": "A trial whose B opens the artifact but restates fewer than 3 facts, or asks where to start after finding it, fails in substance even if it reads fluently.",
+  "appearanceAxis": "B's first reply is also quoted verbatim and marked `reads as restart` or `reads as continuation`: that is the appearance axis and is reported separately."
+ },
+ "verdictMapping": {
+  "holds in substance for work that reached disk": "Pass 1 passes >=2 of 3 and Pass 2's written decision is recovered",
+  "holds only for what was written down": "Pass 1 passes but Pass 2's chat-only decision is not recovered; that is a gap and is recorded as one",
+  "holds only in appearance": "Pass 1 passes <2 of 3"
+ },
+ "plantedFactFiles": [
+  "planted-facts-pass1.json",
+  "planted-facts-pass2.json (committed beside this file; their SHA-256 are above)"
+ ],
+ "coverage": "Counted trials only (pass1-trial1..3, pass2-trial1..2). pass1-control4 has no entry here because it is a control, not a counted trial; the pilot-layout runs are supporting and likewise not counted.",
+ "containsOnly": "Content fixed before the first run. Interpretations made after seeing results are in interpretations.post-hoc.json."
+}

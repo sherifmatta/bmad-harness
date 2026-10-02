@@ -1,0 +1,253 @@
+{
+ "id": "pass2-trial2",
+ "role": "counted",
+ "pass": 2,
+ "pair": "Mary (analyst) → John (pm), decision settled in chat only",
+ "layout": "isolated: subject in a fresh system temp dir with no harness material above it; project_name neutralised; auto-memory off by env and project setting",
+ "counted": true,
+ "filesAWroteToProject": [],
+ "filesBAddedToProject": [],
+ "A": {
+  "argv": [
+   "claude",
+   "-p",
+   "--input-format",
+   "stream-json",
+   "--output-format",
+   "stream-json",
+   "--include-partial-messages",
+   "--verbose",
+   "--setting-sources",
+   "project,local",
+   "--permission-mode",
+   "bypassPermissions",
+   "--max-budget-usd",
+   "3"
+  ],
+  "claudeVersion": "2.1.274 (Claude Code)",
+  "model": "claude-opus-5[1m]",
+  "memoryPathsInInit": null,
+  "exit": {
+   "code": 0,
+   "signal": null
+  },
+  "totalMs": 190453,
+  "spontaneousExtraResultRows": 0,
+  "turns": [
+   {
+    "n": 1,
+    "sent": "/bmad-agent-analyst",
+    "sentAtMs": 10,
+    "resultAtMs": 24261,
+    "durationMs": 23978,
+    "costUsdCumulative": 0.244,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [
+     {
+      "atMs": 5292,
+      "tool": "Bash",
+      "what": "ls -la && echo \"---SKILL ROOT---\" && ls -la .claude/skills/bmad-agent-analyst/"
+     },
+     {
+      "atMs": 6631,
+      "tool": "Bash",
+      "what": "uv run _bmad/scripts/resolve_customization.py --skill .claude/skills/bmad-agent-analyst --project-root . --key agent 2>&1 | head -100"
+     },
+     {
+      "atMs": 11382,
+      "tool": "Bash",
+      "what": "cat _bmad/bmm/config.yaml 2>&1"
+     },
+     {
+      "atMs": 12596,
+      "tool": "Bash",
+      "what": "ls -la docs/ && echo \"---BMAD---\" && ls _bmad/"
+     },
+     {
+      "atMs": 15057,
+      "tool": "Bash",
+      "what": "ls -la _bmad/planning-artifacts/ _bmad/implementation-artifacts/ 2>&1"
+     }
+    ],
+    "subagentToolCalls": 0
+   },
+   {
+    "n": 2,
+    "sent": "I'm thinking about a small tool called Quillbox for a library that lends out telescopes. I haven't decided how people should reserve one. Let's talk it through.",
+    "sentAtMs": 24261,
+    "resultAtMs": 68772,
+    "durationMs": 44503,
+    "costUsdCumulative": 0.335,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [],
+    "subagentToolCalls": 0
+   },
+   {
+    "n": 3,
+    "sent": "The options I see are a first-come waiting list, a monthly lottery, or a paid priority slot. Which would you lean towards and why?",
+    "sentAtMs": 68772,
+    "resultAtMs": 122961,
+    "durationMs": 54185,
+    "costUsdCumulative": 0.464,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [],
+    "subagentToolCalls": 0
+   },
+   {
+    "n": 4,
+    "sent": "Okay, settled: a monthly lottery, drawn on the first Monday of the month, because the waiting list left 70% of the telescopes idle during cloudy weeks. No paid priority slot, the trustees ruled it out. That's the decision.",
+    "sentAtMs": 122961,
+    "resultAtMs": 190161,
+    "durationMs": 67194,
+    "costUsdCumulative": 0.628,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [],
+    "subagentToolCalls": 0
+   }
+  ],
+  "finalReply": "📊 Locked: **monthly lottery, first-Monday draw, no paid priority.** And that 70% figure is exactly the kind of evidence I was asking for — you have operating data, which beats my reasoning from first principles. Noted and settled.\n\nOne flag before I go further, because it matters for whether this actually works:\n\n**The lottery and the 70% are aimed at different problems.** A lottery fixes *plannability* — people can finally target new moon instead of taking whatever the queue hands them. But idle-during-cloudy-weeks is a *responsiveness* problem, and a fixed-calendar draw is the least weather-responsive design of the three. If a winner draws a week that turns out overcast, the scope is now locked to someone who can't use it, and nobody else can have it. Done naively, a lottery makes your 70% worse.\n\nThe fix isn't to reopen the decision — it's one additional mechanism:\n\n**A standby list.** People opt in to \"I'll take any scope on short notice.\" When a winner releases a slot, doesn't claim it, or the forecast goes bad, you text the standby list and the scope moves same-day. Unallocated scopes fall through to walk-up. That's what actually attacks the 70%; the lottery handles fairness and planning. Together they cover both.\n\n**Design decisions the lottery now opens — my recommendations:**\n\n| Decision | Recommendation |\n|---|---|\n| **Unit of allocation** | Weekly slots, not whole months. With N scopes you make 4N allocations per draw instead of N, and it matches the 1–2 week loan these programs usually run. |\n| **Unequal weeks** | Let entrants **rank** their preferred weeks, then draw a random order and let each pick their best remaining slot. Barely harder than a flat draw, and it stops people winning the full-moon week they never wanted. |\n| **Repeat winners** | **+1 entry per consecutive month you don't win.** Cheap, and it guarantees eventual access. Your trustees will ask about this. |\n| **Claim window** | 48 hours to confirm, then it passes down the drawn order. The reserve list is free — it's just the unallocated tail of the same random sequence. |\n| **Auditability** | Record the seed and the draw order so any result can be reproduced and explained. You're a public institution and the trustees are clearly paying attention. |\n| **No-shows** | Two unclaimed wins and you sit out a draw. Otherwise the claim window has no teeth. |\n\n**One operational wrinkle worth catching now:** the first Monday falls anywhere from the 1st to the 7th. If you draw on it and allocate \"this month,\" up to a week of the month is already gone before you've drawn. Cleanest fix — **draw on the first Monday, allocate the four weeks beginning the **second** Monday.** Predictable boundaries, a week of lead time for winners to arrange pickup, and the gap week runs on standby. The alternative (draw for the *following* calendar month) gives more planning runway but closes entries five weeks before use, which is a long time to hold someone's intent.\n\nAnd a small feature that punches above its weight: **publish the moon phase for each week** on the entry form. Takes an afternoon to compute, and it means people rank slots sensibly instead of discovering in week three that they drew the full moon.\n\nWant me to capture this as a **product brief** — the decision, the rationale including your 70%, and the open questions — so it survives the conversation? Or keep going and nail down the standby mechanics first?"
+ },
+ "B": {
+  "argv": [
+   "claude",
+   "-p",
+   "--input-format",
+   "stream-json",
+   "--output-format",
+   "stream-json",
+   "--include-partial-messages",
+   "--verbose",
+   "--setting-sources",
+   "project,local",
+   "--permission-mode",
+   "bypassPermissions",
+   "--max-budget-usd",
+   "3"
+  ],
+  "claudeVersion": "2.1.274 (Claude Code)",
+  "model": "claude-opus-5[1m]",
+  "memoryPathsInInit": null,
+  "exit": {
+   "code": 0,
+   "signal": null
+  },
+  "totalMs": 66756,
+  "spontaneousExtraResultRows": 0,
+  "turns": [
+   {
+    "n": 1,
+    "sent": "/bmad-agent-pm",
+    "sentAtMs": 9,
+    "resultAtMs": 20482,
+    "durationMs": 20269,
+    "costUsdCumulative": 0.23,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [
+     {
+      "atMs": 3695,
+      "tool": "Bash",
+      "what": "ls -la <subject>/ 2>&1 | head -30; echo \"---SKILL---\"; ls -la <subject>/.claude/skills/bmad-agent-pm/ 2>&1"
+     },
+     {
+      "atMs": 4975,
+      "tool": "Bash",
+      "what": "uv run _bmad/scripts/resolve_customization.py --skill .claude/skills/bmad-agent-pm --project-root . --key agent 2>&1"
+     },
+     {
+      "atMs": 8196,
+      "tool": "Bash",
+      "what": "cat _bmad/bmm/config.yaml 2>&1"
+     },
+     {
+      "atMs": 11082,
+      "tool": "Bash",
+      "what": "echo \"=== planning-artifacts ===\" && ls -la _bmad/planning-artifacts/ 2>&1 && echo \"=== docs ===\" && ls -la docs/ 2>&1"
+     }
+    ],
+    "subagentToolCalls": 0
+   },
+   {
+    "n": 2,
+    "sent": "pick up the work from here",
+    "sentAtMs": 20482,
+    "resultAtMs": 43257,
+    "durationMs": 22773,
+    "costUsdCumulative": 0.35,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [
+     {
+      "atMs": 25855,
+      "tool": "Bash",
+      "what": "echo \"=== all non-skill files under _bmad ===\" && find _bmad -type f -not -path \"*/scripts/*\" | head -40 && echo && echo \"=== _bmad top level ===\" && ls _bmad/ && echo &&"
+     }
+    ],
+    "subagentToolCalls": 0
+   },
+   {
+    "n": 3,
+    "sent": "what did we decide about how Quillbox should handle reservations",
+    "sentAtMs": 43257,
+    "resultAtMs": 66433,
+    "durationMs": 23173,
+    "costUsdCumulative": 0.453,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [
+     {
+      "atMs": 47886,
+      "tool": "Bash",
+      "what": "echo \"=== grep Quillbox (case-insensitive, whole project) ===\" && grep -ril \"quillbox\" . 2>/dev/null | head -20; echo \"exit:$?\"; echo; echo \"=== grep reservation ===\" && "
+     }
+    ],
+    "subagentToolCalls": 0
+   }
+  ],
+  "chatText": {
+   "activationGreeting": "I'll activate as John, the Product Manager. Let me start by resolving the agent configuration.\n\n📋 Hello Sherif — John here, Product Manager.\n\nI work the way good product work actually gets done: user interviews before templates, smallest validated increment before grand plans, user value first with technical feasibility as the constraint. Expect me to ask \"why?\" more than once.\n\nQuick read of where you stand: `_bmad/planning-artifacts/` and `docs/` are both empty, so **scratch-project** is a blank slate. Nothing upstream to build on yet.\n\nYou can invoke the **`bmad-help`** skill at any time if you want advice on what to tackle next.\n\n### Menu\n\n| # | Code | Description | Action |\n|---|------|-------------|--------|\n| 1 | **PRD** | Create, update, or validate a PRD — state your intent or the skill will ask | `bmad-prd` |\n| 2 | **CE** | Create the Epics and Stories Listing that will drive development | `bmad-create-epics-and-stories` |\n| 3 | **IR** | Check implementation readiness — verify planning artifacts are complete and aligned (opens sprint planning; stop after the gate or continue into tracking) | `bmad-sprint-planning` |\n| 4 | **CC** | Determine how to proceed if major need for change is discovered mid-implementation | `bmad-correct-course` |\n\nPick a number, a code, or just describe what you're after.\n\nOne honest flag before you choose: with no artifacts on disk, items 2–4 have nothing to chew on — epics need requirements, readiness needs something to assess, and course correction needs a course. **PRD (1)** is almost certainly your start. If you'd rather go further upstream than a PRD — a rough idea that needs pressure-testing, or market research first — say so and I'll point you at the right skill instead of forcing you through mine.\n\nSo: what are we building, and who's hurting without it?",
+   "firstReplyToPickUp": "📋 Let me check whether there's work in flight I haven't seen before I assume a blank slate.\n\n📋 I checked properly before answering, Sherif — and I have to give you the straight read rather than pretend there's a thread to pull.\n\n**There is no work in flight.** What I found:\n\n- `_bmad/planning-artifacts/` — empty. No brief, no PRD, no epics.\n- `_bmad/implementation-artifacts/` — empty. No stories, no sprint status.\n- `docs/` — empty. No project knowledge.\n- Not a git repository, so there's no history to recover context from either.\n- The only files under `_bmad/` are the installer's own scaffolding: config, manifests, and the rendered skill templates under `_bmad/render/`. That's BMAD's plumbing, not your product.\n\nSo \"from here\" is the starting line. Nothing was lost — nothing was ever written.\n\nI'm not going to invent a product and hand you a PRD for it. That's the one thing that would genuinely waste your time: a polished document built on an assumption I made up, which you'd then have to unpick. PRDs emerge from interviews, not from me filling a template with plausible-sounding guesses.\n\nWhat I need from you is the seed. Honestly, one or two sentences is enough to start:\n\n- **What are we building?** Even rough — \"a scheduling tool for clinic staff,\" \"an internal dashboard for support tickets.\"\n- **Who's hurting without it, and how do they cope today?** The workaround people use right now tells me more than a feature list does.\n\nGive me that and I'll run the PRD interview from there — and I'll push on the *why* until the requirements are ones development can actually ship against.\n\nTwo alternatives if a PRD isn't the right altitude yet:\n\n- The idea is still half-formed and you want it pressure-tested before committing → **`bmad-forge-idea`**.\n- You need market or competitive evidence before shaping requirements → **`bmad-deep-recon`** (Mary, the analyst, owns that ground).\n\nEither way — what's the product, and whose problem is it?",
+   "replyToWhatDidWeDecide": "📋 Let me search rather than answer from memory.\n\n📋 Nothing was decided — there's no record of Quillbox anywhere, and no prior discussion of it between us.\n\nWhat I checked:\n\n- **`grep -ri \"quillbox\"` across the entire project: zero hits.** Not in artifacts, not in docs, not in config, not even in the BMAD scaffolding.\n- **`grep -ri \"reservation\"`: only matches inside `.claude/skills/`** — BMAD's own tooling files (`bmad-sprint-planning/scripts/sprint_plan.py`, `bmad-spec` templates, build review prompts). That's the framework's internal vocabulary, nothing to do with your product.\n- Our conversation in this session started with your `/bmad-agent-pm` invocation. There's no earlier exchange where reservations came up.\n\nI won't reconstruct a decision from the product name. I could spin you a plausible-sounding reservation model — hold-then-confirm, TTL on the hold, overbooking policy — and it would read like something we agreed. It isn't. Handing you a fabricated decision as recall is worse than being unhelpful, because you'd build on it.\n\nThis is the second time you've pointed at work that should exist, which makes me think something structural is off rather than it being a memory gap:\n\n1. **Wrong working directory.** This project is `scratch-project` at a temp path (`<subject>`) — a scratch sandbox, no git. If Quillbox lives in a real repo, I'm simply looking in the wrong place. Point me at the path and I'll read what's there.\n2. **Different session.** If the reservation discussion happened in another Claude Code conversation, that context didn't carry here. Paste the relevant notes or the artifact and I'll pick it straight up.\n3. **It was a conversation elsewhere entirely** — a call, a doc, Slack — and was never written down. In which case the decision exists in your head and we should capture it now, while it's recoverable.\n\nIf it's (3), that's real PM work and I'm ready: tell me what Quillbox is, what a \"reservation\" means in it — a seat, a slot, a unit of inventory, something else — and I'll interview you properly, then write it down so this question has an answer next time.\n\nWhich of the three is it?"
+  }
+ },
+ "appearance": {
+  "activationGreeting": {
+   "label": "reads as restart",
+   "why": "'scratch-project is a blank slate. Nothing upstream to build on yet'"
+  },
+  "firstReplyToPickUp": {
+   "label": "reads as restart",
+   "why": "'There is no work in flight'; asks 'What are we building?'"
+  },
+  "replyToWhatDidWeDecide": {
+   "label": "reads as restart",
+   "why": "'Nothing was decided — there's no record of Quillbox anywhere, and no prior discussion of it between us'"
+  }
+ },
+ "rubric": {
+  "decisionOnDisk": false,
+  "decisionRecovered": false
+ },
+ "notes": [
+  "A wrote no file; it ended by asking 'Want me to capture this as a product brief ... so it survives the conversation?'",
+  "B grepped for the topic and found nothing; no fabrication"
+ ],
+ "channelsAudit": {
+  "artifactFiles": [],
+  "auditA": "runs/iso-p2-t2 A: tool_use blocks=5 web=0 outside-project-or-memory refs=[]",
+  "auditB": "runs/iso-p2-t2 B: tool_use blocks=6 web=0 outside-project-or-memory refs=[]",
+  "memoryFilesBeforeAfterIdentical": true,
+  "memoryFileCountAnywhereUnderHomeClaude": 5
+ }
+}

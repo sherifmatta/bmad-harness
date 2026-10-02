@@ -1,0 +1,404 @@
+{
+ "id": "pilot-pass1-trial1",
+ "role": "pilot (supporting)",
+ "pass": 1,
+ "pair": "Mary (analyst) → John (pm)",
+ "layout": "pilot: subject inside the driver's directory tree (answer key and driver reachable by walking up); superseded by the isolated layout",
+ "counted": false,
+ "filesAWroteToProject": [
+  "./_bmad/planning-artifacts/briefs/brief-harbourlight-2026-10-02/.memlog.md",
+  "./_bmad/planning-artifacts/briefs/brief-harbourlight-2026-10-02/brief.md"
+ ],
+ "filesBAddedToProject": [
+  "./_bmad/planning-artifacts/prds/prd-harbourlight-2026-10-02/.memlog.md",
+  "./_bmad/planning-artifacts/prds/prd-harbourlight-2026-10-02/prd.md"
+ ],
+ "A": {
+  "argv": [
+   "claude",
+   "-p",
+   "--input-format",
+   "stream-json",
+   "--output-format",
+   "stream-json",
+   "--include-partial-messages",
+   "--verbose",
+   "--setting-sources",
+   "project,local",
+   "--permission-mode",
+   "bypassPermissions",
+   "--max-budget-usd",
+   "3"
+  ],
+  "claudeVersion": "2.1.274 (Claude Code)",
+  "model": "claude-opus-5[1m]",
+  "memoryPathsInInit": null,
+  "exit": {
+   "code": 0,
+   "signal": null
+  },
+  "totalMs": 475147,
+  "spontaneousExtraResultRows": 0,
+  "turns": [
+   {
+    "n": 1,
+    "sent": "/bmad-agent-analyst",
+    "sentAtMs": 9,
+    "resultAtMs": 20712,
+    "durationMs": 18886,
+    "costUsdCumulative": 0.414,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [
+     {
+      "atMs": 6266,
+      "tool": "Bash",
+      "what": "uv run _bmad/scripts/resolve_customization.py --skill .claude/skills/bmad-agent-analyst --project-root . --key agent 2>&1 | head -100"
+     },
+     {
+      "atMs": 10980,
+      "tool": "Bash",
+      "what": "cat _bmad/bmm/config.yaml 2>&1"
+     }
+    ],
+    "subagentToolCalls": 0
+   },
+   {
+    "n": 2,
+    "sent": "I'm planning a small app called Harbourlight: a ferry timetable and delay board for people who commute between the Orkney islands. Facts I want captured exactly: (1) the offline sync module has the codename Kestrel; (2) it has to keep working with no network at all for up to 72 hours, because the ferries lose signal between islands; (3) the installed bundle must not exceed 4 MB, because the ferry operator's tablets have only 64 MB free; (4) we chose SQLite over IndexedDB for local storage, because the operator's old tablet WebView corrupts IndexedDB after a forced shutdown. Please write this up now as a short product brief in the planning artifacts folder. Don't ask me questions first, just write it.",
+    "sentAtMs": 20712,
+    "resultAtMs": 474810,
+    "durationMs": 454091,
+    "costUsdCumulative": 2.469,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [
+     {
+      "atMs": 27383,
+      "tool": "Bash",
+      "what": "ls -la _bmad/ && echo \"---PLANNING---\" && ls -la _bmad/planning-artifacts/ 2>&1"
+     },
+     {
+      "atMs": 31506,
+      "tool": "Skill",
+      "what": "bmad-product-brief :: Autonomous mode — no questions. Create a short product brief for \"Harbourlight\", a ferry timetable a"
+     },
+     {
+      "atMs": 35985,
+      "tool": "Bash",
+      "what": "uv run _bmad/scripts/resolve_customization.py --skill .claude/skills/bmad-product-brief --project-root . --key workflow 2>&1 | head -80"
+     },
+     {
+      "atMs": 38658,
+      "tool": "Bash",
+      "what": "cat .claude/skills/bmad-product-brief/assets/brief-template.md 2>&1"
+     },
+     {
+      "atMs": 49902,
+      "tool": "Bash",
+      "what": "uv run _bmad/scripts/memlog.py --help 2>&1 | head -40"
+     },
+     {
+      "atMs": 53477,
+      "tool": "Bash",
+      "what": "WS=\"_bmad/planning-artifacts/briefs/brief-harbourlight-2026-10-02\" && mkdir -p \"$WS\" && uv run _bmad/scripts/memlog.py init --workspace \"$WS\" --field topic=\"Harbourlight "
+     },
+     {
+      "atMs": 61588,
+      "tool": "Bash",
+      "what": "WS=\"_bmad/planning-artifacts/briefs/brief-harbourlight-2026-10-02\" && M=\"uv run _bmad/scripts/memlog.py append --workspace $WS\" && \\ ⏎ $M --type event --text \"Create inte"
+     },
+     {
+      "atMs": 67147,
+      "tool": "Bash",
+      "what": "WS=\"_bmad/planning-artifacts/briefs/brief-harbourlight-2026-10-02\" && m() { uv run _bmad/scripts/memlog.py append --workspace \"$WS\" --type \"$1\" --text \"$2\" >/dev/null; } "
+     },
+     {
+      "atMs": 105107,
+      "tool": "Write",
+      "what": "<subject>/_bmad/planning-artifacts/briefs/brief-harbourlight-2026-10-02/brief.md"
+     },
+     {
+      "atMs": 120306,
+      "tool": "Agent",
+      "what": "general-purpose :: Review brief structure and prose"
+     },
+     {
+      "atMs": 455193,
+      "tool": "Write",
+      "what": "<subject>/_bmad/planning-artifacts/briefs/brief-harbourlight-2026-10-02/brief.md"
+     },
+     {
+      "atMs": 461646,
+      "tool": "Bash",
+      "what": "WS=\"_bmad/planning-artifacts/briefs/brief-harbourlight-2026-10-02\" && uv run _bmad/scripts/memlog.py append --workspace \"$WS\" --type change --text \"Applied bmad-review st"
+     }
+    ],
+    "subagentToolCalls": 8
+   }
+  ],
+  "finalReply": "📊 Got it, Sherif — Harbourlight, autonomous mode, no questions. Let me pull up the product brief workflow.\n\nNow the brief itself.\n\nBrief written. Now the configured doc-standards pass.\n\n📊 Done, Sherif. Brief is written.\n\n**`_bmad/planning-artifacts/briefs/brief-harbourlight-2026-10-02/`**\n- `brief.md` — the brief (~1,150 words)\n- `.memlog.md` — decision log, with your four facts recorded as decisions\n\nNo `addendum.md` — everything you gave me earned a place in the brief itself.\n\n**Your four facts, captured verbatim and load-bearing.** Each one appears in a dedicated **Hard Constraints** section, stated as given, and the two that shape the product story also appear in the Executive Summary and The Solution:\n\n- The offline sync module has the codename Kestrel.\n- It has to keep working with no network at all for up to 72 hours, because the ferries lose signal between islands.\n- The installed bundle must not exceed 4 MB, because the ferry operator's tablets have only 64 MB free.\n- We chose SQLite over IndexedDB for local storage, because the operator's old tablet WebView corrupts IndexedDB after a forced shutdown.\n\nI added a line under the SQLite one flagging that IndexedDB is the conventional choice for this class of app — so a future reader doesn't reason from first principles and quietly reverse your decision.\n\nThe structure and prose review pass ran as configured; no finding touched the protected facts, and the reviewer explicitly marked the deliberate repetition as intentional.\n\n**Two things worth your eye.** You asked me not to ask questions, so I drafted on inference and flagged it rather than hiding it — there's an **Open Questions** section at the end with four genuine unknowns, the sharpest being *where the disruption data actually comes from*. A delay board is only as good as its feed, and nothing in what you gave me says that feed exists. Second: I assumed the operator's tablets are the delivery target, but your constraints (4 MB, 64 MB free, old WebView) are all operator-hardware facts — if commuters install this on their own phones too, you may be sizing the whole product to the wrong device.\n\n**Next up:** `bmad-prd` to turn this into a PRD, or come back to me with **MR**/**CR** if you want the Orkney ferry-information landscape mapped before committing. Say the word."
+ },
+ "B": {
+  "argv": [
+   "claude",
+   "-p",
+   "--input-format",
+   "stream-json",
+   "--output-format",
+   "stream-json",
+   "--include-partial-messages",
+   "--verbose",
+   "--setting-sources",
+   "project,local",
+   "--permission-mode",
+   "bypassPermissions",
+   "--max-budget-usd",
+   "3"
+  ],
+  "claudeVersion": "2.1.274 (Claude Code)",
+  "model": "claude-opus-5[1m]",
+  "memoryPathsInInit": null,
+  "exit": {
+   "code": 0,
+   "signal": null
+  },
+  "totalMs": 457329,
+  "spontaneousExtraResultRows": 0,
+  "turns": [
+   {
+    "n": 1,
+    "sent": "/bmad-agent-pm",
+    "sentAtMs": 12,
+    "resultAtMs": 36674,
+    "durationMs": 35966,
+    "costUsdCumulative": 0.345,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [
+     {
+      "atMs": 5472,
+      "tool": "Bash",
+      "what": "ls -la && echo \"--- SKILL ROOT ---\" && ls -la .claude/skills/bmad-agent-pm/"
+     },
+     {
+      "atMs": 6826,
+      "tool": "Bash",
+      "what": "cat .claude/skills/bmad-agent-pm/customize.toml 2>&1 | head -100"
+     },
+     {
+      "atMs": 12174,
+      "tool": "Bash",
+      "what": "uv run _bmad/scripts/resolve_customization.py --skill .claude/skills/bmad-agent-pm --project-root . --key agent 2>&1 | tail -60"
+     },
+     {
+      "atMs": 13948,
+      "tool": "Bash",
+      "what": "ls _bmad/custom/ 2>&1; echo \"--- CONFIG ---\"; cat _bmad/bmm/config.yaml 2>&1; echo \"--- DOCS ---\"; ls -la docs/"
+     },
+     {
+      "atMs": 20679,
+      "tool": "Bash",
+      "what": "ls -la _bmad/planning-artifacts/ 2>&1; echo \"--- IMPL ---\"; ls -la _bmad/implementation-artifacts/ 2>&1"
+     },
+     {
+      "atMs": 22838,
+      "tool": "Bash",
+      "what": "find _bmad/planning-artifacts -type f | head -20"
+     },
+     {
+      "atMs": 25679,
+      "tool": "Bash",
+      "what": "cat _bmad/planning-artifacts/briefs/brief-harbourlight-2026-10-02/brief.md"
+     }
+    ],
+    "subagentToolCalls": 0
+   },
+   {
+    "n": 2,
+    "sent": "pick up the work from here",
+    "sentAtMs": 36674,
+    "resultAtMs": 456962,
+    "durationMs": 420280,
+    "costUsdCumulative": 2.994,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [
+     {
+      "atMs": 42036,
+      "tool": "Skill",
+      "what": "bmad-prd :: Create a PRD for Harbourlight from the existing product brief at _bmad/planning-artifacts/briefs/bri"
+     },
+     {
+      "atMs": 48582,
+      "tool": "Bash",
+      "what": "uv run _bmad/scripts/resolve_customization.py --skill .claude/skills/bmad-prd --project-root . --key workflow 2>&1 | tail -80"
+     },
+     {
+      "atMs": 50645,
+      "tool": "Bash",
+      "what": "ls .claude/skills/bmad-prd/ .claude/skills/bmad-prd/references/ 2>&1; echo \"--- CUSTOM CONFIGS ---\"; cat _bmad/custom/config.toml _bmad/custom/config.user.toml 2>&1 | hea"
+     },
+     {
+      "atMs": 60560,
+      "tool": "Bash",
+      "what": "cat .claude/skills/bmad-prd/assets/prd-template.md"
+     },
+     {
+      "atMs": 62535,
+      "tool": "Bash",
+      "what": "echo \"--- BRIEF MEMLOG ---\" && cat _bmad/planning-artifacts/briefs/brief-harbourlight-2026-10-02/.memlog.md; echo \"--- MEMLOG SCRIPT HELP ---\"; uv run _bmad/scripts/memlo"
+     },
+     {
+      "atMs": 80989,
+      "tool": "Bash",
+      "what": "WS=_bmad/planning-artifacts/prds/prd-harbourlight-2026-10-02 && mkdir -p \"$WS\" && uv run _bmad/scripts/memlog.py init --workspace \"$WS\" --field topic=\"Harbourlight PRD — "
+     },
+     {
+      "atMs": 93635,
+      "tool": "Agent",
+      "what": "general-purpose :: Research Orkney ferry data and comparables"
+     },
+     {
+      "atMs": 143025,
+      "tool": "Bash",
+      "what": "WS=_bmad/planning-artifacts/prds/prd-harbourlight-2026-10-02 && M=\"uv run _bmad/scripts/memlog.py append --workspace $WS\" && $M --type decision --text \"PROTECTED FACT car"
+     },
+     {
+      "atMs": 152211,
+      "tool": "Bash",
+      "what": "WS=_bmad/planning-artifacts/prds/prd-harbourlight-2026-10-02 && m() { uv run _bmad/scripts/memlog.py append --workspace \"$WS\" --type \"$1\" --text \"$2\" >/dev/null; } && m d"
+     },
+     {
+      "atMs": 380844,
+      "tool": "Write",
+      "what": "<subject>/_bmad/planning-artifacts/prds/prd-harbourlight-2026-10-02/prd.md"
+     },
+     {
+      "atMs": 399885,
+      "tool": "Edit",
+      "what": "<subject>/_bmad/planning-artifacts/prds/prd-harbourlight-2026-10-02/prd.md"
+     },
+     {
+      "atMs": 411283,
+      "tool": "Edit",
+      "what": "<subject>/_bmad/planning-artifacts/prds/prd-harbourlight-2026-10-02/prd.md"
+     },
+     {
+      "atMs": 441061,
+      "tool": "Bash",
+      "what": "WS=_bmad/planning-artifacts/prds/prd-harbourlight-2026-10-02 && python3 - \"$WS/prd.md\" <<'PY' ⏎ import sys ⏎ p=sys.argv[1]; s=open(p).read() ⏎ reps=[ ⏎ (\"1. **Where does "
+     }
+    ],
+    "subagentToolCalls": 23
+   }
+  ],
+  "chatText": {
+   "activationGreeting": "📋 Morning, Sherif. John here — Product Manager.\n\nI've loaded the project context. One artifact on the table: the **Harbourlight** product brief (drafted 2026-10-02, status `draft`) — an offline-first ferry timetable board for Orkney inter-island commuters. No PRD, no epics, nothing in implementation artifacts yet.\n\nThree things from that brief are already load-bearing, and I'll hold them as fixed inputs rather than preferences: **72-hour offline operation** for the Kestrel sync module, a **4 MB installed bundle ceiling**, and **SQLite over IndexedDB** (ruled out by observed WebView corruption on the target tablets, not by taste).\n\nI'll also flag the honest gap up front: that brief says it was written without a discovery conversation, and it ends with four open questions — where the schedule/disruption data comes from, whether tablets or phones are the primary target, who owns disruption data and how fast it propagates, and the target runtime. Those aren't footnotes. The first and third determine whether this product can exist at all. We can build a PRD around stated assumptions, but I'd rather you knew which load-bearing walls are currently drawn in pencil.\n\nA reminder: you can invoke `bmad-help` any time for advice on what to run next.\n\n| # | Code | Description | Action |\n|---|------|-------------|--------|\n| 1 | PRD | Create, update, or validate a PRD — state your intent or the skill will ask | `bmad-prd` |\n| 2 | CE | Create the Epics and Stories Listing that will drive development | `bmad-create-epics-and-stories` |\n| 3 | IR | Check implementation readiness — verify the planning artifacts are complete and aligned (opens sprint planning; stop after the gate or continue into tracking) | `bmad-sprint-planning` |\n| 4 | CC | Determine how to proceed if major need for change is discovered mid implementation | `bmad-correct-course` |\n\nGiven where things stand, **1 (PRD)** is the obvious next move — the brief is the input, and the PRD is where those open questions get forced into decisions.\n\nWhat are we doing?",
+   "firstReplyToPickUp": "📋 Right — PRD it is. Brief's the input, open questions get forced into decisions.\n\nActivation done — no overrides, no prepend/append steps. Config resolved: Sherif, English, artifacts under `_bmad/planning-artifacts`.\n\nIntent is **Create** (no existing PRD). And I'm reading \"pick up the work from here\" as **Fast path**: I draft the full PRD from the brief, tag every inference `[ASSUMPTION]`, and hand you a review. You can push any section into coaching mode after. At any point you can invoke `bmad-party-mode` for multi-agent perspectives or `bmad-advanced-elicitation` to go deeper on a specific section.\n\nFour facts come across from the brief's memlog as **protected** — they travel verbatim, not paraphrased:\n\n- The offline sync module's codename is **Kestrel**\n- Kestrel keeps working with **no network for up to 72 hours** (ferries lose signal between islands)\n- Installed bundle **≤ 4 MB** (operator tablets have 64 MB free)\n- **SQLite, not IndexedDB** (the old tablet WebView corrupts IndexedDB after a forced shutdown)\n\nSetting up the workspace and grounding the data-source question in parallel.\n\nWorkspace bound: `_bmad/planning-artifacts/prds/prd-harbourlight-2026-10-02/`. Memlog seeded, research running. Carrying the protected facts forward into this run's log so they survive a resume:\n\nDrafting. Writing the spine plus the clusters this product's concerns actually call for — hardware/field environment, data supply, risk.\n\nResearch is back and it materially changes §8. Folding it in — surgically, three edits.\n\n📋 PRD drafted. Budget's run out, so I'm stopping honestly rather than half-running Finalize.\n\n**`_bmad/planning-artifacts/prds/prd-harbourlight-2026-10-02/prd.md`** — ~8,100 words, `status: draft`. Spine plus four adapt-in clusters the product's concerns called for: Data Supply and Provenance, Hardware and Field Environment, Cross-Cutting NFRs, Risks. 23 FRs across 5 features, 3 journeys with named protagonists, 7 success metrics with 4 counter-metrics, 9 open questions, 12 indexed assumptions.\n\nAll four protected facts travel verbatim — Kestrel, 72 hours with no network because the ferries lose signal between islands, 4 MB because the tablets have only 64 MB free, SQLite over IndexedDB because the old WebView corrupts IndexedDB after a forced shutdown. §5 states them as fixed inputs and says relaxing one is a `bmad-correct-course` conversation, not a design discussion.\n\n**What the research changed.** Schedule data is no longer an unknown: Orkney Ferries sailings are in the Traveline National Dataset as OF1–OF9, TransXChange 2.1, OGL v3, weekly FTP. Disruption data has no feed at all — free text on a website, Facebook, and a Telegram channel. So the product's valuable half has no source, and §12.1 now asks *how we get it* across three costed routes instead of *whether it exists*. Risk R-2 also narrowed: WASM SQLite eats 566 KB–1.3 MB of the 4 MB before any app code and OPFS needs a WebView these tablets don't have, so a native bridge is the only plausible fit. Data volume is irrelevant — 72 hours of sailings is under 100 KB.\n\n**Three things I derived that the brief didn't say**, and they're the part worth your attention:\n\n- **FR-16** — surviving 72 hours offline silently requires caching *more* than 72 hours of forward schedule. Go offline Friday and Monday is empty.\n- **FR-9** — \"correctly-dated board after 72 hours\" assumes the tablet knows what day it is. The one device that gets force-shut-down repeatedly is the one with no network to correct its clock from. Phase-blocker.\n- **§7.2** — I put computing Connections *out* of MVP, and flagged it as uncomfortable. The brief's problem statement is about chains of sailings; UJ-2 has Dougie doing the arithmetic in his head. That's risk R-6, accepted deliberately.\n\n**Not done:** Finalize steps 1–8 — memlog audit, input reconciliation, reviewer gate, open-item triage, and the structure/prose polish pass. The memlog records where to resume. Re-invoke `bmad-prd` (Update intent) and it'll pick up at Finalize.\n\nThree phase-blockers stand between this and architecture: disruption data source, delivery target and WebView version, and whether the tablet loses its clock. I'd spend the first week of engineering on the SQLite spike against the real device and a five-minute check on whether that Telegram channel is bot-readable — cheap answers to expensive questions.",
+   "laterWakeUpReply(truncated 1500)": null
+  }
+ },
+ "appearance": {
+  "activationGreeting": {
+   "label": "reads as continuation",
+   "why": "names the Harbourlight brief and its four protected facts"
+  },
+  "firstReplyToPickUp": {
+   "label": "reads as continuation",
+   "why": "drafts a PRD from the brief"
+  }
+ },
+ "rubric": {
+  "criterion1_openedArtifactUnprompted": {
+   "turn": 1,
+   "atMs": 25679,
+   "tool": "Bash",
+   "what": "cat _bmad/planning-artifacts/briefs/brief-harbourlight-2026-10-02/brief.md"
+  },
+  "criterion3_beganNextStepBuildingOnIt": {
+   "turn": 2,
+   "atMs": 42036,
+   "what": "bmad-prd :: Create a PRD for Harbourlight from the existing product brief at _bmad/planning-artifacts/briefs/bri"
+  },
+  "criterion2_factsRestated": {
+   "Kestrel codename": {
+    "chatFirstWindow": true,
+    "ownWritesFirstWindow": true
+   },
+   "72 hours offline": {
+    "chatFirstWindow": true,
+    "ownWritesFirstWindow": true
+   },
+   "4 MB bundle": {
+    "chatFirstWindow": true,
+    "ownWritesFirstWindow": true
+   },
+   "SQLite over IndexedDB (WebView corrupts IndexedDB)": {
+    "chatFirstWindow": true,
+    "ownWritesFirstWindow": true
+   }
+  },
+  "restatedInChatOnly(of 4)": 4,
+  "restatedInChatOrBsOwnWrites(of 4)": 4,
+  "resultIfChatOnly": "pass",
+  "resultIfChatOrOwnWrites": "pass"
+ },
+ "notes": [],
+ "channelsAudit": {
+  "artifactFiles": [
+   "planning-artifacts/briefs/brief-harbourlight-2026-10-02/.memlog.md",
+   "planning-artifacts/briefs/brief-harbourlight-2026-10-02/brief.md"
+  ],
+  "plantedFactsOnDisk": {
+   "Kestrel": [
+    ".memlog.md",
+    "brief.md"
+   ],
+   "72 hours": [
+    ".memlog.md",
+    "brief.md"
+   ],
+   "4 MB": [
+    ".memlog.md",
+    "brief.md"
+   ],
+   "SQLite over IndexedDB": [
+    ".memlog.md",
+    "brief.md"
+   ]
+  },
+  "artifactWrittenVia": [
+   "Write (brief.md)"
+  ],
+  "auditA": "runs/p1-t1 A: tool_use blocks=22 web=0 outside-project-or-memory refs=[]",
+  "auditB": "runs/p1-t1 B: tool_use blocks=43 web=22 outside-project-or-memory refs=[]",
+  "memoryFilesBeforeAfterIdentical": true,
+  "memoryFileCountAnywhereUnderHomeClaude": 5
+ },
+ "plantedFactsOnDiskAfterA": {
+  "Kestrel": [
+   ".memlog.md",
+   "brief.md"
+  ],
+  "72 hours": [
+   ".memlog.md",
+   "brief.md"
+  ],
+  "4 MB": [
+   ".memlog.md",
+   "brief.md"
+  ],
+  "SQLite over IndexedDB": [
+   ".memlog.md",
+   "brief.md"
+  ]
+ },
+ "artifactWrittenVia": [
+  "Write (brief.md)"
+ ]
+}

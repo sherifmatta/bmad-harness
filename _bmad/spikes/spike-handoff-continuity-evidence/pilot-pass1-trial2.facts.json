@@ -1,0 +1,424 @@
+{
+ "id": "pilot-pass1-trial2",
+ "role": "pilot (supporting)",
+ "pass": 1,
+ "pair": "Mary (analyst) → John (pm)",
+ "layout": "pilot: subject inside the driver's directory tree (answer key and driver reachable by walking up); superseded by the isolated layout",
+ "counted": false,
+ "filesAWroteToProject": [
+  "./_bmad/planning-artifacts/briefs/brief-bmad-harness-2026-10-02/.memlog.md",
+  "./_bmad/planning-artifacts/briefs/brief-bmad-harness-2026-10-02/addendum.md",
+  "./_bmad/planning-artifacts/briefs/brief-bmad-harness-2026-10-02/brief.md"
+ ],
+ "filesBAddedToProject": [
+  "./_bmad/planning-artifacts/prds/prd-bmad-harness-2026-10-02/.memlog.md",
+  "./_bmad/planning-artifacts/prds/prd-bmad-harness-2026-10-02/prd.md",
+  "./_bmad/planning-artifacts/prds/prd-bmad-harness-2026-10-02/research-digest.md"
+ ],
+ "A": {
+  "argv": [
+   "claude",
+   "-p",
+   "--input-format",
+   "stream-json",
+   "--output-format",
+   "stream-json",
+   "--include-partial-messages",
+   "--verbose",
+   "--setting-sources",
+   "project,local",
+   "--permission-mode",
+   "bypassPermissions",
+   "--max-budget-usd",
+   "3"
+  ],
+  "claudeVersion": "2.1.274 (Claude Code)",
+  "model": "claude-opus-5[1m]",
+  "memoryPathsInInit": null,
+  "exit": {
+   "code": 0,
+   "signal": null
+  },
+  "totalMs": 432484,
+  "spontaneousExtraResultRows": 0,
+  "turns": [
+   {
+    "n": 1,
+    "sent": "/bmad-agent-analyst",
+    "sentAtMs": 13,
+    "resultAtMs": 36518,
+    "durationMs": 35340,
+    "costUsdCumulative": 0.288,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [
+     {
+      "atMs": 4441,
+      "tool": "Bash",
+      "what": "ls -la && echo \"---SKILL ROOT---\" && ls -la .claude/skills/bmad-agent-analyst/"
+     },
+     {
+      "atMs": 8263,
+      "tool": "Bash",
+      "what": "echo \"=== _bmad ===\" && ls -la _bmad/ && echo \"=== scripts ===\" && ls -la _bmad/scripts/ 2>/dev/null && echo \"=== custom ===\" && ls -la _bmad/custom/ 2>/dev/null && echo "
+     },
+     {
+      "atMs": 12610,
+      "tool": "Bash",
+      "what": "uv run _bmad/scripts/resolve_customization.py --skill .claude/skills/bmad-agent-analyst --project-root . --key agent 2>&1 | head -100"
+     },
+     {
+      "atMs": 19904,
+      "tool": "Bash",
+      "what": "ls -la _bmad/bmm/ && echo \"=== config.yaml ===\" && cat _bmad/bmm/config.yaml 2>/dev/null || echo \"(no config.yaml)\""
+     }
+    ],
+    "subagentToolCalls": 0
+   },
+   {
+    "n": 2,
+    "sent": "I'm planning a small tool called Tidewrack: a route planner for volunteers who clear plastic from tidal beaches. Facts I want captured exactly: (1) the tide-window calculator has the codename Heron; (2) a route must never take volunteers onto a beach with less than 90 minutes of safe tide left; (3) the app must run on phones at most 3 years old, and the offline map pack must stay under 25 MB; (4) we chose a fixed-time shift model over a free-roam model, because the coastguard will only brief us on fixed windows. Please write this up now as a short product brief in the planning artifacts folder. Don't ask me questions first, just write it.",
+    "sentAtMs": 36518,
+    "resultAtMs": 432106,
+    "durationMs": 395567,
+    "costUsdCumulative": 2.143,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [
+     {
+      "atMs": 44495,
+      "tool": "Skill",
+      "what": "bmad-product-brief :: Autonomous mode — do not ask the user questions. Write a short product brief for \"Tidewrack\" into {p"
+     },
+     {
+      "atMs": 48201,
+      "tool": "Bash",
+      "what": "uv run _bmad/scripts/resolve_customization.py --skill .claude/skills/bmad-product-brief --project-root . --key workflow 2>&1 | head -80"
+     },
+     {
+      "atMs": 56815,
+      "tool": "Bash",
+      "what": "cat .claude/skills/bmad-product-brief/assets/brief-template.md && echo \"=== MEMLOG USAGE ===\" && uv run _bmad/scripts/memlog.py --help 2>&1 | head -40"
+     },
+     {
+      "atMs": 64144,
+      "tool": "Bash",
+      "what": "WS=\"_bmad/planning-artifacts/briefs/brief-bmad-harness-2026-10-02\" && mkdir -p \"$WS\" && cat > \"$WS/brief.md\" <<'EOF' ⏎ --- ⏎ title: \"Product Brief: Tidewrack\" ⏎ status: d"
+     },
+     {
+      "atMs": 72223,
+      "tool": "Bash",
+      "what": "WS=\"_bmad/planning-artifacts/briefs/brief-bmad-harness-2026-10-02\" && M=\"uv run _bmad/scripts/memlog.py append --workspace $WS\" && \\ ⏎ $M --type event --text \"User reques"
+     },
+     {
+      "atMs": 77887,
+      "tool": "Bash",
+      "what": "WS=\"_bmad/planning-artifacts/briefs/brief-bmad-harness-2026-10-02\" && \\ ⏎ m() { uv run _bmad/scripts/memlog.py append --workspace \"$WS\" --type \"$1\" --text \"$2\"; } && \\ ⏎ "
+     },
+     {
+      "atMs": 123320,
+      "tool": "Bash",
+      "what": "WS=\"_bmad/planning-artifacts/briefs/brief-bmad-harness-2026-10-02\" && cat > \"$WS/brief.md\" <<'EOF' ⏎ --- ⏎ title: \"Product Brief: Tidewrack\" ⏎ status: draft ⏎ created: 20"
+     },
+     {
+      "atMs": 146947,
+      "tool": "Bash",
+      "what": "WS=\"_bmad/planning-artifacts/briefs/brief-bmad-harness-2026-10-02\" && cat > \"$WS/addendum.md\" <<'EOF' ⏎ --- ⏎ title: \"Addendum: Tidewrack\" ⏎ status: draft ⏎ created: 2026"
+     },
+     {
+      "atMs": 171223,
+      "tool": "Agent",
+      "what": "general-purpose :: Review brief structure and prose"
+     },
+     {
+      "atMs": 178627,
+      "tool": "Agent",
+      "what": "general-purpose :: Review addendum structure and prose"
+     },
+     {
+      "atMs": 352112,
+      "tool": "Bash",
+      "what": "WS=\"_bmad/planning-artifacts/briefs/brief-bmad-harness-2026-10-02\" && python3 - <<'PY' ⏎ import io,sys ⏎ p=\"_bmad/planning-artifacts/briefs/brief-bmad-harness-2026-10-02/"
+     },
+     {
+      "atMs": 357248,
+      "tool": "Bash",
+      "what": "grep -n \"workable\" -A2 -B2 _bmad/planning-artifacts/briefs/brief-bmad-harness-2026-10-02/brief.md"
+     },
+     {
+      "atMs": 364706,
+      "tool": "Bash",
+      "what": "python3 - <<'PY' ⏎ import sys ⏎ p=\"_bmad/planning-artifacts/briefs/brief-bmad-harness-2026-10-02/brief.md\" ⏎ s=open(p).read() ⏎ subs=[ ⏎ (\"and routes are generated to fit"
+     },
+     {
+      "atMs": 372840,
+      "tool": "Bash",
+      "what": "python3 - <<'PY' ⏎ import sys ⏎ p=\"_bmad/planning-artifacts/briefs/brief-bmad-harness-2026-10-02/brief.md\" ⏎ s=open(p).read() ⏎ subs=[ ⏎ (\"each stretch of coast, and Tide"
+     },
+     {
+      "atMs": 379851,
+      "tool": "Bash",
+      "what": "awk 'length>100 {print FILENAME\":\"NR\": (\"length\") \"$0}' _bmad/planning-artifacts/briefs/brief-bmad-harness-2026-10-02/brief.md _bmad/planning-artifacts/briefs/brief-bmad-"
+     },
+     {
+      "atMs": 404705,
+      "tool": "Bash",
+      "what": "WS=\"_bmad/planning-artifacts/briefs/brief-bmad-harness-2026-10-02\" && python3 - <<'PY' ⏎ import sys ⏎ p=\"_bmad/planning-artifacts/briefs/brief-bmad-harness-2026-10-02/bri"
+     },
+     {
+      "atMs": 415426,
+      "tool": "Bash",
+      "what": "WS=\"_bmad/planning-artifacts/briefs/brief-bmad-harness-2026-10-02\" && echo \"=== VERBATIM FACT CHECK ===\" && for f in \"A route must never take volunteers onto a beach with"
+     }
+    ],
+    "subagentToolCalls": 12
+   }
+  ],
+  "finalReply": "📊 Got it — **CB: product brief**, autonomous mode. No questions, straight to the dig. Let me load the brief workflow.\n\nWorkflow resolved. This is an autonomous **Create** — no questions, so I'll tag every inference and keep your four facts verbatim. Setting up the workspace first.\n\nFacts logged. Now the brief itself.\n\nBrief and addendum are down. Now the workflow's doc standard — `bmad-review` with the structure and prose lenses. Running both files in parallel.\n\nGood findings. Applying to `brief.md` first, then `addendum.md`, per the workflow's ordering.\n\n📊 **Done — the brief is written.** No questions asked, as you wanted.\n\n### Files\n\n```\n_bmad/planning-artifacts/briefs/brief-bmad-harness-2026-10-02/\n├── brief.md       ← the brief (~1.5 pages)\n├── addendum.md    ← depth that didn't belong in a short brief\n└── .memlog.md     ← decision log, 7 entries\n```\n\n### Your four facts — captured exactly\n\nAll four are reproduced **verbatim inside blockquotes**, verified by literal string match in both documents, and each is labelled **(supplied)** so no later reader mistakes them for my inference:\n\n| # | Fact | Where it lives |\n|---|------|----------------|\n| 1 | Codename **Heron** for the tide-window calculator | Exec Summary, Solution, Non-Negotiables, Scope; own section in addendum |\n| 2 | Never onto a beach with **< 90 minutes** of safe tide left | *Non-Negotiables → Safety floor* |\n| 3 | Phones **≤ 3 years old**, map pack **under 25 MB** | *Non-Negotiables → Device and footprint* |\n| 4 | **Fixed-time shift over free-roam**, because the coastguard only briefs on fixed windows | Its own *Key Decision* section; full rationale in addendum |\n\nI treated #4 as the architectural hinge rather than a footnote — the coastguard constraint is what makes #2 enforceable at *plan time* and what makes an offline shift workable at all. That reading is mine; if it's wrong, it's the one thing worth correcting first.\n\n### Memlog accounting\n\nEverything in `.memlog.md` is accounted for: the four facts → **brief** (verbatim); rejected free-roam rationale, Heron's component role, device-constraint implications, and the safety-floor definition gap → **addendum**; the autonomous-mode note and the review pass → **process noise**, logged but not in either document.\n\n### What's inferred — and the honest caveat\n\nBecause you asked me not to ask, roughly half the brief is inference, every bit of it tagged `[ASSUMPTION]`. The problem framing, all three user groups, success criteria, and scope boundaries are my construction, not yours. Status is `draft` for exactly that reason.\n\nFive things I flagged as **Open Questions** rather than guessing, because a wrong guess would have been expensive:\n\n1. **Where tide data comes from** and Heron's accuracy envelope — the whole safety claim rests on this.\n2. **What \"safe tide left\" actually measures** — water reaching the route, or the escape route closing? These give materially different numbers on the same beach. Your 90-minute figure is fixed; the quantity it's measured *against* isn't defined yet. This is the one I'd settle before anything else, since it determines what Heron computes.\n3. iOS, Android, or both.\n4. Whether 25 MB survives at the zoom level you actually need.\n5. What the coastguard brief contains, and whether Tidewrack produces or consumes it.\n\nThe workflow's doc standard (`bmad-review`, structure + prose lenses) ran on both files; findings applied.\n\n### Where this goes next\n\n`bmad-prd` names the product brief as its input, so that's the natural next step — though I'd fix the assumptions first. Alternatively `bmad-spec` if you'd rather condense straight to a build-ready spec, or come back to me (**CB**) for a coaching pass to replace the inferred half with your own answers.\n\nWhat would you like to do, Sherif?"
+ },
+ "B": {
+  "argv": [
+   "claude",
+   "-p",
+   "--input-format",
+   "stream-json",
+   "--output-format",
+   "stream-json",
+   "--include-partial-messages",
+   "--verbose",
+   "--setting-sources",
+   "project,local",
+   "--permission-mode",
+   "bypassPermissions",
+   "--max-budget-usd",
+   "3"
+  ],
+  "claudeVersion": "2.1.274 (Claude Code)",
+  "model": "claude-opus-5[1m]",
+  "memoryPathsInInit": null,
+  "exit": {
+   "code": 0,
+   "signal": null
+  },
+  "totalMs": 359354,
+  "spontaneousExtraResultRows": 1,
+  "turns": [
+   {
+    "n": 1,
+    "sent": "/bmad-agent-pm",
+    "sentAtMs": 9,
+    "resultAtMs": 30961,
+    "durationMs": 30350,
+    "costUsdCumulative": 0.261,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [
+     {
+      "atMs": 5872,
+      "tool": "Bash",
+      "what": "ls -la && echo \"---SKILL---\" && ls -la .claude/skills/bmad-agent-pm/"
+     },
+     {
+      "atMs": 7533,
+      "tool": "Bash",
+      "what": "cat .claude/skills/bmad-agent-pm/customize.toml 2>/dev/null"
+     },
+     {
+      "atMs": 13508,
+      "tool": "Bash",
+      "what": "uv run _bmad/scripts/resolve_customization.py --skill .claude/skills/bmad-agent-pm --project-root . --key agent 2>&1 | tail -60"
+     },
+     {
+      "atMs": 15408,
+      "tool": "Bash",
+      "what": "ls _bmad/custom/ 2>/dev/null; echo \"---CONFIG---\"; cat _bmad/bmm/config.yaml 2>/dev/null; echo \"---DOCS---\"; ls -la docs/"
+     },
+     {
+      "atMs": 21330,
+      "tool": "Bash",
+      "what": "ls -R _bmad/planning-artifacts/ 2>/dev/null | head -30"
+     }
+    ],
+    "subagentToolCalls": 0
+   },
+   {
+    "n": 2,
+    "sent": "pick up the work from here",
+    "sentAtMs": 30961,
+    "resultAtMs": 126038,
+    "durationMs": 95069,
+    "costUsdCumulative": 1.092,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [
+     {
+      "atMs": 35719,
+      "tool": "Bash",
+      "what": "echo \"=== brief.md ===\" && cat _bmad/planning-artifacts/briefs/brief-bmad-harness-2026-10-02/brief.md && echo && echo \"=== addendum.md ===\" && cat _bmad/planning-artifact"
+     },
+     {
+      "atMs": 50478,
+      "tool": "Skill",
+      "what": "bmad-prd :: Create a new PRD for Tidewrack, working from the existing product brief at _bmad/planning-artifacts/"
+     },
+     {
+      "atMs": 54821,
+      "tool": "Bash",
+      "what": "uv run _bmad/scripts/resolve_customization.py --skill .claude/skills/bmad-prd --project-root . --key workflow 2>&1 | head -80"
+     },
+     {
+      "atMs": 57169,
+      "tool": "Bash",
+      "what": "ls -la _bmad/bmm/ && echo \"---user cfg---\" && cat _bmad/bmm/config.user.yaml 2>/dev/null; echo \"---custom---\"; cat _bmad/custom/config.toml 2>/dev/null; echo \"--- user --"
+     },
+     {
+      "atMs": 74402,
+      "tool": "Bash",
+      "what": "echo \"=== existing prds ===\" && ls -la _bmad/planning-artifacts/prds/ 2>/dev/null || echo \"(no prds folder)\"; echo \"=== memlog script help ===\"; uv run _bmad/scripts/meml"
+     },
+     {
+      "atMs": 75676,
+      "tool": "Bash",
+      "what": "cat .claude/skills/bmad-prd/assets/prd-template.md"
+     },
+     {
+      "atMs": 85406,
+      "tool": "Bash",
+      "what": "WS=\"_bmad/planning-artifacts/prds/prd-bmad-harness-2026-10-02\" && mkdir -p \"$WS\" && cat > \"$WS/prd.md\" <<'EOF' ⏎ --- ⏎ title: \"PRD: Tidewrack\" ⏎ status: draft ⏎ created: "
+     },
+     {
+      "atMs": 109551,
+      "tool": "Agent",
+      "what": "general-purpose :: Research tide data and offline maps"
+     },
+     {
+      "atMs": 338886,
+      "tool": "Bash",
+      "what": "WS=\"_bmad/planning-artifacts/prds/prd-bmad-harness-2026-10-02\" && cat > \"$WS/research-digest.md\" <<'EOF' ⏎ --- ⏎ title: \"Discovery Research Digest: Tidewrack\" ⏎ status: r"
+     }
+    ],
+    "subagentToolCalls": 30
+   }
+  ],
+  "chatText": {
+   "activationGreeting": "I'll start by activating the PM agent as the skill directs.\n\n📋 Hello Sherif — John here, your Product Manager.\n\nI've loaded up. One thing I spotted in your planning artifacts worth flagging: there's already a product brief sitting at `_bmad/planning-artifacts/briefs/brief-bmad-harness-2026-10-02/` (brief + addendum). That's the natural input to a PRD, so if that's where you're headed, we have a running start.\n\nQuick note: you can invoke the `bmad-help` skill any time if you want a recommendation on what to do next.\n\nHere's what I can do:\n\n| # | Code | Description | Action |\n|---|------|-------------|--------|\n| 1 | **PRD** | Create, update, or validate a PRD — state your intent or the skill will ask | `bmad-prd` |\n| 2 | **CE** | Create the Epics and Stories Listing that will drive development | `bmad-create-epics-and-stories` |\n| 3 | **IR** | Check implementation readiness — verify the planning artifacts are complete and aligned (opens sprint planning; stop after the gate or continue into tracking) | `bmad-sprint-planning` |\n| 4 | **CC** | Determine how to proceed if major need for change is discovered mid implementation | `bmad-correct-course` |\n\nPick a number, a code, or just tell me what you're trying to get done — I'll work out which of these fits. And if none of them do, we can just talk it through.",
+   "firstReplyToPickUp": "📋 Right — \"from here\" means from what's on disk. Let me read the actual state before I assume anything.\n\n📋 Here's where things stand, plainly.\n\nYou have a brief for **Tidewrack** — a tide-aware route planner for beach-clearance volunteers. It's one step up from the planning chain, so the next artifact is the PRD. But read the brief's own draft note before we go: it was written autonomously, with **no discovery interview**. Four facts are supplied; everything else is tagged `[ASSUMPTION]`. The brief literally tells us to correct those first.\n\nTwo of the open questions aren't ordinary gaps — they're load-bearing:\n\n1. **\"Safe tide left\" has no operational definition.** The 90-minute floor is supplied and fixed, but the *quantity it measures* isn't defined. Water reaching the route, escape route closing, or a reference point flooding — these produce materially different numbers on the same beach. Heron's entire spec hangs off this, and the product's safety claim reduces to Heron's correctness plus the floor check.\n2. **Where tide data comes from, and its accuracy envelope.** That's the evidentiary basis of the safety claim. A 90-minute floor built on data with a ±40-minute error isn't a 90-minute floor.\n\nI'm not going to paper over those with plausible-sounding PRD prose. Let's run the PRD properly — I'll work from the brief and interview you where it matters.\n\n📋 Sherif — workspace is bound. PRD run lives at:\n\n`_bmad/planning-artifacts/prds/prd-bmad-harness-2026-10-02/` — `prd.md` (draft skeleton) plus `.memlog.md`, which is the audit trail for every decision we make. You can stop and resume this freely.\n\nTwo things available to you at any point: `bmad-party-mode` if you want multiple agent perspectives on a section, and `bmad-advanced-elicitation` if you want to go deeper on something specific — a pre-mortem on the safety model would be a good candidate.\n\nI've also kicked off background research on the things the brief flags as unknown: real tide data sources and their accuracy envelopes, whether 25 MB is actually achievable for a walkable-zoom coastal map pack, prior art, and what HM Coastguard actually expects in a shore-activity brief. That'll land while we talk.\n\nNow — three questions, and then I get out of your way.\n\n**1. Brain dump.** The brief is on file and I've read it, cover to cover, including the addendum. What else is in your head or on your disk? Research, a transcript with an actual volunteer or organiser, notes from whoever gave you those four supplied facts, a competitor you've looked at, a sketch. Paths or paste — size doesn't matter, I extract rather than read wholesale. And the question that usually earns its keep: **is there anything you almost forgot?**\n\n**2. Stakes.** Is Tidewrack a hobby/solo build, an internal tool for one volunteer organisation, or something heading for a real launch with real volunteers on real beaches? This calibrates how hard I push on rigor — and on a product whose failure mode is someone being cut off by the tide, I'd rather over-calibrate than under.\n\n**3. Working mode.**\n\n- **Fast path** — I batch every remaining gap into one or two consolidated questions, then draft the whole PRD, tagging `[ASSUMPTION]` wherever I inferred. You review and we iterate. Quality tracks how much you give me upfront.\n- **Coaching path** — we walk the PM thinking together, section by section. If you pick this, I'll ask which entry point fits: capability-first, journey-led, or let me suggest from what I hear.\n\nOne flag before you answer, because it shapes everything downstream. The brief's safety claim currently rests on an undefined term. \"90 minutes of safe tide left\" is supplied and fixed — but *safe tide* isn't defined, and the three candidate definitions in the addendum produce genuinely different numbers on the same beach. I can't write a testable FR for Heron until that's settled. If you don't know the answer yet, that's a fine answer — it becomes the first thing the PRD names as blocking, rather than something we paper over.",
+   "laterWakeUpReply(truncated 1500)": "📋 Research is back, and it changes things. Let me bank it before anything else.\n\n📋 Research digest is saved to `research-digest.md` in the workspace, and the conflicts are logged in `.memlog.md`. Four findings, and I'm going to lead with the uncomfortable ones.\n\n**1. The 90-minute floor is well outside published safety guidance.** RNLI advises returning to dry land **at least four hours before high tide** at cut-off-prone sites. No published source states 90 minutes. For context on why this matters: RNLI recorded 7,971 tidal cut-off incidents in a decade. The figure is supplied, so it stands unless you change it — but I'm not willing to write it into a PRD as a safety guarantee without recording whose authority it rests on. Right now that authority is unnamed.\n\n**2. The safety claim has a hole in it that offline-first cannot close.** Every authoritative tide source — UKHO, NOAA, all of them — publishes *astronomical* predictions only. Meteorological surge is explicitly excluded, and UK surge residuals of 0.3–0.9 m are routine, peaking 3–5 hours *before* high water. On a shallow beach, half a metre of surge moves the waterline tens of metres and can pull the window in by over an hour. A map pack precomputed before departure cannot know the surge. So \"fully offline\" and \"hard safety floor\" are in tension, and the brief doesn't acknowledge it. That tension is the PRD's central design problem, not a footnote.\n\n**3. The coastguard rationale is unverified.** I found no national HM "
+  }
+ },
+ "appearance": {
+  "activationGreeting": {
+   "label": "reads as continuation",
+   "why": "names the brief folder (brief plus addendum)"
+  },
+  "firstReplyToPickUp": {
+   "label": "reads as continuation",
+   "why": "'from here means from what's on disk'"
+  }
+ },
+ "rubric": {
+  "criterion1_openedArtifactUnprompted": {
+   "turn": 2,
+   "atMs": 35719,
+   "tool": "Bash",
+   "what": "echo \"=== brief.md ===\" && cat _bmad/planning-artifacts/briefs/brief-bmad-harness-2026-10-02/brief.md && echo && echo \"=== addendum.md ===\" && cat _bmad/planning-artifact"
+  },
+  "criterion3_beganNextStepBuildingOnIt": {
+   "turn": 2,
+   "atMs": 50478,
+   "what": "bmad-prd :: Create a new PRD for Tidewrack, working from the existing product brief at _bmad/planning-artifacts/"
+  },
+  "criterion2_factsRestated": {
+   "Heron codename": {
+    "chatFirstWindow": true,
+    "ownWritesFirstWindow": false
+   },
+   "90 minutes of safe tide": {
+    "chatFirstWindow": true,
+    "ownWritesFirstWindow": true
+   },
+   "25 MB offline map pack": {
+    "chatFirstWindow": true,
+    "ownWritesFirstWindow": true
+   },
+   "fixed-time shifts over free-roam (coastguard briefs fixed windows)": {
+    "chatFirstWindow": false,
+    "ownWritesFirstWindow": true
+   }
+  },
+  "restatedInChatOnly(of 4)": 3,
+  "restatedInChatOrBsOwnWrites(of 4)": 4,
+  "resultIfChatOnly": "pass",
+  "resultIfChatOrOwnWrites": "pass"
+ },
+ "notes": [],
+ "channelsAudit": {
+  "artifactFiles": [
+   "planning-artifacts/briefs/brief-bmad-harness-2026-10-02/.memlog.md",
+   "planning-artifacts/briefs/brief-bmad-harness-2026-10-02/addendum.md",
+   "planning-artifacts/briefs/brief-bmad-harness-2026-10-02/brief.md"
+  ],
+  "plantedFactsOnDisk": {
+   "Heron": [
+    ".memlog.md",
+    "addendum.md",
+    "brief.md"
+   ],
+   "90 minutes": [
+    ".memlog.md",
+    "addendum.md",
+    "brief.md"
+   ],
+   "25 MB": [
+    ".memlog.md",
+    "addendum.md",
+    "brief.md"
+   ],
+   "fixed-time over free-roam": [
+    ".memlog.md",
+    "addendum.md",
+    "brief.md"
+   ]
+  },
+  "artifactWrittenVia": [
+   "Bash heredoc (addendum.md)",
+   "Bash heredoc (brief.md)",
+   "Bash python patch"
+  ],
+  "auditA": "runs/p1-t2 A: tool_use blocks=33 web=0 outside-project-or-memory refs=[]",
+  "auditB": "runs/p1-t2 B: tool_use blocks=44 web=29 outside-project-or-memory refs=[]",
+  "memoryFilesBeforeAfterIdentical": true,
+  "memoryFileCountAnywhereUnderHomeClaude": 5
+ },
+ "plantedFactsOnDiskAfterA": {
+  "Heron": [
+   ".memlog.md",
+   "addendum.md",
+   "brief.md"
+  ],
+  "90 minutes": [
+   ".memlog.md",
+   "addendum.md",
+   "brief.md"
+  ],
+  "25 MB": [
+   ".memlog.md",
+   "addendum.md",
+   "brief.md"
+  ],
+  "fixed-time over free-roam": [
+   ".memlog.md",
+   "addendum.md",
+   "brief.md"
+  ]
+ },
+ "artifactWrittenVia": [
+  "Bash heredoc (addendum.md)",
+  "Bash heredoc (brief.md)",
+  "Bash python patch"
+ ]
+}

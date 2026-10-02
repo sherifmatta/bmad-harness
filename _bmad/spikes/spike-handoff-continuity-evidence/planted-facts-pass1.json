@@ -1,0 +1,20 @@
+{
+ "t1": [
+  "Kestrel",
+  "72 hours",
+  "4 MB",
+  "SQLite over IndexedDB (old tablet WebView corrupts IndexedDB after forced shutdown)"
+ ],
+ "t2": [
+  "Heron",
+  "90 minutes",
+  "25 MB",
+  "fixed-time shifts over free-roam (coastguard briefs only fixed windows)"
+ ],
+ "t3": [
+  "Lantern",
+  "48 hours",
+  "60 people",
+  "email over SMS (parish council has no SMS gateway budget)"
+ ]
+}

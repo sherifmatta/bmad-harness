@@ -1,0 +1,447 @@
+{
+ "id": "pass1-trial1",
+ "role": "counted",
+ "pass": 1,
+ "pair": "Mary (analyst) → John (pm)",
+ "layout": "isolated: subject in a fresh system temp dir with no harness material above it; project_name neutralised; auto-memory off by env and project setting",
+ "counted": true,
+ "filesAWroteToProject": [
+  "./_bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02/.memlog.md",
+  "./_bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02/addendum.md",
+  "./_bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02/brief.md"
+ ],
+ "filesBAddedToProject": [
+  "./_bmad/planning-artifacts/prds/prd-scratch-project-2026-10-02/.memlog.md",
+  "./_bmad/planning-artifacts/prds/prd-scratch-project-2026-10-02/addendum.md",
+  "./_bmad/planning-artifacts/prds/prd-scratch-project-2026-10-02/prd.md"
+ ],
+ "A": {
+  "argv": [
+   "claude",
+   "-p",
+   "--input-format",
+   "stream-json",
+   "--output-format",
+   "stream-json",
+   "--include-partial-messages",
+   "--verbose",
+   "--setting-sources",
+   "project,local",
+   "--permission-mode",
+   "bypassPermissions",
+   "--max-budget-usd",
+   "3"
+  ],
+  "claudeVersion": "2.1.274 (Claude Code)",
+  "model": "claude-opus-5[1m]",
+  "memoryPathsInInit": null,
+  "exit": {
+   "code": 0,
+   "signal": null
+  },
+  "totalMs": 451513,
+  "spontaneousExtraResultRows": 1,
+  "turns": [
+   {
+    "n": 1,
+    "sent": "/bmad-agent-analyst",
+    "sentAtMs": 10,
+    "resultAtMs": 27017,
+    "durationMs": 26734,
+    "costUsdCumulative": 0.229,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [
+     {
+      "atMs": 5457,
+      "tool": "Bash",
+      "what": "ls -la && echo \"---SKILL---\" && ls -la .claude/skills/bmad-agent-analyst/"
+     },
+     {
+      "atMs": 7012,
+      "tool": "Bash",
+      "what": "uv run _bmad/scripts/resolve_customization.py --skill .claude/skills/bmad-agent-analyst --project-root . --key agent 2>&1 | head -100"
+     },
+     {
+      "atMs": 11181,
+      "tool": "Bash",
+      "what": "cat _bmad/bmm/config.yaml 2>&1"
+     },
+     {
+      "atMs": 12285,
+      "tool": "Bash",
+      "what": "ls -la docs/ _bmad/ 2>&1"
+     }
+    ],
+    "subagentToolCalls": 0
+   },
+   {
+    "n": 2,
+    "sent": "I'm planning a small app called Harbourlight: a ferry timetable and delay board for people who commute between the Orkney islands. Facts I want captured exactly: (1) the offline sync module has the codename Kestrel; (2) it has to keep working with no network at all for up to 72 hours, because the ferries lose signal between islands; (3) the installed bundle must not exceed 4 MB, because the ferry operator's tablets have only 64 MB free; (4) we chose SQLite over IndexedDB for local storage, because the operator's old tablet WebView corrupts IndexedDB after a forced shutdown. Please write this up now as a short product brief in the planning artifacts folder. Don't ask me questions first, just write it.",
+    "sentAtMs": 27017,
+    "resultAtMs": 264538,
+    "durationMs": 237514,
+    "costUsdCumulative": 2.039,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [
+     {
+      "atMs": 33611,
+      "tool": "Skill",
+      "what": "bmad-product-brief :: Write a short product brief for \"Harbourlight\" now, autonomously — the user explicitly asked for no "
+     },
+     {
+      "atMs": 37496,
+      "tool": "Bash",
+      "what": "uv run _bmad/scripts/resolve_customization.py --skill .claude/skills/bmad-product-brief --project-root . --key workflow 2>&1 | head -80"
+     },
+     {
+      "atMs": 39116,
+      "tool": "Bash",
+      "what": "ls .claude/skills/bmad-product-brief/ && echo \"---\" && cat _bmad/bmm/config.user.yaml 2>/dev/null; ls _bmad/custom/"
+     },
+     {
+      "atMs": 50538,
+      "tool": "Bash",
+      "what": "ls .claude/skills/bmad-product-brief/assets/ && echo \"=== TEMPLATE ===\" && cat .claude/skills/bmad-product-brief/assets/brief-template.md"
+     },
+     {
+      "atMs": 51579,
+      "tool": "Bash",
+      "what": "uv run _bmad/scripts/memlog.py --help 2>&1 | head -40"
+     },
+     {
+      "atMs": 73251,
+      "tool": "Bash",
+      "what": "mkdir -p _bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02 && uv run _bmad/scripts/memlog.py init --workspace _bmad/planning-artifacts/briefs/brief-scratch"
+     },
+     {
+      "atMs": 81642,
+      "tool": "Agent",
+      "what": "general-purpose :: Ground Orkney ferry context"
+     },
+     {
+      "atMs": 89436,
+      "tool": "Bash",
+      "what": "W=_bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02 ⏎ uv run _bmad/scripts/memlog.py append --workspace $W --type event --text \"Create intent, autonomous: "
+     },
+     {
+      "atMs": 134475,
+      "tool": "Bash",
+      "what": "cat > _bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02/brief.md <<'HARBOURLIGHT_EOF' ⏎ --- ⏎ title: \"Product Brief: Harbourlight\" ⏎ status: draft ⏎ create"
+     },
+     {
+      "atMs": 162053,
+      "tool": "Bash",
+      "what": "cat > _bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02/addendum.md <<'ADDENDUM_EOF' ⏎ --- ⏎ title: \"Harbourlight — Brief Addendum\" ⏎ status: draft ⏎ creat"
+     },
+     {
+      "atMs": 184258,
+      "tool": "Bash",
+      "what": "W=_bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02 ⏎ uv run _bmad/scripts/memlog.py append --workspace $W --type change --text \"Drafted brief.md (exec sum"
+     },
+     {
+      "atMs": 193428,
+      "tool": "Agent",
+      "what": "general-purpose :: Structure and prose review"
+     },
+     {
+      "atMs": 209096,
+      "tool": "Bash",
+      "what": "W=_bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02 ⏎ uv run _bmad/scripts/memlog.py append --workspace $W --type event --text \"Web-research grounding: ope"
+     },
+     {
+      "atMs": 224626,
+      "tool": "Bash",
+      "what": "python3 - <<'PYEOF' ⏎ import re ⏎ p = \"_bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02/brief.md\" ⏎ s = open(p).read() ⏎  ⏎ old_problem = \"\"\"A commuter on"
+     },
+     {
+      "atMs": 238800,
+      "tool": "Bash",
+      "what": "python3 - <<'PYEOF' ⏎ p = \"_bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02/brief.md\" ⏎ s = open(p).read() ⏎  ⏎ old = \"\"\"4. What is the commercial relatio"
+     },
+     {
+      "atMs": 244192,
+      "tool": "Bash",
+      "what": "W=_bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02 ⏎ echo \"=== VERBATIM FACT CHECK (brief.md) ===\" ⏎ grep -c \"The offline sync module has the codename Kes"
+     },
+     {
+      "atMs": 404323,
+      "tool": "Bash",
+      "what": "python3 - <<'PYEOF' ⏎ p = \"_bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02/brief.md\" ⏎ s = open(p).read() ⏎  ⏎ def rep(old, new, count=1): ⏎     global s"
+     },
+     {
+      "atMs": 433901,
+      "tool": "Bash",
+      "what": "cat > _bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02/addendum.md <<'ADD_EOF' ⏎ --- ⏎ title: \"Harbourlight — Brief Addendum\" ⏎ status: draft ⏎ created: 2"
+     }
+    ],
+    "subagentToolCalls": 22
+   }
+  ],
+  "finalReply": "Findings are good. Applying them.\n\n📊 Done, Sherif. Polish pass applied — here's the final state.\n\n**Location:** `_bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02/`\n\n| File | What it is |\n|---|---|\n| `brief.md` | The brief — ~1,400 words |\n| `addendum.md` | Downstream depth + sources — ~690 words |\n| `.memlog.md` | Decision trail, 11 entries |\n\n**Your four facts survived every edit intact.** I re-verified character-for-character after the review pass — all four match exactly in `brief.md`, in a dedicated **Hard Constraints** section. The review agent was explicitly told those sentences were off-limits, and it confirmed it proposed no changes to them.\n\n**What the review changed:**\n\n- Sources moved out of the brief into the addendum — citations are reference material, not brief content\n- `What Makes This Different` was mostly restating other sections; cut to the one point that was actually new\n- Added a third evidence tier. The brief now distinguishes user-stated fact (verbatim), `[ASSUMPTION]` (my inference), and `[RESEARCHED]` (public sources, cited in the addendum). Previously the researched numbers sat in the brief looking like things you'd told me — that was the most worthwhile catch\n- Tagged \"offline-first, not offline-tolerant\" as my synthesis rather than your words\n- Addendum reordered to match the constraint order, and its duplicate question list cut so the brief solely owns open questions\n\n**What I'd flag before this goes further** — five open questions sit at the end of the brief, and two of them are load-bearing:\n\n- **Where does sailing status come from?** Kestrel needs an upstream to sync against. If there's no operator feed, that's a different product.\n- **What's the relationship with Orkney Ferries Ltd / the Council?** You know their tablets have 64 MB free, which implies a real relationship — but nothing stated it.\n\nAnd one engineering risk recorded in the addendum: a WASM SQLite build on a WebView target is the most plausible single threat to your 4 MB ceiling. Worth measuring in week one, not month three.\n\n**Next sensible steps:** `bmad-prd` to turn this into a PRD, or `bmad-deep-recon` if you want the operator relationship and the disruption numbers properly researched before committing. If you'd rather pressure-test the concept first, `bmad-prfaq` (menu item **WB**) will make you defend it. Say the word and I'll pick it up."
+ },
+ "B": {
+  "argv": [
+   "claude",
+   "-p",
+   "--input-format",
+   "stream-json",
+   "--output-format",
+   "stream-json",
+   "--include-partial-messages",
+   "--verbose",
+   "--setting-sources",
+   "project,local",
+   "--permission-mode",
+   "bypassPermissions",
+   "--max-budget-usd",
+   "3"
+  ],
+  "claudeVersion": "2.1.274 (Claude Code)",
+  "model": "claude-opus-5[1m]",
+  "memoryPathsInInit": null,
+  "exit": {
+   "code": 0,
+   "signal": null
+  },
+  "totalMs": 362539,
+  "spontaneousExtraResultRows": 1,
+  "turns": [
+   {
+    "n": 1,
+    "sent": "/bmad-agent-pm",
+    "sentAtMs": 10,
+    "resultAtMs": 26263,
+    "durationMs": 25983,
+    "costUsdCumulative": 0.306,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [
+     {
+      "atMs": 4537,
+      "tool": "Bash",
+      "what": "ls -la && echo \"---SKILL DIR---\" && ls -la .claude/skills/bmad-agent-pm/"
+     },
+     {
+      "atMs": 8848,
+      "tool": "Bash",
+      "what": "uv run _bmad/scripts/resolve_customization.py --skill .claude/skills/bmad-agent-pm --project-root . --key agent 2>&1 | head -100"
+     },
+     {
+      "atMs": 10973,
+      "tool": "Bash",
+      "what": "cat _bmad/bmm/config.yaml"
+     },
+     {
+      "atMs": 13432,
+      "tool": "Bash",
+      "what": "echo \"--- planning-artifacts ---\" && ls -la _bmad/planning-artifacts/ 2>/dev/null; echo \"--- docs ---\" && ls -la docs/ 2>/dev/null"
+     },
+     {
+      "atMs": 15576,
+      "tool": "Bash",
+      "what": "find _bmad/planning-artifacts -type f | head -20"
+     },
+     {
+      "atMs": 18019,
+      "tool": "Bash",
+      "what": "head -40 _bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02/brief.md"
+     }
+    ],
+    "subagentToolCalls": 0
+   },
+   {
+    "n": 2,
+    "sent": "pick up the work from here",
+    "sentAtMs": 26263,
+    "resultAtMs": 125944,
+    "durationMs": 99676,
+    "costUsdCumulative": 1.193,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [
+     {
+      "atMs": 31481,
+      "tool": "Bash",
+      "what": "sed -n '40,400p' _bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02/brief.md"
+     },
+     {
+      "atMs": 36153,
+      "tool": "Bash",
+      "what": "echo \"=== ADDENDUM ===\" && cat _bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02/addendum.md && echo \"\" && echo \"=== MEMLOG ===\" && cat _bmad/planning-arti"
+     },
+     {
+      "atMs": 48149,
+      "tool": "Skill",
+      "what": "bmad-prd :: Create a PRD for Harbourlight, building on the existing product brief at _bmad/planning-artifacts/br"
+     },
+     {
+      "atMs": 52122,
+      "tool": "Bash",
+      "what": "uv run _bmad/scripts/resolve_customization.py --skill .claude/skills/bmad-prd --project-root . --key workflow 2>&1 | head -80"
+     },
+     {
+      "atMs": 56177,
+      "tool": "Bash",
+      "what": "echo \"--- existing PRD runs ---\" && ls -la _bmad/planning-artifacts/prds/ 2>&1; echo \"--- skill assets ---\" && ls .claude/skills/bmad-prd/assets/ .claude/skills/bmad-prd/"
+     },
+     {
+      "atMs": 60012,
+      "tool": "Bash",
+      "what": "cat .claude/skills/bmad-prd/assets/prd-template.md"
+     },
+     {
+      "atMs": 74776,
+      "tool": "Bash",
+      "what": "mkdir -p _bmad/planning-artifacts/prds/prd-scratch-project-2026-10-02 && cat > _bmad/planning-artifacts/prds/prd-scratch-project-2026-10-02/prd.md <<'EOF' ⏎ --- ⏎ title: "
+     },
+     {
+      "atMs": 81359,
+      "tool": "Bash",
+      "what": "W=_bmad/planning-artifacts/prds/prd-scratch-project-2026-10-02 && uv run _bmad/scripts/memlog.py append --workspace $W --type event --text \"Create intent, forwarded from "
+     },
+     {
+      "atMs": 105576,
+      "tool": "Agent",
+      "what": "general-purpose :: Research ferry data feeds and WASM SQLite size"
+     },
+     {
+      "atMs": 327109,
+      "tool": "Bash",
+      "what": "W=_bmad/planning-artifacts/prds/prd-scratch-project-2026-10-02 && cat > $W/addendum.md <<'EOF' ⏎ --- ⏎ title: \"Harbourlight PRD — Addendum\" ⏎ status: draft ⏎ created: 202"
+     },
+     {
+      "atMs": 343446,
+      "tool": "Bash",
+      "what": "W=_bmad/planning-artifacts/prds/prd-scratch-project-2026-10-02 && uv run _bmad/scripts/memlog.py append --workspace $W --type event --text \"Research answered brief Open Q"
+     }
+    ],
+    "subagentToolCalls": 32
+   }
+  ],
+  "chatText": {
+   "activationGreeting": "I'll activate the PM agent. Let me start by resolving the agent customization block.\n\n📋 Hello Sherif — John here, your Product Manager.\n\nI had a quick look around before we start: there's a draft product brief for **Harbourlight** sitting in `_bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02/` — a ferry timetable and delay board for Orkney inter-island commuters, offline-first, with four hard constraints and a stack of flagged `[ASSUMPTION]`s. No PRD yet, no epics, and `docs/` is empty.\n\nThat brief is honest about what it doesn't know, which is the right starting point for the conversation I'd like to have with you. A quick reminder: you can call the **`bmad-help`** skill at any time if you want advice on where to go next.\n\nHere's what I can do:\n\n| # | Code | Description | Action |\n|---|------|-------------|--------|\n| 1 | **PRD** | Create, update, or validate a PRD — state your intent or the skill will ask | `bmad-prd` |\n| 2 | **CE** | Create the Epics and Stories Listing that will drive development | `bmad-create-epics-and-stories` |\n| 3 | **IR** | Check implementation readiness — verify the planning artifacts are complete and aligned (opens sprint planning; stop after the gate or continue into tracking) | `bmad-sprint-planning` |\n| 4 | **CC** | Determine how to proceed if a major need for change is discovered mid-implementation | `bmad-correct-course` |\n\nGiven where things stand, **1 (PRD)** is the obvious next move — the brief is drafted and waiting to be turned into something development can act on. But I'm not going to template-fill it from the brief; those assumptions need you in the room.\n\nWhat would you like to do?",
+   "firstReplyToPickUp": "📋 Right — PRD it is. Let me read the brief in full first, including the addendum and the memlog, so I'm working from what's actually there rather than the summary.\n\n📋 Good — I've got the whole picture now. Brief, addendum, and memlog all read.\n\nBefore I dive in, one thing worth saying plainly: that brief was written autonomously, with no discovery conversation, and it's honest about the cost — six open questions, and several `[ASSUMPTION]` tags on things that materially shape the product (who the operator-facing surface is for, where sailing status even comes from, what platform the 4 MB ceiling applies to). Question 2 is the sharp one: **if there's no operator feed, Kestrel has nothing to sync against**, and that changes the shape of the first release entirely.\n\nI'll pick the work up and drive the PRD. Where I hit those questions I'll put the question to you rather than quietly inventing an answer.\n\nWorkspace first, then I'll put the real questions to you.\n\nWorkspace is live at `_bmad/planning-artifacts/prds/prd-scratch-project-2026-10-02/`. Constraints and inherited questions are logged.\n\nTwo of the brief's open questions are answerable by research rather than by you, and both are load-bearing — I'll get those running while we talk.\n\n📋 Research is running in the background. While it works, I need you.\n\nHere's my honest position: I have a brief that *I* effectively wrote, grounded in public sources — not in anything you told me beyond four constraints. If I now write a PRD from it, I'm just marking my own homework at higher resolution. So:\n\n**1. Brain dump — tell me about Harbourlight in your own words.**\nWhere did this come from? Is there a real commuter, a real conversation, a real frustration behind it, or is it a concept you're exploring? Whatever you've got — ramble is fine, I'll structure it.\n\n**2. Anything else for me to read?**\nNotes, a transcript, emails with the operator, a sketch, a prior attempt, competitor teardowns. Paths or paste; size is not a problem, I extract via subagents rather than swallowing documents whole.\n\n**3. The one that changes the product most.** The brief's Open Question 2 — where does sailing status come from? If there's an operator feed, Kestrel syncs. If it's a human typing \"Hoy 14:30 cancelled\" into something, then **you're also building the thing that produces the data**, and that's a second product hiding inside this one. Which is it, and do you know yet?\n\n**4. Stakes.** Is this a hobby/exploration, an internal or operator-sanctioned tool, or something you intend to launch publicly? This sets how much rigor I apply and how long the document runs — I'd rather calibrate than pad.\n\n**5. How do you want to work?**\n\n- **Fast path** — I batch the remaining gaps into one or two consolidated questions, then draft the full PRD with `[ASSUMPTION]` tags wherever I inferred. You review, we iterate. Quality tracks how much you give me up front.\n- **Coaching path** — we walk the PM-thinking sections together, one at a time. Slower, much sharper, and the thinking ends up yours rather than mine.\n\nGiven that the brief is already one round of me guessing, I'd lean coaching — but it's your call and your time.\n\nTwo things available to you at any point: **`bmad-party-mode`** for multiple agent perspectives on a question, and **`bmad-advanced-elicitation`** when you want to go deeper on a specific section. The workspace persists, so you can stop and resume whenever.\n\nAnswer what you can — even just 3, 4 and 5 is enough to get moving.",
+   "laterWakeUpReply(truncated 1500)": "📋 Research landed, and it materially changes the picture. Let me capture it before I report — findings like these go stale fast if they live only in chat.\n\n📋 Research is back and captured in `addendum.md`. Three findings worth your attention — one of them is a genuine problem with the brief.\n\n**1. The timetable is obtainable. The disruption data mostly is not.**\nOrkney Ferries sailings are in the Traveline National Dataset as TransXChange, convertible to GTFS via UK2GTFS — so the static schedule is a solved problem. But there is **no operator or council API, GTFS or GTFS-RT**, and **no machine-readable real-time disruption source anywhere**.\n\n**2. This is the one that bites.** The brief promised *per-sailing* delay and cancellation status. What's actually available is **route-level**: the Current Service Update page shows one row per route in three states — running / changes-or-cancellations / all cancelled — and the state is encoded *only in the filename of a status icon*. Per-sailing truth exists solely as free text on the news page and the public Telegram channel.\n\nSo the headline feature in the brief sits one notch finer than the data supports. Three honest ways out, and this is yours to pick, not mine:\n\n- Ship route-level status and say so plainly on screen — consistent with the brief's \"honest staleness\" principle, but a weaker product.\n- Parse the Telegram channel for per-sailing detail — richer, fragile, and you inherit someone's prose format.\n- Have operator staff en"
+  }
+ },
+ "appearance": {
+  "activationGreeting": {
+   "label": "reads as continuation",
+   "why": "names the Harbourlight brief and its folder before being asked, says there is no PRD yet; still re-introduces itself and shows the full menu"
+  },
+  "firstReplyToPickUp": {
+   "label": "reads as continuation",
+   "why": "opens a PRD workspace from the brief and its memlog; but calls the brief 'a brief that *I* effectively wrote' where Mary wrote it, so the author is not carried"
+  }
+ },
+ "rubric": {
+  "criterion1_openedArtifactUnprompted": {
+   "turn": 1,
+   "atMs": 18019,
+   "tool": "Bash",
+   "what": "head -40 _bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02/brief.md"
+  },
+  "criterion3_beganNextStepBuildingOnIt": {
+   "turn": 2,
+   "atMs": 48149,
+   "what": "bmad-prd :: Create a PRD for Harbourlight, building on the existing product brief at _bmad/planning-artifacts/br"
+  },
+  "criterion2_factsRestated": {
+   "Kestrel codename": {
+    "chatFirstWindow": true,
+    "ownWritesFirstWindow": true
+   },
+   "72 hours offline": {
+    "chatFirstWindow": false,
+    "ownWritesFirstWindow": true
+   },
+   "4 MB bundle": {
+    "chatFirstWindow": true,
+    "ownWritesFirstWindow": true
+   },
+   "SQLite over IndexedDB (WebView corrupts IndexedDB)": {
+    "chatFirstWindow": false,
+    "ownWritesFirstWindow": true
+   }
+  },
+  "restatedInChatOnly(of 4)": 2,
+  "restatedInChatOrBsOwnWrites(of 4)": 4,
+  "resultIfChatOnly": "fail in substance",
+  "resultIfChatOrOwnWrites": "pass"
+ },
+ "notes": [
+  "B's chat names 2 of 4 in its first window; its own memlog append in the same window carries all 4 verbatim ('carry forward verbatim from brief')",
+  "spontaneous extra result row: a background research subagent finished and woke the main thread; counted as a later segment, not a turn"
+ ],
+ "channelsAudit": {
+  "artifactFiles": [
+   "planning-artifacts/briefs/brief-scratch-project-2026-10-02/.memlog.md",
+   "planning-artifacts/briefs/brief-scratch-project-2026-10-02/addendum.md",
+   "planning-artifacts/briefs/brief-scratch-project-2026-10-02/brief.md"
+  ],
+  "plantedFactsOnDisk": {
+   "Kestrel": [
+    ".memlog.md",
+    "addendum.md",
+    "brief.md"
+   ],
+   "72 hours": [
+    ".memlog.md",
+    "addendum.md",
+    "brief.md"
+   ],
+   "4 MB": [
+    ".memlog.md",
+    "addendum.md",
+    "brief.md"
+   ],
+   "SQLite over IndexedDB": [
+    ".memlog.md",
+    "addendum.md",
+    "brief.md"
+   ]
+  },
+  "artifactWrittenVia": [
+   "Bash heredoc (addendum.md)",
+   "Bash heredoc (brief.md)",
+   "Bash python patch"
+  ],
+  "auditA": "runs/iso-p1-t1 A: tool_use blocks=44 web=11 outside-project-or-memory refs=[('Bash', '<home>/.claude/projects/<subject-slug>/34d0b33f-97a0-4f88-a1e8-8578abb64503/tool-results')]",
+  "auditB": "runs/iso-p1-t1 B: tool_use blocks=49 web=31 outside-project-or-memory refs=[]",
+  "memoryFilesBeforeAfterIdentical": true,
+  "memoryFileCountAnywhereUnderHomeClaude": 5
+ },
+ "plantedFactsOnDiskAfterA": {
+  "Kestrel": [
+   ".memlog.md",
+   "addendum.md",
+   "brief.md"
+  ],
+  "72 hours": [
+   ".memlog.md",
+   "addendum.md",
+   "brief.md"
+  ],
+  "4 MB": [
+   ".memlog.md",
+   "addendum.md",
+   "brief.md"
+  ],
+  "SQLite over IndexedDB": [
+   ".memlog.md",
+   "addendum.md",
+   "brief.md"
+  ]
+ },
+ "artifactWrittenVia": [
+  "Bash heredoc (addendum.md)",
+  "Bash heredoc (brief.md)",
+  "Bash python patch"
+ ]
+}

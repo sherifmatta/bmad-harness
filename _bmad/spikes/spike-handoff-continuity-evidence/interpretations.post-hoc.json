@@ -1,0 +1,11 @@
+{
+ "note": "Interpretations made after seeing results. Not part of the rubric fixed before the first run (rubric.fixed.json).",
+ "interpretations": [
+  "'First reply' is read as the span from the activation greeting through the first result row after the fixed text 'pick up the work from here'. A background subagent finishing later wakes the main thread and produces further replies; those are recorded as later segments and not counted in the first window.",
+  "'Restates' is scored two ways and both are reported: (a) in B's chat text only, (b) in B's chat text or in B's own tool inputs (memlog appends, Skill args, writes) within the same window. The rubric does not say 'in chat'; (b) is the governing reading in the document, (a) is reported beside it because the verdict flips on it.",
+  "A fact counts when its distinguishing content is stated correctly: the codename, the number with its unit, or the chosen option of a decision. A reason is not required to count. A constraint named without its number counts as 'partial' and is not counted.",
+  "Pass 2 asks that 'the written decision be recovered'. In Pass 2 nothing was written, so the reading used is: recovered means B stated the settled decision, correctly, from something on disk or otherwise legitimately available to it.",
+  "The three counted Pass 1 trials are the isolated-layout runs 1 to 3. The pilot runs and the control are reported beside them and are not mixed into the count.",
+  "Criterion 3 (rubric: 'proposes or begins a next step that builds on them rather than asking where to start') was scored as met whenever B invoked bmad-prd on the brief, even where B then asked the user questions (pass1-trial1: 'where did this come from?', 'anything else for me to read?'; the same applies to the other Pass 1 trials). Treating those as the PRD skill's own interview questions, not 'where do we start', was decided after seeing the replies and is not in the fixed rubric."
+ ]
+}

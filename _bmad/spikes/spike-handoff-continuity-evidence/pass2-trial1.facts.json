@@ -1,0 +1,270 @@
+{
+ "id": "pass2-trial1",
+ "role": "counted",
+ "pass": 2,
+ "pair": "Mary (analyst) → John (pm), decision settled in chat only",
+ "layout": "isolated: subject in a fresh system temp dir with no harness material above it; project_name neutralised; auto-memory off by env and project setting",
+ "counted": true,
+ "filesAWroteToProject": [],
+ "filesBAddedToProject": [],
+ "A": {
+  "argv": [
+   "claude",
+   "-p",
+   "--input-format",
+   "stream-json",
+   "--output-format",
+   "stream-json",
+   "--include-partial-messages",
+   "--verbose",
+   "--setting-sources",
+   "project,local",
+   "--permission-mode",
+   "bypassPermissions",
+   "--max-budget-usd",
+   "3"
+  ],
+  "claudeVersion": "2.1.274 (Claude Code)",
+  "model": "claude-opus-5[1m]",
+  "memoryPathsInInit": null,
+  "exit": {
+   "code": 0,
+   "signal": null
+  },
+  "totalMs": 155484,
+  "spontaneousExtraResultRows": 0,
+  "turns": [
+   {
+    "n": 1,
+    "sent": "/bmad-agent-analyst",
+    "sentAtMs": 11,
+    "resultAtMs": 23862,
+    "durationMs": 23556,
+    "costUsdCumulative": 0.224,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [
+     {
+      "atMs": 5315,
+      "tool": "Bash",
+      "what": "ls -la && echo \"---SKILL---\" && ls -la .claude/skills/bmad-agent-analyst/"
+     },
+     {
+      "atMs": 6623,
+      "tool": "Bash",
+      "what": "uv run _bmad/scripts/resolve_customization.py --skill .claude/skills/bmad-agent-analyst --project-root . --key agent 2>&1 | head -100"
+     },
+     {
+      "atMs": 10939,
+      "tool": "Bash",
+      "what": "cat _bmad/bmm/config.yaml"
+     },
+     {
+      "atMs": 12321,
+      "tool": "Bash",
+      "what": "ls -la docs/ _bmad/ && ls _bmad/custom/ 2>/dev/null || echo \"no custom dir\""
+     }
+    ],
+    "subagentToolCalls": 0
+   },
+   {
+    "n": 2,
+    "sent": "I'm thinking about a small app called Reedwatch that warns allotment holders about frost. I haven't decided how it should reach people. Let's talk it through.",
+    "sentAtMs": 23862,
+    "resultAtMs": 76521,
+    "durationMs": 52656,
+    "costUsdCumulative": 0.327,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [],
+    "subagentToolCalls": 0
+   },
+   {
+    "n": 3,
+    "sent": "The options I see are push notifications, SMS, or a daily email. Which would you lean towards and why?",
+    "sentAtMs": 76521,
+    "resultAtMs": 125222,
+    "durationMs": 48697,
+    "costUsdCumulative": 0.446,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [],
+    "subagentToolCalls": 0
+   },
+   {
+    "n": 4,
+    "sent": "Okay, settled: we go with SMS only for v1, because 38% of the allotment holders we surveyed have no mobile data plan. We'll revisit once more than 500 holders have signed up. That's the decision.",
+    "sentAtMs": 125222,
+    "resultAtMs": 155189,
+    "durationMs": 29964,
+    "costUsdCumulative": 0.539,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [],
+    "subagentToolCalls": 0
+   }
+  ],
+  "finalReply": "📊 Noted — SMS only for v1, revisit at 500 holders. That 38% figure is a much better reason than the one I was reasoning from, and it changes the argument's character: I was leaning on an unverified hunch about the audience skewing older, and you've replaced it with a measured constraint. That's the right trade.\n\nWorth being precise about what the figure actually does, because it's stronger than \"favours SMS.\" Both alternatives need a data connection to arrive. For 38% of your audience, push cannot be delivered at all, and email can only be read whenever they next sit at a home computer — which is fine for planning, useless for a warning that expires at dusk. So the survey doesn't rank the three options, it structurally eliminates two of them for more than a third of the people you're serving. The decision's on firmer ground than my version of it was.\n\nThree things I'd note going forward, none of them reopening anything:\n\n**Record where the 38% came from.** It's now load-bearing for a decision with a cost attached, so the sample size, the date, and which site or sites it covered should sit next to the number. A figure from one society in one season behaves differently from a figure across several, and in six months neither of us will remember which it was.\n\n**Capture data-plan status at signup.** This is what makes the 500-holder revisit actually decidable. If you ask the question on the signup form, then at 500 you can see whether the 38% holds in your subscriber base or whether signups self-select toward one end — plausible in either direction, since a no-data cohort might be harder to reach to sign up in the first place, or might be exactly the people a text-based service attracts. Without that field the revisit is just a calendar reminder with no new information attached to it.\n\n**The trigger is volume, but the cost is volume times frost nights.** At 500 holders you're looking at roughly £300 a year in message costs, assuming around twenty warning nights. Comfortable. Just flagging that a bad season moves that number more than a few extra signups do, so if you ever want a cost-based trigger as well as a headcount one, that's the shape of it.\n\nHappy to write this up as a short decision record in `_bmad/planning-artifacts/` — decision, the evidence behind it, the revisit trigger, and the two open questions from earlier that are still unanswered (geography, and alarm-versus-planning). Say the word and I'll draft it. Otherwise, where next — the warning threshold, or the signup flow?"
+ },
+ "B": {
+  "argv": [
+   "claude",
+   "-p",
+   "--input-format",
+   "stream-json",
+   "--output-format",
+   "stream-json",
+   "--include-partial-messages",
+   "--verbose",
+   "--setting-sources",
+   "project,local",
+   "--permission-mode",
+   "bypassPermissions",
+   "--max-budget-usd",
+   "3"
+  ],
+  "claudeVersion": "2.1.274 (Claude Code)",
+  "model": "claude-opus-5[1m]",
+  "memoryPathsInInit": null,
+  "exit": {
+   "code": 0,
+   "signal": null
+  },
+  "totalMs": 103486,
+  "spontaneousExtraResultRows": 0,
+  "turns": [
+   {
+    "n": 1,
+    "sent": "/bmad-agent-pm",
+    "sentAtMs": 9,
+    "resultAtMs": 24546,
+    "durationMs": 24290,
+    "costUsdCumulative": 0.251,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [
+     {
+      "atMs": 4638,
+      "tool": "Bash",
+      "what": "uv run _bmad/scripts/resolve_customization.py --skill .claude/skills/bmad-agent-pm --project-root . --key agent 2>&1"
+     },
+     {
+      "atMs": 6723,
+      "tool": "Bash",
+      "what": "echo \"=== skill customize.toml ===\" && cat .claude/skills/bmad-agent-pm/customize.toml 2>&1; echo \"=== team override ===\"; cat _bmad/custom/bmad-agent-pm.toml 2>&1; echo "
+     },
+     {
+      "atMs": 12084,
+      "tool": "Bash",
+      "what": "cat _bmad/bmm/config.yaml 2>&1"
+     },
+     {
+      "atMs": 12947,
+      "tool": "Bash",
+      "what": "ls -la 2>&1 | head -30"
+     },
+     {
+      "atMs": 15622,
+      "tool": "Bash",
+      "what": "echo \"=== planning-artifacts ===\" && ls -la _bmad/planning-artifacts/ 2>&1 && echo \"=== docs ===\" && ls -la docs/ 2>&1 && echo \"=== implementation-artifacts ===\" && ls -l"
+     }
+    ],
+    "subagentToolCalls": 0
+   },
+   {
+    "n": 2,
+    "sent": "pick up the work from here",
+    "sentAtMs": 24546,
+    "resultAtMs": 55195,
+    "durationMs": 30643,
+    "costUsdCumulative": 0.453,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [
+     {
+      "atMs": 31434,
+      "tool": "Bash",
+      "what": "echo \"=== ALL files, excluding .claude skills ===\" && find . -type f -not -path \"./.claude/skills/*\" 2>/dev/null | head -60 && echo && echo \"=== _bmad tree (dirs) ===\" &&"
+     },
+     {
+      "atMs": 33795,
+      "tool": "Bash",
+      "what": "echo \"=== any md/yaml/json outside skills ===\" && find . \\( -name \"*.md\" -o -name \"*.yaml\" -o -name \"*.json\" -o -name \"*.txt\" \\) -not -path \"./.claude/skills/*\" 2>/dev/nu"
+     },
+     {
+      "atMs": 41441,
+      "tool": "Bash",
+      "what": "echo \"=== memlog ===\" && cat _bmad/party-mode/memories/installed/.memlog.md 2>&1 | head -20 && echo && echo \"=== _bmad/config.toml ===\" && cat _bmad/config.toml 2>&1 | he"
+     }
+    ],
+    "subagentToolCalls": 0
+   },
+   {
+    "n": 3,
+    "sent": "what did we decide about how Reedwatch should reach people",
+    "sentAtMs": 55195,
+    "resultAtMs": 103154,
+    "durationMs": 47952,
+    "costUsdCumulative": 0.578,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [
+     {
+      "atMs": 61718,
+      "tool": "Bash",
+      "what": "echo \"=== case-insensitive search for reedwatch / reed ===\" && grep -ril \"reedwatch\" . 2>/dev/null | head -20; echo \"--- exit: $? ---\"; grep -ril \"reed\" . 2>/dev/null | h"
+     },
+     {
+      "atMs": 65610,
+      "tool": "Bash",
+      "what": "echo \"=== memlog full ===\" && cat _bmad/party-mode/memories/installed/.memlog.md 2>&1 | tail -15; echo; echo \"=== any memlogs anywhere ===\"; find / -name \".memlog.md\" -pa"
+     }
+    ],
+    "subagentToolCalls": 0
+   }
+  ],
+  "chatText": {
+   "activationGreeting": "I'll activate the PM agent. Let me start by resolving the agent customization block.\n\nThe resolver succeeded — no team or user overrides, so the base persona applies. Now loading config.\n\n📋 Hello Sherif — John here, your Product Manager.\n\nI've loaded the project config for **scratch-project**. Quick read on where we stand: `_bmad/planning-artifacts/`, `_bmad/implementation-artifacts/`, and `docs/` are all empty. Clean slate — nothing's been written yet, which means whatever we start with, we start from your head, not from a document.\n\nA reminder before we dig in: you can invoke the **`bmad-help`** skill at any point if you want advice on what to do next or which part of the method fits your situation.\n\nHere's what I can do:\n\n| # | Code | Description | Action |\n|---|------|-------------|--------|\n| 1 | **PRD** | Create, update, or validate a PRD — state your intent or the skill will ask | `bmad-prd` |\n| 2 | **CE** | Create the Epics and Stories Listing that will drive development | `bmad-create-epics-and-stories` |\n| 3 | **IR** | Check implementation readiness — verify the planning artifacts are complete and aligned (opens sprint planning; stop after the gate or continue into tracking) | `bmad-sprint-planning` |\n| 4 | **CC** | Determine how to proceed if major need for change is discovered mid implementation | `bmad-correct-course` |\n\nGiven the empty workspace, **PRD** is almost certainly where you want to start — items 2 through 4 all assume requirements already exist to break down, check, or revise.\n\nBut I'm not going to assume. What are we building, and what's prompted you to pick up the PM hat today?",
+   "firstReplyToPickUp": "📋 Before I pick anything up, let me make sure I'm not missing work that's sitting somewhere I haven't looked.\n\n📋 Sherif — I searched the whole project, and I have to be straight with you: **there's no work here to pick up.**\n\nHere's exactly what I found:\n\n**Empty:**\n- `_bmad/planning-artifacts/` — no PRD, no brief, no epics, no stories\n- `_bmad/implementation-artifacts/` — no sprint status, no story files\n- `docs/` — empty\n\n**Everything else is installer scaffolding:** config files, Python helper scripts, manifests, and `_bmad/render/` (cached skill templates from the BMAD install, not your work).\n\nOne thing worth flagging, because it's the only trace of prior activity and it's a trap:\n\n`_bmad/party-mode/memories/installed/.memlog.md` holds notes from two past party-mode sessions — the agent roundtable arguing about a 4-epic, 44-story plan, with references to a `DESIGN.md`, FR numbers up to FR94, and decisions about epic boundaries. That reads like a project in flight.\n\n**It isn't this one.** Those sessions were about the BMad harness itself as a product, and none of the artifacts they discuss exist on disk here. This is `scratch-project` — the config names it that, and it's bare. If I \"picked up from there,\" I'd be inventing a product from a changelog of arguments about a different one. That's exactly the failure mode Mary named in that very log: *every format described from memory was wrong.*\n\nSo — I need one thing from you before I can do anything useful.\n\n**What are we building?**\n\nRough is fine. A sentence is fine. Specifically what helps me most:\n\n- **Who's the user,** and what are they doing today instead of using your thing?\n- **What breaks** if this doesn't exist?\n- Do you have **anything written down** — notes, a Slack thread, a transcript, a doc elsewhere on your machine? Point me at it and I'll work from that instead of from a blank page.\n\nAnd if the honest answer is *\"I want you to continue the harness work from that memlog\"* — say so and point me at where those real artifacts live, because they're not in this directory. I'll go read them properly rather than reconstruct them from party notes.\n\nWhat's the product?",
+   "replyToWhatDidWeDecide": "📋 Let me check whether that name appears anywhere I can see.\n\n📋 We didn't decide anything about Reedwatch — and I want to be precise about why, because there are two different things that could be going on.\n\n**What I checked:**\n- Grepped the entire project for \"Reedwatch\" — **zero hits**. The four files matching \"reed\" are incidental substrings inside BMAD's own skill files (words like \"agreed\"), not a product.\n- Re-read the full party-mode memlog end to end. It's about the BMad harness's epic plan — cards, feeds, FR numbers, sprint-status formats. No Reedwatch, no distribution or channel discussion anywhere in it.\n- Checked the session scratchpad: empty.\n- `planning-artifacts/`, `implementation-artifacts/`, `docs/`: still empty.\n\n**And in this conversation,** Reedwatch hasn't come up before now. This session began with you activating me, I reported the project was bare, you said \"pick up the work from here,\" I said there was none. That's the whole record.\n\nSo I have no decision to report back to you. If I produced one — \"we agreed on a design-partner motion, community-led, waitlist first\" — I'd be making it up, and it would be the exact failure the memlog itself names: *every format described from memory was wrong.* A fabricated channel strategy is worse than a format defect, because you'd act on it.\n\n**Two possibilities, and they need different things from you:**\n\n1. **Reedwatch is real and lives somewhere else** — another repo, a doc, a Slack thread, a different Claude session. Point me at it and I'll read it properly. That's the fastest path and I'd rather work from your actual decisions than reconstruct them.\n\n2. **Reedwatch is real but the decision lives only in your head** (or was made in a conversation that left no artifact). Then let's make it now, properly — and write it down this time so the next session doesn't have this problem.\n\nIf it's #2, I'll need the raw material before I can be useful on distribution. \"How should it reach people\" is downstream of three things I don't know yet:\n\n- **What is Reedwatch, and who is it for?** Name suggests monitoring or watching something — but I'm pattern-matching on a word, which is guessing.\n- **How do those people currently find tools like this?** Channel follows where attention already is, not where we'd like it to be.\n- **Is this acquisition at zero users, or scaling a motion that already works?** Completely different answers.\n\nWhich is it — does Reedwatch have a paper trail somewhere, or are we starting it here?"
+  }
+ },
+ "appearance": {
+  "activationGreeting": {
+   "label": "reads as restart",
+   "why": "'Clean slate — nothing's been written yet'; no mention of the Reedwatch conversation in the transcript above"
+  },
+  "firstReplyToPickUp": {
+   "label": "reads as restart",
+   "why": "'there's no work here to pick up'; asks 'What are we building?'"
+  },
+  "replyToWhatDidWeDecide": {
+   "label": "reads as restart",
+   "why": "'We didn't decide anything about Reedwatch — this is the first time it's been mentioned' (it had been settled with Mary three turns earlier)"
+  }
+ },
+ "rubric": {
+  "decisionOnDisk": false,
+  "decisionRecovered": false
+ },
+ "notes": [
+  "A wrote no file in the project (only the settings stub exists); the decision was never on disk",
+  "A ended with an offer, not a write: 'Happy to write this up as a short decision record ... Say the word'",
+  "B did not fabricate; it grepped the project for the topic, found nothing, and said so",
+  "B also read a copied party-mode memlog (this repo's own notes, a scratch-construction artefact) and correctly declined to treat it as this project's history"
+ ],
+ "channelsAudit": {
+  "artifactFiles": [],
+  "auditA": "runs/iso-p2-t1 A: tool_use blocks=4 web=0 outside-project-or-memory refs=[]",
+  "auditB": "runs/iso-p2-t1 B: tool_use blocks=10 web=0 outside-project-or-memory refs=[('Bash', '<scratch>')]",
+  "memoryFilesBeforeAfterIdentical": true,
+  "memoryFileCountAnywhereUnderHomeClaude": 5
+ }
+}

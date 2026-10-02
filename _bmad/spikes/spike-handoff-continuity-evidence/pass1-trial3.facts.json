@@ -1,0 +1,458 @@
+{
+ "id": "pass1-trial3",
+ "role": "counted",
+ "pass": 1,
+ "pair": "Mary (analyst) → John (pm)",
+ "layout": "isolated: subject in a fresh system temp dir with no harness material above it; project_name neutralised; auto-memory off by env and project setting",
+ "counted": true,
+ "filesAWroteToProject": [
+  "./_bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02/.memlog.md",
+  "./_bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02/addendum.md",
+  "./_bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02/brief.md"
+ ],
+ "filesBAddedToProject": [
+  "./_bmad/planning-artifacts/prds/prd-scratch-project-2026-10-02/.memlog.md",
+  "./_bmad/planning-artifacts/prds/prd-scratch-project-2026-10-02/prd.md"
+ ],
+ "A": {
+  "argv": [
+   "claude",
+   "-p",
+   "--input-format",
+   "stream-json",
+   "--output-format",
+   "stream-json",
+   "--include-partial-messages",
+   "--verbose",
+   "--setting-sources",
+   "project,local",
+   "--permission-mode",
+   "bypassPermissions",
+   "--max-budget-usd",
+   "3"
+  ],
+  "claudeVersion": "2.1.274 (Claude Code)",
+  "model": "claude-opus-5[1m]",
+  "memoryPathsInInit": null,
+  "exit": {
+   "code": 0,
+   "signal": null
+  },
+  "totalMs": 505820,
+  "spontaneousExtraResultRows": 0,
+  "turns": [
+   {
+    "n": 1,
+    "sent": "/bmad-agent-analyst",
+    "sentAtMs": 11,
+    "resultAtMs": 22028,
+    "durationMs": 21744,
+    "costUsdCumulative": 0.242,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [
+     {
+      "atMs": 4059,
+      "tool": "Bash",
+      "what": "ls -la && echo \"---SKILL---\" && ls -la .claude/skills/bmad-agent-analyst/"
+     },
+     {
+      "atMs": 5337,
+      "tool": "Bash",
+      "what": "uv run _bmad/scripts/resolve_customization.py --skill .claude/skills/bmad-agent-analyst --project-root . --key agent 2>&1 | head -100"
+     },
+     {
+      "atMs": 7700,
+      "tool": "Bash",
+      "what": "cat _bmad/bmm/config.yaml"
+     },
+     {
+      "atMs": 11153,
+      "tool": "Bash",
+      "what": "echo \"--- planning-artifacts ---\" && ls -la _bmad/planning-artifacts/ 2>&1 && echo \"--- docs ---\" && ls -la docs/ 2>&1"
+     }
+    ],
+    "subagentToolCalls": 0
+   },
+   {
+    "n": 2,
+    "sent": "I'm planning a small service called Mossgate: a booking page for a village hall that three clubs share. Facts I want captured exactly: (1) the double-booking guard has the codename Lantern; (2) a booking can be cancelled free of charge until 48 hours before it starts; (3) the hall holds at most 60 people, a fire-safety limit the booking form must enforce; (4) we chose email confirmations over SMS, because the parish council has no budget for an SMS gateway. Please write this up now as a short product brief in the planning artifacts folder. Don't ask me questions first, just write it.",
+    "sentAtMs": 22028,
+    "resultAtMs": 505471,
+    "durationMs": 483430,
+    "costUsdCumulative": 2.416,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [
+     {
+      "atMs": 27809,
+      "tool": "Skill",
+      "what": "bmad-product-brief :: Autonomous mode — user explicitly said \"don't ask me questions first, just write it\". Project: Mossg"
+     },
+     {
+      "atMs": 30326,
+      "tool": "Bash",
+      "what": "uv run _bmad/scripts/resolve_customization.py --skill .claude/skills/bmad-product-brief --project-root . --key workflow 2>&1 | head -120"
+     },
+     {
+      "atMs": 39169,
+      "tool": "Bash",
+      "what": "cat .claude/skills/bmad-product-brief/assets/brief-template.md"
+     },
+     {
+      "atMs": 40201,
+      "tool": "Bash",
+      "what": "uv run _bmad/scripts/memlog.py --help 2>&1 | head -40"
+     },
+     {
+      "atMs": 48841,
+      "tool": "Bash",
+      "what": "mkdir -p _bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02 && uv run _bmad/scripts/memlog.py init --workspace _bmad/planning-artifacts/briefs/brief-scratch"
+     },
+     {
+      "atMs": 54285,
+      "tool": "Bash",
+      "what": "W=_bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02 && uv run _bmad/scripts/memlog.py append --workspace $W --type event --text \"Create intent, fast path: "
+     },
+     {
+      "atMs": 85117,
+      "tool": "Bash",
+      "what": "cat > _bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02/brief.md <<'EOF' ⏎ --- ⏎ title: \"Product Brief: Mossgate\" ⏎ status: draft ⏎ created: 2026-10-02 ⏎ u"
+     },
+     {
+      "atMs": 104297,
+      "tool": "Bash",
+      "what": "W=_bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02 && cat > $W/addendum.md <<'EOF' ⏎ --- ⏎ title: \"Addendum: Mossgate\" ⏎ status: draft ⏎ created: 2026-10-"
+     },
+     {
+      "atMs": 111355,
+      "tool": "Skill",
+      "what": "bmad-review :: lenses=structure,prose — review these two documents, brief.md first then addendum.md: _bmad/planning"
+     },
+     {
+      "atMs": 113803,
+      "tool": "Bash",
+      "what": "uv run _bmad/scripts/resolve_customization.py --skill .claude/skills/bmad-review --project-root . --key workflow 2>&1 | head -80"
+     },
+     {
+      "atMs": 130636,
+      "tool": "Agent",
+      "what": "general-purpose :: Structure lens on brief.md"
+     },
+     {
+      "atMs": 137208,
+      "tool": "Agent",
+      "what": "general-purpose :: Structure lens on addendum.md"
+     },
+     {
+      "atMs": 262063,
+      "tool": "Agent",
+      "what": "general-purpose :: Prose lens on brief.md"
+     },
+     {
+      "atMs": 271063,
+      "tool": "Agent",
+      "what": "general-purpose :: Prose lens on addendum.md"
+     },
+     {
+      "atMs": 424291,
+      "tool": "Bash",
+      "what": "python3 - <<'PY' ⏎ import pathlib ⏎ p = pathlib.Path(\"_bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02/brief.md\") ⏎ t = p.read_text() ⏎ subs = [ ⏎ # prose"
+     },
+     {
+      "atMs": 430360,
+      "tool": "Bash",
+      "what": "grep -n \"budget decision\" -A2 -B2 _bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02/brief.md"
+     },
+     {
+      "atMs": 442495,
+      "tool": "Bash",
+      "what": "python3 - <<'PY' ⏎ import pathlib ⏎ p = pathlib.Path(\"_bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02/brief.md\") ⏎ t = p.read_text() ⏎ subs = [ ⏎ (\"\"\"a s"
+     },
+     {
+      "atMs": 461247,
+      "tool": "Bash",
+      "what": "python3 - <<'PY' ⏎ import pathlib, re ⏎ d = pathlib.Path(\"_bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02\") ⏎  ⏎ b = d/\"brief.md\"; t = b.read_text() ⏎ t "
+     },
+     {
+      "atMs": 478323,
+      "tool": "Bash",
+      "what": "python3 - <<'PY' ⏎ import pathlib, re ⏎ d = pathlib.Path(\"_bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02\") ⏎ a = d/\"addendum.md\"; t = a.read_text() ⏎ su"
+     },
+     {
+      "atMs": 490639,
+      "tool": "Bash",
+      "what": "W=_bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02 && uv run _bmad/scripts/memlog.py append --workspace $W --type change --text \"Polish pass applied (doc_"
+     }
+    ],
+    "subagentToolCalls": 17
+   }
+  ],
+  "finalReply": "📊 Got it, Sherif — four facts, locked. Dispatching **CB** (product brief) in autonomous mode: no questions, I'll write it from what you've given me.\n\nWorkflow resolved — intent is **create**, fast path (no questions, per your instruction). Setting up the workspace now.\n\nBrief and addendum drafted. Now applying the configured doc standard — `bmad-review` with the structure and prose lenses.\n\n**Review plan:** content class is `docs` (two documents). Caller named lenses explicitly, so running exactly **structure** then **prose** — prose has `after: structure`, so it runs on top of the structure lens's findings. Style guide: Microsoft Writing Style Guide; reader type: humans.\n\nStructure lens complete on both. Now the prose lens, running on top of the structure findings.\n\nBoth lenses are in. Applying the findings now — brief first, then addendum, per the workflow's polish order.\n\n📊 Done, Sherif. The brief is written and polished.\n\n**`_bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02/`**\n\n| File | What's in it |\n|---|---|\n| `brief.md` | The brief — ~1.5 pages |\n| `addendum.md` | Decision records (D1–D3) and the rejected SMS alternative, for whoever writes the PRD |\n| `.memlog.md` | 14-entry audit trail of every decision and change |\n\n### Your four facts, captured exactly\n\nAll four are stated verbatim in the brief, and I verified them byte-for-byte after the polish pass:\n\n1. **Lantern** — given its own subsection as the double-booking guard, and carried into the addendum so the name survives into architecture.\n2. **\"A booking can be cancelled free of charge until 48 hours before it starts.\"**\n3. **\"The hall holds at most 60 people\"** — fire-safety limit, **\"the booking form must enforce it\"**, and flagged as not user-configurable.\n4. **Email over SMS, because the parish council has no budget for an SMS gateway** — stated with its reason attached, and recorded in the addendum as reversible-if-budget-changes rather than a settled preference.\n\n### What I inferred, and flagged\n\nYou gave me four facts, not a discovery conversation, so everything else is inference and is tagged `[ASSUMPTION]` in-line. The brief ends with **7 open questions** those reduce to. Two are worth your attention now:\n\n- **What happens to a cancellation inside the 48-hour window?** You told me what's free; you didn't tell me what isn't. A fee is the obvious answer but the costliest to build, since v1 has no payment handling.\n- **Is \"hall manager\" a separate role from the parish council?** I wrote them as one stakeholder, inferred purely from the SMS budget line. If the keyholder is a distinct person with a part in the booking flow, that changes the scope.\n\nThe editorial pass (`bmad-review`, structure + prose lenses) caught both a real gap — three of my own assumptions were buried in body prose instead of listed with the others — and an inconsistency where I'd drifted between \"keyholder\" and \"hall manager\". Both fixed. I declined one finding: the lens wanted unspaced em dashes per Microsoft style, but spacing is consistent across both documents and changing it buys the reader nothing.\n\n### Where this goes next\n\nAnswer those seven questions and this is ready for `bmad-prd` — the brief is shaped for that handoff. If you'd rather pressure-test the concept first, **WB** (the PRFAQ challenge) is the harder road. Or ask me to **validate** the brief once you've read it, and I'll critique it against its own purpose. `bmad-help` will also map the route for you any time."
+ },
+ "B": {
+  "argv": [
+   "claude",
+   "-p",
+   "--input-format",
+   "stream-json",
+   "--output-format",
+   "stream-json",
+   "--include-partial-messages",
+   "--verbose",
+   "--setting-sources",
+   "project,local",
+   "--permission-mode",
+   "bypassPermissions",
+   "--max-budget-usd",
+   "3"
+  ],
+  "claudeVersion": "2.1.274 (Claude Code)",
+  "model": "claude-opus-5[1m]",
+  "memoryPathsInInit": null,
+  "exit": {
+   "code": 0,
+   "signal": null
+  },
+  "totalMs": 294063,
+  "spontaneousExtraResultRows": 1,
+  "turns": [
+   {
+    "n": 1,
+    "sent": "/bmad-agent-pm",
+    "sentAtMs": 9,
+    "resultAtMs": 22485,
+    "durationMs": 22259,
+    "costUsdCumulative": 0.266,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [
+     {
+      "atMs": 4153,
+      "tool": "Bash",
+      "what": "ls -la && echo \"---SKILL DIR---\" && ls -la .claude/skills/bmad-agent-pm/"
+     },
+     {
+      "atMs": 5491,
+      "tool": "Bash",
+      "what": "uv run _bmad/scripts/resolve_customization.py --skill .claude/skills/bmad-agent-pm --project-root . --key agent 2>&1 | head -100"
+     },
+     {
+      "atMs": 8076,
+      "tool": "Bash",
+      "what": "cat _bmad/bmm/config.yaml 2>&1"
+     },
+     {
+      "atMs": 9160,
+      "tool": "Bash",
+      "what": "ls -la docs/ && echo \"---BMAD---\" && ls -la _bmad/"
+     },
+     {
+      "atMs": 11551,
+      "tool": "Bash",
+      "what": "find _bmad/planning-artifacts -type f | head -50"
+     },
+     {
+      "atMs": 14148,
+      "tool": "Bash",
+      "what": "head -40 _bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02/brief.md"
+     }
+    ],
+    "subagentToolCalls": 0
+   },
+   {
+    "n": 2,
+    "sent": "pick up the work from here",
+    "sentAtMs": 22485,
+    "resultAtMs": 116975,
+    "durationMs": 94485,
+    "costUsdCumulative": 1.125,
+    "resultSubtype": "success",
+    "isError": false,
+    "permissionDenials": 0,
+    "mainThreadToolCalls": [
+     {
+      "atMs": 30417,
+      "tool": "Skill",
+      "what": "bmad-prd :: create a PRD for Mossgate from the existing product brief at _bmad/planning-artifacts/briefs/brief-s"
+     },
+     {
+      "atMs": 32208,
+      "tool": "Bash",
+      "what": "echo \"=========== BRIEF ===========\" && cat _bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02/brief.md && echo \"\" && echo \"=========== ADDENDUM ==========="
+     },
+     {
+      "atMs": 34877,
+      "tool": "Bash",
+      "what": "uv run _bmad/scripts/resolve_customization.py --skill .claude/skills/bmad-prd --project-root . --key workflow 2>&1"
+     },
+     {
+      "atMs": 39136,
+      "tool": "Bash",
+      "what": "echo \"---PRDS DIR---\" && ls -la _bmad/planning-artifacts/prds/ 2>&1 && echo \"---SKILL FILES---\" && find .claude/skills/bmad-prd -type f"
+     },
+     {
+      "atMs": 40362,
+      "tool": "Bash",
+      "what": "cat _bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02/.memlog.md"
+     },
+     {
+      "atMs": 59268,
+      "tool": "Bash",
+      "what": "cat .claude/skills/bmad-prd/assets/prd-template.md"
+     },
+     {
+      "atMs": 61069,
+      "tool": "Bash",
+      "what": "mkdir -p _bmad/planning-artifacts/prds/prd-scratch-project-2026-10-02 && uv run _bmad/scripts/memlog.py init --workspace _bmad/planning-artifacts/prds/prd-scratch-project"
+     },
+     {
+      "atMs": 71428,
+      "tool": "Bash",
+      "what": "W=_bmad/planning-artifacts/prds/prd-scratch-project-2026-10-02 && cat > $W/prd.md <<'EOF' ⏎ --- ⏎ title: \"PRD: Mossgate\" ⏎ status: draft ⏎ created: 2026-10-02 ⏎ updated: "
+     },
+     {
+      "atMs": 85818,
+      "tool": "Agent",
+      "what": "general-purpose :: Research venue booking conventions"
+     },
+     {
+      "atMs": 258021,
+      "tool": "Bash",
+      "what": "W=_bmad/planning-artifacts/prds/prd-scratch-project-2026-10-02 && M=\"uv run _bmad/scripts/memlog.py append --workspace $W\"  ⏎ $M --type event --text \"Research subagent re"
+     },
+     {
+      "atMs": 270586,
+      "tool": "Bash",
+      "what": "W=_bmad/planning-artifacts/prds/prd-scratch-project-2026-10-02 && m() { uv run _bmad/scripts/memlog.py append --workspace \"$W\" --type \"$1\" --text \"$2\" >/dev/null; } ⏎ m e"
+     }
+    ],
+    "subagentToolCalls": 20
+   }
+  ],
+  "chatText": {
+   "activationGreeting": "I'll activate as John, the Product Manager. Let me start by resolving the agent configuration.\n\n📋 Morning, Sherif — John here, Product Manager.\n\nI've got my bearings: `scratch-project`, and there's already a **product brief for Mossgate** sitting in your planning artifacts — a village hall booking page for three clubs, with two hard constraints (no double-booking, no capacity breach) and an addendum alongside it. Nice and tight in scope. No PRD yet.\n\nA heads-up before we dig in: that brief has an `[ASSUMPTION]` flag on the current process — nobody confirmed how the three clubs coordinate today. That's exactly the kind of gap I'll keep poking at, because a PRD built on an unvalidated workflow assumption tends to ship the wrong increment.\n\nYou can call `bmad-help` any time if you want advice on where to go next.\n\nHere's what I can do:\n\n| # | Code | Description | Action |\n|---|------|-------------|--------|\n| 1 | **PRD** | Create, update, or validate a PRD — state your intent or the skill will ask | `bmad-prd` |\n| 2 | **CE** | Create the Epics and Stories Listing that will drive development | `bmad-create-epics-and-stories` |\n| 3 | **IR** | Check implementation readiness — verify planning artifacts are complete and aligned (opens sprint planning; stop after the gate or continue into tracking) | `bmad-sprint-planning` |\n| 4 | **CC** | Determine how to proceed if a major need for change is discovered mid-implementation | `bmad-correct-course` |\n\nGiven there's a brief and no PRD, **option 1** is the obvious next step — but tell me what you want. Number, code, or just say it in your own words.",
+   "firstReplyToPickUp": "📋 Picking it up — brief exists, PRD doesn't. That's the gap. Let me load the PRD workflow and the full brief.\n\nNo prior PRD run — this is a clean **Create**. Let me set up the workspace and read the template.\n\nWorkspace bound. Let me seed the PRD file and kick off grounding research while I put questions to you.\n\n📋 Workspace is live:\n\n```\n_bmad/planning-artifacts/prds/prd-scratch-project-2026-10-02/\n├── prd.md        (seeded, status: draft)\n└── .memlog.md    (3 entries)\n```\n\nI've also got a research subagent out checking how comparable village-hall booking systems handle slot granularity, hirer identity, and late cancellations — it'll ground a couple of my guesses. That runs in the background.\n\n**Working mode:** I'm taking **Fast path**, inferred from precedent — the brief run was explicitly no-discovery, and \"pick up the work from here\" reads as *proceed*, not *interview me*. Say the word if you'd rather walk the sections together.\n\nBut I won't draft on seven unanswered questions and call it a PRD. Here's the thing: your brief's open questions aren't evenly weighted. **Three of them block the FRs.** The other four I can carry as tagged assumptions without hurting anyone downstream.\n\n### The three that block\n\n**Q6 — Bookable hours and slot granularity.** This one's load-bearing in a way the brief understates. Lantern's entire job is \"no two bookings in the same slot\" — but *slot* is undefined, so Lantern is currently a guard over a thing with no shape. Arbitrary start/end times make Lantern an overlap-interval problem; fixed slots make it a uniqueness check. Different product, different build.\n→ *My default:* **08:00–23:00, one-hour slots.** Clubs book contiguous runs (e.g. 19:00–21:00 = two slots).\n\n**Q4 — Organiser identity, and who may cancel.** Can't write a booking FR without knowing who's holding the pen.\n→ *My default:* **no self-signup.** The hall manager pre-registers a few named organisers per club; they sign in by emailed magic link. Three clubs is a fixed, tiny, known set — accounts with passwords are overhead for nobody's benefit. **Cancellation: any organiser of the booking's own club, plus the hall manager.** Club-level rather than person-level, so one organiser's holiday doesn't strand a booking.\n\n**Q1 — Cancellation inside the 48-hour window.** Your addendum already reasons toward the answer: a fee is the most expensive option because payment handling is out of scope.\n→ *My default:* **software refuses it and tells the organiser to contact the hall manager.** The booking stays on the record until a human removes it — which keeps the diary authoritative, the whole point of the product.\n\n### The four I'll carry as assumptions\n\n| Q | My assumption |\n|---|---|\n| **Q3** Club identities / standing | Three clubs, **equal standing, first-come-first-served.** No priority tiers. |\n| **Q5** Hall manager a distinct role? | **Yes** — sees all bookings, can cancel any, is the escalation target for Q1. Parish council is an accountable stakeholder, *not* a system user. |\n| **Q2** Current process | Not needed for the FRs. Affects migration and rollout, and I'll note it as exactly that. |\n| **Q7** Email delivery target | I'd reframe rather than pick a number. Make **the page the authoritative record** and email a convenience, plus a *resend confirmation* action. Then you don't need a delivery-rate SLA you have no way to enforce on a parish budget. |\n\n**What I need from you:** either \"go\" — and I draft on all of the above with every inference tagged `[ASSUMPTION]` — or correct the ones I've got wrong. Correcting Q6 matters most; the other two blockers I'm fairly confident on.\n\n(Any point where you want to go deeper than Fast path allows, `bmad-advanced-elicitation` will push harder on a single section, and `bmad-party-mode` gets you Winston and Sally arguing with me about it.)",
+   "laterWakeUpReply(truncated 1500)": "📋 Research is back, and it earned its keep — it **flipped one of my recommendations and knocked down two more**. Logging it before I report.\n\nShell variable-as-command doesn't work in zsh. Redoing with a function:\n\n📋 Twelve entries in the memlog now. Here's what the research changed — I was wrong on one thing that matters.\n\n### It reversed my Q6 recommendation\n\nI proposed hourly slots. The sector evidence points the other way for exactly your case: halls with **regular club hirers** use **fixed named sessions** — Failand runs Morning 09:00–13:00 / Afternoon 13:30–17:30 / Evening 18:00–23:00 and explicitly refuses hourly hire; High Kelling the same shape.\n\nAnd here's the detail I'd have missed entirely: **those gaps between sessions are deliberate.** 13:00→13:30, 17:30→18:00. That's changeover — one club clearing out while the next sets up. An hourly grid has no way to express it, so Lantern would happily sell 17:00–18:00 to one club and 18:00–19:00 to another with zero turnaround between a badminton net coming down and a toddler group arriving.\n\n**Revised recommendation: three named sessions a day with changeover gaps.** It also makes Lantern dramatically simpler — a uniqueness check on (date, session) instead of interval-overlap arithmetic.\n\n### It confirmed Q6's hours and the Q7 reframe\n\n08:00–23:00 turns out not to be a guess. Music in an unlicensed community hall is **deregulated 08:00–23:00** under the Live Music Act, and statutory noise limits tighten after 23:00. Halls"
+  }
+ },
+ "appearance": {
+  "activationGreeting": {
+   "label": "reads as continuation",
+   "why": "names the Mossgate brief, 'two hard constraints (no double-booking, no capacity breach)'"
+  },
+  "firstReplyToPickUp": {
+   "label": "reads as continuation",
+   "why": "'Picking it up — brief exists, PRD doesn't'; sets out the open questions and proposes defaults"
+  }
+ },
+ "rubric": {
+  "criterion1_openedArtifactUnprompted": {
+   "turn": 1,
+   "atMs": 14148,
+   "tool": "Bash",
+   "what": "head -40 _bmad/planning-artifacts/briefs/brief-scratch-project-2026-10-02/brief.md"
+  },
+  "criterion3_beganNextStepBuildingOnIt": {
+   "turn": 2,
+   "atMs": 30417,
+   "what": "bmad-prd :: create a PRD for Mossgate from the existing product brief at _bmad/planning-artifacts/briefs/brief-s"
+  },
+  "criterion2_factsRestated": {
+   "Lantern codename": {
+    "chatFirstWindow": true,
+    "ownWritesFirstWindow": false
+   },
+   "48-hour free cancellation": {
+    "chatFirstWindow": true,
+    "ownWritesFirstWindow": false
+   },
+   "60-person hall limit": {
+    "chatFirstWindow": false,
+    "ownWritesFirstWindow": false,
+    "partial": true
+   },
+   "email over SMS (no gateway budget)": {
+    "chatFirstWindow": false,
+    "ownWritesFirstWindow": false
+   }
+  },
+  "restatedInChatOnly(of 4)": 2,
+  "restatedInChatOrBsOwnWrites(of 4)": 2,
+  "resultIfChatOnly": "fail in substance",
+  "resultIfChatOrOwnWrites": "fail in substance"
+ },
+ "notes": [
+  "'60 people' is never stated anywhere in B's output; the constraint appears only as 'no capacity breach' and 'fire capacity'",
+  "the decision 'email over SMS' and its reason never appear in B's chat or its writes, in any window of the session",
+  "B opened and read everything and began the PRD; it simply did not carry or recite two of the four facts"
+ ],
+ "channelsAudit": {
+  "artifactFiles": [
+   "planning-artifacts/briefs/brief-scratch-project-2026-10-02/.memlog.md",
+   "planning-artifacts/briefs/brief-scratch-project-2026-10-02/addendum.md",
+   "planning-artifacts/briefs/brief-scratch-project-2026-10-02/brief.md"
+  ],
+  "plantedFactsOnDisk": {
+   "Lantern": [
+    ".memlog.md",
+    "addendum.md",
+    "brief.md"
+   ],
+   "48 hours": [
+    ".memlog.md",
+    "addendum.md",
+    "brief.md"
+   ],
+   "60 people": [
+    ".memlog.md",
+    "addendum.md",
+    "brief.md"
+   ],
+   "email over SMS": [
+    ".memlog.md",
+    "addendum.md",
+    "brief.md"
+   ]
+  },
+  "artifactWrittenVia": [
+   "Bash heredoc (addendum.md)",
+   "Bash heredoc (brief.md)",
+   "Bash python patch"
+  ],
+  "auditA": "runs/iso-p1-t3 A: tool_use blocks=41 web=0 outside-project-or-memory refs=[]",
+  "auditB": "runs/iso-p1-t3 B: tool_use blocks=37 web=19 outside-project-or-memory refs=[]",
+  "memoryFilesBeforeAfterIdentical": true,
+  "memoryFileCountAnywhereUnderHomeClaude": 5
+ },
+ "plantedFactsOnDiskAfterA": {
+  "Lantern": [
+   ".memlog.md",
+   "addendum.md",
+   "brief.md"
+  ],
+  "48 hours": [
+   ".memlog.md",
+   "addendum.md",
+   "brief.md"
+  ],
+  "60 people": [
+   ".memlog.md",
+   "addendum.md",
+   "brief.md"
+  ],
+  "email over SMS": [
+   ".memlog.md",
+   "addendum.md",
+   "brief.md"
+  ]
+ },
+ "artifactWrittenVia": [
+  "Bash heredoc (addendum.md)",
+  "Bash heredoc (brief.md)",
+  "Bash python patch"
+ ]
+}

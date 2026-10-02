@@ -1,0 +1,33 @@
+{
+ "autoMemory": {
+  "disabledBy": [
+   "CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 in the driver's environment",
+   "autoMemoryEnabled:false in the scratch project's .claude/settings.json"
+  ],
+  "shownClosedBy": [
+   "system/init carries no memory_paths in any of the 22 sessions",
+   "no memory/ directory exists under any scratch project's folder in the home project store",
+   "the set of MEMORY.md / memory/* files anywhere under the home Claude folder (5 files, none belonging to a scratch project) was identical before and after every trial",
+   "no tool call by A or B in any trial names a memory path"
+  ]
+ },
+ "userLevelInstructions": "no user-level CLAUDE.md exists; --setting-sources project,local excludes user settings; the scratch project has no CLAUDE.md",
+ "sessionTranscriptsOnDisk": {
+  "state": "reachable but untouched in all runs except the control",
+  "detail": "each session writes a transcript under the home project store keyed by the scratch directory, so A's transcript sits where B could in principle find it. The tool-call audit found no B tool call that touches it. The control (pass1-control4) ran both sessions with --no-session-persistence and no transcript file exists for that scratch project, and B behaved as in the other isolated trials.",
+  "ownSessionSpill": "two audit hits are a session reading its own tool-results spill (iso trial 1 A, iso trial 2 B) and one is B listing its own session scratchpad (pass 2 trial 1); session ids match the session making the call"
+ },
+ "scratchContamination": [
+  {
+   "what": "copied _bmad/party-mode/memories/installed/.memlog.md (this repo's own project notes) present in the pilot and isolated scratch projects",
+   "effect": "read by B in pass 2 trial 1, which declined to treat it as this project's history; no planted fact is in it; stripped in the control"
+  },
+  {
+   "what": "pilot layout: subject directory inside the driver's tree, so planted-facts files and A's scripted turns were reachable by walking up",
+   "effect": "B read them in pilot-pass2-trial2 (trial void); no other pilot B left its project; isolated layout used for all counted trials"
+  }
+ ],
+ "web": "B's PRD research subagents used web search/fetch in several trials; the planted facts are invented and cannot be found on the web, so this is not a channel for them",
+ "nothingPassedToB": "B's process was started fresh each time with exactly: /bmad-agent-pm then the text 'pick up the work from here' (pass 2 adds one follow-up question). No path, summary, transcript, --resume, --continue or --session-id.",
+ "perRunAudit": "each trial file carries channelsAudit with the tool-call audit text for A and B"
+}

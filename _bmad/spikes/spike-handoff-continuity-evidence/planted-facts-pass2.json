@@ -1,0 +1,20 @@
+{
+ "t1": {
+  "topic": "how Reedwatch should reach people",
+  "facts": [
+   "SMS only for v1",
+   "38%",
+   "no mobile data plan",
+   "revisit after 500 signups"
+  ]
+ },
+ "t2": {
+  "topic": "how Quillbox should handle reservations",
+  "facts": [
+   "monthly lottery",
+   "first Monday",
+   "70% idle",
+   "no paid priority slot (trustees)"
+  ]
+ }
+}
