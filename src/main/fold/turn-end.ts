@@ -56,6 +56,10 @@ export function foldTurn(state: TurnState, input: FrameInput | undefined): TurnS
       return { state: { ...state, tasks: new Set(input.taskIds) } }
 
     case 'turn-result': {
+      // A result while the session is already free ends nothing: it is not told twice.
+      if (!state.busy) {
+        return { state }
+      }
       if (state.tasks.size > 0) {
         return input.failed
           ? { state, signal: { kind: 'failed-while-pending', subtype: input.subtype } }

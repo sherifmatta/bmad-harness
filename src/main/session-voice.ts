@@ -20,9 +20,7 @@ export const LINES = {
     subtype !== undefined && SUBTYPE.test(subtype) ? `turn failed · ${subtype}` : 'turn failed',
   exited: 'session ended · the process exited',
   quiet: (ms: number): string =>
-    `no output for ${Math.round(ms / 1000)}s · the session may be stuck · close it to start over`,
-  /** At the top of a conversation whose stored file could not be read and was set aside. */
-  setAside: 'earlier conversation could not be read · kept aside'
+    `no output for ${Math.round(ms / 1000)}s · the session may be stuck · close it to start over`
 }
 
 /**

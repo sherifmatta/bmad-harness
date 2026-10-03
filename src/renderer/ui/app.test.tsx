@@ -771,3 +771,72 @@ describe('App, a session that outlives the install changing under it', () => {
     expect(headers()).toHaveLength(0)
   })
 })
+
+describe('App, the current persona’s close control', () => {
+  const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
+  const closeButtons = (): HTMLButtonElement[] => [
+    ...mounted!.container.querySelectorAll<HTMLButtonElement>('button.chat-close')
+  ]
+
+  async function mountAndOpenMary(): Promise<void> {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+  }
+
+  it('is not there while the current persona has no session', async () => {
+    await mountAndOpenMary()
+
+    expect(field().getAttribute('aria-label')).toBe('Message Mary')
+    expect(closeButtons()).toHaveLength(0)
+  })
+
+  it('is in the current persona’s header from session:opened, closes that session on the click, goes with session:closed, and lands focus in the composer', async () => {
+    await mountAndOpenMary()
+    push({ name: 'session:opened', payload: { sessionId: 's-mary', agentId: mary.id, at: 1 } })
+
+    expect(closeButtons()).toHaveLength(1)
+    expect(closeButtons()[0].getAttribute('aria-label')).toBe('close session · Mary')
+    expect(closeButtons()[0].closest('.chat-head')).not.toBeNull()
+    expect(mounted!.container.querySelector('.orphan-head')).toBeNull()
+    const button = closeButtons()[0]
+    button.focus()
+    expect(document.activeElement).toBe(button)
+
+    act(() => button.click())
+    await settle()
+    expect(closedSessions).toEqual(['s-mary'])
+    // The button goes with main's report, not with the click.
+    expect(closeButtons()).toHaveLength(1)
+    push({ name: 'session:closed', payload: { sessionId: 's-mary', agentId: mary.id, reason: 'closed', at: 5 } })
+
+    expect(closeButtons()).toHaveLength(0)
+    expect(document.activeElement).toBe(field())
+    expect(field().getAttribute('aria-label')).toBe('Message Mary')
+  })
+
+  it('is drawn for the persona who is current and for no other, and follows the tile', async () => {
+    await mountAndOpenMary()
+    push({ name: 'session:opened', payload: { sessionId: 's-mary', agentId: mary.id, at: 1 } })
+    push({ name: 'session:opened', payload: { sessionId: 's-john', agentId: john.id, at: 1 } })
+    expect(closeButtons().map((button) => button.getAttribute('aria-label'))).toEqual(['close session · Mary'])
+
+    act(() => tile('John').click())
+    await settle()
+
+    expect(closeButtons().map((button) => button.getAttribute('aria-label'))).toEqual(['close session · John'])
+    act(() => closeButtons()[0].click())
+    await settle()
+    // Activating the tile asked main for John's session, whose id the fake bridge answers; Mary's is untouched.
+    expect(closedSessions).toHaveLength(1)
+    expect(closedSessions).not.toContain('s-mary')
+  })
+
+  it('goes when the process exits on its own', async () => {
+    await mountAndOpenMary()
+    push({ name: 'session:opened', payload: { sessionId: 's-mary', agentId: mary.id, at: 1 } })
+    push({ name: 'session:closed', payload: { sessionId: 's-mary', agentId: mary.id, reason: 'process-exited', at: 2 } })
+
+    expect(closeButtons()).toHaveLength(0)
+  })
+})

@@ -25,11 +25,14 @@ class FakeChild extends EventEmitter {
       this.writes.push(data)
       if (this.failWrites) throw new Error('write after end')
       this.writeCallbacks.push(callback)
+      // A stream says a write went once it has flushed it; a test that wants it to fail holds it.
+      if (!this.holdCallbacks) callback?.(null)
       return true
     },
     on: (_event, listener) => void this.stdinErrors.push(listener)
   }
   failWrites = false
+  holdCallbacks = false
   writeCallbacks: (((error?: Error | null) => void) | undefined)[] = []
   stdinErrors: (() => void)[] = []
   spawn(): void {
@@ -192,13 +195,13 @@ describe('spawnSession', () => {
     const outcome = await pending
     if (!outcome.ok) throw new Error('expected a session')
 
-    expect(outcome.session.write('hello')).toBe(true)
+    await expect(outcome.session.write('hello')).resolves.toBe(true)
     expect(JSON.parse(child.writes[1]).message.content[0].text).toBe('hello')
 
     child.emit('close')
     child.emit('close')
     expect(exits).toHaveBeenCalledTimes(1)
-    expect(outcome.session.write('too late')).toBe(false)
+    await expect(outcome.session.write('too late')).resolves.toBe(false)
     expect(child.writes).toHaveLength(2)
   })
 
@@ -210,7 +213,7 @@ describe('spawnSession', () => {
     if (!outcome.ok) throw new Error('expected a session')
 
     child.failWrites = true
-    expect(outcome.session.write('x')).toBe(false)
+    await expect(outcome.session.write('x')).resolves.toBe(false)
   })
 
   describe('a pipe that has died', () => {
@@ -223,44 +226,69 @@ describe('spawnSession', () => {
       return { child, session: outcome.session }
     }
 
-    it('refuses the next write once stdin has raised, and writes nothing to it', async () => {
+    it('resolves false for the very first write when its own callback reports the error, and refuses the next', async () => {
       const { child, session: live } = await session()
-      expect(live.write('one')).toBe(true)
+      child.holdCallbacks = true
 
+      const first = live.write('one')
+      child.writeCallbacks.at(-1)?.(Object.assign(new Error('EPIPE'), { code: 'EPIPE' }))
+
+      await expect(first).resolves.toBe(false)
+      await expect(live.write('two')).resolves.toBe(false)
+      expect(child.writes).toHaveLength(2)
+    })
+
+    it('resolves false for a write waiting on the stream when stdin raises, and refuses the next', async () => {
+      const { child, session: live } = await session()
+      child.holdCallbacks = true
+
+      const first = live.write('one')
       child.stdinErrors.forEach((listener) => listener())
 
-      expect(live.write('two')).toBe(false)
+      await expect(first).resolves.toBe(false)
+      await expect(live.write('two')).resolves.toBe(false)
       expect(child.writes).toHaveLength(2)
+    })
+
+    it('resolves false for a write waiting on the stream when the process closes', async () => {
+      const { child, session: live } = await session()
+      child.holdCallbacks = true
+
+      const first = live.write('one')
+      child.emit('close')
+
+      await expect(first).resolves.toBe(false)
+    })
+
+    it('resolves true only once the stream has said the write went', async () => {
+      const { child, session: live } = await session()
+      child.holdCallbacks = true
+      let settled = false
+      const write = live.write('one').then((written) => ((settled = true), written))
+      await Promise.resolve()
+      expect(settled).toBe(false)
+
+      child.writeCallbacks.at(-1)?.(null)
+
+      await expect(write).resolves.toBe(true)
     })
 
     it('refuses a write to a stream that is destroyed or no longer writable', async () => {
       const destroyed = await session()
       destroyed.child.stdin.destroyed = true
-      expect(destroyed.session.write('x')).toBe(false)
+      await expect(destroyed.session.write('x')).resolves.toBe(false)
       expect(destroyed.child.writes).toHaveLength(1)
 
       const closed = await session()
       closed.child.stdin.writable = false
-      expect(closed.session.write('x')).toBe(false)
-    })
-
-    it('refuses the next write once a write’s own callback reported an error, and not for a clean one', async () => {
-      const { child, session: live } = await session()
-      expect(live.write('one')).toBe(true)
-      // The activation turn's callback, then the first send's.
-      child.writeCallbacks[0]?.(null)
-      child.writeCallbacks[1]?.(undefined)
-      expect(live.write('two')).toBe(true)
-
-      child.writeCallbacks[2]?.(Object.assign(new Error('EPIPE'), { code: 'EPIPE' }))
-      expect(live.write('three')).toBe(false)
+      await expect(closed.session.write('x')).resolves.toBe(false)
     })
 
     it('stays silent about the failure itself: no error reaches a listener of the session’s own', async () => {
       const { child, session: live } = await session()
 
       expect(() => child.stdinErrors.forEach((listener) => listener())).not.toThrow()
-      expect(live.write('x')).toBe(false)
+      await expect(live.write('x')).resolves.toBe(false)
     })
   })
 

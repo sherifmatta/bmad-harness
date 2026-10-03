@@ -1,31 +1,7 @@
-import { basename, resolve } from 'node:path'
+import { resolve } from 'node:path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
-import type { Plugin } from 'vite'
 import react from '@vitejs/plugin-react-swc'
-
-/**
- * A sandboxed preload cannot load a second file, and a module two entries share
- * is built as a chunk that one `require`s from the other. `src/shared/` is the
- * one place both preloads draw from, so each preload gets its own copy of what
- * it imports from there: the module id carries the importing entry's name, which
- * makes it two modules to the bundler and none of them a chunk.
- */
-function inlineSharedIntoEachPreload(): Plugin {
-  return {
-    name: 'inline-shared-into-each-preload',
-    enforce: 'pre',
-    async resolveId(source, importer, options) {
-      if (importer === undefined || !/[\\/]src[\\/]preload[\\/][^\\/]+\.ts$/.test(importer)) {
-        return null
-      }
-      const resolved = await this.resolve(source, importer, { ...options, skipSelf: true })
-      if (resolved === null || !/[\\/]src[\\/]shared[\\/]/.test(resolved.id)) {
-        return null
-      }
-      return `${resolved.id}?preload=${basename(importer, '.ts')}`
-    }
-  }
-}
+import { inlineSharedIntoEachPreload } from './electron.vite.inline-shared'
 
 // The prescribed source tree is binding: the renderer root is pointed at
 // `src/renderer/` rather than electron-vite's default `src/renderer/src/`.

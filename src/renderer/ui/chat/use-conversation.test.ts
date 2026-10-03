@@ -1087,6 +1087,21 @@ describe('useConversation', () => {
     expect(hook.current.entries).toMatchObject([{ text: 'Hello' }])
   })
 
+  it('holds the agent ids that have a live session, from session:opened to session:closed, current or not', async () => {
+    install(bridge)
+    hook = renderHook(() => useConversation(agents))
+    await settle()
+    expect([...hook.current.live]).toEqual([])
+
+    inAct(() => bridge.push(opened('s1', mary.id)))
+    expect([...hook.current.live]).toEqual([mary.id])
+    inAct(() => bridge.push(opened('s2', john.id)))
+    expect([...hook.current.live].sort()).toEqual([john.id, mary.id].sort())
+
+    inAct(() => bridge.push(closed('s1', mary.id)))
+    expect([...hook.current.live]).toEqual([john.id])
+  })
+
   it('says a persona can answer only while it has a live session with no turn in flight', async () => {
     install(bridge)
     hook = renderHook(() => useConversation(agents))

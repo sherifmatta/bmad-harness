@@ -311,7 +311,7 @@ describe('a transcript is cleared only by ending the conversation', () => {
       spawn: (options: SpawnSessionOptions): Promise<SpawnOutcome> => {
         feed = options.onFrame
         exit = options.onExit
-        return Promise.resolve({ ok: true, session: { write: () => true, kill: () => {} } })
+        return Promise.resolve({ ok: true, session: { write: () => Promise.resolve(true), kill: () => {} } })
       }
     })
     const sender = new Sender()
@@ -351,7 +351,7 @@ describe('a transcript is cleared only by ending the conversation', () => {
       await world.call<Promise<unknown>>(SESSION_OPEN_CHANNEL, 'bmad-agent-analyst')
       for (const frame of speak('hello')) world.frame(frame)
       world.frame({ type: 'result', subtype: 'success', is_error: false })
-      expect(world.call(TURN_SEND_CHANNEL, 's1', 'hi')).toEqual({ ok: true })
+      expect(await world.call(TURN_SEND_CHANNEL, 's1', 'hi')).toEqual({ ok: true })
       world.flush()
       world.frame({ type: 'result', subtype: 'error_during_execution', is_error: true })
       world.call(CONVERSATION_GET_CHANNEL)
@@ -408,7 +408,7 @@ describe('a transcript is cleared only by ending the conversation', () => {
       await world.call<Promise<unknown>>(SESSION_OPEN_CHANNEL, 'bmad-agent-analyst')
       for (const frame of speak('hello')) world.frame(frame)
       world.frame({ type: 'result', subtype: 'success', is_error: false })
-      world.call(TURN_SEND_CHANNEL, 's1', 'more')
+      await world.call(TURN_SEND_CHANNEL, 's1', 'more')
       world.flush()
 
       const aside = readFileSync(`${transcriptFilePath(world.userData, PROJECT)}.aside`, 'utf8')

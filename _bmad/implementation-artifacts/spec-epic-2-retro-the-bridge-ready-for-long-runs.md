@@ -2,7 +2,9 @@
 title: 'The session bridge, ready for long runs'
 type: 'refactor'
 created: '2026-10-02'
-status: 'ready-for-dev'
+status: 'done'
+followup_review_recommended: true
+baseline_revision: 'c9839bf090a4315c160772f9d4a6e10aa14cfffe'
 route: 'dispatch'
 review_loop_iteration: 0
 context:
@@ -94,6 +96,49 @@ context:
 
 ## Review Triage Log
 
+### 2026-10-03 — Review pass
+- verdicts: 39 findings — high 0, medium 6, low 15, false 16, maybe-false 2
+- findings:
+  - `[medium]` `[patch]` Blind: first send into a dead pipe is accepted (write returns true, `broken` set later) — session-process.ts/sendTurn; `write` now resolves after the callback and sendTurn awaits it. Same root cause: Edge dead-pipe row.
+  - `[low]` `[reject]` Blind: a session whose tasks empty with no following result stays busy — spec Design Notes accept this; close control and watchdog are the stated answer.
+  - `[low]` `[reject]` Blind: fixed 120 s watchdog can misfire on long silent work and the line persists — spec fixes 120 s and says write a harness line; a frame of any kind resets the clock.
+  - `[low]` `[reject]` Blind: harness lines do not name the persona — close control sits in the persona's own header, reachable by selecting its tile; naming the persona adds event shape beyond the spec.
+  - `[false]` `[reject]` Blind: set-aside notice wording wrong for partial damage and transient read errors — the spec orders unreadable/corrupt renamed aside and fixes the single line text.
+  - `[low]` `[reject]` Blind: set-aside check-then-rename race, unbounded `.aside-N`, path not shown — single main process per project; unlikely to be met.
+  - `[low]` `[patch]` Blind: `LINES.setAside` duplicates `SET_ASIDE_LINE` — deleted the unused one.
+  - `[false]` `[reject]` Blind: queued messages replay into a fresh session — the spec says queued messages are kept on `process-exited`.
+  - `[low]` `[reject]` Blind: close is destructive with no confirmation or transcript record — spec asks for a close control, transcript kept; nothing in the spec asks for a record.
+  - `[low]` `[reject]` Blind: failed result while tasks are live may lose `error` when the wake turn starts — spec says `error` lasts until the next turn starts; the harness line persists.
+  - `[low]` `[reject]` Blind: "cleared only by ending the conversation" test title overclaims the window-gone path — test naming only.
+  - `[low]` `[reject]` Blind: bridge-contract test may be tautological after shared channels — no divergence it could mask; the new channels-contract test pins the literals.
+  - `[medium]` `[patch]` Blind: preload plugin narrow and guarded only by a grep — covered by the verification-gap finding; nested-importer rewrite added and a bundle test.
+  - `[low]` `[reject]` Blind: brittle tests (hard-coded corpus rows, source slicing, 150-line span heuristic) — the rows come from the spec; developer-only, no named failure.
+  - `[false]` `[reject]` Blind: sprint-status flipped to done while the spec is in review, no chat-turn interrupt decision, silent drops — each item is flipped in its own commit as the spec says; the interrupt decision is the spec's Never list; the drops are spec rows.
+  - `[low]` `[patch]` Edge: a `result` on an already free session emits a second `ended` — `foldTurn` now returns no signal when not busy.
+  - `[false]` `[reject]` Edge: `onExit` before the spawn promise resolves writes a line for a never-opened session — `close` cannot run before the promise continuation, which runs first in the same tick as `spawn`.
+  - `[low]` `[reject]` Edge: kept entries after a set-aside exist only in memory until the debounce flush — the original is on disk beside it and `persist/quarantined` is logged; nothing is lost.
+  - `[medium]` `[patch]` Edge: plugin `resolveId` misses a nested shared import because the importer carries `?preload=` — fixed with the preload plugin patch.
+  - `[medium]` `[patch]` Edge: dead-pipe send still ok and busy — same root cause as the first Blind row.
+  - `[low]` `[reject]` Edge: close control only in the current persona's header — reachable by selecting the persona; fix adds UI beyond the spec.
+  - `[false]` `[reject]` Edge: `rail:changed` spelled in four files — the string is also an event name the events contract must spell; the test whitelists that.
+  - `[medium]` `[patch]` Verification gap: no test runs the preload bundle — a bundle test added.
+  - `[medium]` `[patch]` Verification gap: the current persona's close control and `conversation.live` untested through `App` — App and hook tests added.
+  - `[false]` `[reject]` Intent: preload guarantee asserted at the wrong surface — the same gap as the bundle test row; patched there.
+  - `[false]` `[reject]` Intent: close control shown for any live session rather than tied to the wedge — the spec says it stays visible.
+  - `[low]` `[reject]` Intent: busy derived twice, no end-to-end test from frame to renderer — the follow-up commit 269a850 makes working imply busy; both halves are tested.
+  - `[false]` `[reject]` Intent: real CLI, pipe and process are faked in the replay — the spec asks for a replay through the bridge.
+  - `[false]` `[reject]` Intent: transcript tests stop at main's snapshot — the renderer line is a unit-tested fold.
+  - `[false]` `[reject]` Intent: item 23 changed behavior through errno and `session/unexpected` — the spec names both.
+  - `[false]` `[reject]` Intent: static-text tests stand in for behavior — retargeting those pins is in the spec.
+  - `[false]` `[reject]` Intent: process claims not checkable from the combined diff — git log shows the commit order.
+  - `[false]` `[reject]` Intent: spec-doc commit counted among the five — descriptive only.
+  - `[false]` `[reject]` Intent: the dead-pipe fix is faked — covered by the dead-pipe patch.
+  - `[maybe-false]` `[reject]` Intent: the main and renderer busy-ness are two derivations that may diverge on some event — would need a frame-to-App trace; a medium if true, judged by the renderer tests already pinning it.
+  - `[maybe-false]` `[reject]` Edge: failed result on an idle session is dropped by the new guard — would need a recording with a bare idle failed result; none exists.
+  - `[false]` `[reject]` Intent: sprint-status ordering of in-progress and done — the commits show it.
+  - `[false]` `[reject]` Intent: the diff did not exercise `killGroup` — unchanged code.
+  - `[low]` `[reject]` Intent: the non-current persona gets no control — duplicate of the Edge close-control row.
+
 ## Design Notes
 
 The corpus gives the turn-end signal: `system/background_tasks_changed` carries the live `tasks` list. A simulation over all six recordings puts idle points exactly at the sends for `fast-path-opus` (rows 533, 25780, 46799); `fast-path-sonnet` shows one extra idle at row 1553 followed by an unsolicited turn, hence the re-enter rule. A CLI that never sends the frame degrades to today's one-result-ends-turn. A task that never reports done leaves the session busy; that is what the close control and the surface-only watchdog are for.
@@ -106,3 +151,32 @@ The corpus gives the turn-end signal: `system/background_tasks_changed` carries 
 
 **Manual checks (if no CLI):**
 - With a stub `claude` that emits a result while a background task is listed, the persona stays `working` and a typed message shows `queued`.
+
+## Auto Run Result
+
+Status: done
+
+**Summary.** Four retro action items on `fix/pre-epic-3-remediation`, in the order 23, 17, 18, 19: one shared channels module, bridge kit and errno helper with `session-bridge.ts` split into registry, handoff and handlers; a pending-turn model driven by `background_tasks_changed` (replayed over all six corpus recordings, `fast-path-opus` idle at rows 533, 25780, 46799); a 120 s surface-only watchdog, a close control, failed-result and process-exit lines, a stdin write that fails the send; and a non-destructive transcript load that sets a bad file aside. Review patches follow in a sixth commit.
+
+**Files changed (main groups).**
+- `src/shared/channels.ts`, `src/main/bridge-kit.ts`, `src/main/sources/errno.ts` -- the shared skeletons.
+- `src/main/session-bridge.ts`, `session-registry.ts`, `session-handoff.ts`, `session-voice.ts` -- the split, the voice and the watchdog.
+- `src/main/fold/turn-end.ts`, `frame.ts`, `route-frame.ts` -- the turn model.
+- `src/main/sources/session/session-process.ts` -- a write that settles on its callback.
+- `src/main/sources/persistence/transcript-file.ts`, `projections/transcript.ts` -- load outcomes, rename-aside.
+- `src/renderer/ui/...` -- close control, `harness:said`, queue kept on `process-exited`.
+- `electron.vite.inline-shared.ts`, `electron.vite.config.ts` -- one inlined copy of the shared channels per preload.
+- `tests/replay-corpus.test.ts`, `tests/preload-bundle.test.ts`, `tests/channels-contract.test.ts`, `tests/persistence-contract.test.ts` and retargeted pins.
+
+**Review.** Patches applied: 5 entries (medium 3: dead-pipe first write, preload plugin nested import with a bundle test, close control through `App`; low 2: duplicate `ended` on a free session, unused `LINES.setAside`). Deferred: none. Rejected: every other finding, with its reason in the triage log. Patched counts by verdict: medium 3, low 2.
+
+**Follow-up review recommendation: true.** Three medium entries were patched. The unverified risk is the rework of `SessionProcess.write` to a promise settled by the write callback, and `sendTurn` becoming async, which a real `claude` pipe has not exercised.
+
+**Verification.** `npm run lint && npm run typecheck && npm test` pass (2,433 unit, 55 watcher tests). `npm run build` leaves `out/preload/doc.js` and `index.js` with no `require("./…")`.
+
+**Residual risks.**
+- The manual stub-`claude` check and any run against a real `claude` or Electron were not done.
+- A task that never reports done leaves the session busy; the watchdog line and close control cover that.
+- The close control is drawn in the current persona's header and orphan headers, so a wedged session of another persona needs its tile selected.
+- A first persona switch can write a handoff line over a transcript that holds only the set-aside notice.
+- If the rename-aside fails, nothing is written for that launch (not in the spec).

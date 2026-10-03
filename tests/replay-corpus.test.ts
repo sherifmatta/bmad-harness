@@ -312,7 +312,7 @@ describe('the corpus replayed through the session bridge', () => {
         writeDiagnostic: () => {},
         spawn: (options) => {
           feed = options.onFrame
-          return Promise.resolve({ ok: true, session: { write: () => true, kill: () => {} } })
+          return Promise.resolve({ ok: true, session: { write: () => Promise.resolve(true), kill: () => {} } })
         }
       })
       const sender = new Sender()
@@ -343,7 +343,7 @@ describe('the corpus replayed through the session bridge', () => {
       for (let at = 0; at < all.length; at += 1) {
         for (const turn of turns.filter((candidate) => candidate.afterLine === at)) {
           const idle = !busy()
-          const reply = call<{ ok: boolean }>(TURN_SEND_CHANNEL, 's1', turn.text)
+          const reply = await call<Promise<{ ok: boolean }>>(TURN_SEND_CHANNEL, 's1', turn.text)
           out.sends.push({ afterLine: at, idle, accepted: reply.ok })
           collect(at)
         }

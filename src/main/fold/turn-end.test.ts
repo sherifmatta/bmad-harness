@@ -71,6 +71,26 @@ describe('a main-thread result', () => {
     expect(step.signal).toEqual({ kind: 'failed-while-pending', subtype: 'error_max_budget_usd' })
   })
 
+  it('says nothing for a result that arrives when the session is already free, however it ended', () => {
+    for (const row of [result(), result({ subtype: 'error_during_execution', is_error: true })]) {
+      const step = feed(idle, row)
+
+      expect(step.state).toBe(idle)
+      expect(step.signal).toBeUndefined()
+    }
+    // Nor with tasks listed, since there is no turn for it to be the end of.
+    const listed: TurnState = { busy: false, tasks: new Set(['a']) }
+    expect(feed(listed, result({ is_error: true })).signal).toBeUndefined()
+  })
+
+  it('ends a turn once, not twice, when two results follow one another', () => {
+    const first = feed(initialTurn, result())
+    const second = feed(first.state, result())
+
+    expect(first.signal).toMatchObject({ kind: 'ended' })
+    expect(second.signal).toBeUndefined()
+  })
+
   it('ignores a subagent’s result', () => {
     const step = feed(initialTurn, result({ parent_tool_use_id: 'toolu_1' }))
 

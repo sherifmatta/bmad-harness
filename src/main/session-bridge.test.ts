@@ -132,7 +132,7 @@ function launch(
           session: {
             write: (text) => {
               writes.push(text)
-              return true
+              return Promise.resolve(true)
             },
             kill: () => void (fake.killed = true)
           },
@@ -410,7 +410,7 @@ describe('turn end and turn.send', () => {
   it('is in flight after activation, so a send is refused as busy and nothing is written', async () => {
     const { sender, reply, proc } = await opened()
 
-    await expect(send(sender, reply.sessionId, 'hi')).toMatchObject({
+    expect(await send(sender, reply.sessionId, 'hi')).toMatchObject({
       ok: false,
       error: { code: 'session/busy' }
     })
@@ -427,20 +427,20 @@ describe('turn end and turn.send', () => {
     expect(sender.events.filter((event) => event.name === 'session:awaiting-turn')).toEqual([
       { name: 'session:awaiting-turn', payload: { sessionId: 's1', at: expect.any(Number) } }
     ])
-    await expect(send(sender, reply.sessionId, 'hi')).toEqual({ ok: true })
+    expect(await send(sender, reply.sessionId, 'hi')).toEqual({ ok: true })
     expect(proc.writes).toEqual(['/bmad-agent-analyst', 'hi'])
   })
 
   it('puts the turn back in flight with each send', async () => {
     const { sender, reply, proc } = await opened()
     proc.frame(result())
-    expect(send(sender, reply.sessionId, 'one')).toEqual({ ok: true })
+    expect(await send(sender, reply.sessionId, 'one')).toEqual({ ok: true })
 
-    expect(send(sender, reply.sessionId, 'two')).toMatchObject({ error: { code: 'session/busy' } })
+    expect(await send(sender, reply.sessionId, 'two')).toMatchObject({ error: { code: 'session/busy' } })
     expect(proc.writes).toEqual(['/bmad-agent-analyst', 'one'])
 
     proc.frame(result())
-    expect(send(sender, reply.sessionId, 'two')).toEqual({ ok: true })
+    expect(await send(sender, reply.sessionId, 'two')).toEqual({ ok: true })
     expect(proc.writes).toEqual(['/bmad-agent-analyst', 'one', 'two'])
   })
 
@@ -456,7 +456,7 @@ describe('turn end and turn.send', () => {
       'persona:state'
     ])
     expect(sender.names).not.toContain('session:awaiting-turn')
-    expect(send(sender, reply.sessionId, 'hi')).toMatchObject({ error: { code: 'session/not-found' } })
+    expect(await send(sender, reply.sessionId, 'hi')).toMatchObject({ error: { code: 'session/not-found' } })
   })
 
   it('does not end the turn on a subagent’s result', async () => {
@@ -464,24 +464,24 @@ describe('turn end and turn.send', () => {
     proc.frame({ type: 'result', parent_tool_use_id: 'toolu_1' })
 
     expect(sender.names).toEqual(['session:opened', 'persona:state'])
-    expect(send(sender, reply.sessionId, 'hi')).toMatchObject({ error: { code: 'session/busy' } })
+    expect(await send(sender, reply.sessionId, 'hi')).toMatchObject({ error: { code: 'session/busy' } })
   })
 
   it.each([['nope'], [undefined], [3]])('answers an unknown session id %j as session/not-found', async (id) => {
     const { sender } = await opened()
 
-    expect(send(sender, id, 'hi')).toMatchObject({ ok: false, error: { code: 'session/not-found' } })
+    expect(await send(sender, id, 'hi')).toMatchObject({ ok: false, error: { code: 'session/not-found' } })
   })
 
-  it('answers a window with no sessions as session/not-found', () => {
-    expect(send(new FakeSender(9), 's1', 'hi')).toMatchObject({ error: { code: 'session/not-found' } })
+  it('answers a window with no sessions as session/not-found', async () => {
+    expect(await send(new FakeSender(9), 's1', 'hi')).toMatchObject({ error: { code: 'session/not-found' } })
   })
 
   it('does not let one window send into another’s session', async () => {
     const { reply, proc } = await opened(new FakeSender(1))
     proc.frame(result())
 
-    expect(send(new FakeSender(2), reply.sessionId, 'hi')).toMatchObject({
+    expect(await send(new FakeSender(2), reply.sessionId, 'hi')).toMatchObject({
       error: { code: 'session/not-found' }
     })
   })
@@ -490,7 +490,7 @@ describe('turn end and turn.send', () => {
     const sender = new FakeSender(1)
     const pending = open(sender, 'bmad-agent-pm')
 
-    expect(send(sender, 's1', 'hi')).toMatchObject({ error: { code: 'session/busy' } })
+    expect(await send(sender, 's1', 'hi')).toMatchObject({ error: { code: 'session/busy' } })
     await processes[0].up()
     await pending
   })
@@ -499,7 +499,7 @@ describe('turn end and turn.send', () => {
     const { sender, reply, proc } = await opened()
     proc.frame(result())
 
-    expect(send(sender, reply.sessionId, { x: 1 })).toMatchObject({
+    expect(await send(sender, reply.sessionId, { x: 1 })).toMatchObject({
       error: { code: 'session/invalid-turn' }
     })
     expect(proc.writes).toEqual(['/bmad-agent-analyst'])
@@ -510,14 +510,48 @@ describe('turn end and turn.send', () => {
     proc.frame(result())
     let fail = true
     proc.session.write = (text) => {
-      if (fail) return false
+      if (fail) return Promise.resolve(false)
       proc.writes.push(text)
-      return true
+      return Promise.resolve(true)
     }
 
-    expect(send(sender, reply.sessionId, 'hi')).toMatchObject({ error: { code: 'session/write-failed' } })
+    expect(await send(sender, reply.sessionId, 'hi')).toMatchObject({ error: { code: 'session/write-failed' } })
     fail = false
-    expect(send(sender, reply.sessionId, 'hi')).toEqual({ ok: true })
+    expect(await send(sender, reply.sessionId, 'hi')).toEqual({ ok: true })
+  })
+
+  it('waits for the write: a send is busy while it is being written, and a write that settles false records nothing, starts no work and frees the session', async () => {
+    const { sender, reply, proc } = await opened()
+    proc.frame(result())
+    let settle: (written: boolean) => void = () => {}
+    proc.session.write = () => new Promise<boolean>((resolve) => void (settle = resolve))
+    const first = send(sender, reply.sessionId, 'hi')
+
+    expect(await send(sender, reply.sessionId, 'second')).toMatchObject({ error: { code: 'session/busy' } })
+    settle(false)
+
+    expect(await first).toMatchObject({ error: { code: 'session/write-failed' } })
+    const get = handlers.get(CONVERSATION_GET_CHANNEL) as unknown as (e: { sender: FakeSender }) => ConversationReply
+    const snapshot = get({ sender })
+    expect(snapshot.ok && snapshot.snapshot.entries).toEqual([])
+    expect(snapshot.ok && snapshot.snapshot.busy).toEqual([])
+    expect(sender.events.filter((event) => event.name === 'persona:state').map((event) => event.payload.state)).toEqual(['work', 'idle'])
+  })
+
+  it('records nothing when the session closed while the write was in flight', async () => {
+    const { sender, reply, proc } = await opened()
+    proc.frame(result())
+    let settle: (written: boolean) => void = () => {}
+    proc.session.write = () => new Promise<boolean>((resolve) => void (settle = resolve))
+    const pending = send(sender, reply.sessionId, 'hi')
+    closeSession(sender, reply.sessionId)
+    settle(true)
+
+    expect(await pending).toMatchObject({ error: { code: 'session/not-found' } })
+    expect(sender.events.filter((event) => event.name === 'persona:state').map((event) => event.payload.state)).toEqual(['work', 'idle'])
+    const get = handlers.get(CONVERSATION_GET_CHANNEL) as unknown as (e: { sender: FakeSender }) => ConversationReply
+    const snapshot = get({ sender })
+    expect(snapshot.ok && snapshot.snapshot.entries).toEqual([])
   })
 })
 
@@ -546,7 +580,7 @@ describe('the pending turn', () => {
     expect(awaiting(sender)).toEqual([])
     expect(personaStates(sender)).toEqual(['work'])
     expect(busyOf(sender)).toEqual([reply.sessionId])
-    expect(send(sender, reply.sessionId, 'hi')).toMatchObject({ error: { code: 'session/busy' } })
+    expect(await send(sender, reply.sessionId, 'hi')).toMatchObject({ error: { code: 'session/busy' } })
     expect(proc.writes).toEqual(['/bmad-agent-analyst'])
   })
 
@@ -564,7 +598,7 @@ describe('the pending turn', () => {
     expect(awaiting(sender)).toHaveLength(1)
     expect(personaStates(sender)).toEqual(['work', 'idle'])
     expect(busyOf(sender)).toEqual([])
-    expect(send(sender, reply.sessionId, 'hi')).toEqual({ ok: true })
+    expect(await send(sender, reply.sessionId, 'hi')).toEqual({ ok: true })
   })
 
   it('works as it always did when the CLI never sends the task frame: one result frees the session', async () => {
@@ -583,7 +617,7 @@ describe('the pending turn', () => {
 
     expect(busyOf(sender)).toEqual([reply.sessionId])
     expect(personaStates(sender)).toEqual(['work', 'idle', 'work'])
-    expect(send(sender, reply.sessionId, 'hi')).toMatchObject({ error: { code: 'session/busy' } })
+    expect(await send(sender, reply.sessionId, 'hi')).toMatchObject({ error: { code: 'session/busy' } })
 
     proc.frame(result())
     expect(awaiting(sender)).toHaveLength(2)
@@ -648,7 +682,7 @@ describe('what the harness says in its own voice', () => {
     expect(states(sender)).toEqual(['work', 'error'])
     expect(sender.names.filter((name) => name === 'session:awaiting-turn')).toHaveLength(1)
     // The next send works, and a turn that starts clears the error.
-    expect(send(sender, reply.sessionId, 'again')).toEqual({ ok: true })
+    expect(await send(sender, reply.sessionId, 'again')).toEqual({ ok: true })
     expect(states(sender)).toEqual(['work', 'error', 'work'])
     proc.frame(result())
     expect(states(sender)).toEqual(['work', 'error', 'work', 'idle'])
@@ -694,7 +728,7 @@ describe('what the harness says in its own voice', () => {
     expect(lines(sender).map((line) => line.text)).toEqual(['turn failed · error_during_execution'])
     expect(sender.names).not.toContain('session:awaiting-turn')
     expect(states(sender)).toEqual(['work'])
-    expect(send(sender, reply.sessionId, 'x')).toMatchObject({ error: { code: 'session/busy' } })
+    expect(await send(sender, reply.sessionId, 'x')).toMatchObject({ error: { code: 'session/busy' } })
   })
 
   it('says a process that exits, reads the persona as error, and lets the next open work', async () => {
@@ -776,7 +810,7 @@ describe('the silence clock', () => {
     expect(lines(sender)).toEqual([QUIET])
     expect(proc.killed).toBe(false)
     expect(sender.names).not.toContain('session:closed')
-    expect(send(sender, reply.sessionId, 'x')).toMatchObject({ error: { code: 'session/busy' } })
+    expect(await send(sender, reply.sessionId, 'x')).toMatchObject({ error: { code: 'session/busy' } })
     // The line is the transcript's own, and the persona is still working.
     expect(sender.events.filter((event) => event.name === 'persona:state')).toHaveLength(1)
   })
@@ -808,12 +842,12 @@ describe('the silence clock', () => {
     proc.frame(result())
     expect(live()).toEqual([])
 
-    send(sender, reply.sessionId, 'again')
+    await send(sender, reply.sessionId, 'again')
     expect(live()).toHaveLength(1)
 
     proc.frame(result())
-    proc.session.write = () => false
-    send(sender, reply.sessionId, 'refused')
+    proc.session.write = () => Promise.resolve(false)
+    await send(sender, reply.sessionId, 'refused')
     expect(live()).toEqual([])
   })
 
@@ -966,12 +1000,12 @@ describe('session.close', () => {
     expect(registry.forProject('/project-1').entries()).toEqual(turns)
     expect(turns).toHaveLength(1)
     second.proc.frame(result())
-    expect(send(sender, second.reply.sessionId, 'still here')).toEqual({ ok: true })
+    expect(await send(sender, second.reply.sessionId, 'still here')).toEqual({ ok: true })
     // The closed one is gone, and a late frame from it says nothing.
     const before = sender.sent.length
     first.proc.frame(delta('late'))
     expect(sender.sent).toHaveLength(before)
-    expect(send(sender, first.reply.sessionId, 'hi')).toMatchObject({ error: { code: 'session/not-found' } })
+    expect(await send(sender, first.reply.sessionId, 'hi')).toMatchObject({ error: { code: 'session/not-found' } })
   })
 
   it('lets the agent open afresh after its session was closed', async () => {
@@ -1031,8 +1065,8 @@ describe('persona:state', () => {
   it('is work again from a successful send, and says nothing for a refused one', async () => {
     const { sender, reply, proc } = await opened()
     proc.frame(result())
-    send(sender, reply.sessionId, 'hi')
-    send(sender, reply.sessionId, 'again')
+    await send(sender, reply.sessionId, 'hi')
+    await send(sender, reply.sessionId, 'again')
 
     expect(states(sender).map((payload) => payload.state)).toEqual(['work', 'idle', 'work'])
   })
@@ -1040,8 +1074,8 @@ describe('persona:state', () => {
   it('says nothing for a send whose write failed', async () => {
     const { sender, reply, proc } = await opened()
     proc.frame(result())
-    proc.session.write = () => false
-    send(sender, reply.sessionId, 'hi')
+    proc.session.write = () => Promise.resolve(false)
+    await send(sender, reply.sessionId, 'hi')
 
     expect(states(sender).map((payload) => payload.state)).toEqual(['work', 'idle'])
   })
@@ -1142,7 +1176,7 @@ describe('conversation:get', () => {
   it('reload idle: holds the turns and the live session, with nothing busy and no state that is not idle', async () => {
     const { sender, reply, proc } = await opened()
     for (const frame of [messageStart('msg_1'), textStart, delta('Hi'), result()]) proc.frame(frame)
-    send(sender, reply.sessionId, 'thanks')
+    await send(sender, reply.sessionId, 'thanks')
     proc.frame(result())
 
     const snapshot = snapshotOf(sender)
@@ -1157,15 +1191,15 @@ describe('conversation:get', () => {
 
   it('records the user’s turn when it is written, and not one that was refused', async () => {
     const { sender, reply, proc } = await opened()
-    send(sender, reply.sessionId, 'too early')
+    await send(sender, reply.sessionId, 'too early')
     expect(snapshotOf(sender).entries).toEqual([])
 
     proc.frame(result())
-    send(sender, reply.sessionId, 'hello')
-    send(sender, reply.sessionId, 'again')
-    proc.session.write = () => false
+    await send(sender, reply.sessionId, 'hello')
+    await send(sender, reply.sessionId, 'again')
+    proc.session.write = () => Promise.resolve(false)
     proc.frame(result())
-    send(sender, reply.sessionId, 'unwritten')
+    await send(sender, reply.sessionId, 'unwritten')
 
     expect(snapshotOf(sender).entries).toEqual([
       { kind: 'user', id: 'm-0', at: expect.any(Number), text: 'hello' }
@@ -1194,7 +1228,7 @@ describe('conversation:get', () => {
   it('relaunch: the transcript is present, no session is live or busy, and every persona is idle', async () => {
     const { sender, reply, proc } = await opened()
     for (const frame of [messageStart('msg_1'), textStart, delta('Hi'), result()]) proc.frame(frame)
-    send(sender, reply.sessionId, 'thanks')
+    await send(sender, reply.sessionId, 'thanks')
     proc.frame(messageStart('msg_2'))
     proc.frame(textStart)
     proc.frame(delta('Partly'))
@@ -1268,7 +1302,7 @@ describe('conversation:get', () => {
     expect(logs).toEqual(['persist/write-failed \u00b7 ENOSPC'])
 
     proc.frame(result())
-    expect(send(sender, reply.sessionId, 'carry on')).toEqual({ ok: true })
+    expect(await send(sender, reply.sessionId, 'carry on')).toEqual({ ok: true })
     expect(timers).toHaveLength(1)
     timers.forEach((timer) => timer())
     expect(logs).toHaveLength(1)
@@ -1301,7 +1335,7 @@ describe('a stored conversation that cannot be read', () => {
     const file = plant(JSON.stringify({ version: 9, projectPath: '/project-1', entries: [] }))
     const { sender, reply, proc } = await opened()
     proc.frame(result())
-    send(sender, reply.sessionId, 'hello')
+    await send(sender, reply.sessionId, 'hello')
     registry.flushAll()
 
     const stored = JSON.parse(readFileSync(file, 'utf8'))
@@ -1409,7 +1443,7 @@ describe('conversation.end', () => {
     const { sender, reply, proc } = await opened()
     say(proc, 'msg_1', 'Hi')
     proc.frame(result())
-    send(sender, reply.sessionId, 'thanks')
+    await send(sender, reply.sessionId, 'thanks')
     registry.flushAll()
     expect(JSON.parse(readFileSync(fileOf('/project-1'), 'utf8')).entries).toHaveLength(2)
 
@@ -1612,7 +1646,7 @@ describe('what is written, and where', () => {
     try {
       const { sender, reply, proc } = await opened()
       for (const frame of [messageStart('msg_1'), textStart, delta('Hi'), result()]) proc.frame(frame)
-      send(sender, reply.sessionId, 'thanks')
+      await send(sender, reply.sessionId, 'thanks')
       sender.destroy()
 
       expect(readdirSync(join(userData, 'conversations'))).toHaveLength(1)

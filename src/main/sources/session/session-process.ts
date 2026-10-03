@@ -15,9 +15,10 @@ import { errnoOf } from '../errno'
  * Stderr is ignored outright, never read: it names files the harness must
  * never show. The exit code is not reported either, because a turn ends on a
  * `result` frame and the process exit is only ever "gone". A write to a pipe
- * that has died is refused rather than reported as written: the stream raises
- * after `write` has returned, so the failure is remembered and the next write
- * says so.
+ * that has died is never reported as written: the stream raises after `write`
+ * has returned, so a write settles only once the stream has said whether it
+ * went. It resolves false on a stream error or a write callback error, and the
+ * failure is remembered for the writes after it.
  */
 
 /**
@@ -131,8 +132,8 @@ export function killGroup(pid: number | undefined): void {
 }
 
 export type SessionProcess = {
-  /** Write one user turn. False when the process is gone or the write failed. */
-  write(text: string): boolean
+  /** Write one user turn. Resolves false when the process is gone or the write failed. */
+  write(text: string): Promise<boolean>
   /** Kill the process group. */
   kill(): void
 }
@@ -174,22 +175,34 @@ export function spawnSession(options: SpawnSessionOptions): Promise<SpawnOutcome
     let exited = false
     /** The pipe has failed: a write to a process that has gone raises on the stream, later than the write. */
     let broken = false
+    /** The writes the stream has not yet said anything about. */
+    const pending = new Set<(written: boolean) => void>()
+    const settleAll = (written: boolean): void => {
+      for (const settle of [...pending]) settle(written)
+    }
 
     const session: SessionProcess = {
       write(text) {
         if (exited || broken || child.stdin.destroyed === true || child.stdin.writable === false) {
-          return false
+          return Promise.resolve(false)
         }
-        try {
-          child.stdin.write(userTurnLine(text), (error) => {
-            if (error !== undefined && error !== null) {
-              broken = true
-            }
-          })
-          return true
-        } catch {
-          return false
-        }
+        return new Promise<boolean>((resolveWrite) => {
+          const settle = (written: boolean): void => {
+            pending.delete(settle)
+            resolveWrite(written)
+          }
+          pending.add(settle)
+          try {
+            child.stdin.write(userTurnLine(text), (error) => {
+              if (error !== undefined && error !== null) {
+                broken = true
+              }
+              settle(error === undefined || error === null)
+            })
+          } catch {
+            settle(false)
+          }
+        })
       },
       kill() {
         kill(child.pid)
@@ -197,10 +210,11 @@ export function spawnSession(options: SpawnSessionOptions): Promise<SpawnOutcome
     }
 
     // A write to a process that has gone raises on the stream, after `write`
-    // has returned. The error is not shown, but the pipe is dead from then on, so
-    // the next write is refused and the send that made it fails.
+    // has returned. The error is not shown, but the pipe is dead from then on:
+    // the writes waiting on it fail, and the next is refused.
     child.stdin.on('error', () => {
       broken = true
+      settleAll(false)
     })
 
     const lines = createLineSplitter((line) => {
@@ -216,7 +230,7 @@ export function spawnSession(options: SpawnSessionOptions): Promise<SpawnOutcome
 
     child.on('spawn', () => {
       spawned = true
-      session.write(activationTurn(options.agentId))
+      void session.write(activationTurn(options.agentId))
       resolve({ ok: true, session })
     })
 
@@ -227,6 +241,7 @@ export function spawnSession(options: SpawnSessionOptions): Promise<SpawnOutcome
     })
 
     child.on('close', () => {
+      settleAll(false)
       if (spawned && !exited) {
         exited = true
         options.onExit()

@@ -117,7 +117,7 @@ function openSession(ctx: Context) {
 }
 
 function sendTurn(ctx: Context) {
-  return (event: IpcMainInvokeEvent, sessionId: unknown, text: unknown): SendReply => {
+  return async (event: IpcMainInvokeEvent, sessionId: unknown, text: unknown): Promise<SendReply> => {
     const sender = senderOf(event)
     const service = ctx.registry.serviceOf(sender.id)
     const entry = typeof sessionId === 'string' ? service?.bySession.get(sessionId) : undefined
@@ -136,8 +136,14 @@ function sendTurn(ctx: Context) {
         message: 'session · a turn is text'
       })
     }
+    // Busy from here, so a second send while this one is being written is refused.
     entry.turn = beginTurn(entry.turn)
-    if (!entry.session.write(text)) {
+    const written = await entry.session.write(text)
+    // The window or the process went while the write was in flight: there is no turn to record.
+    if (entry.closed) {
+      return NOT_FOUND
+    }
+    if (!written) {
       entry.turn = { ...entry.turn, busy: false }
       return failure({
         code: 'session/write-failed',
