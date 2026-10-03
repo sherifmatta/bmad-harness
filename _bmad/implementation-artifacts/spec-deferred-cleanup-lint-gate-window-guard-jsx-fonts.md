@@ -2,7 +2,7 @@
 title: 'Three deferred items: the lint gate, the window guard, and JSX font stacks'
 type: 'chore'
 created: '2026-09-26'
-status: 'ready-for-dev'
+status: 'done'
 baseline_commit: 'f791f59'
 context: []
 ---

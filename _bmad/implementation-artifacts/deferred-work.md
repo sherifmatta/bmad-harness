@@ -37,3 +37,59 @@
 - source_spec: `_bmad/implementation-artifacts/spec-deferred-cleanup-lint-gate-window-guard-jsx-fonts.md`
   summary: The one-window-per-project index keys on the raw path string, so two spellings of one directory are two projects.
   evidence: `src/main/windows/main-window.ts` keys `windowsByProjectPath` on the string it is handed. A trailing slash, a symlinked route, or a differing case on a case-insensitive volume would each open a second window on the same project — the boundary the index exists to hold. Unreachable today: the only caller passes a path straight from the chooser or `argv`, and one window is opened per process anyway. Normalising it changes what `projectPathForWebContents` answers with and therefore what crosses the preload, so it belongs with Story 1.12's second window rather than ahead of it.
+
+- source_spec: `_bmad/implementation-artifacts/spec-2-2-one-contract-across-the-bridge.md`
+  summary: A `projectRoot` spelled differently from the CLI's reported path (for example `/tmp` against `/private/tmp`) makes lexical containment drop every write.
+  evidence: `projectRelative` in `src/main/fold/route-frame.ts` compares with `posix.resolve`/`relative` only, so it is correct only when the caller passes the CLI's spelling. The Story 2.2 note expected Story 2.4's integration to settle it; no `realpath` handling exists in `route-frame.ts` or `session-bridge.ts` today. Epic 3's `doc:prose` and the rail depend on it. Severity medium, unverified.
+
+- source_spec: `_bmad/implementation-artifacts/spec-2-2-one-contract-across-the-bridge.md`
+  summary: Every in-project `Write`/`Edit` becomes `doc:prose`, source files included.
+  evidence: The event carries `path`, so the Epic 3 card can filter; which paths count as documents is an Epic 3 decision (`src/main/fold/route-frame.ts`). Low.
+
+- source_spec: `_bmad/implementation-artifacts/spec-2-3-the-turn-and-the-composer.md`
+  summary: Composer autogrow height is recomputed only when the text changes, so a window resize that re-wraps the text leaves the height stale.
+  evidence: The layout effect in `src/renderer/ui/chat/composer.tsx` depends on `text` alone; a `ResizeObserver` would settle it. Not added when the composer was mounted in Story 2.4. Low.
+
+- source_spec: `_bmad/implementation-artifacts/spec-2-3-the-turn-and-the-composer.md`
+  summary: With no `onSend` handler, Enter is swallowed and the hint still reads `enter sends`.
+  evidence: `src/renderer/ui/chat/composer.tsx:80` returns early when `onSend` is undefined. Unreachable today: `app.tsx` always passes a handler. Low.
+
+- source_spec: `_bmad/implementation-artifacts/spec-2-6-every-indicator-means-something.md`
+  summary: A persona's own write to a file it owns raises `note` once its turn ends, so the tile reads `file changed` after its own work.
+  evidence: The spec defines `note` as any owned-file change cleared at the next turn start; with no runs in Epic 2 the intended meaning could not be judged (`src/main/fold/persona-state.ts`, `foldRail`). Decide in Epic 3 whether notes raised while that persona is working are suppressed. Low.
+
+- source_spec: `_bmad/implementation-artifacts/spec-2-6-every-indicator-means-something.md`
+  summary: `run:finished` clears `error` without checking `runId`, so a late finish of an earlier run could erase a newer run's error.
+  evidence: The fold keeps no run identity (`src/main/fold/persona-state.ts`). No producer of run events existed in Epic 2; Epic 3 brings concurrent runs. Low.
+
+- source_spec: `_bmad/implementation-artifacts/spec-2-6-every-indicator-means-something.md`
+  summary: No test registers the session and rail bridges against one window to show `note` never replaces `work` on the shared projection.
+  evidence: The holder's identity and each bridge are tested separately, and a source-text test pins that both call `personaProjectionFor`; the cross-bridge case needs a two-bridge fixture (`src/main/persona-states.test.ts`). Low.
+
+- source_spec: `_bmad/implementation-artifacts/spec-2-7-the-conversation-is-still-there-tomorrow.md`
+  summary: A message typed mid-turn keeps its typed time in the live window but takes the time main wrote it after a reload, so it can move below a persona message that began after it was typed.
+  evidence: `turn.send` carries no timestamp and main stamps `at` when it writes the turn (`src/main/session-bridge.ts`). Settling it needs either a typed-time argument on `turn.send` (a contract change) or a ruling that send time is the record. Same finding as Epic 2 retro item 20 (`epic-2-retro-item-20-conversation-view-follow-the-newest-turn`). Low.
+
+- source_spec: `_bmad/implementation-artifacts/spec-2-10-when-a-persona-stops-to-ask.md`
+  summary: The decision-block parser is proven only on hand-written persona text and the block only through a mocked bridge; how a real BMad persona formats a question is unobserved.
+  evidence: `src/renderer/ui/chat/decision.ts`: `decision.test.ts` feeds the strings the I/O matrix names, and no recorded persona turn in `fixtures/runs` ends in a lettered or numbered list. Epic 2 retro finding F13, not resolved by the retro analyses. Medium, unverified.
+
+- source_spec: `_bmad/implementation-artifacts/spec-2-12-confirm-continuity-actually-holds.md`
+  summary: Gap: a decision reached in conversation with the previous persona, outside a skill workflow, is not on disk when the next persona opens, so the next persona presents as a restart.
+  evidence: Pass 2 of `_bmad/spikes/spike-handoff-continuity.md`: 0 of 3 valid trials recovered the decision; the previous persona wrote no file in any, and offered or falsely claimed to record it. Per-trial facts in `_bmad/spikes/spike-handoff-continuity-evidence/`. Four candidate remedies are recorded, none chosen or tested; choosing one is part of Epic 2 retro item 27 (`epic-2-retro-item-27-rule-on-story-2-12-in-substance-only-for`, open, Sherif). The remedies touch the `bmad-agent-*` skills. High.
+
+- source_spec: `_bmad/implementation-artifacts/spec-2-12-confirm-continuity-actually-holds.md`
+  summary: The sysline's `picking up from` list is built from `Write` and `Edit` tool blocks only and drops `.memlog.md`, so after a persona writes through Bash heredocs (6 of 7 Pass 1 trials) the sysline names no files and looks the same as after nothing was written.
+  evidence: `foldWrittenPaths` in `src/main/fold/written-paths.ts` and `WRITE_FIELDS = { Write, Edit }` in `src/main/fold/route-frame.ts`; `fixtures/runs/README.md` records the same Write-versus-Bash split for `doc:prose`. The limit is now stated in Story 2.9's amended criteria (sprint change proposal decision 3); revisit if it proves too thin. Medium.
+
+- source_spec: `_bmad/implementation-artifacts/spec-2-12-confirm-continuity-actually-holds.md`
+  summary: Planning lines that still say "no handoff presents as a restart" without the qualification that it holds after written work and fails for a chat-only decision.
+  evidence: Owning skills amend them, not by hand, after the Story 2.12 ruling (Epic 2 retro item 27): `SPEC.md:62` and spec memlog lines 91 and 93 (`bmad-spec`); `epics.md` FR60 (line 111) and the lines it names 428, 1024, 1299 and 1308 (`bmad-create-epics-and-stories`); `ARCHITECTURE-SPINE.md` AD-7 continuity sentences (`bmad-architecture`); `EXPERIENCE.md` 116 and 567 (`bmad-ux`). The exact table is in `_bmad/spikes/spike-handoff-continuity.md` under "Planning lines that now disagree"; line numbers have moved since the 2026-10-03 reconciliation, so re-find them. Medium.
+
+- source_spec: `_bmad/implementation-artifacts/spec-2-12-confirm-continuity-actually-holds.md`
+  summary: One scoring ambiguity decides between "holds only for what was written down" and "holds only in appearance": whether "restates >=3 planted facts" counts facts the next persona writes into its own workspace log or only what it says in chat.
+  evidence: Counted in chat or its own writes, the three counted trials score 4, 4 and 2 of 4; in chat alone, 2, 2 and 2. The spike document uses the former and says so; the owner may rule otherwise ("What the verdict turns on" in `_bmad/spikes/spike-handoff-continuity.md`; `spike-handoff-continuity-evidence/rubric.fixed.json`). Epic 2 retro item 27. Medium.
+
+- source_spec: `_bmad/implementation-artifacts/spec-2-12-confirm-continuity-actually-holds.md`
+  summary: Not tried in the continuity spike: a handoff to a persona other than John, a project with many artifacts, a populated `docs/`, an artifact written by plain chat rather than a skill workflow, a run in the real app, or any model other than the default.
+  evidence: Every counted trial is Mary to John on a one-folder scratch project with `claude-opus-5[1m]`, 3 counted Pass 1 and 2 counted Pass 2 trials (`_bmad/spikes/spike-handoff-continuity.md`). Low.
