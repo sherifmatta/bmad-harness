@@ -17,9 +17,14 @@ const browserWindowConstructed = vi.fn()
 
 // The composition root's one registry: the bridge records into it and quitting flushes it.
 const registry = vi.hoisted(() => ({ forProject: vi.fn(), flush: vi.fn(), flushAll: vi.fn() }))
-const registerSessionBridge = vi.hoisted(() => vi.fn())
+// It hands back the session side's memlog observer, which the rail bridge is given.
+const registerSessionBridge = vi.hoisted(() =>
+  vi.fn<(deps: unknown) => { observeArtifact: () => void }>(() => ({ observeArtifact: vi.fn() }))
+)
 vi.mock('./projections/transcript', () => ({ createTranscriptRegistry: () => registry }))
 vi.mock('./session-bridge', () => ({ registerSessionBridge }))
+const registerRailBridge = vi.hoisted(() => vi.fn<(deps: { observeArtifact?: (...args: unknown[]) => void }) => void>())
+vi.mock('./rail-bridge', () => ({ registerRailBridge }))
 
 vi.mock('electron', () => {
   class BrowserWindow {
@@ -60,6 +65,8 @@ vi.mock('electron', () => {
 await import('./index')
 // Taken at import: the registration happens once, as the module loads.
 const bridgeDeps = registerSessionBridge.mock.calls[0]?.[0]
+const sessionBridge = registerSessionBridge.mock.results[0]?.value as { observeArtifact: ReturnType<typeof vi.fn> }
+const railDeps = [...registerRailBridge.mock.calls]
 
 const existingDirectory = mkdtempSync(join(tmpdir(), 'harness-reopen-'))
 const originalArgv = process.argv
@@ -109,4 +116,17 @@ it('hands the session bridge the registry that quitting flushes', () => {
   beforeQuit?.()
 
   expect(registry.flushAll).toHaveBeenCalledTimes(1)
+})
+
+it('hands the rail bridge an observer that forwards what the watcher saw to the session bridge it registered', () => {
+  const observeArtifact = railDeps[0]?.[0].observeArtifact
+  const sender = { id: 7 }
+  const observation = { type: 'artifact:written', path: '_bmad/x/.memlog.md', size: 1, mtimeMs: 2 }
+
+  expect(railDeps).toHaveLength(1)
+  expect(observeArtifact).toBeTypeOf('function')
+  observeArtifact?.(sender, '/project', observation)
+
+  expect(sessionBridge.observeArtifact).toHaveBeenCalledTimes(1)
+  expect(sessionBridge.observeArtifact).toHaveBeenCalledWith(sender, '/project', observation)
 })

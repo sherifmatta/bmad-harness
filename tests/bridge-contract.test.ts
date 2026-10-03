@@ -134,7 +134,7 @@ it('answers the document channels on the same literals from both sides', () => {
   }
 })
 
-it('exposes exactly fourteen named methods, and no channel passthrough', () => {
+it('exposes exactly fifteen named methods, and no channel passthrough', () => {
   const harness = exposedApis.get('harness')
 
   expect(harness).toBeDefined()
@@ -150,6 +150,7 @@ it('exposes exactly fourteen named methods, and no channel passthrough', () => {
     'openSession',
     'closeSession',
     'sendTurn',
+    'dispatchMenu',
     'getConversation',
     'endConversation',
     'onSessionEvent'
@@ -443,7 +444,7 @@ it('sends endConversation down the end channel with the project id, resolves wit
 
 it('resolves the snapshot itself when conversation:get succeeds, and rejects with the envelope when it is refused', async () => {
   const getConversation = exposedApis.get('harness')?.getConversation as () => Promise<unknown>
-  const snapshot = { entries: [], sessions: [], busy: [], personas: [] }
+  const snapshot = { entries: [], sessions: [], busy: [], personas: [], runs: [] }
   invoke.mockClear()
   invoke.mockResolvedValue({ ok: true, snapshot })
 
@@ -496,6 +497,33 @@ it('turns a refused turn:send into a rejection carrying the envelope', async () 
   const sendTurn = exposedApis.get('harness')?.sendTurn as (id: string, text: string) => Promise<unknown>
 
   await expect(sendTurn('s1', 'hello')).rejects.toEqual(error)
+})
+
+it('sends dispatchMenu down the menu channel with the session id and the code, on the literal main answers', async () => {
+  invoke.mockClear()
+  invoke.mockResolvedValue({ ok: true, runId: 'r1' })
+  const dispatchMenu = exposedApis.get('harness')?.dispatchMenu as (id: string, code: string) => Promise<unknown>
+
+  await dispatchMenu('s1', 'CP')
+  expect(preload.MENU_DISPATCH_CHANNEL).toBe(sessionBridge.MENU_DISPATCH_CHANNEL)
+  expect(preload.MENU_DISPATCH_CHANNEL).toBe('menu:dispatch')
+  expect(registeredHandlers.has(sessionBridge.MENU_DISPATCH_CHANNEL)).toBe(true)
+  expect(invoke).toHaveBeenCalledWith(sessionBridge.MENU_DISPATCH_CHANNEL, 's1', 'CP')
+})
+
+it('resolves dispatchMenu with the run id when main took the dispatch', async () => {
+  invoke.mockResolvedValue({ ok: true, runId: 'run-7' })
+  const dispatchMenu = exposedApis.get('harness')?.dispatchMenu as (id: string, code: string) => Promise<unknown>
+
+  await expect(dispatchMenu('s1', 'CP')).resolves.toBe('run-7')
+})
+
+it('turns a refused menu:dispatch into a rejection carrying the envelope', async () => {
+  const error = { code: 'menu/unknown-entry', message: 'menu · this persona has no such entry' }
+  invoke.mockResolvedValue({ ok: false, error })
+  const dispatchMenu = exposedApis.get('harness')?.dispatchMenu as (id: string, code: string) => Promise<unknown>
+
+  await expect(dispatchMenu('s1', 'ZZ')).rejects.toEqual(error)
 })
 
 it('hands a session subscriber the contract event and never the IPC event, and unsubscribes that very listener', () => {

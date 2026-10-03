@@ -1,0 +1,63 @@
+/*
+ * The skill row — DESIGN.md's `components.skill-button` block, from
+ * harness-mockup.html's `.skillrow` and `.skillbtn` rules (:248-256). It sits
+ * inside the composer, above the field.
+ *
+ * The label is mono at the meta size on the skill-label tracking, in sentence
+ * case: DESIGN.md confines uppercase to five surfaces and this is not one. The
+ * button is a `panel-2` ground with a hairline `line` border at the control
+ * radius; its code chip is the accent on its fill at the micro radius. A
+ * disabled button keeps its words and loses its hover; there is no spinner or
+ * other mark of the turn in flight here. No focus rule: the buttons take the
+ * shared ring. Every value reaches the design system through `var()`.
+ */
+
+.skill-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.skill-row-label {
+  font-family: var(--mono);
+  font-size: var(--fs-meta);
+  letter-spacing: var(--track-skill-label);
+  color: var(--meta);
+}
+
+.skill-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm-plus);
+  padding: var(--skill-button-padding);
+  background: var(--panel-2);
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--radius-control);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: var(--fs-body-ui);
+  cursor: pointer;
+}
+
+.skill-button:hover:not(:disabled) {
+  border-color: var(--skill-button-hover-line);
+  background: var(--panel-3);
+}
+
+.skill-button:disabled {
+  color: var(--dim);
+  cursor: default;
+}
+
+.skill-code {
+  padding: var(--code-tag-padding);
+  background: var(--accent-bg);
+  border: var(--rule-width) solid var(--accent-border);
+  border-radius: var(--radius-micro);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  letter-spacing: var(--track-skill-code);
+}

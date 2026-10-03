@@ -1,0 +1,98 @@
+/*
+ * The run card — Story 3.1's slice of DESIGN.md's *Document card* and its
+ * `components.document-card` block, from harness-mockup.html's `.doccard`
+ * rules and `.caret` (:204-224). Head and body; the foot and its section list
+ * are later stories'.
+ *
+ * The body is one scroll container for both feeds: the run-note feed in sans
+ * and the document prose in mono, told apart by typeface and nothing else —
+ * no container, rule, label or ground between them. It is laid out in reverse
+ * so that the scroll position stays at the newest text as it arrives, with no
+ * script and no smooth scrolling: the content's own order is unchanged.
+ *
+ * The caret spends the inventory's own blink, hard on/off; with reduced motion
+ * the global reset stops it and it stays drawn. It is removed, not faded, when
+ * the run ends. Every value reaches the design system through `var()`.
+ */
+
+.run-card {
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--panel);
+  overflow: hidden;
+  margin: var(--card-margin);
+}
+
+.run-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md-plus);
+  padding: var(--card-head-padding);
+  background: var(--panel-2);
+  border-bottom: var(--rule-width) solid var(--line-soft);
+  min-width: 0;
+}
+
+.run-card-path {
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: var(--fs-ident);
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Amber while writing, green once saved, red once it failed or was stopped. */
+.run-card-status {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: var(--fs-meta);
+  color: var(--amber);
+  white-space: nowrap;
+}
+
+.run-card-status--finished {
+  color: var(--green);
+}
+
+.run-card-status--failed,
+.run-card-status--stopped {
+  color: var(--red);
+}
+
+/* Elapsed in the faint tier: the status string beside it carries the state. */
+.run-card-elapsed {
+  font-family: var(--mono);
+  font-size: var(--fs-meta);
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.run-card-body {
+  display: flex;
+  flex-direction: column-reverse;
+  max-height: var(--card-body-max);
+  overflow: auto;
+  padding: var(--card-body-padding);
+}
+
+/* The document prose: `doc-prose`, mono at the body size on the reading line-height. */
+.run-card-prose {
+  font-family: var(--mono);
+  font-size: var(--fs-body-ui);
+  line-height: var(--lh-read);
+  color: var(--ink-doc);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.run-card-caret {
+  display: inline-block;
+  width: var(--caret-width);
+  height: var(--caret-height);
+  background: var(--accent);
+  vertical-align: var(--caret-drop);
+  animation: var(--motion-blink);
+}

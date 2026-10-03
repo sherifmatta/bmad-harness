@@ -1,4 +1,5 @@
-import type { AgentView } from '../../../shared/install'
+import type { RunCardNote, RunStatus } from '../../../shared/conversation'
+import type { AgentView, HarnessError } from '../../../shared/install'
 
 /**
  * What a transcript is made of — types only, apart from the components that
@@ -43,5 +44,28 @@ export type SyslineEntry = {
   text: string
 }
 
-export type TranscriptEntry = PersonaEntry | UserEntry | SyslineEntry
+/**
+ * A run's card, in time order among the turns: born on `run:started`, folded
+ * from the run's own events, and ended by its terminal one. Its document text
+ * is not here: prose is held apart in the prose store and written to the page
+ * once a frame, so no piece of it is a state change.
+ */
+export type RunCardEntry = {
+  kind: 'run'
+  /** The run's id, which is also its key. */
+  id: string
+  /** `run:started.at`: where the card sits, and what elapsed counts from. */
+  at: number
+  runId: string
+  sessionId: string
+  agentId?: string
+  status: RunStatus
+  endedAt?: number
+  error?: HarnessError
+  notes: readonly RunCardNote[]
+  /** The distinct level-2 headings the run's confirmed writes named. */
+  sections: readonly string[]
+}
+
+export type TranscriptEntry = PersonaEntry | UserEntry | SyslineEntry | RunCardEntry
 

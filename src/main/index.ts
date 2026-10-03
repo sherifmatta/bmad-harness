@@ -69,12 +69,17 @@ ipcMain.handle(PROJECT_PATH_CHANNEL, (event) => {
 
 registerInstallBridge()
 registerProjectBridge()
-registerRailBridge()
-registerDocBridge()
 // The conversations under `userData`, flushed when the app quits so nothing a
 // scheduled write had yet to reach is lost. `userData` is read on first use.
 const transcripts = createTranscriptRegistry({ userDataPath: () => app.getPath('userData') })
-registerSessionBridge({ transcripts })
+const sessions = registerSessionBridge({ transcripts })
+// The rail's watcher is the one that sees a memlog change; the session side
+// reads it for the notes of the run in flight.
+registerRailBridge({
+  observeArtifact: (sender, projectRoot, observation) =>
+    void sessions.observeArtifact(sender, projectRoot, observation)
+})
+registerDocBridge()
 
 app.on('before-quit', () => {
   transcripts.flushAll()

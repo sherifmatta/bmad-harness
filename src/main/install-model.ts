@@ -1,4 +1,5 @@
 import type { InstallProjection } from './projections/install'
+import type { ResolvedMenuEntry } from './sources/install/schema'
 
 /**
  * The install projection of each window, kept where the bridges that read the
@@ -24,4 +25,17 @@ export function forgetInstall(webContentsId: number, projection: InstallProjecti
 export function agentNameFor(webContentsId: number, agentId: string): string | undefined {
   const agent = projections.get(webContentsId)?.snapshot().agents.find(({ id }) => id === agentId)
   return agent === undefined || agent.name === '' ? undefined : agent.name
+}
+
+/**
+ * What a persona's menu code runs, in a window: a skill or a prompt, decided
+ * here in main and never sent to the renderer. `undefined` when the roster has
+ * no such agent, the agent no such code, or the entry was dropped at discovery.
+ */
+export function menuEntryFor(
+  webContentsId: number,
+  agentId: string,
+  code: string
+): ResolvedMenuEntry | undefined {
+  return projections.get(webContentsId)?.menuEntry(agentId, code)
 }

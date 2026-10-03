@@ -221,8 +221,10 @@ describe('the rail in the window', () => {
   it('registers the rail bridge beside the install bridge', () => {
     const index = read('src/main/index.ts')
 
-    expect(index).toContain('registerRailBridge()')
-    expect(index.indexOf('registerInstallBridge()')).toBeLessThan(index.indexOf('registerRailBridge()'))
+    // Story 3.1: the rail bridge takes the session side's memlog observer, so it
+    // is registered after the session bridge and is handed that one dependency.
+    expect(index).toContain('registerRailBridge({')
+    expect(index.indexOf('registerInstallBridge()')).toBeLessThan(index.indexOf('registerRailBridge({'))
   })
 
   it('feeds the shell from useRail and mounts the conversation as the thread', () => {

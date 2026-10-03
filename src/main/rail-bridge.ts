@@ -34,6 +34,12 @@ export type RailBridgeDeps = {
   /** The projection's clock and quiet window, for a test that holds them still. */
   now?: () => number
   quietMs?: number
+  /**
+   * Told every observation the watcher makes, after the rail has it, so the
+   * session side can read a changed `.memlog.md` for a run's notes. Optional:
+   * the rail is complete without it.
+   */
+  observeArtifact?: (sender: Sender, projectRoot: string, observation: ArtifactObservation) => void
 }
 
 type Service = { projection: RailProjection; watcher: ArtifactWatcher; ready: Promise<void> }
@@ -70,7 +76,10 @@ export function registerRailBridge(deps: RailBridgeDeps = {}): void {
     })
     const watcher = watch({
       projectRoot,
-      onObservation: (observation) => projection.observe(observation),
+      onObservation: (observation) => {
+        projection.observe(observation)
+        deps.observeArtifact?.(sender, projectRoot, observation)
+      },
       onError: (error) =>
         writeDiagnostic(`rail/watch · ${error instanceof Error ? error.message : String(error)}`)
     })

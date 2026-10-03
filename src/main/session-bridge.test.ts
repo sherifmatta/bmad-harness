@@ -1149,7 +1149,8 @@ describe('conversation:get', () => {
       entries: [],
       sessions: [],
       busy: [],
-      personas: []
+      personas: [],
+      runs: []
     })
   })
 
@@ -1161,7 +1162,8 @@ describe('conversation:get', () => {
       entries: [{ kind: 'persona', id: 'm-0', at: expect.any(Number), agentId: A, messageId: 'msg_1', text: 'Hel' }],
       sessions: [{ agentId: A, sessionId: 's1' }],
       busy: ['s1'],
-      personas: [{ agentId: A, state: 'work', at: 1001 }]
+      personas: [{ agentId: A, state: 'work', at: 1001 }],
+      runs: []
     })
 
     proc.frame(delta('lo'))
@@ -1413,7 +1415,7 @@ describe('reclaim', () => {
     })
     expect(reply).toMatchObject({
       ok: true,
-      snapshot: { entries: [{ text: 'Bye' }], sessions: [], busy: [], personas: [] }
+      snapshot: { entries: [{ text: 'Bye' }], sessions: [], busy: [], personas: [], runs: [] }
     })
   })
 })
@@ -1460,7 +1462,7 @@ describe('conversation.end', () => {
     expect(closedEvents(sender)).toMatchObject([{ payload: { sessionId: 's1', agentId: A, reason: 'closed' } }])
     expect(get(sender)).toMatchObject({
       ok: true,
-      snapshot: { entries: [], sessions: [], busy: [], personas: [] }
+      snapshot: { entries: [], sessions: [], busy: [], personas: [], runs: [] }
     })
   })
 
@@ -1520,7 +1522,7 @@ describe('conversation.end', () => {
     launch()
     expect(get(new FakeSender(1))).toEqual({
       ok: true,
-      snapshot: { entries: [], sessions: [], busy: [], personas: [] }
+      snapshot: { entries: [], sessions: [], busy: [], personas: [], runs: [] }
     })
   })
 

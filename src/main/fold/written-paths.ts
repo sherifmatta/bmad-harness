@@ -78,10 +78,11 @@ export function foldWrittenPaths(
       return { state: { blocks }, paths: named ? [path] : [] }
     }
 
-    // Words, and the turn's end and its background tasks, name no file.
+    // Words, the turn's end and its background tasks, and the tools' results, name no file.
     case 'text-delta':
     case 'turn-result':
     case 'background-tasks':
+    case 'tool-results':
       return { state, paths: [] }
   }
 }

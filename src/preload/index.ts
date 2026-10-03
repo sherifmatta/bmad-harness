@@ -6,6 +6,7 @@ import {
   DOC_OPEN_CHANNEL,
   INSTALL_CHANGED_CHANNEL,
   INSTALL_GET_CHANNEL,
+  MENU_DISPATCH_CHANNEL,
   PROJECT_BRANCH_CHANNEL,
   PROJECT_PATH_CHANNEL,
   RAIL_CHANGED_CHANNEL,
@@ -16,7 +17,12 @@ import {
   TURN_SEND_CHANNEL
 } from '../shared/channels'
 import type { ContractCommands } from '../shared/commands'
-import type { ConversationReply, OpenedSession, SessionOpenReply } from '../shared/conversation'
+import type {
+  ConversationReply,
+  MenuDispatchReply,
+  OpenedSession,
+  SessionOpenReply
+} from '../shared/conversation'
 import type { DocAck } from '../shared/document'
 import type { ContractEvent } from '../shared/events'
 import type { InstallReply, InstallSnapshot } from '../shared/install'
@@ -35,6 +41,7 @@ export {
   DOC_OPEN_CHANNEL,
   INSTALL_CHANGED_CHANNEL,
   INSTALL_GET_CHANNEL,
+  MENU_DISPATCH_CHANNEL,
   PROJECT_BRANCH_CHANNEL,
   PROJECT_PATH_CHANNEL,
   RAIL_CHANGED_CHANNEL,
@@ -141,6 +148,17 @@ const harness: HarnessApi = {
     if (!reply.ok) {
       throw reply.error
     }
+  },
+
+  // A command (AD-13): the session and the menu code go to main, which alone
+  // decides what the code runs and writes it as the turn. What comes back is
+  // the run's id, or the envelope.
+  dispatchMenu: async (sessionId, code) => {
+    const reply = (await ipcRenderer.invoke(MENU_DISPATCH_CHANNEL, sessionId, code)) as MenuDispatchReply
+    if (!reply.ok) {
+      throw reply.error
+    }
+    return reply.runId
   },
 
   // A read beside `getRail`: the transcript, which sessions are live and busy and

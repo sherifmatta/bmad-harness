@@ -56,6 +56,8 @@ let watchers: FakeWatcher[]
 let watchThrows: Error | null
 let diagnostics: string[]
 let scanRows: ArtifactObservation[]
+/** What the session side was told, as `[window id, project root, observation]`. */
+let observed: [number, string, ArtifactObservation][]
 
 const found = (path: string): ArtifactObservation => ({
   type: 'artifact:found',
@@ -70,6 +72,7 @@ beforeEach(() => {
   watchThrows = null
   diagnostics = []
   scanRows = []
+  observed = []
   vi.useFakeTimers()
   vi.setSystemTime(1_000_000)
   registerRailBridge({
@@ -93,7 +96,8 @@ beforeEach(() => {
       watchers.push(watcher)
       return { ready, close: async () => void (watcher.closed = true) }
     },
-    writeDiagnostic: (line) => diagnostics.push(line)
+    writeDiagnostic: (line) => diagnostics.push(line),
+    observeArtifact: (sender, projectRoot, observation) => void observed.push([sender.id, projectRoot, observation])
   })
 })
 
@@ -267,5 +271,22 @@ describe('persona:state from the rail', () => {
     watchers[0].emit({ type: 'artifact:written', path: PRD, size: 9, mtimeMs: 1 })
 
     expect(sender.personaStates).toEqual([])
+  })
+})
+
+describe('the session side’s view of the watcher (Story 3.1)', () => {
+  it('is told every observation the rail is, with the window and its project, scan included', async () => {
+    const sender = new FakeSender(3)
+    scanRows = [found('_bmad/prds/x/.memlog.md')]
+    const pending = ask(sender)
+    watchers[0].finishScan()
+    await pending
+    const written: ArtifactObservation = { type: 'artifact:written', path: '_bmad/prds/x/.memlog.md', size: 9, mtimeMs: 200 }
+    watchers[0].emit(written)
+
+    expect(observed).toEqual([
+      [3, '/project-3', found('_bmad/prds/x/.memlog.md')],
+      [3, '/project-3', written]
+    ])
   })
 })

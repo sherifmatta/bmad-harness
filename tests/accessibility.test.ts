@@ -542,3 +542,42 @@ describe('the orphan header', () => {
     expect(withoutAnyComments(sourceText.get(HEADER) ?? '')).not.toMatch(/aria-live|role="(?:status|alert|log)"/)
   })
 })
+
+describe('a run, heard through the one live region (Story 3.1)', () => {
+  const read = (path: string): string => withoutComments(readFileSync(join(ROOT, path), 'utf8'))
+  const CARD = 'src/renderer/ui/chat/run-card.tsx'
+  const CONVERSATION = 'src/renderer/ui/chat/use-conversation.ts'
+
+  it('is announced by the window’s one announcer, from the run’s lifecycle events alone', () => {
+    const app = read('src/renderer/ui/app.tsx')
+    const conversation = read(CONVERSATION)
+    expect(app).toMatch(/announceLifecycle = useCallback\(\s*\(line: string\) => announcer\.announce\(line, performance\.now\(\)\)/)
+    expect(app).toContain('useConversation(snapshot?.agents ?? NO_AGENTS, announceHandoff, announceLifecycle)')
+    // Only the four lifecycle events reach it; a note, a commit and prose never do.
+    const gate = conversation.slice(conversation.indexOf('function announceLifecycle'))
+    const body = gate.slice(0, gate.indexOf('\n  }\n'))
+    expect([...body.matchAll(/event\.name !== '([a-z:]+)'/g)].map(([, name]) => name)).toEqual([
+      'run:started',
+      'run:finished',
+      'run:stopped',
+      'run:failed'
+    ])
+  })
+
+  it('never announces prose: neither the card nor the prose store reaches an announcer or a live region', () => {
+    for (const path of [CARD, 'src/renderer/ui/chat/prose-store.ts']) {
+      expect(read(path), path).not.toMatch(/announce|aria-live|role="(?:status|alert|log)"/)
+    }
+    // The prose bypasses the fold before any lifecycle check runs.
+    const conversation = read(CONVERSATION)
+    const bypass = conversation.indexOf("if (event.name === 'doc:prose')")
+    expect(bypass).toBeGreaterThan(-1)
+    expect(bypass).toBeLessThan(conversation.indexOf('announceLifecycle(event)'))
+  })
+
+  it('marks the card busy while its run is in flight, and moves no focus', () => {
+    const card = read(CARD)
+    expect(card).toContain('aria-busy={running ? true : undefined}')
+    expect(card).not.toMatch(/\.focus\(|autoFocus|tabIndex/)
+  })
+})

@@ -6,6 +6,7 @@ import type { ContractEvent } from '../../../shared/events'
 import type { AgentView } from '../../../shared/install'
 import { inAct, renderHook, settle } from '../testing/render-hook'
 import type { MountedHook } from '../testing/render-hook'
+import { createProseStore } from './prose-store'
 import { createConversation, useConversation } from './use-conversation'
 import type { ConversationBridge } from './use-conversation'
 
@@ -40,7 +41,7 @@ function deferred<T>(): Deferred<T> {
   return { promise, resolve, reject }
 }
 
-const EMPTY: ConversationSnapshot = { entries: [], sessions: [], busy: [], personas: [] }
+const EMPTY: ConversationSnapshot = { entries: [], sessions: [], busy: [], personas: [], runs: [] }
 
 class FakeBridge implements ConversationBridge {
   opens: string[] = []
@@ -78,6 +79,13 @@ class FakeBridge implements ConversationBridge {
   sendTurn(sessionId: string, text: string): Promise<void> {
     this.sends.push([sessionId, text])
     return this.sendResults.shift() ?? Promise.resolve()
+  }
+  dispatches: [string, string][] = []
+  /** What the next dispatch answers; one entry is consumed per dispatch. */
+  dispatchResults: (Promise<string> | undefined)[] = []
+  dispatchMenu(sessionId: string, code: string): Promise<string> {
+    this.dispatches.push([sessionId, code])
+    return this.dispatchResults.shift() ?? Promise.resolve('r1')
   }
   getConversation(): Promise<ConversationSnapshot> {
     this.reads += 1
@@ -1129,5 +1137,131 @@ describe('useConversation', () => {
     hook = renderHook(() => useConversation(agents))
 
     await expect(hook.current.end('/work/falcon')).resolves.toBe(false)
+  })
+})
+
+describe('a run, through the conversation (Story 3.1)', () => {
+  const started = (runId = 'r1'): ContractEvent => ({
+    name: 'run:started',
+    payload: { runId, sessionId: 's1', agentId: mary.id, code: 'CP', at: 50 }
+  })
+  const prose = (text: string): ContractEvent => ({
+    name: 'doc:prose',
+    payload: { runId: 'r1', sessionId: 's1', callId: 'c1', path: 'prd.md', text, at: 51 }
+  })
+
+  async function live(extra: Partial<Parameters<typeof createConversation>[0]> = {}) {
+    const published: { entries: readonly unknown[]; busy: ReadonlySet<string> }[] = []
+    const failures: unknown[] = []
+    const lines: string[] = []
+    const store = createProseStore({ raf: (callback) => callback() })
+    const conversation = createConversation({
+      bridge,
+      agentOf: (id) => agents.find((agent) => agent.id === id),
+      now: () => (clock += 1),
+      publish: (state) => void published.push(state),
+      onFailure: (error) => void failures.push(error),
+      prose: store,
+      onLifecycle: (line) => void lines.push(line),
+      ...extra
+    })
+    await connected(conversation)
+    void conversation.activate(mary.id)
+    bridge.openResult[0].resolve('s1')
+    await settle()
+    return { conversation, published, failures, lines, store }
+  }
+
+  it('sends the code alone to the persona’s session, and holds the row while the dispatch is in flight', async () => {
+    const { conversation, published } = await live()
+    conversation.runSkill(mary.id, 'CP')
+    conversation.runSkill(mary.id, 'CP')
+
+    expect(bridge.dispatches).toEqual([['s1', 'CP']])
+    expect(published.at(-1)?.busy.has('s1')).toBe(true)
+  })
+
+  it('does nothing for a persona with no session, and frees the row with the failure line on a refusal', async () => {
+    const { conversation, published, failures } = await live()
+    conversation.runSkill(john.id, 'CP')
+    expect(bridge.dispatches).toEqual([])
+
+    const refusal = { code: 'menu/unknown-entry', message: 'menu · this persona has no such entry' }
+    bridge.dispatchResults = [Promise.reject(refusal)]
+    conversation.runSkill(mary.id, 'ZZ')
+    await settle()
+    expect(published.at(-1)?.busy.has('s1')).toBe(false)
+    expect(failures.at(-1)).toEqual(refusal)
+  })
+
+  it('keeps the row held and shows no failure when main answers busy: its turn’s end frees the session', async () => {
+    const { conversation, published, failures } = await live()
+    bridge.dispatchResults = [Promise.reject({ code: 'session/busy', message: 'session · a turn is already in flight' })]
+    conversation.runSkill(mary.id, 'CP')
+    await settle()
+
+    expect(bridge.dispatches).toEqual([['s1', 'CP']])
+    expect(published.at(-1)?.busy.has('s1')).toBe(true)
+    expect(failures.filter((failure) => failure !== null)).toEqual([])
+    bridge.push(awaiting('s1'))
+    expect(published.at(-1)?.busy.has('s1')).toBe(false)
+  })
+
+  it('keeps prose out of the state: a piece goes to the prose store and publishes nothing', async () => {
+    const { published, store } = await live()
+    bridge.push(started())
+    const count = published.length
+    bridge.push(prose('## Vi'))
+    bridge.push(prose('sion'))
+
+    expect(published.length).toBe(count)
+    expect(store.get('r1')).toEqual({ callId: 'c1', path: 'prd.md', text: '## Vision' })
+  })
+
+  it('announces the run’s start and end once each, with the persona’s name, and never its prose or notes', async () => {
+    const { lines } = await live()
+    bridge.push(started())
+    bridge.push(prose('text'))
+    bridge.push({ name: 'run:note', payload: { runId: 'r1', sessionId: 's1', text: '- note', at: 52 } })
+    bridge.push({
+      name: 'doc:committed',
+      payload: { ok: true, runId: 'r1', sessionId: 's1', callId: 'c1', path: 'prd.md', sections: ['A', 'B'], at: 53 }
+    })
+    bridge.push({ name: 'run:finished', payload: { runId: 'r1', sessionId: 's1', at: 54 } })
+
+    expect(lines).toEqual(['Mary · writing', 'Mary · saved · 2 sections'])
+  })
+
+  it('takes the cards and their prose from the snapshot a window reads on connecting', async () => {
+    bridge.conversation = Promise.resolve({
+      ...EMPTY,
+      runs: [
+        {
+          runId: 'r9',
+          sessionId: 's1',
+          agentId: mary.id,
+          code: 'CP',
+          startedAt: 40,
+          status: 'running',
+          notes: [{ text: '- n', at: 41 }],
+          sections: ['A'],
+          prose: { callId: 'c9', path: 'prd.md', text: 'so far' }
+        }
+      ]
+    })
+    const store = createProseStore({ raf: (callback) => callback() })
+    const published: { entries: readonly unknown[] }[] = []
+    const conversation = createConversation({
+      bridge,
+      agentOf: (id) => agents.find((agent) => agent.id === id),
+      now: () => (clock += 1),
+      publish: (state) => void published.push(state),
+      onFailure: () => {},
+      prose: store
+    })
+    await connected(conversation)
+
+    expect(published.at(-1)?.entries).toMatchObject([{ kind: 'run', runId: 'r9', status: 'running', sections: ['A'] }])
+    expect(store.get('r9')).toEqual({ callId: 'c9', path: 'prd.md', text: 'so far' })
   })
 })

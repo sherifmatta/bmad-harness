@@ -31,9 +31,9 @@ const shipping = filesUnder(SRC).filter(
 describe('the channels', () => {
   const literals = Object.values(channels)
 
-  it('are nineteen, and distinct', () => {
-    expect(literals).toHaveLength(19)
-    expect(new Set(literals).size).toBe(19)
+  it('are twenty, and distinct', () => {
+    expect(literals).toHaveLength(20)
+    expect(new Set(literals).size).toBe(20)
   })
 
   // `rail:changed` is also the name of the event the rail projection raises,

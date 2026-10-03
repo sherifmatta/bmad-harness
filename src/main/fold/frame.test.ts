@@ -79,3 +79,37 @@ describe('readFrame: everything else it already read', () => {
     expect(readFrame(frame)).toBeUndefined()
   })
 })
+
+describe('readFrame: tool results', () => {
+  const user = (content: unknown, parent: string | null = null) => ({
+    type: 'user',
+    parent_tool_use_id: parent,
+    message: { role: 'user', content }
+  })
+
+  it('reads each tool_result of a main-thread user frame, with is_error as failed', () => {
+    expect(
+      readFrame(
+        user([
+          { type: 'tool_result', tool_use_id: 'toolu_1', content: 'File created successfully' },
+          { type: 'tool_result', tool_use_id: 'toolu_2', is_error: true, content: 'refused' },
+          { type: 'text', text: 'not a result' }
+        ])
+      )
+    ).toEqual({
+      kind: 'tool-results',
+      results: [
+        { callId: 'toolu_1', failed: false },
+        { callId: 'toolu_2', failed: true }
+      ]
+    })
+  })
+
+  it('reads nothing from a subagent’s results, the user’s own turn or a malformed frame', () => {
+    expect(readFrame(user([{ type: 'tool_result', tool_use_id: 'toolu_1' }], 'toolu_agent'))).toBeUndefined()
+    expect(readFrame(user([{ type: 'text', text: 'hello' }]))).toBeUndefined()
+    expect(readFrame(user('a string turn'))).toBeUndefined()
+    expect(readFrame({ type: 'user' })).toBeUndefined()
+    expect(readFrame(user([{ type: 'tool_result', tool_use_id: 7 }]))).toBeUndefined()
+  })
+})

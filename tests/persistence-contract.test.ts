@@ -117,7 +117,7 @@ describe('the transcript main keeps and the one the window folds', () => {
     }
     let reloaded = hydrate(
       initialConversation,
-      { entries: [...main.entries], sessions: [], busy: [], personas: [] },
+      { entries: [...main.entries], sessions: [], busy: [], personas: [], runs: [] },
       agentOf
     ).state
     let steady = initialConversation
@@ -152,11 +152,11 @@ describe('a sysline in main’s transcript and in the window’s', () => {
     steady = withHandoff(steady, record)
     const reloaded = hydrate(
       initialConversation,
-      { entries: [...main.entries], sessions: [], busy: [], personas: [] },
+      { entries: [...main.entries], sessions: [], busy: [], personas: [], runs: [] },
       agentOf
     ).state
 
-    const shown = (entries: typeof steady.entries) => entries.map((entry) => [entry.kind, entry.at, entry.text])
+    const shown = (entries: typeof steady.entries) => entries.map((entry) => [entry.kind, entry.at, 'text' in entry ? entry.text : undefined])
     expect(shown(reloaded.entries)).toEqual(shown(steady.entries))
     expect(shown(reloaded.entries)[1]).toEqual(['sysline', 20, line])
   })
@@ -172,7 +172,7 @@ describe('a sysline in main’s transcript and in the window’s', () => {
     window = foldEvent(window, said(mary.id, 'm', 'b', 3), agentOf).state
 
     expect(main.entries.slice(0, 3).map((entry) => [entry.kind, entry.text])).toEqual(
-      window.entries.map((entry) => [entry.kind, entry.text])
+      window.entries.map((entry) => [entry.kind, 'text' in entry ? entry.text : undefined])
     )
     expect(main.entries.map((entry) => entry.kind)).toEqual(['persona', 'sysline', 'persona', 'user'])
   })

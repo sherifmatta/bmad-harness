@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { InstallSnapshot } from '../shared/install'
-import { agentNameFor, forgetInstall, rememberInstall } from './install-model'
+import { agentNameFor, forgetInstall, menuEntryFor, rememberInstall } from './install-model'
 import type { InstallProjection } from './projections/install'
 
 const projection = (names: Record<string, string>): InstallProjection => ({
@@ -52,5 +52,17 @@ describe('the install model main shares between bridges', () => {
     forgetInstall(904, current)
 
     expect(agentNameFor(904, 'a')).toBeUndefined()
+  })
+
+  it('answers what a menu code runs from the window’s own projection, and nothing for another window', () => {
+    const entry = { code: 'CP', description: 'Create the PRD', action: { kind: 'skill' as const, skill: 'bmad-prd' } }
+    rememberInstall(905, {
+      ...projection({ a: 'Ann' }),
+      menuEntry: (agentId, code) => (agentId === 'a' && code === 'CP' ? entry : undefined)
+    })
+
+    expect(menuEntryFor(905, 'a', 'CP')).toEqual(entry)
+    expect(menuEntryFor(905, 'a', 'XX')).toBeUndefined()
+    expect(menuEntryFor(906, 'a', 'CP')).toBeUndefined()
   })
 })

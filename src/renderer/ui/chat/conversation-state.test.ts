@@ -6,12 +6,14 @@ import {
   canAnswer,
   cancelQueued,
   dispatchFailed,
+  dispatchStarted,
   dropQueued,
   ended,
   foldEvent,
   hydrate,
   initialConversation,
   orphansOf,
+  runCardOf,
   sendMessage,
   sessionOf,
   sessionReady,
@@ -199,7 +201,7 @@ describe('sessions', () => {
     let state = fold([opened('s1'), said('m1', 'Hello', 1, mary.id)])
     state = fold([line, line], state)
 
-    expect(state.entries.map((entry) => [entry.kind, entry.id, entry.text])).toEqual([
+    expect(state.entries.map((entry) => [entry.kind, entry.id, 'text' in entry ? entry.text : undefined])).toEqual([
       ['persona', expect.any(String), 'Hello'],
       ['sysline', 'm-4', 'turn failed · error_during_execution']
     ])
@@ -522,6 +524,7 @@ describe('hydrate', () => {
     sessions: [],
     busy: [],
     personas: [],
+    runs: [],
     ...over
   })
   const stored: ConversationSnapshot['entries'] = [
@@ -569,7 +572,7 @@ describe('hydrate', () => {
     ).state
     const joined = fold([said('msg_1', 'lo', 9), said('msg_2', 'next', 10)], hydrated)
 
-    expect(joined.entries.map((entry) => entry.text)).toEqual(['hello', 'Hello', 'next'])
+    expect(joined.entries.map((entry) => ('text' in entry ? entry.text : undefined))).toEqual(['hello', 'Hello', 'next'])
     expect(
       foldEvent(
         joined,
@@ -605,7 +608,7 @@ describe('hydrate', () => {
       agentOf
     )
 
-    expect(state.entries.map((entry) => entry.text)).toEqual(['hello', 'Hel', 'early'])
+    expect(state.entries.map((entry) => ('text' in entry ? entry.text : undefined))).toEqual(['hello', 'Hel', 'early'])
     expect(state.entries[2]).not.toHaveProperty('queuedFor')
     expect(deliveries).toMatchObject([{ sessionId: 's1', text: 'early' }])
     expect(state.busy.has('s1')).toBe(true)
@@ -691,13 +694,13 @@ describe('a handoff sysline', () => {
     const later = fold([said('msg_1', ' and more', 30)], handed)
 
     expect(later.entries.map((entry) => entry.kind)).toEqual(['persona', 'sysline', 'persona'])
-    expect(later.entries.map((entry) => entry.text)).toEqual(['Hello', record.text, ' and more'])
+    expect(later.entries.map((entry) => ('text' in entry ? entry.text : undefined))).toEqual(['Hello', record.text, ' and more'])
   })
 
   it('is hydrated from the stored transcript like any record, and nothing else is added', () => {
     const { state } = hydrate(
       initialConversation,
-      { entries: [{ kind: 'user', id: 'm-0', at: 5, text: 'hi' }, record], sessions: [], busy: [], personas: [] },
+      { entries: [{ kind: 'user', id: 'm-0', at: 5, text: 'hi' }, record], sessions: [], busy: [], personas: [], runs: [] },
       agentOf
     )
 
@@ -741,7 +744,7 @@ describe('canAnswer', () => {
   it('is false after a relaunch: a snapshot with no live session leaves nothing to answer', () => {
     const { state } = hydrate(
       initialConversation,
-      { entries: [], sessions: [], busy: [], personas: [] },
+      { entries: [], sessions: [], busy: [], personas: [], runs: [] },
       agentOf
     )
     expect(canAnswer(state, mary.id)).toBe(false)
@@ -750,9 +753,94 @@ describe('canAnswer', () => {
   it('is true for a session the window met only through a snapshot, if main says it is idle', () => {
     const { state } = hydrate(
       initialConversation,
-      { entries: [], sessions: [{ agentId: mary.id, sessionId: 's1' }], busy: [], personas: [] },
+      { entries: [], sessions: [{ agentId: mary.id, sessionId: 's1' }], busy: [], personas: [], runs: [] },
       agentOf
     )
     expect(canAnswer(state, mary.id)).toBe(true)
+  })
+})
+
+describe('a run’s card (Story 3.1)', () => {
+  const R = { runId: 'r1', sessionId: 's1' }
+  const started: ContractEvent = { name: 'run:started', payload: { ...R, agentId: mary.id, code: 'CP', at: 50 } }
+
+  it('is born on run:started in time order, running and empty, and its session is busy', () => {
+    const state = fold([said('m1', 'Hello', 10), started])
+    expect(state.entries.map((entry) => entry.kind)).toEqual(['persona', 'run'])
+    expect(runCardOf(state, 'r1')).toEqual({
+      kind: 'run',
+      id: 'r1',
+      at: 50,
+      runId: 'r1',
+      sessionId: 's1',
+      agentId: mary.id,
+      status: 'running',
+      notes: [],
+      sections: []
+    })
+    expect(state.busy.has('s1')).toBe(true)
+    expect(fold([started, started]).entries).toHaveLength(1)
+  })
+
+  it('takes notes, committed headings once each, and one terminal event', () => {
+    const state = fold([
+      started,
+      { name: 'run:note', payload: { ...R, text: '- (event) a', at: 51 } },
+      { name: 'doc:committed', payload: { ...R, ok: true, callId: 'c', path: 'p.md', sections: ['A', 'B'], at: 52 } },
+      { name: 'doc:committed', payload: { ...R, ok: true, callId: 'd', path: 'p.md', sections: ['B', 'C'], at: 53 } },
+      { name: 'run:finished', payload: { ...R, at: 60 } },
+      { name: 'run:note', payload: { ...R, text: '- late', at: 61 } }
+    ])
+    expect(runCardOf(state, 'r1')).toMatchObject({
+      status: 'finished',
+      endedAt: 60,
+      notes: [{ text: '- (event) a', at: 51 }],
+      sections: ['A', 'B', 'C']
+    })
+  })
+
+  it('reads failed with its envelope, and ignores events of a run it never saw start', () => {
+    const error = { code: 'run/failed', message: 'run · the run failed', detail: 'x' }
+    const failed = fold([started, { name: 'run:failed', payload: { ...R, error, at: 70 } }])
+    expect(runCardOf(failed, 'r1')).toMatchObject({ status: 'failed', endedAt: 70, error })
+    const ghost = fold([{ name: 'run:finished', payload: { runId: 'gone', sessionId: 's1', at: 1 } }])
+    expect(ghost.entries).toEqual([])
+  })
+
+  it('folds no doc:prose: a piece of a document is no state change', () => {
+    const state = fold([started])
+    const prose: ContractEvent = { name: 'doc:prose', payload: { ...R, callId: 'c', path: 'p.md', text: 'x', at: 51 } }
+    expect(foldEvent(state, prose, agentOf).state).toBe(state)
+  })
+
+  it('comes back from the snapshot of a window that reloaded, in time order among the turns', () => {
+    const snapshot: ConversationSnapshot = {
+      entries: [{ kind: 'persona', id: 'm-0', at: 10, agentId: mary.id, messageId: 'msg', text: 'Hi' }],
+      sessions: [{ agentId: mary.id, sessionId: 's1' }],
+      busy: ['s1'],
+      personas: [],
+      runs: [
+        {
+          ...R,
+          agentId: mary.id,
+          code: 'CP',
+          startedAt: 20,
+          status: 'finished',
+          endedAt: 30,
+          notes: [{ text: '- n', at: 21 }],
+          sections: ['A'],
+          prose: { callId: 'c', path: 'p.md', text: 'x' }
+        }
+      ]
+    }
+    const state = hydrate(initialConversation, snapshot, agentOf).state
+    expect(state.entries.map((entry) => entry.kind)).toEqual(['persona', 'run'])
+    expect(runCardOf(state, 'r1')).toMatchObject({ status: 'finished', endedAt: 30, sections: ['A'], notes: [{ text: '- n' }] })
+    expect(runCardOf(state, 'r1')).not.toHaveProperty('code')
+  })
+
+  it('holds the session busy from a dispatch, and goes with the conversation when it ends', () => {
+    expect(dispatchStarted(initialConversation, 's1').busy.has('s1')).toBe(true)
+    expect(ended(fold([started])).entries).toEqual([])
   })
 })

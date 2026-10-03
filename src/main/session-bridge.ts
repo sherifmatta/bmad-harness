@@ -5,14 +5,16 @@ import type { IpcMainInvokeEvent } from 'electron'
 import {
   CONVERSATION_END_CHANNEL,
   CONVERSATION_GET_CHANNEL,
+  MENU_DISPATCH_CHANNEL,
   SESSION_CLOSE_CHANNEL,
   SESSION_EVENT_CHANNEL,
   SESSION_OPEN_CHANNEL,
   TURN_SEND_CHANNEL
 } from '../shared/channels'
 import type { ContractCommands } from '../shared/commands'
-import type { ConversationReply } from '../shared/conversation'
-import type { SessionId } from '../shared/ids'
+import type { ConversationReply, MenuDispatchReply } from '../shared/conversation'
+import type { RunId, SessionId } from '../shared/ids'
+import type { ArtifactObservation } from '../shared/rail'
 import {
   defaultProjectPathFor,
   defaultWriteDiagnostic,
@@ -21,14 +23,17 @@ import {
   senderOf,
   unexpected
 } from './bridge-kit'
+import type { Sender } from './bridge-kit'
 import { beginTurn } from './fold/turn-end'
-import { agentNameFor } from './install-model'
+import { agentNameFor, menuEntryFor } from './install-model'
 import { personaProjectionFor } from './persona-states'
 import { createTranscriptRegistry } from './projections/transcript'
 import type { TranscriptRegistry } from './projections/transcript'
 import { createHandoffComposer } from './session-handoff'
 import { NOT_FOUND, createSessionRegistry } from './session-registry'
-import type { OpenReply, SessionRegistry } from './session-registry'
+import type { Entry, OpenReply, Service, SessionRegistry } from './session-registry'
+import type { ResolvedMenuEntry } from './sources/install/schema'
+import { readText } from './sources/project/read-text'
 import { canonicalPath } from './sources/session/canonical-path'
 import { isAgentId, spawnSession } from './sources/session/session-process'
 import type { SpawnOutcome, SpawnSessionOptions } from './sources/session/session-process'
@@ -43,6 +48,7 @@ import type { SpawnOutcome, SpawnSessionOptions } from './sources/session/sessio
 export {
   CONVERSATION_END_CHANNEL,
   CONVERSATION_GET_CHANNEL,
+  MENU_DISPATCH_CHANNEL,
   SESSION_CLOSE_CHANNEL,
   SESSION_EVENT_CHANNEL,
   SESSION_OPEN_CHANNEL,
@@ -84,9 +90,24 @@ export type SessionBridgeDeps = {
   userDataDir?: () => string
   homeDir?: string
   canonicalize?: (absolutePath: string) => string
+  /**
+   * What a persona's menu code runs, from main's own install model, for the
+   * window with this id. The session bridge asks the install model, never the
+   * reverse; the real one reads the install bridge's projection.
+   */
+  menuEntryFor?: (webContentsId: number, agentId: string, code: string) => ResolvedMenuEntry | undefined
+  newRunId?: () => RunId
+  /** A memlog's text, read when the watcher saw it change; the real one reads the disk. */
+  readText?: (absolutePath: string) => Promise<string | undefined>
 }
 
-/** What the five handlers share. */
+/** What the session side offers the rest of main: the rail's watcher tells it what it saw. */
+export type SessionBridge = {
+  /** A file of the window's project changed; resolves once a memlog's new notes, if any, are told. */
+  observeArtifact(sender: Sender, projectRoot: string, observation: ArtifactObservation): Promise<void>
+}
+
+/** What the six handlers share. */
 type Context = {
   projectPathFor: (webContentsId: number) => string | undefined
   now: () => number
@@ -94,6 +115,8 @@ type Context = {
   transcripts: TranscriptRegistry
   registry: SessionRegistry
   handoffFor: ReturnType<typeof createHandoffComposer>
+  menuEntryFor: NonNullable<SessionBridgeDeps['menuEntryFor']>
+  newRunId: () => RunId
 }
 
 function openSession(ctx: Context) {
@@ -126,49 +149,107 @@ function openSession(ctx: Context) {
   }
 }
 
+/** A session that can take a turn now, or the envelope saying why it cannot. */
+type Refusal = ReturnType<typeof failure>
+type Writable = { ok: true; service: Service; entry: Entry; arg: string } | { ok: false; error: Refusal }
+
+/** The session a turn is for: open, idle, and the argument a string. Checked in this order. */
+function writableSession(ctx: Context, sender: Sender, sessionId: unknown, arg: unknown): Writable {
+  const service = ctx.registry.serviceOf(sender.id)
+  const entry = typeof sessionId === 'string' ? service?.bySession.get(sessionId) : undefined
+  if (service === undefined || entry === undefined || entry.closed) {
+    return { ok: false, error: NOT_FOUND }
+  }
+  if (entry.turn.busy || entry.session === undefined) {
+    return { ok: false, error: failure({ code: 'session/busy', message: 'session · a turn is already in flight' }) }
+  }
+  if (typeof arg !== 'string') {
+    return { ok: false, error: failure({ code: 'session/invalid-turn', message: 'session · a turn is text' }) }
+  }
+  return { ok: true, service, entry, arg }
+}
+
+/**
+ * Write one turn into an idle session: busy from the moment the write begins,
+ * so a second turn while this one is being written is refused, and free again
+ * only if the write failed. What the turn is (a send, a dispatch) is the
+ * caller's to record once this says it was written.
+ */
+async function writeTurn(entry: Entry, text: string): Promise<{ ok: true } | Refusal> {
+  entry.turn = beginTurn(entry.turn)
+  const written = (await entry.session?.write(text)) ?? false
+  // The window or the process went while the write was in flight: there is no turn to record.
+  if (entry.closed) {
+    return NOT_FOUND
+  }
+  if (!written) {
+    entry.turn = { ...entry.turn, busy: false }
+    return failure({
+      code: 'session/write-failed',
+      message: 'session · the turn could not be written'
+    })
+  }
+  return { ok: true }
+}
+
 function sendTurn(ctx: Context) {
   return async (event: IpcMainInvokeEvent, sessionId: unknown, text: unknown): Promise<SendReply> => {
     const sender = senderOf(event)
-    const service = ctx.registry.serviceOf(sender.id)
-    const entry = typeof sessionId === 'string' ? service?.bySession.get(sessionId) : undefined
-    if (service === undefined || entry === undefined || entry.closed) {
-      return NOT_FOUND
+    const target = writableSession(ctx, sender, sessionId, text)
+    if (!target.ok) {
+      return target.error
     }
-    if (entry.turn.busy || entry.session === undefined) {
-      return failure({
-        code: 'session/busy',
-        message: 'session · a turn is already in flight'
-      })
-    }
-    if (typeof text !== 'string') {
-      return failure({
-        code: 'session/invalid-turn',
-        message: 'session · a turn is text'
-      })
-    }
-    // Busy from here, so a second send while this one is being written is refused.
-    entry.turn = beginTurn(entry.turn)
-    const written = await entry.session.write(text)
-    // The window or the process went while the write was in flight: there is no turn to record.
-    if (entry.closed) {
-      return NOT_FOUND
-    }
-    if (!written) {
-      entry.turn = { ...entry.turn, busy: false }
-      return failure({
-        code: 'session/write-failed',
-        message: 'session · the turn could not be written'
-      })
+    const { service, entry } = target
+    const reply = await writeTurn(entry, target.arg)
+    if (!reply.ok) {
+      return reply
     }
     // The user's turn is recorded once it is written, at the instant it started.
     const at = ctx.now()
-    ctx.transcripts.forProject(entry.projectRoot).recordUserTurn(text, at)
+    ctx.transcripts.forProject(entry.projectRoot).recordUserTurn(target.arg, at)
+    // A finished run's `live` ends when the next turn starts.
+    service.personas.detach(entry.sessionId)
     service.personas.apply({
       name: 'turn:started',
       payload: { sessionId: entry.sessionId, at }
     })
     ctx.registry.watch(sender, service, entry)
     return { ok: true }
+  }
+}
+
+/** What a resolved menu entry writes as the turn: the skill, invoked, or the prompt verbatim. */
+function turnOf(entry: ResolvedMenuEntry): string {
+  return entry.action.kind === 'skill' ? `/${entry.action.skill}` : entry.action.prompt
+}
+
+// A menu entry activated (AD-9). The renderer sends a session and a code and
+// nothing else; main alone resolves the code against the persona's menu and
+// decides between a skill and a prompt. The turn is written like a send, but no
+// user turn is recorded: the run's card is what the transcript shows of it.
+function dispatchMenu(ctx: Context) {
+  return async (event: IpcMainInvokeEvent, sessionId: unknown, code: unknown): Promise<MenuDispatchReply> => {
+    const sender = senderOf(event)
+    const target = writableSession(ctx, sender, sessionId, code)
+    if (!target.ok) {
+      return target.error
+    }
+    const { service, entry, arg: chosen } = target
+    const resolved = ctx.menuEntryFor(sender.id, entry.agentId, chosen)
+    if (resolved === undefined) {
+      return failure({
+        code: 'menu/unknown-entry',
+        message: 'menu · this persona has no such entry'
+      })
+    }
+    const reply = await writeTurn(entry, turnOf(resolved))
+    if (!reply.ok) {
+      return reply
+    }
+    const runId = ctx.newRunId()
+    ctx.registry.startRun(sender, service, entry, runId, resolved.code)
+    ctx.registry.watch(sender, service, entry)
+    return { ok: true, runId }
   }
 }
 
@@ -220,6 +301,7 @@ function endConversation(ctx: Context) {
       ctx.registry.closeSessions(sender, service)
       service.lastOpened = undefined
       service.written.clear()
+      service.runs.clear()
     }
     return { ok: true }
   }
@@ -251,7 +333,8 @@ function getConversation(ctx: Context) {
         entries: [...ctx.transcripts.forProject(projectRoot).entries()],
         sessions: live.map(({ agentId, sessionId }) => ({ agentId, sessionId })),
         busy: live.filter((entry) => entry.turn.busy).map((entry) => entry.sessionId),
-        personas: personaProjectionFor(sender, ctx.now).snapshot()
+        personas: personaProjectionFor(sender, ctx.now).snapshot(),
+        runs: service?.runs.snapshot() ?? []
       }
     }
   }
@@ -263,13 +346,15 @@ function getConversation(ctx: Context) {
  * Turns are serialised here, not in the renderer: a turn is in flight from the
  * activation write or a send until a main-thread `result` arrives with no
  * background task live (`fold/turn-end`), and a send in that window is refused,
- * never queued. The registry holds the sessions and folds their frames; this
- * registers the five handlers that speak for them.
+ * never queued. A menu dispatch is a turn too, and the run it starts lives as
+ * long as that turn (`session-run`). The registry holds the sessions and folds
+ * their frames; this registers the six handlers that speak for them, and hands
+ * the composition root the way the rail's watcher reports a memlog changing.
  *
  * Nothing crosses the bridge from stderr, and a failed start carries the
  * errno code and no message of the system's own.
  */
-export function registerSessionBridge(deps: SessionBridgeDeps = {}): void {
+export function registerSessionBridge(deps: SessionBridgeDeps = {}): SessionBridge {
   const now = deps.now ?? (() => Date.now())
   const transcripts =
     deps.transcripts ?? createTranscriptRegistry({ userDataPath: () => app.getPath('userData') })
@@ -286,6 +371,7 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): void {
       userDataDir: deps.userDataDir ?? (() => app.getPath('userData')),
       homeDir: deps.homeDir ?? homedir(),
       canonicalize: deps.canonicalize ?? canonicalPath,
+      readText: deps.readText ?? readText,
       ...(deps.quietMs !== undefined ? { quietMs: deps.quietMs } : {}),
       ...(deps.schedule !== undefined ? { schedule: deps.schedule } : {})
     }),
@@ -293,12 +379,19 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): void {
       transcripts,
       nameOf: deps.agentName ?? agentNameFor,
       now
-    })
+    }),
+    menuEntryFor: deps.menuEntryFor ?? menuEntryFor,
+    newRunId: deps.newRunId ?? (() => randomUUID())
   }
 
   ipcMain.handle(SESSION_OPEN_CHANNEL, openSession(ctx))
   ipcMain.handle(TURN_SEND_CHANNEL, sendTurn(ctx))
+  ipcMain.handle(MENU_DISPATCH_CHANNEL, dispatchMenu(ctx))
   ipcMain.handle(SESSION_CLOSE_CHANNEL, closeSession(ctx))
   ipcMain.handle(CONVERSATION_END_CHANNEL, endConversation(ctx))
   ipcMain.handle(CONVERSATION_GET_CHANNEL, getConversation(ctx))
+
+  return {
+    observeArtifact: (sender, projectRoot, observation) => ctx.registry.observe(sender, projectRoot, observation)
+  }
 }

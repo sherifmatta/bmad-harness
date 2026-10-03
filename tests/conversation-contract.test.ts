@@ -186,9 +186,15 @@ describe('the sources', () => {
   })
 
   it('lock nothing, anywhere in the chat components', () => {
-    for (const path of chatSources.filter((name) => name.endsWith('.tsx'))) {
+    // Story 3.1: the skill row's buttons are disabled while the persona's turn is
+    // in flight, by the spec's own words, and they are the only thing that is.
+    for (const path of chatSources.filter((name) => name.endsWith('.tsx') && !name.endsWith('/skill-row.tsx'))) {
       expect(code(path), path).not.toMatch(/\bdisabled\b|\breadOnly\b|aria-disabled/)
     }
+    const row = chatSources.find((name) => name.endsWith('/skill-row.tsx'))
+    expect(row).toBeDefined()
+    expect(code(row ?? '')).not.toMatch(/\breadOnly\b|aria-disabled/)
+    expect([...code(row ?? '').matchAll(/\bdisabled=\{/g)]).toHaveLength(1)
   })
 
   it('draw no focus rule or ring suppression in a component either', () => {
@@ -216,7 +222,7 @@ describe('the sources', () => {
     expect(app).toMatch(/import \{ Turns \} from '\.\/chat\/transcript'/)
     expect(app).toContain('<Composer')
     expect(app).toMatch(
-      /<Turns entries=\{conversation\.entries\} onCancel=\{conversation\.cancel\} canAnswer=\{conversation\.canAnswer\} onChoose=\{answer\} \/>/
+      /<Turns entries=\{conversation\.entries\} onCancel=\{conversation\.cancel\} canAnswer=\{conversation\.canAnswer\} onChoose=\{answer\} prose=\{conversation\.prose\} \/>/
     )
     // The shell takes a render prop and a callback; it imports no conversation part.
     expect(shell).not.toMatch(/from '\.\.\/chat\/(?:composer|transcript|turn|use-conversation|conversation-state)'/)

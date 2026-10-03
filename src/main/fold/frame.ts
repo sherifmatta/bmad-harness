@@ -19,6 +19,11 @@ export type FrameInput =
   | { kind: 'text-delta'; index: number; text: string }
   | { kind: 'json-delta'; index: number; partial: string }
   | { kind: 'block-stop'; index: number }
+  /** The main thread was told how its tool calls went: each call's id, and whether the tool refused it. */
+  | { kind: 'tool-results'; results: readonly ToolResult[] }
+
+/** One tool call's outcome, as the CLI reports it back to the model. */
+export type ToolResult = { callId: string; failed: boolean }
 
 /** What a content block declares itself to be when it opens. */
 export type BlockHead =
@@ -37,6 +42,21 @@ function blockHead(raw: unknown): BlockHead {
     return { type: 'tool', callId: raw.id, name: raw.name }
   }
   return { type: 'other' }
+}
+
+/**
+ * The tool results a main-thread `user` frame carries: its `message.content`
+ * blocks of type `tool_result`, each naming the call it answers. A frame with
+ * none (the user's own turn, a malformed one) says nothing.
+ */
+function toolResults(message: unknown): FrameInput | undefined {
+  if (!isRecord(message) || !Array.isArray(message.content)) return undefined
+  const results = (message.content as unknown[]).flatMap((block): ToolResult[] =>
+    isRecord(block) && block.type === 'tool_result' && typeof block.tool_use_id === 'string'
+      ? [{ callId: block.tool_use_id, failed: block.is_error === true }]
+      : []
+  )
+  return results.length === 0 ? undefined : { kind: 'tool-results', results }
 }
 
 /**
@@ -64,6 +84,7 @@ export function readFrame(frame: unknown): FrameInput | undefined {
     )
     return { kind: 'background-tasks', taskIds }
   }
+  if (frame.type === 'user') return toolResults(frame.message)
   if (frame.type !== 'stream_event') return undefined
 
   const event = frame.event

@@ -1,7 +1,7 @@
-import type { ConversationSnapshot, SyslineRecord } from '../../../shared/conversation'
+import type { ConversationSnapshot, RunCardSnapshot, SyslineRecord } from '../../../shared/conversation'
 import type { ContractEvent, PersonaState } from '../../../shared/events'
 import type { AgentView } from '../../../shared/install'
-import type { TranscriptEntry, UserEntry } from './transcript-entry'
+import type { RunCardEntry, TranscriptEntry, UserEntry } from './transcript-entry'
 
 /** A message typed for a persona, waiting for its turn to come: the entry that shows it, and its words. */
 export type QueuedMessage = { entryId: string; text: string }
@@ -220,6 +220,15 @@ export function sessionReady(
   return drain(withSession(state, agentId, sessionId), agentId)
 }
 
+/**
+ * A menu entry was activated in a session: it has a turn in flight from now,
+ * so its buttons and its queue wait, until main's events say otherwise or the
+ * dispatch is refused.
+ */
+export function dispatchStarted(state: ConversationState, sessionId: string): ConversationState {
+  return withBusy(state, sessionId, true)
+}
+
 /** A send into a session was refused for a reason other than busy: it has no turn in flight on that account. */
 export function dispatchFailed(state: ConversationState, sessionId: string): ConversationState {
   return withBusy(state, sessionId, false)
@@ -284,6 +293,77 @@ export function withHandoff(state: ConversationState, record: SyslineRecord): Co
   return withEntry(state, { kind: 'sysline', id: record.id, at: record.at, text: record.text })
 }
 
+/** The card main held for a run, as the window keeps it; its prose goes to the prose store. */
+function runEntryOf(card: RunCardSnapshot): RunCardEntry {
+  return {
+    kind: 'run',
+    id: card.runId,
+    at: card.startedAt,
+    runId: card.runId,
+    sessionId: card.sessionId,
+    ...(card.agentId === undefined ? {} : { agentId: card.agentId }),
+    status: card.status,
+    ...(card.endedAt === undefined ? {} : { endedAt: card.endedAt }),
+    ...(card.error === undefined ? {} : { error: card.error }),
+    notes: card.notes,
+    sections: card.sections
+  }
+}
+
+/**
+ * One run event folded into its card, as main folds it (`fold/run-card.ts`):
+ * notes in order, each committed heading once, and one terminal event. A card
+ * that has ended takes nothing more. `doc:prose` is not folded here.
+ */
+function foldRunEntry(entry: RunCardEntry, event: ContractEvent): RunCardEntry {
+  if (entry.status !== 'running') {
+    return entry
+  }
+  switch (event.name) {
+    case 'run:note':
+      return { ...entry, notes: [...entry.notes, { text: event.payload.text, at: event.payload.at }] }
+    case 'doc:committed': {
+      if (!event.payload.ok) {
+        return entry
+      }
+      const fresh = event.payload.sections.filter(
+        (section, at, all) => !entry.sections.includes(section) && all.indexOf(section) === at
+      )
+      return fresh.length === 0 ? entry : { ...entry, sections: [...entry.sections, ...fresh] }
+    }
+    case 'run:finished':
+      return { ...entry, status: 'finished', endedAt: event.payload.at }
+    case 'run:stopped':
+      return { ...entry, status: 'stopped', endedAt: event.payload.at }
+    case 'run:failed':
+      return { ...entry, status: 'failed', endedAt: event.payload.at, error: event.payload.error }
+    default:
+      return entry
+  }
+}
+
+/** Apply a run's event to its card, wherever the card sits in the transcript. */
+function withRunEvent(state: ConversationState, runId: string, event: ContractEvent): ConversationState {
+  const at = state.entries.findIndex((entry) => entry.kind === 'run' && entry.runId === runId)
+  const card = at === -1 ? undefined : state.entries[at]
+  if (card === undefined || card.kind !== 'run') {
+    return state
+  }
+  const next = foldRunEntry(card, event)
+  if (next === card) {
+    return state
+  }
+  const entries = [...state.entries]
+  entries[at] = next
+  return { ...state, entries }
+}
+
+/** The run card a transcript holds for a run, if any. */
+export function runCardOf(state: ConversationState, runId: string): RunCardEntry | undefined {
+  const card = state.entries.find((entry) => entry.kind === 'run' && entry.runId === runId)
+  return card?.kind === 'run' ? card : undefined
+}
+
 /** A persona the roster no longer names still has its words shown, under its id. */
 function unknownAgent(id: string): AgentView {
   return { id, module: '', name: id, title: '', icon: '', description: '' }
@@ -346,9 +426,10 @@ export function hydrate(
         ? { kind: 'sysline', id: record.id, at: record.at, text: record.text }
         : { kind: 'user', id: record.id, at: record.at, text: record.text }
   )
+  const cards = snapshot.runs.map(runEntryOf)
   let next: ConversationState = {
     ...state,
-    entries: [...stored, ...state.entries],
+    entries: [...stored, ...cards, ...state.entries],
     sessions: new Map(snapshot.sessions.map(({ agentId, sessionId }) => [agentId, sessionId])),
     busy: new Set(snapshot.busy),
     personas: new Map(
@@ -456,6 +537,33 @@ export function foldEvent(
         })
       }
     }
+
+    case 'run:started': {
+      // The run's card, born in time order; its session has a turn in flight.
+      const { runId, sessionId, agentId, at } = event.payload
+      if (runCardOf(state, runId) !== undefined) {
+        return { state }
+      }
+      const card: RunCardEntry = {
+        kind: 'run',
+        id: runId,
+        at,
+        runId,
+        sessionId,
+        ...(agentId === undefined ? {} : { agentId }),
+        status: 'running',
+        notes: [],
+        sections: []
+      }
+      return { state: withBusy({ ...state, entries: [...state.entries, card] }, sessionId, true) }
+    }
+
+    case 'run:note':
+    case 'doc:committed':
+    case 'run:finished':
+    case 'run:stopped':
+    case 'run:failed':
+      return { state: withRunEvent(state, event.payload.runId, event) }
 
     case 'persona:state': {
       // Stored as main said it: nothing here decides a state or puts one in place.

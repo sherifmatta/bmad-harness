@@ -433,7 +433,8 @@ describe('reading the file', () => {
 
     expect(bridge.match(/ipcMain\.handle\(/g)).toHaveLength(5)
     expect(index).toContain('registerDocBridge()')
-    expect(index.indexOf('registerRailBridge()')).toBeLessThan(index.indexOf('registerDocBridge()'))
+    expect(index.indexOf('registerRailBridge({')).toBeGreaterThan(-1)
+    expect(index.indexOf('registerRailBridge({')).toBeLessThan(index.indexOf('registerDocBridge()'))
   })
 
   it('holds no position, recommendation or stage, and reads no sprint status', () => {

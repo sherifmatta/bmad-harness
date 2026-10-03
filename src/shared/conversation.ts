@@ -1,7 +1,7 @@
 import type { CommandReply } from './commands'
 import type { PersonaStateChanged } from './events'
 import type { HarnessError } from './install'
-import type { AgentId, EpochMs, MessageId, SessionId } from './ids'
+import type { AgentId, CallId, EpochMs, MessageId, RunId, SessionId } from './ids'
 
 /**
  * The conversation read — what main knows of one project's conversation when a
@@ -64,6 +64,42 @@ export type TranscriptFile = {
   entries: TranscriptRecord[]
 }
 
+/** Where a run stands: in flight, or the terminal event it ended on. */
+export type RunStatus = 'running' | 'finished' | 'stopped' | 'failed'
+
+/** One run note as a card holds it: the memlog line and when main observed it. */
+export type RunCardNote = { text: string; at: EpochMs }
+
+/**
+ * The document text a card holds: the call being written now, its path and
+ * every piece of it so far, joined in order. A new call starts it again.
+ */
+export type RunCardProse = { callId: CallId; path: string; text: string }
+
+/**
+ * One run's card as main holds it, folded from the run's own events, so a
+ * window that reloads mid-run is handed the card whole and no part of it
+ * depends on having seen an earlier event. Memory only: never stored.
+ */
+export type RunCardSnapshot = {
+  runId: RunId
+  sessionId: SessionId
+  agentId?: AgentId
+  /** The menu code that started the run. */
+  code: string
+  /** `run:started.at`: what elapsed counts from. */
+  startedAt: EpochMs
+  status: RunStatus
+  /** The terminal event's `at`, once there is one. */
+  endedAt?: EpochMs
+  /** A failed run's envelope. */
+  error?: HarnessError
+  notes: RunCardNote[]
+  /** The distinct level-2 headings of the run's confirmed writes, in the order first committed. */
+  sections: string[]
+  prose: RunCardProse | null
+}
+
 /** What `conversation:get` answers. */
 export type ConversationSnapshot = {
   entries: TranscriptRecord[]
@@ -73,7 +109,12 @@ export type ConversationSnapshot = {
   busy: SessionId[]
   /** The personas that are anything but `idle`, with when that state began. */
   personas: PersonaStateChanged[]
+  /** This launch's runs, in the order they started, each as its card stands. */
+  runs: RunCardSnapshot[]
 }
+
+/** What `menu.dispatch` answers: the run it started, or the envelope saying why not. */
+export type MenuDispatchReply = CommandReply<{ runId: RunId }>
 
 /** The reply to `conversation:get`: the snapshot, or the envelope saying why not. */
 export type ConversationReply =

@@ -1,5 +1,6 @@
 import type { ContractEvent } from '../shared/events'
-import type { AgentId, SessionId } from '../shared/ids'
+import type { AgentId, RunId, SessionId } from '../shared/ids'
+import type { ArtifactObservation } from '../shared/rail'
 import type { SessionOpenReply } from '../shared/conversation'
 import { failure, sendTo } from './bridge-kit'
 import type { Sender } from './bridge-kit'
@@ -7,6 +8,10 @@ import { LINES, QUIET_MS, createQuietClock, createVoice, defaultSchedule } from 
 import { SESSION_EVENT_CHANNEL } from '../shared/channels'
 import { personaProjectionFor } from './persona-states'
 import type { PersonaProjection } from './projections/personas'
+import { createRunProjection } from './projections/runs'
+import type { RunProjection } from './projections/runs'
+import { createMemlogCounts, createRunKit, deliver, endRun, observeMemlog, startRun } from './session-run'
+import type { ActiveRun, MemlogCounts, RunKit } from './session-run'
 import type { TranscriptRegistry } from './projections/transcript'
 import { initialRouteState, routeFrame } from './fold/route-frame'
 import type { RouteState } from './fold/route-frame'
@@ -56,6 +61,8 @@ export type Entry = {
   ready: Promise<OpenReply>
   /** Stops the silence clock, while one is running: set while a turn is in flight. */
   stopQuietClock: (() => void) | undefined
+  /** The run in flight, from its dispatch until its turn or the session ends (`session-run`). */
+  run: ActiveRun | undefined
 }
 
 export type Service = {
@@ -76,6 +83,10 @@ export type Service = {
    * in write order, each once. Memory only, cleared when the conversation ends.
    */
   written: Map<AgentId, readonly string[]>
+  /** The window's run cards, as main holds them for a reload. */
+  runs: RunProjection
+  /** Every memlog's entry count as last read, so a run's notes are only what was appended after. */
+  memlogs: MemlogCounts
 }
 
 export const NOT_FOUND = failure({
@@ -99,6 +110,8 @@ export type SessionRegistryDeps = {
   userDataDir: () => string
   homeDir: string
   canonicalize: (absolutePath: string) => string
+  /** A file's text, or `undefined`; the real one reads the disk. */
+  readText: (absolutePath: string) => Promise<string | undefined>
 }
 
 export type SessionRegistry = {
@@ -115,6 +128,13 @@ export type SessionRegistry = {
    * flight; stop it for one whose turn is not. Called when a turn begins.
    */
   watch(sender: Sender, service: Service, entry: Entry): void
+  /** A dispatch was written into a session: its run begins. */
+  startRun(sender: Sender, service: Service, entry: Entry, runId: RunId, code: string): void
+  /**
+   * The rail's watcher saw a file of the window's project; a memlog is read for
+   * the notes of the run in flight. Resolves once it is accounted for.
+   */
+  observe(sender: Sender, projectRoot: string, observation: ArtifactObservation): Promise<void>
   /** Close one session; emits `session:closed` unless it already was. */
   finish(
     sender: Sender,
@@ -126,11 +146,10 @@ export type SessionRegistry = {
 
 type FrameSinks = {
   now: () => number
-  transcripts: TranscriptRegistry
   announce: (sender: Sender, service: Service, event: ContractEvent) => void
-  emit: (sender: Sender, event: ContractEvent) => void
   /** The harness says a line in its own voice. */
   say: (sender: Sender, entry: Entry, text: string) => void
+  runs: RunKit
 }
 
 /** What one raw frame from a session does: end its turn, or say something, or write a file. */
@@ -141,7 +160,7 @@ function foldFrame(
   entry: Entry,
   frame: unknown
 ): void {
-  const { now, transcripts, announce, emit, say } = sinks
+  const { now, announce, say, runs } = sinks
   if (entry.closed) {
     return
   }
@@ -155,6 +174,8 @@ function foldFrame(
     service.personas.apply({ name: 'turn:failed', payload: { sessionId: entry.sessionId, at: now() } })
   }
   if (signal?.kind === 'ended') {
+    // A run ends with its turn: the terminal event comes before the session is free.
+    endRun(runs, sender, service, entry, { failed: signal.failed, subtype: signal.subtype })
     announce(sender, service, {
       name: 'session:awaiting-turn',
       payload: { sessionId: entry.sessionId, at: now() }
@@ -163,6 +184,7 @@ function foldFrame(
   }
   if (signal?.kind === 'resumed') {
     // A turn nobody sent: the session works again, though the renderer sent nothing.
+    service.personas.detach(entry.sessionId)
     service.personas.apply({
       name: 'turn:started',
       payload: { sessionId: entry.sessionId, at: now() }
@@ -171,6 +193,7 @@ function foldFrame(
   const routed = routeFrame(entry.route, frame, {
     sessionId: entry.sessionId,
     agentId: entry.agentId,
+    ...(entry.run === undefined ? {} : { runId: entry.run.runId }),
     projectRoot: entry.projectRoot,
     now: now()
   })
@@ -181,15 +204,8 @@ function foldFrame(
     const before = service.written.get(entry.agentId) ?? []
     service.written.set(entry.agentId, withWrittenPaths(before, wrote.paths))
   }
-  for (const event of routed.events) {
-    // A chat turn: the words are all the renderer is told, and the transcript keeps them.
-    if (event.name === 'persona:said') {
-      transcripts.forProject(entry.projectRoot).recordPersonaSaid(event.payload)
-      emit(sender, event)
-    }
-    // Whatever the fold routed is heard by the persona states, which use only the run events.
-    service.personas.apply(event)
-  }
+  // What the persona said is kept and told; a run's document events go to its card.
+  deliver(runs, sender, service, entry, routed.events)
 }
 
 /** What starting a session's process needs of the registry that holds it. */
@@ -282,6 +298,8 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
     onQuiet: (sender, entry) => say(sender, entry, LINES.quiet(deps.quietMs ?? QUIET_MS))
   })
   const watch = (sender: Sender, _service: Service, entry: Entry): void => clock(sender, entry)
+  const schedule = deps.schedule ?? defaultSchedule
+  const runs = createRunKit({ now, schedule, emit, transcripts, readText: deps.readText })
   const decide = (projectRoot: string, ask: PermissionAsk): PermissionAnswer =>
     decidePermission(ask, {
       projectRoot,
@@ -301,7 +319,9 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
       byAgent: new Map(),
       personas: personaProjectionFor(sender, now),
       lastOpened: undefined,
-      written: new Map()
+      written: new Map(),
+      runs: createRunProjection(),
+      memlogs: createMemlogCounts()
     }
     services.set(sender.id, service)
 
@@ -349,6 +369,8 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
     if (entry.closed) {
       return
     }
+    // A run still in flight ends with its session, before the session is closed.
+    endRun(runs, sender, service, entry, 'session-ended')
     discard(service, entry)
     announce(sender, service, {
       name: 'session:closed',
@@ -357,7 +379,7 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
   }
 
   function onFrame(sender: Sender, service: Service, entry: Entry, frame: unknown): void {
-    foldFrame({ now, transcripts, announce, emit, say }, sender, service, entry, frame)
+    foldFrame({ now, announce, say, runs }, sender, service, entry, frame)
     watch(sender, service, entry)
   }
 
@@ -372,7 +394,8 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
       route: initialRouteState,
       written: initialWrittenState,
       ready: Promise.resolve(NOT_FOUND),
-      stopQuietClock: undefined
+      stopQuietClock: undefined,
+      run: undefined
     }
     service.bySession.set(entry.sessionId, entry)
     service.byAgent.set(agentId, entry)
@@ -391,6 +414,9 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
     serviceFor,
     open,
     watch,
+    startRun: (sender, service, entry, runId, code) => startRun(runs, sender, service, entry, runId, code),
+    observe: (sender, projectRoot, observation) =>
+      observeMemlog(runs, sender, () => serviceFor(sender, projectRoot), projectRoot, observation),
     closeSessions,
     finish
   }

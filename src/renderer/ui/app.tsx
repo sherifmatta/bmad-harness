@@ -5,6 +5,7 @@ import { Announcer } from './a11y/announcer'
 import { LiveRegion } from './a11y/live-region'
 import { Composer } from './chat/composer'
 import { handoffTarget } from './chat/handoff-target'
+import { SkillRow } from './chat/skill-row'
 import { Turns } from './chat/transcript'
 import { useConversation } from './chat/use-conversation'
 import { ErrorLine } from './install/error-line'
@@ -50,7 +51,12 @@ export function App(): JSX.Element | null {
     (record: SyslineRecord) => announcer.announce(record.text, performance.now()),
     [announcer]
   )
-  const conversation = useConversation(snapshot?.agents ?? NO_AGENTS, announceHandoff)
+  // A run's start and end are announced once each, politely; its prose never is.
+  const announceLifecycle = useCallback(
+    (line: string) => announcer.announce(line, performance.now()),
+    [announcer]
+  )
+  const conversation = useConversation(snapshot?.agents ?? NO_AGENTS, announceHandoff, announceLifecycle)
   const announced = useRef<ReadonlySet<string>>(new Set())
 
   // The shell reads two maps, so the one main-reported entry per persona is split
@@ -181,11 +187,23 @@ export function App(): JSX.Element | null {
         onCloseOrphan={closeSession}
         liveSessions={conversation.live}
         onCloseSession={closeSession}
-        composer={(agent) => (
+        composer={(agent, items) => (
           // Keyed apart from the chat header, which carries the same agent id in the same list.
           <Composer
             key={`composer-${agent.id}`}
             agentName={agent.name}
+            head={
+              // The persona's skills, once it has a live session to run them in. The
+              // row sends a code and nothing else; it is held while a turn is in flight.
+              conversation.sessionOf(agent.id) === undefined ? undefined : (
+                <SkillRow
+                  name={agent.name}
+                  items={items}
+                  disabled={!conversation.canAnswer(agent.id)}
+                  onRun={(code) => conversation.runSkill(agent.id, code)}
+                />
+              )
+            }
             focusOnMount={composerFocus?.id === agent.id}
             refocus={composerFocus?.id === agent.id ? composerFocus.n : 0}
             onSend={(text) => {
@@ -211,7 +229,7 @@ export function App(): JSX.Element | null {
           <ErrorLine key={`${error.code}-${index}`} error={error} />
         ))}
         {conversation.failure !== null && <ErrorLine error={conversation.failure} />}
-        <Turns entries={conversation.entries} onCancel={conversation.cancel} canAnswer={conversation.canAnswer} onChoose={answer} />
+        <Turns entries={conversation.entries} onCancel={conversation.cancel} canAnswer={conversation.canAnswer} onChoose={answer} prose={conversation.prose} />
       </Shell>
       <LiveRegion key="live-region" announcer={announcer} />
     </>

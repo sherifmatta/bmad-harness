@@ -296,9 +296,14 @@ describe("no spinner, skeleton or stand-in sentence", () => {
 
   it("has no loading-like word in any renderer source or stylesheet", () => {
     expect(offenders(RENDERER_ALL, LOADING)).toEqual([]);
+    // Story 3.1: the run card carries `aria-busy` while its run is in flight, as
+    // its spec requires; that is the one, and it is an attribute, not a spinner.
     expect(
       offenders(RENDERER_CODE, /aria-busy|role=["']progressbar|<progress\b/i),
-    ).toEqual([]);
+    ).toEqual(["src/renderer/ui/chat/run-card.tsx: aria-busy"]);
+    expect(
+      (code.get("src/renderer/ui/chat/run-card.tsx") ?? "").match(/aria-busy/g),
+    ).toHaveLength(1);
   });
 
   it("defines no rotation and exactly the three keyframes the inventory names", () => {
@@ -503,7 +508,7 @@ describe("motion", () => {
 
   const stylesheets = RENDERER_ALL.filter((path) => path.endsWith(".css"));
 
-  it("has exactly two consumers: the working dot pulses and the tile hint reveals", () => {
+  it("has exactly three consumers: the working dot pulses, the tile hint reveals and the caret blinks", () => {
     const consumers = stylesheets.flatMap((path) =>
       rulesOf(code.get(path) ?? "")
         .filter(({ body }) => MOTION.test(body))
@@ -516,6 +521,8 @@ describe("motion", () => {
     // is not a consumer: it names both properties in order to cancel them.
     expect(consumers.sort()).toEqual([
       "design/tokens.css: *,*::before,*::after",
+      // Story 3.1: the run card's caret, at the tail of prose being written.
+      "ui/chat/run-card.css: .run-card-caret",
       "ui/status/status-dot.css: .status-dot--work",
       "ui/team/team.css: .menu-hint",
     ]);
@@ -553,11 +560,19 @@ describe("motion", () => {
   });
 
   it("scrolls, frames and animates by no script and no smooth-scroll rule", () => {
+    // Story 3.1: the prose store paints a run's text at most once a frame, and
+    // the frame is injected in one place. It animates and scrolls nothing.
     expect(
       offenders(
         RENDERER_CODE,
         /\brequestAnimationFrame\b|\.animate\(|\bscrollIntoView\b|behavior:\s*['"]smooth/,
       ),
+    ).toEqual(["src/renderer/ui/chat/use-conversation.ts: requestAnimationFrame"]);
+    expect(
+      (code.get("src/renderer/ui/chat/use-conversation.ts") ?? "").match(/\brequestAnimationFrame\b/g),
+    ).toHaveLength(1);
+    expect(
+      offenders(RENDERER_CODE, /\.scroll(?:Top|To|By)\b/),
     ).toEqual([]);
     expect(offenders(stylesheets, /scroll-behavior/)).toEqual([]);
   });
@@ -619,6 +634,14 @@ describe("the text ramp", () => {
     "ui/outputs/outputs.css: .outputs-empty-path": {
       kind: "restated",
       why: "the empty-state sentence names _bmad/ at --dim and the topbar carries the project path at --dim",
+    },
+    "ui/chat/run-card.css: .run-card-elapsed": {
+      kind: "restated",
+      why: "the run's elapsed time; the persona's own state line counts the same turn at --dim, and the status string beside it carries the state",
+    },
+    "ui/chat/skill-row.css: .skill-row-label": {
+      kind: "label",
+      why: "the row's `<Persona> can` lead-in; the composer and the header name the persona, and each button carries its own words at --text",
     },
   };
 
@@ -782,8 +805,9 @@ describe("the handoff says only what is true and parses no skill (Story 2.9)", (
   it("adds no event, command or bridge method for it: the open's reply carries the line", () => {
     const preload = code.get("src/preload/index.ts") ?? "";
 
-    // Thirteen before Story 2.11, whose one new method is closeSession; none is the handoff's.
-    expect([...preload.matchAll(/^ {2}([a-zA-Z]+): (?:async )?\(/gm)]).toHaveLength(14);
+    // Thirteen before Story 2.11, whose one new method is closeSession, and Story 3.1's
+    // dispatchMenu; none is the handoff's.
+    expect([...preload.matchAll(/^ {2}([a-zA-Z]+): (?:async )?\(/gm)]).toHaveLength(15);
     expect(code.get("src/shared/commands.ts") ?? "").not.toMatch(/handoff|sysline/i);
     expect(code.get("src/shared/events.ts") ?? "").not.toMatch(/handoff|sysline/i);
   });
@@ -1027,16 +1051,37 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
     });
 
     it("reads no menu, skill, code or description anywhere in chat/, the persona's own description apart", () => {
+      // Story 3.1 puts the skill row in chat/ on purpose: it draws a persona's
+      // codes and descriptions above the composer and hands a code to main. It is
+      // swept for what it may not do in its own describe below; here it is set
+      // apart, and the code it hands on passes through the conversation's one
+      // `runSkill(agentId, code)` and the bridge's `dispatchMenu(sessionId, code)`.
+      const ROW = "src/renderer/ui/chat/skill-row.tsx";
+      expect(CHAT_CODE).toContain(ROW);
+      const rest = CHAT_CODE.filter((path) => path !== ROW);
       expect(
-        offenders(CHAT_CODE, /\bmenus?\b|\bskills?\b|\bMenuEntry\b|\bcode\s*:|\bcodes\b/i),
+        offenders(rest, /\bmenus?\b|\bskills?\b|\bMenuEntry\b|\bcodes\b/i),
       ).toEqual([]);
-      // The one `.code` in chat/ is the error code of a refused send, never a menu's.
       expect(
-        CHAT_CODE.flatMap((path) =>
+        rest.flatMap((path) =>
+          [...(code.get(path) ?? "").matchAll(/^.*\bcode\s*:.*$/gm)].map(([line]) => `${path}: ${line.trim()}`),
+        ),
+      ).toEqual([
+        "src/renderer/ui/chat/use-conversation.ts: dispatchMenu(sessionId: string, code: string): Promise<string>",
+        "src/renderer/ui/chat/use-conversation.ts: runSkill(agentId: string, code: string): void",
+        "src/renderer/ui/chat/use-conversation.ts: runSkill: (agentId: string, code: string) => void",
+        "src/renderer/ui/chat/use-conversation.ts: (agentId: string, code: string) => conversation.current?.runSkill(agentId, code),",
+      ]);
+      // The `.code` in chat/ outside the row is the error code of a refused send or dispatch, never a menu's.
+      expect(
+        rest.flatMap((path) =>
           [...(code.get(path) ?? "").matchAll(/\w[\w.()]*\.code\b/g)].map(([hit]) => `${path}: ${hit}`),
         ),
-      ).toEqual(["src/renderer/ui/chat/use-conversation.ts: asHarnessError(reason).code"]);
-      const descriptions = CHAT_CODE.flatMap((path) =>
+      ).toEqual([
+        "src/renderer/ui/chat/use-conversation.ts: asHarnessError(reason).code",
+        "src/renderer/ui/chat/use-conversation.ts: asHarnessError(reason).code",
+      ]);
+      const descriptions = rest.flatMap((path) =>
         [...(code.get(path) ?? "").matchAll(/[\w.]*\.description\b/g)].map(
           ([hit]) => `${path}: ${hit}`,
         ),
@@ -1064,12 +1109,23 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
 
     it("writes the user's text into the session as given: `turn.send` hands `text` to `write` untouched", () => {
       const bridge = code.get(BRIDGE) ?? "";
-      const handler = bridge.slice(bridge.indexOf("function sendTurn"));
-      const body = handler.slice(0, handler.indexOf("\n}\n"));
+      const bodyOf = (name: string): string => {
+        const handler = bridge.slice(bridge.indexOf(`function ${name}`));
+        return handler.slice(0, handler.indexOf("\n}\n"));
+      };
+      // Story 3.1: the write is `writeTurn`'s, shared with the menu dispatch; the
+      // send hands it the checked argument as it came, and records that same text.
+      const send = bodyOf("sendTurn");
+      const write = bodyOf("writeTurn");
+      const checked = bodyOf("writableSession");
 
-      expect(body).toContain("entry.session.write(text)");
-      expect(body).toContain("recordUserTurn(text, at)");
-      expect(body).not.toMatch(/text\s*(?:=[^=]|\.(?:replace|trim|slice|split|startsWith|match))/);
+      expect(send).toContain("writeTurn(entry, target.arg)");
+      expect(send).toContain("recordUserTurn(target.arg, at)");
+      expect(checked).toContain("return { ok: true, service, entry, arg }");
+      expect(write).toContain("entry.session?.write(text)");
+      for (const body of [send, write, checked]) {
+        expect(body).not.toMatch(/\b(?:text|arg)\s*(?:=[^=]|\.(?:replace|trim|slice|split|startsWith|match))/);
+      }
     });
 
     it("draws no completion surface: no listbox, datalist, autocomplete, active descendant or popup", () => {
@@ -1190,7 +1246,8 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
           CHAT_CODE,
           /<progress\b|<meter\b|aria-busy|aria-live|aria-valuenow|role=["'](?:progressbar|status|alert|log|marquee|timer)|<output\b|<svg\b[^>]*\banimate|<animate/i,
         ),
-      ).toEqual([]);
+        // Story 3.1: the run card's `aria-busy` while its run is in flight is the one.
+      ).toEqual(["src/renderer/ui/chat/run-card.tsx: aria-busy"]);
       expect(offenders(RENDERER_ALL.filter((path) => path.endsWith(".css")), /@keyframes\s+(?!blink\b|eq\b|pulse\b)/)).toEqual([]);
     });
 
@@ -1217,11 +1274,13 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
           /\b(?:opening|pending|starting|connecting|loading|booting|launching)\s*\??:|kind:\s*['"](?:opening|pending|status|progress|placeholder)/i,
         );
       }
-      // A transcript entry is a persona's, the user's or the harness's sysline: no fourth kind.
+      // A transcript entry is a persona's, the user's, the harness's sysline or, from
+      // Story 3.1, a run's card, born on `run:started`: no fifth kind, and no kind for a wait.
       expect([...(code.get("src/renderer/ui/chat/transcript-entry.ts") ?? "").matchAll(/kind:\s*'(\w+)'/g)].map(([, kind]) => kind)).toEqual([
         "persona",
         "user",
         "sysline",
+        "run",
       ]);
     });
   });
@@ -1279,5 +1338,52 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
       // The transcript keeps no answered decision either: the block is a function of the last entry.
       expect(code.get(TRANSCRIPT) ?? "").not.toMatch(/\buse(?:State|Reducer|Ref|Effect)\b|answered|chosen|dismiss/i);
     });
+  });
+});
+
+describe("the skill row knows nothing about what it runs (Story 3.1)", () => {
+  const ROW = "src/renderer/ui/chat/skill-row.tsx";
+  const CONVERSATION = "src/renderer/ui/chat/use-conversation.ts";
+  const row = code.get(ROW) ?? "";
+
+  it("reads its own source", () => {
+    expect(row).toContain("export function SkillRow");
+  });
+
+  it("draws each entry's code and description, and hands its one callback the code alone", () => {
+    expect(row.match(/\bonRun\(/g)).toHaveLength(1);
+    expect(row).toContain("onClick={() => onRun(item.code)}");
+    expect(row).toContain("{item.code}");
+    expect(row).toContain("{item.description}");
+    // No bridge, no conversation and no main-side vocabulary in the row itself.
+    expect(row).not.toMatch(/window\.harness|dispatchMenu|use-conversation|\baction\b|\bprompt\b|\bkind\b/);
+  });
+
+  it("has no tooltip, title, preview or popup of any kind", () => {
+    expect(row).not.toMatch(/\stitle=|tooltip|popover|aria-describedby|aria-haspopup|onMouseEnter|onFocus|onPointerEnter/i);
+  });
+
+  it("is told only `code` and `description`: whether an entry is a skill or a prompt never crosses the bridge", () => {
+    const install = code.get("src/shared/install.ts") ?? "";
+    const view = install.slice(install.indexOf("export type MenuEntryView"));
+    expect(view.slice(0, view.indexOf("\n"))).toBe(
+      "export type MenuEntryView = { code: string; description: string }",
+    );
+    expect(
+      offenders(
+        RENDERER_CODE,
+        /\.action\b|['"]prompt['"]|['"]skill['"]|ResolvedMenuEntry/,
+      ),
+    ).toEqual([]);
+  });
+
+  it("dispatches through the one conversation call, which sends the session and the code and nothing else", () => {
+    const conversation = code.get(CONVERSATION) ?? "";
+    expect(conversation.match(/\bbridge\.dispatchMenu\(/g)).toHaveLength(1);
+    expect(conversation).toContain("bridge.dispatchMenu(sessionId, code)");
+    // The transcript records no user turn for it: nothing is entered or queued.
+    const runSkill = conversation.slice(conversation.indexOf("runSkill(agentId, code) {"));
+    const body = runSkill.slice(0, runSkill.indexOf("\n    },"));
+    expect(body).not.toMatch(/sendMessage|withEntry|queue/);
   });
 });

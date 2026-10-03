@@ -492,6 +492,33 @@
   --md-h3-margin:18px 0 5px;
   --md-list-indent:19px;
   --md-table-width:100%;
+
+  /* ── The run card and the skill row (Story 3.1), promoted so no stylesheet
+     restates a literal (NFR23). Every line cited is harness-mockup.html's; the
+     components are DESIGN.md `components.document-card` and
+     `components.skill-button`. The card's body cap (--card-body-max), its
+     radius, ground, border and the caret's blink were promoted earlier and are
+     spent as they are.
+
+     The card sits `margin:4px 0 10px` (`.doccard`, :205), its head is padded
+     `7px 11px` (`.doccard .dh`, :208; DESIGN.md `### Document card`), and its
+     body `11px 13px` (`.doccard .dbody`, :213; DESIGN.md `bodyPadding`, itself
+     an [ASSUMPTION] there). */
+  --card-margin:4px 0 10px;
+  --card-head-padding:7px 11px;
+  --card-body-padding:11px 13px;
+
+  /* The caret: a 6.5 by 13 accent block dropped 2px (`.caret`, :220; DESIGN.md
+     `components.document-card.caret`). */
+  --caret-width:6.5px;
+  --caret-height:13px;
+  --caret-drop:-2px;
+
+  /* The skill button: padded `4px 9px 4px 6px` (`.skillbtn`, :250-253), its
+     hover border `#475364` (:254; DESIGN.md `hoverBorder`). Its code chip is
+     padded `0 4px` (:255), which --code-tag-padding already is. */
+  --skill-button-padding:4px 9px 4px 6px;
+  --skill-button-hover-line:#475364;
 }
 
 /* The three keyframes the inventory names, copied from the mockup. `blink` is

@@ -1,11 +1,11 @@
 import type { ConversationSnapshot, OpenedSession } from '../shared/conversation'
 import type { ContractEvent } from '../shared/events'
-import type { SessionId } from '../shared/ids'
+import type { RunId, SessionId } from '../shared/ids'
 import type { InstallSnapshot } from '../shared/install'
 import type { RailSnapshot } from '../shared/rail'
 
 /**
- * The whole bridge surface. Explicitly enumerated: fourteen named methods, no
+ * The whole bridge surface. Explicitly enumerated: fifteen named methods, no
  * generic `invoke(channel, …)` passthrough, and no `ipcRenderer` in the
  * renderer's reach.
  */
@@ -55,6 +55,14 @@ export interface HarnessApi {
    * turn is in flight).
    */
   sendTurn(sessionId: SessionId, text: string): Promise<void>
+  /**
+   * Run a persona's menu entry in its session: main resolves `code` and writes
+   * the turn, and the run's events follow. Resolves with the run's id; rejects
+   * with the `HarnessError` envelope (`session/busy` while a turn is in flight,
+   * `menu/unknown-entry` for a code the persona's menu does not hold). Whether
+   * the entry is a skill or a prompt never crosses the bridge.
+   */
+  dispatchMenu(sessionId: SessionId, code: string): Promise<RunId>
   /**
    * The conversation as main holds it for this window's project: the
    * transcript, the live and busy sessions and the personas that are not idle.

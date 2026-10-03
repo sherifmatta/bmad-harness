@@ -268,3 +268,24 @@ describe('a session outlives the install changing under it (Story 2.11)', () => 
     expect(code(join(SRC, 'main/install-model.ts'))).not.toMatch(/session/i)
   })
 })
+
+describe('the run folds (Story 3.1)', () => {
+  const FOLDS = ['section-headings', 'coalesce', 'memlog-tail', 'run-card', 'route-frame', 'frame'].map((name) =>
+    join(SRC, 'main/fold', `${name}.ts`)
+  )
+
+  it('are pure: no I/O, no timer and no wall clock — time arrives as an argument', () => {
+    for (const path of FOLDS) {
+      const source = code(path)
+      expect(source, rel(path)).not.toMatch(/from 'node:(?!path')|from 'electron'|child_process|\bsetTimeout\b|\bsetInterval\b/)
+      expect(source, rel(path)).not.toMatch(/Date\.now|new Date\(|Math\.random|performance\.now|readFile|writeFile/)
+      expect(source, rel(path)).not.toMatch(/from '\.\.\/(?:projections|sources|windows)\//)
+    }
+  })
+
+  it('leave reading the memlog to Sources and timing the prose to the run’s injected schedule', () => {
+    expect(code(join(SRC, 'main/session-run.ts'))).toMatch(/kit\.schedule\(/)
+    expect(code(join(SRC, 'main/session-run.ts'))).toMatch(/kit\.readText\(/)
+    expect(code(join(SRC, 'main/session-bridge.ts'))).toMatch(/from '\.\/sources\/project\/read-text'/)
+  })
+})

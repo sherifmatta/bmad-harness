@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { JSX, ReactNode } from 'react'
 
 import './shell.css'
-import type { AgentView, HarnessError, InstallSnapshot } from '../../../shared/install'
+import type { AgentView, HarnessError, InstallSnapshot, MenuEntryView } from '../../../shared/install'
 import type { RailSnapshot } from '../../../shared/rail'
 import { ChatHeader } from '../chat/chat-header'
 import { OrphanHeader } from '../chat/orphan-header'
@@ -41,6 +41,9 @@ const NO_LIVE: ReadonlySet<string> = new Set()
 
 /** A shell given no way to close an orphan still shows it. */
 function ignore(): void {}
+
+/** A persona the menus name nothing for has no entries to offer. */
+const NO_ITEMS: readonly MenuEntryView[] = []
 
 /** Nothing reported yet, so every persona reads `idle` from an empty map. */
 const NO_STATES: ReadonlyMap<string, PersonaState> = new Map()
@@ -118,8 +121,9 @@ export function Shell({
   liveSessions?: ReadonlySet<string>
   /** Called with the agent's id when the current persona's close control is activated. */
   onCloseSession?: (agentId: string) => void
-  /** The composer for the current persona, rendered in the chat column under the thread. */
-  composer?: (agent: AgentView) => ReactNode
+  /** The composer for the current persona, rendered in the chat column under the thread, and
+      handed that persona's menu entries for the skill row it carries. */
+  composer?: (agent: AgentView, items: readonly MenuEntryView[]) => ReactNode
   children?: ReactNode
 }): JSX.Element {
   const [view, setView] = useState<ViewId>(initialView)
@@ -175,7 +179,7 @@ export function Shell({
           <div className="scroll">
             <div className="thread">{children}</div>
           </div>
-          {current !== null && composer?.(current)}
+          {current !== null && composer?.(current, snapshot.menus[current.id] ?? NO_ITEMS)}
         </div>
         <div className="rail">
           <RailHalf label="Team">

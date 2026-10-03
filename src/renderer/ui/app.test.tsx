@@ -73,7 +73,7 @@ function installBridge(): void {
     sendTurn: async (sessionId: string, text: string) => {
       sent.push([sessionId, text])
     },
-    getConversation: async () => ({ entries: [], sessions: [], busy: [], personas: [] }),
+    getConversation: async () => ({ entries: [], sessions: [], busy: [], personas: [], runs: [] }),
     endConversation: async (projectId: string) => {
       ended.push(projectId)
     },
@@ -838,5 +838,74 @@ describe('App, the current persona’s close control', () => {
     push({ name: 'session:closed', payload: { sessionId: 's-mary', agentId: mary.id, reason: 'process-exited', at: 2 } })
 
     expect(closeButtons()).toHaveLength(0)
+  })
+})
+
+describe('App, pressing a skill button (Story 3.1)', () => {
+  let dispatched: [string, string][]
+  const frame = (): Promise<void> => new Promise((resolve) => requestAnimationFrame(() => resolve()))
+  const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
+  const buttons = (): HTMLButtonElement[] => [...mounted!.container.querySelectorAll<HTMLButtonElement>('button.skill-button')]
+
+  beforeEach(() => {
+    dispatched = []
+    const harness = window.harness as unknown as Record<string, unknown>
+    harness.getInstall = async () => ({
+      ...snapshot,
+      menus: { [mary.id]: [{ code: 'CP', description: 'Create the PRD' }, { code: 'VP', description: 'Validate a PRD' }] }
+    })
+    harness.dispatchMenu = async (sessionId: string, code: string) => {
+      dispatched.push([sessionId, code])
+      return 'r1'
+    }
+  })
+
+  it('shows the row once the persona is live, sends the code alone, and draws the run’s card as it writes', async () => {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    // No session yet: no row.
+    expect(buttons()).toEqual([])
+
+    act(() => tile('Mary').click())
+    await settle()
+    const row = mounted.container.querySelector('.skill-row')
+    expect(row?.querySelector('.skill-row-label')?.textContent).toBe('Mary can')
+    expect(buttons().map((button) => button.textContent)).toEqual(['CPCreate the PRD', 'VPValidate a PRD'])
+    expect(row?.closest('.composer')).not.toBeNull()
+
+    act(() => buttons()[0].click())
+    await settle()
+    expect(dispatched).toEqual([[`session-of-${mary.id}`, 'CP']])
+    expect(sent).toEqual([])
+    // Held while the turn is in flight; the composer is not.
+    expect(buttons().every((button) => button.disabled)).toBe(true)
+    expect(field().disabled).toBe(false)
+
+    const R = { runId: 'r1', sessionId: `session-of-${mary.id}` }
+    push({ name: 'run:started', payload: { ...R, agentId: mary.id, code: 'CP', at: Date.now() } })
+    const card = mounted.container.querySelector('.run-card')
+    expect(card?.getAttribute('aria-busy')).toBe('true')
+    expect(card?.querySelector('.run-card-status')?.textContent).toBe('writing')
+    // No user turn was recorded for the dispatch.
+    expect(mounted.container.querySelector('.turn--user')).toBeNull()
+
+    push({ name: 'run:note', payload: { ...R, text: '- (decision) Fast path', at: Date.now() } })
+    expect(card?.querySelectorAll('.run-note')).toHaveLength(1)
+
+    push({ name: 'doc:prose', payload: { ...R, callId: 'c1', path: '_bmad/prd.md', text: '## Vision\n', at: Date.now() } })
+    push({ name: 'doc:prose', payload: { ...R, callId: 'c1', path: '_bmad/prd.md', text: 'words', at: Date.now() } })
+    await act(frame)
+    expect(card?.querySelector('.run-card-text')?.textContent).toBe('## Vision\nwords')
+    expect(card?.querySelector('.run-card-path')?.textContent).toBe('_bmad/prd.md')
+    expect(card?.querySelector('.run-card-caret')).not.toBeNull()
+
+    push({ name: 'doc:committed', payload: { ...R, ok: true, callId: 'c1', path: '_bmad/prd.md', sections: ['Vision'], at: Date.now() } })
+    push({ name: 'run:finished', payload: { ...R, at: Date.now() } })
+    push({ name: 'session:awaiting-turn', payload: { sessionId: R.sessionId, at: Date.now() } })
+    expect(card?.querySelector('.run-card-status')?.textContent).toBe('saved · just now · 1 section')
+    expect(card?.querySelector('.run-card-caret')).toBeNull()
+    expect(card?.hasAttribute('aria-busy')).toBe(false)
+    expect(buttons().every((button) => !button.disabled)).toBe(true)
   })
 })

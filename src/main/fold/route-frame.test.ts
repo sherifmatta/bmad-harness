@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { ContractEvent } from '../../shared/events'
-import { initialRouteState, routeFrame } from './route-frame'
+import { initialRouteState, routeFrame, withoutPendingWrites } from './route-frame'
 import type { RouteContext, RouteState } from './route-frame'
 
 const ROOT = '/work/project'
@@ -59,6 +59,15 @@ function writeFrames(name: string, input: Record<string, unknown>, size: number,
     stop(index)
   ]
 }
+
+const toolResult = (id: string, isError?: boolean, p: Parent = {}) => ({
+  type: 'user',
+  parent_tool_use_id: p.parent ?? null,
+  message: {
+    role: 'user',
+    content: [{ type: 'tool_result', tool_use_id: id, content: 'done', ...(isError === undefined ? {} : { is_error: isError }) }]
+  }
+})
 
 const names = (events: ContractEvent[]) => events.map((event) => event.name)
 const proseText = (events: ContractEvent[]) =>
@@ -129,12 +138,11 @@ describe('routeFrame', () => {
     expect(names(events).every((name) => name === 'doc:prose')).toBe(true)
   })
 
-  it('routes a memlog write as run:note and never as doc:prose', () => {
-    const input = { file_path: `${ROOT}/_bmad/x/.memlog.md`, content: 'found a thing\n' }
-    const { events } = run(writeFrames('Write', input, 6))
-    expect(new Set(names(events))).toEqual(new Set(['run:note']))
-    expect(events.map((event) => ('text' in event.payload ? event.payload.text : '')).join('')).toBe('found a thing\n')
-    expect(events[0].payload).toEqual(expect.objectContaining({ runId: 'r1', sessionId: 's1', callId: 'toolu_1' }))
+  it('routes a memlog write nowhere: no prose, no note, and nothing pending to commit', () => {
+    const input = { file_path: `${ROOT}/_bmad/x/.memlog.md`, content: '- (event) found a thing\n' }
+    const { events, state } = run([...writeFrames('Write', input, 6), toolResult('toolu_1')])
+    expect(events).toEqual([])
+    expect(state.writes).toEqual({})
   })
 
   it('holds content that precedes file_path until the path is known, losing and repeating nothing', () => {
@@ -146,10 +154,10 @@ describe('routeFrame', () => {
     }
   })
 
-  it('holds a memlog write whose path arrives last, and routes it as a note', () => {
+  it('drops a memlog write whose path arrives last, having held it', () => {
     const input = { content: 'late path', file_path: `${ROOT}/.memlog.md` }
     const { events } = run(writeFrames('Write', input, 4))
-    expect(new Set(names(events))).toEqual(new Set(['run:note']))
+    expect(events).toEqual([])
   })
 
   it('decodes an escape or a surrogate pair split across fragments whole', () => {
@@ -350,6 +358,90 @@ describe('routeFrame', () => {
   })
 })
 
+describe('routeFrame: a write commits on its tool_result (AD-5)', () => {
+  const DOC = ['# PRD', '', '## **Vision**', 'text', '```', '## not a section', '```', '## Scope ##', '### Detail'].join('\n')
+  const input = { file_path: `${ROOT}/_bmad/x/prd.md`, content: DOC }
+
+  it('raises exactly one doc:committed, with the level-2 headings of what was written, after the prose', () => {
+    const { events, state } = run([...writeFrames('Write', input, 9), toolResult('toolu_1'), toolResult('toolu_1')])
+    const commits = events.filter((event) => event.name === 'doc:committed')
+    expect(commits).toEqual([
+      {
+        name: 'doc:committed',
+        payload: {
+          ok: true,
+          runId: 'r1',
+          sessionId: 's1',
+          callId: 'toolu_1',
+          path: '_bmad/x/prd.md',
+          sections: ['Vision', 'Scope'],
+          at: CTX.now
+        }
+      }
+    ])
+    expect(names(events).at(-1)).toBe('doc:committed')
+    expect(state.writes).toEqual({})
+  })
+
+  it('commits the headings of text held before its file_path closed, at every fragment size', () => {
+    const late = { content: DOC, file_path: `${ROOT}/_bmad/x/prd.md` }
+    for (const size of [1, 4, 13, 500]) {
+      const { events, state } = run([...writeFrames('Write', late, size), toolResult('toolu_1')])
+      const commits = events.filter((event) => event.name === 'doc:committed')
+      expect(commits, `size ${size}`).toHaveLength(1)
+      expect(commits[0].name === 'doc:committed' && commits[0].payload.ok && commits[0].payload.sections, `size ${size}`).toEqual([
+        'Vision',
+        'Scope'
+      ])
+      expect(state.writes).toEqual({})
+    }
+  })
+
+  it('commits an Edit with the headings of its new text', () => {
+    const edit = { file_path: `${ROOT}/_bmad/x/prd.md`, old_string: '## Old', new_string: '## New\nbody' }
+    const commit = run([...writeFrames('Edit', edit, 4), toolResult('toolu_1')]).events.at(-1)
+    expect(commit?.name === 'doc:committed' && commit.payload.ok && commit.payload.sections).toEqual(['New'])
+  })
+
+  it('commits a rejected write as the envelope, naming no section', () => {
+    const commit = run([...writeFrames('Write', input, 9), toolResult('toolu_1', true)]).events.at(-1)
+    expect(commit).toEqual({
+      name: 'doc:committed',
+      payload: {
+        ok: false,
+        runId: 'r1',
+        sessionId: 's1',
+        callId: 'toolu_1',
+        path: '_bmad/x/prd.md',
+        error: { code: 'doc/write-rejected', message: 'doc · the write was rejected' },
+        at: CTX.now
+      }
+    })
+  })
+
+  it('holds the write across a new message, and commits nothing for a result it was not waiting on', () => {
+    const { events } = run([...writeFrames('Write', input, 50), messageStart('msg_2'), toolResult('toolu_other'), toolResult('toolu_1')])
+    expect(names(events).filter((name) => name === 'doc:committed')).toHaveLength(1)
+  })
+
+  it('commits nothing for a write that never came back, once its pending writes are dropped', () => {
+    const streamed = run(writeFrames('Write', input, 9))
+    expect(Object.keys(streamed.state.writes)).toEqual(['toolu_1'])
+    const dropped = withoutPendingWrites(streamed.state)
+    expect(dropped.writes).toEqual({})
+    expect(run([toolResult('toolu_1')], CTX, dropped).events).toEqual([])
+    expect(withoutPendingWrites(dropped)).toBe(dropped)
+  })
+
+  it('commits nothing outside the project, for a subagent, or with no run', () => {
+    const outside = { file_path: '/elsewhere/prd.md', content: DOC }
+    expect(run([...writeFrames('Write', outside, 9), toolResult('toolu_1')]).events).toEqual([])
+    const streamed = run(writeFrames('Write', input, 9))
+    expect(routeFrame(streamed.state, toolResult('toolu_1', false, { parent: 'toolu_agent' }), CTX).events).toEqual([])
+    expect(run([...writeFrames('Write', input, 9), toolResult('toolu_1')], { ...CTX, runId: undefined }).events).toEqual([])
+  })
+})
+
 describe('routeFrame against the recorded corpus', () => {
   const FIXTURE = resolve(import.meta.dirname, '..', '..', '..', 'fixtures', 'runs', 'fast-path-sonnet.jsonl')
   const frames: Record<string, unknown>[] = readFileSync(FIXTURE, 'utf8')
@@ -396,6 +488,20 @@ describe('routeFrame against the recorded corpus', () => {
       const expected = String(tool.name === 'Write' ? tool.input?.content : tool.input?.new_string)
       expect(byCall.get(tool.id ?? '') ?? '').toBe(expected)
     }
+  })
+
+  it('commits every Write and Edit exactly once, on its tool_result, and the big Write names its sections', () => {
+    const events = run(frames, ctx).events
+    const writes = mainTools.filter((tool) => tool.name === 'Write' || tool.name === 'Edit')
+    const commits = events.flatMap((event) => (event.name === 'doc:committed' ? [event.payload] : []))
+    expect(commits.map((commit) => commit.callId).sort()).toEqual(writes.map((tool) => tool.id ?? '').sort())
+    const big = writes.find((tool) => tool.name === 'Write' && String(tool.input?.content).length > 40_000)
+    const bigCommit = commits.find((commit) => commit.callId === big?.id)
+    expect(bigCommit?.ok).toBe(true)
+    expect(bigCommit?.ok === true && bigCommit.sections.length).toBeGreaterThan(5)
+    // Committed after the last piece of its prose.
+    const lastProse = events.findLastIndex((event) => event.name === 'doc:prose' && event.payload.callId === big?.id)
+    expect(events.findIndex((event) => event.name === 'doc:committed' && event.payload.callId === big?.id)).toBeGreaterThan(lastProse)
   })
 
   it('says the same words once: every persona:said text is a text_delta of the main thread', () => {

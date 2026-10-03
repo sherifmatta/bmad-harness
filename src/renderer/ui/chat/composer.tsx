@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { JSX, KeyboardEvent } from 'react'
+import type { JSX, KeyboardEvent, ReactNode } from 'react'
 
 import './composer.css'
 
@@ -31,7 +31,8 @@ export function Composer({
   agentName,
   onSend,
   focusOnMount = false,
-  refocus = 0
+  refocus = 0,
+  head
 }: {
   agentName: string
   onSend?: (text: string) => void
@@ -48,6 +49,8 @@ export function Composer({
    * this composer.
    */
   refocus?: number
+  /** What sits above the field inside the composer: the persona's skill row, when it has one. */
+  head?: ReactNode
 }): JSX.Element {
   const [text, setText] = useState('')
   const field = useRef<HTMLTextAreaElement>(null)
@@ -102,6 +105,7 @@ export function Composer({
   return (
     <div className="composer">
       <div className="composer-inner">
+        {head}
         <div className="composer-field">
           <textarea
             ref={field}

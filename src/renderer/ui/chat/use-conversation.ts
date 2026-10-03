@@ -8,25 +8,31 @@ import {
   canAnswer,
   dispatchFailed,
   dispatchRefusedBusy,
+  dispatchStarted,
   dropQueued,
   ended,
   foldEvent,
   hydrate,
   initialConversation,
   orphansOf,
+  runCardOf,
   sendMessage,
   sessionOf,
   sessionReady,
   withHandoff
 } from './conversation-state'
 import type { ConversationState, Delivery, PersonaStateEntry } from './conversation-state'
+import { createProseStore } from './prose-store'
+import type { ProseStore } from './prose-store'
+import { runLifecycleLine } from './run-status'
 import type { TranscriptEntry } from './transcript-entry'
 
-/** The six bridge methods the conversation needs, and nothing else of the bridge. */
+/** The seven bridge methods the conversation needs, and nothing else of the bridge. */
 export type ConversationBridge = {
   openSession(agentId: string): Promise<OpenedSession>
   closeSession(sessionId: string): Promise<void>
   sendTurn(sessionId: string, text: string): Promise<void>
+  dispatchMenu(sessionId: string, code: string): Promise<string>
   getConversation(): Promise<ConversationSnapshot>
   endConversation(projectId: string): Promise<void>
   onSessionEvent(listener: (event: ContractEvent) => void): () => void
@@ -47,6 +53,13 @@ export type Conversation = {
   send(agentId: string, text: string): void
   /** The user took a queued message back, by its transcript entry's id. */
   cancel(entryId: string): void
+  /**
+   * The user activated a menu entry of a persona: its code goes to main for the
+   * persona's live session, and nothing else does. Ignored while the session
+   * has a turn in flight, or when the persona has none; a refusal is the
+   * failure line.
+   */
+  runSkill(agentId: string, code: string): void
   /**
    * The user closes a persona's session: main ends that one session, and its
    * `session:closed` is what removes it here. Resolves true when it was closed;
@@ -71,6 +84,13 @@ type ConversationDeps = {
   onFailure: (error: HarnessError | null) => void
   /** A handoff's sysline has just joined the transcript, live: not one the snapshot brought. */
   onHandoff?: (record: SyslineRecord) => void
+  /**
+   * Where each run's document text is held; pieces of prose go here and never
+   * into the state. Left out, a store that tells its readers at once.
+   */
+  prose?: ProseStore
+  /** A run began or ended, live: the one line to announce for it. */
+  onLifecycle?: (line: string) => void
 }
 
 /**
@@ -95,7 +115,8 @@ type ConversationDeps = {
  * is transmitted to be refused as busy.
  */
 export function createConversation(deps: ConversationDeps): Conversation {
-  const { bridge, agentOf, now, publish, onFailure, onHandoff } = deps
+  const { bridge, agentOf, now, publish, onFailure, onHandoff, onLifecycle } = deps
+  const prose = deps.prose ?? createProseStore({ raf: (callback) => callback() })
   let state = initialConversation
   let live = true
   const opening = new Map<string, Promise<void>>()
@@ -190,6 +211,26 @@ export function createConversation(deps: ConversationDeps): Conversation {
     return attempt
   }
 
+  /** A run's start or end, told once as the card now reads it. */
+  function announceLifecycle(event: ContractEvent): void {
+    if (
+      !live ||
+      onLifecycle === undefined ||
+      (event.name !== 'run:started' &&
+        event.name !== 'run:finished' &&
+        event.name !== 'run:stopped' &&
+        event.name !== 'run:failed')
+    ) {
+      return
+    }
+    const card = runCardOf(state, event.payload.runId)
+    if (card === undefined) {
+      return
+    }
+    const agentId = card.agentId ?? ''
+    onLifecycle(runLifecycleLine(card, agentOf(agentId)?.name || agentId))
+  }
+
   return {
     connect() {
       // Subscribed first, so nothing is missed; what comes before the snapshot is in it.
@@ -197,9 +238,17 @@ export function createConversation(deps: ConversationDeps): Conversation {
         if (!hydrated) {
           return
         }
+        // A piece of a document is the prose store's, written to the page once a
+        // frame: it never becomes a state change of its own.
+        if (event.name === 'doc:prose') {
+          const { runId, callId, path, text } = event.payload
+          prose.append(runId, callId, path, text)
+          return
+        }
         const folded = foldEvent(state, event, agentOf)
         commit(folded.state)
         transmit(folded.deliver)
+        announceLifecycle(event)
       })
       const begin = (): void => {
         hydrated = true
@@ -214,6 +263,9 @@ export function createConversation(deps: ConversationDeps): Conversation {
             return
           }
           const taken = hydrate(state, snapshot, agentOf)
+          for (const run of snapshot.runs) {
+            prose.seed(run.runId, run.prose)
+          }
           commit(taken.state)
           hydrated = true
           for (const delivery of taken.deliveries) {
@@ -254,6 +306,23 @@ export function createConversation(deps: ConversationDeps): Conversation {
       commit(cancelQueued(state, entryId))
     },
 
+    runSkill(agentId, code) {
+      onFailure(null)
+      const sessionId = sessionOf(state, agentId)
+      if (sessionId === undefined || !canAnswer(state, agentId)) {
+        return
+      }
+      commit(dispatchStarted(state, sessionId))
+      bridge.dispatchMenu(sessionId, code).catch((reason: unknown) => {
+        // Busy: main has a turn in flight this window had not seen; its end frees the row.
+        if (asHarnessError(reason).code === 'session/busy') {
+          return
+        }
+        commit(dispatchFailed(state, sessionId))
+        fail(reason)
+      })
+    },
+
     async close(agentId) {
       onFailure(null)
       const sessionId = sessionOf(state, agentId)
@@ -290,6 +359,7 @@ export function createConversation(deps: ConversationDeps): Conversation {
       // send starts a new one rather than waiting on it.
       opening.clear()
       awaitingSnapshot.length = 0
+      prose.clear()
       commit(ended(state))
       return true
     }
@@ -303,7 +373,8 @@ export function createConversation(deps: ConversationDeps): Conversation {
  */
 export function useConversation(
   agents: readonly AgentView[],
-  onHandoff?: (record: SyslineRecord) => void
+  onHandoff?: (record: SyslineRecord) => void,
+  onLifecycle?: (line: string) => void
 ): {
   entries: readonly TranscriptEntry[]
   /** The state main last reported for each persona, with when it began. */
@@ -321,17 +392,27 @@ export function useConversation(
   live: ReadonlySet<string>
   /** Whether a persona has a live session with no turn in flight. */
   canAnswer: (agentId: string) => boolean
+  /** The persona's live session, if it has one. */
+  sessionOf: (agentId: string) => string | undefined
+  /** Run one of a persona's menu entries, by its code, in its live session. */
+  runSkill: (agentId: string, code: string) => void
+  /** Each run's document text, which the run cards write from. */
+  prose: ProseStore
 } {
   const [state, setState] = useState<ConversationState>(initialConversation)
   const [failure, setFailure] = useState<HarnessError | null>(null)
   const agentsRef = useRef(agents)
   const onHandoffRef = useRef(onHandoff)
+  const onLifecycleRef = useRef(onLifecycle)
   const conversation = useRef<Conversation | null>(null)
+  // The one frame the window paints on is injected here, and only here.
+  const [prose] = useState(() => createProseStore({ raf: (callback) => requestAnimationFrame(callback) }))
 
   useEffect(() => {
     agentsRef.current = agents
     onHandoffRef.current = onHandoff
-  }, [agents, onHandoff])
+    onLifecycleRef.current = onLifecycle
+  }, [agents, onHandoff, onLifecycle])
 
   // A preload that failed to load leaves no bridge at all.
   const bridgeAvailable =
@@ -351,7 +432,9 @@ export function useConversation(
       now: () => Date.now(),
       publish: setState,
       onFailure: setFailure,
-      onHandoff: (record) => onHandoffRef.current?.(record)
+      onHandoff: (record) => onHandoffRef.current?.(record),
+      prose,
+      onLifecycle: (line) => onLifecycleRef.current?.(line)
     })
     conversation.current = created
     const disconnect = created.connect()
@@ -359,7 +442,7 @@ export function useConversation(
       disconnect()
       conversation.current = null
     }
-  }, [bridgeAvailable])
+  }, [bridgeAvailable, prose])
 
   const activate = useCallback(
     async (agentId: string) => void (await conversation.current?.activate(agentId)),
@@ -370,6 +453,10 @@ export function useConversation(
     []
   )
   const cancel = useCallback((entryId: string) => conversation.current?.cancel(entryId), [])
+  const runSkill = useCallback(
+    (agentId: string, code: string) => conversation.current?.runSkill(agentId, code),
+    []
+  )
   const end = useCallback(
     async (projectId: string) => (await conversation.current?.end(projectId)) ?? false,
     []
@@ -395,6 +482,7 @@ export function useConversation(
   )
 
   const answerable = useCallback((agentId: string) => canAnswer(state, agentId), [state])
+  const liveSessionOf = useCallback((agentId: string) => sessionOf(state, agentId), [state])
 
   return {
     entries,
@@ -407,6 +495,9 @@ export function useConversation(
     close,
     orphans,
     live,
-    canAnswer: answerable
+    canAnswer: answerable,
+    sessionOf: liveSessionOf,
+    runSkill,
+    prose
   }
 }

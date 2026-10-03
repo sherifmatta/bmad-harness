@@ -1,6 +1,8 @@
 import type { JSX } from 'react'
 
 import { decisionOf } from './decision'
+import type { ProseStore } from './prose-store'
+import { RunCard } from './run-card'
 import { Sysline } from './sysline'
 import { PersonaTurn, UserTurn } from './turn'
 import type { TranscriptEntry } from './transcript-entry'
@@ -11,11 +13,13 @@ import type { TranscriptEntry } from './transcript-entry'
  * Entries arrive however the projection holds them; the transcript shows them
  * ascending by `at`, ties keeping their input order. Persona and user turns, and
  * the harness's own sysline between them, and the decision block, drawn inside the
- * last persona turn when it can be answered.
+ * last persona turn when it can be answered. A run's card sits among them where
+ * its run started (Story 3.1), drawn when the window holds the prose store its
+ * text is written from.
  * The markup is the shell's `.thread`, which already caps at `--thread-max`.
  */
 
-export type { PersonaEntry, SyslineEntry, TranscriptEntry, UserEntry } from './transcript-entry'
+export type { PersonaEntry, RunCardEntry, SyslineEntry, TranscriptEntry, UserEntry } from './transcript-entry'
 
 /**
  * The entries ascending by `at`, stable: equal times keep the order they came
@@ -43,7 +47,8 @@ export function Turns({
   entries,
   onCancel,
   canAnswer,
-  onChoose
+  onChoose,
+  prose
 }: {
   entries: readonly TranscriptEntry[]
   /** Take a queued message back, by its entry id. */
@@ -52,6 +57,8 @@ export function Turns({
   canAnswer?: (agentId: string) => boolean
   /** Send an option's text to a persona as the user's turn. */
   onChoose?: (agentId: string, text: string) => void
+  /** Where each run's document text is held; without it no run card is drawn. */
+  prose?: ProseStore
 }): JSX.Element {
   const ordered = orderEntries(entries)
   const last = ordered.length - 1
@@ -60,6 +67,9 @@ export function Turns({
       {ordered.map((entry, index) => {
         if (entry.kind === 'sysline') {
           return <Sysline key={entry.id} text={entry.text} />
+        }
+        if (entry.kind === 'run') {
+          return prose === undefined ? null : <RunCard key={entry.id} entry={entry} prose={prose} />
         }
         if (entry.kind === 'persona') {
           // A decision is read only from the last entry, and only while its persona can

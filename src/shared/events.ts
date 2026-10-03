@@ -83,11 +83,15 @@ export type RunStarted = {
   at: EpochMs
 }
 
-/** A line the run left in its working notes rather than in a document. */
+/**
+ * A line the run left in its working notes rather than in a document: one new
+ * entry of a `.memlog.md`, as the file holds it. It comes from the file, not
+ * from a tool call, so it names no call; `at` is when main observed the append,
+ * because the format carries no time of its own.
+ */
 export type RunNote = {
   runId: RunId
   sessionId: SessionId
-  callId: CallId
   text: string
   at: EpochMs
 }

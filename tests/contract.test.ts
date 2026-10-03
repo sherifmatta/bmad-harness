@@ -98,6 +98,13 @@ describe('the events out', () => {
     expect(body).not.toMatch(/renderer|preload/i)
   })
 
+  it('carry a run note as the memlog line main observed, naming no tool call (Story 3.1)', () => {
+    const source = withoutComments(read('src/shared/events.ts'))
+    const start = source.indexOf('export type RunNote = {')
+    const fields = [...source.slice(start, source.indexOf('\n}', start)).matchAll(/^ {2}(\w+)\??:/gm)].map(([, field]) => field)
+    expect(fields).toEqual(['runId', 'sessionId', 'text', 'at'])
+  })
+
   it('reuse the rail snapshot rather than redefine it', () => {
     expect(declared.get('rail:changed')).toMatch(/RailSnapshot\s*>/)
   })
