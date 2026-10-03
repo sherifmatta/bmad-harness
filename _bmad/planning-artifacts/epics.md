@@ -46,7 +46,7 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **FR13:** The topbar carries brand, project path, install chip, branch chip, and the view switch.
 - **FR14:** The chat column holds conversation entries in time order — persona turns, user turns, syslines, and document cards — plus the skill button row and the composer.
 - **FR15:** An explicit end-session control dispatches `conversation.end(projectId)` and is the only way to clear a persisted conversation. It is a lifecycle control, never presented as a next-step suggestion.
-- **FR16:** The conversation transcript, session state and install model live in Electron main and are persisted per project under `userData`. The renderer is a pure projection: a window reload loses nothing, **including a run in flight**, because the card is a main-held projection re-emitted on reconnect rather than reconstructed from renderer memory.
+- **FR16:** The conversation transcript, session state and install model live in Electron main. The transcript is persisted per project under `userData`; session state and the install model are not — sessions are not held across restarts (FR100) and the install model is re-derived from disk on each launch (NFR2). The renderer is a pure projection: a window reload loses nothing, **including a run in flight**, because the card is a main-held projection re-emitted on reconnect rather than reconstructed from renderer memory. (`ARCHITECTURE-SPINE.md` AD-7.)
 - **FR17:** One project per window.
 
 #### CAP-3 — Personas have faces and identities
@@ -140,17 +140,17 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 
 #### CAP-11 — A running skill can be stopped
 
-- **FR83:** A stop control is present on **both** the full card head (beside elapsed run time) and the collapsed line, and dispatches `run.stop(runId)`, which sends `SIGINT`.
-- **FR84:** The cost of stopping is stated **on the control, before it is pressed**, never in a modal and never hidden. Where stop ends the persona's session, the full-card control reads `stop · ends this conversation` and the collapsed line carries the cost in its accessible name.
+- **FR83:** A stop control is present on **both** the full card head (beside elapsed run time) and the collapsed line, and dispatches `run.stop(runId)`, which writes one in-band interrupt request to the run's session on stdin — `{"type":"control_request","request_id":"<id>","request":{"subtype":"interrupt"}}` — and so ends the turn, not the session. `SIGINT` ends a session and is never the stop mechanism. (`ARCHITECTURE-SPINE.md` AD-18, *Stop (settled, Story 1.1)*; `execution-model.md` *Stop and failure*; `_bmad/spikes/spike-stop-semantics.md`.)
+- **FR84:** Stopping costs the turn, not the conversation, so the control reads a plain `stop` on the full card head and on the collapsed line, with no confirmation. If stopping ever costs more than the turn, that cost is stated **on the control, before it is pressed**, never in a modal and never hidden. If the interrupt is not acknowledged — no `control_response`, or one whose `subtype` is not `success` — the harness falls back to ending the session and states that in its own register. (`ARCHITECTURE-SPINE.md` AD-18.)
 - **FR85:** There is no confirmation dialog and no "stopping…" transitional state; the card reaches its terminal state directly.
 - **FR86:** Stopping leaves the file **byte-for-byte as written** — never reverted, never patched, never restored — and nothing is offered to restore it.
 
 #### CAP-12 — Failed and stopped runs are legible
 
-- **FR87:** A `result` row arrives **per turn**, not once per process, and terminates the turn the harness is waiting on. `subtype: "error_during_execution"` with `is_error: true` and a `stop_reason` marks a turn stopped or failed; its absence marks it finished. Process exit code is not the signal.
+- **FR87:** A `result` row arrives **per turn**, not once per process, and ends *a* turn — not necessarily the one the harness sent, because a session also takes turns nobody sent (AD-11). `is_error: true` marks a turn stopped or failed and `subtype` says which kind (`error_during_execution` for an interrupt or a mid-turn failure, `error_max_budget_usd` for an exhausted budget, and any other error subtype the CLI emits); `is_error` absent or false marks it finished. Those two fields are the whole discriminator: `stop_reason` is never tested, because it is not stable across them (`null` on the spike's interrupted turns, `tool_use` in the corpus's interrupt recordings, absent on a budget failure). Process exit code is not the signal. (`ARCHITECTURE-SPINE.md` AD-18.)
 - **FR88:** A write counts on `tool_result`, never on `tool_use`. The unit of confirmation is the **tool call**: on `tool_result`, every section parsed from that call's accumulated input becomes committed together; on `tool_result` with `is_error: true`, none did, and that call names what failed to land. Exactly one `doc:committed` is emitted per tool call, carrying that call's id and the list of sections it committed — never fanned out per section.
 - **FR89:** On stop or failure the card switches to the `error` state and names the section reached, taken from the last confirmed write; the rail row annotation becomes `stopped` while its disk state is unchanged; the persona tile goes `error` with **no error text on the tile**.
-- **FR90:** The persona picks up a stopped or failed run in the conversation, in its own voice: what got done, what broke, and an offer to resume. The harness never speaks in a persona's name. **Where stopping also ends the session (the Branch B outcome of the stop spike), there is no persona left to deliver this for a stop** — the harness then states the outcome in its own register and does not fabricate a persona voice. A *failure* leaves the session alive, so FR90 holds as written for failures under either branch.
+- **FR90:** The persona picks up a stopped or failed run in the conversation, in its own voice: what got done, what broke, and an offer to resume. The harness never speaks in a persona's name. A stop leaves the session alive, so this holds for stops as well as failures. **Where the session itself has ended with the run** (the process exited, or the interrupt fell back to ending the session) there is no persona left to deliver it, and the harness states the outcome in its own register and does not fabricate a persona voice.
 - **FR91:** Every failure crossing the bridge is `{ code, message, detail? }` with a stable `code`. `message` is what is shown; `detail` sits behind a disclosure control. Raw subprocess stderr never reaches the renderer and no stack trace is ever shown.
 - **FR92:** Contention is reported, never prevented and never resolved: the rail row annotation names the contention and both owners, the filesystem arbitrates and last writer wins, and there is no dialog and no bridge command to resolve, merge, revert, lock, restore or undo.
 - **FR93:** When the window is unfocused, each terminal event (`run:finished`, `run:stopped`, `run:failed`) produces exactly one silent native macOS notification naming the persona, the outcome, the file and the section count. Nothing is notified when the window is focused, and nothing else in the product notifies at all. No Dock badge, ever.
@@ -161,7 +161,7 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **FR95:** A persona session is a long-lived subprocess: `claude -p --input-format stream-json --output-format stream-json --include-partial-messages --verbose --setting-sources project,local`, with `/bmad-agent-<x>` sent as the **first turn on stdin**, not as a positional prompt. One session per active persona, not one per run.
 - **FR96:** Three flags are load-bearing and may not be dropped: `--include-partial-messages` (without it there is no `input_json_delta` to stream), `--setting-sources project,local` (excludes the `user` source, so the subprocess sees only the target project's configuration), and `--input-format stream-json` (keeps the session alive across turns). `--forward-subagent-text` is not passed.
 - **FR97:** Chat turns and skill invocations are both turns into the same session; there is no second run kind. A **run** is a turn dispatched from a menu entry, bounded by `run:started` and a terminal run event.
-- **FR98:** Turns within a session are strictly serialised — at most one turn in flight, chat or run — so a `result` row always belongs to the turn the harness is waiting on. Different sessions run concurrently.
+- **FR98:** Turns the harness sends are strictly serialised — at most one in flight, chat or run — so a queued message is sent only after the turn before it is over. A session can also take turns nobody sent (a background subagent finishing wakes the main thread and produces its own `result` row), so a `result` row ends *a* turn and not necessarily the one the harness sent. Different sessions run concurrently. (`ARCHITECTURE-SPINE.md` AD-11; `fixtures/runs/README.md`, "A session takes turns nobody sent".)
 - **FR99:** A message typed during a run lands in the transcript **immediately**, in the user-turn treatment, dimmed and marked `queued · sends when <Persona> finishes`. It is cancellable. It sends on `session:awaiting-turn`, and the dim and marker are removed **in place** — the entry never moves, re-renders or reappears lower in the thread.
 - **FR100:** Sessions are reclaimed when the persona is closed or the session ended, and are **not** held across app restarts. After a restart the transcript is present, every persona reads `idle`, every card renders dead with no elapsed ticking and no stop control, and nothing is offered to resume.
 - **FR101:** One contract crosses the bridge — events out, commands in — declared once in `src/shared/` with an explicit payload type and a stated cardinality. Events: `session:opened`, `session:awaiting-turn`, `session:closed`, `persona:said`, `persona:state`, `run:started`, `run:note`, `doc:section-opened`, `doc:prose`, `doc:committed`, `run:finished`, `run:stopped`, `run:failed`, `rail:changed`. Commands: `session.open(agentId)`, `session.close(sessionId)`, `turn.send(sessionId, text)`, `menu.dispatch(sessionId, code)`, `run.stop(runId)`, `doc.open(path)`, `conversation.end(projectId)`. Main folds raw `stream-json` into domain events; the renderer never parses a raw frame.
@@ -209,7 +209,7 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **The source tree is prescribed and binding**, not a suggestion: `src/main/{sources,fold,projections,windows}`, `src/preload/`, `src/shared/`, `src/renderer/{ui,design}`, `fixtures/runs/`.
 - **The replay corpus is a build dependency, not a test nicety.** `fold/` interpreters are pure functions over recorded event sequences, and the corpus must cover four named scenarios. Recording real `stream-json` from live `bmad-prd` runs must be sequenced *before* the interpreters can be meaningfully tested, or the highest-churn module in the system is testable only by waiting out a multi-minute run.
 - **Three open items require spikes before the work that depends on them commits:**
-  1. **Stop semantics** — whether `SIGINT` can halt a skill turn without ending the persona session. Named as the cheapest spike and the one to run first, and **scheduled at the front of Epic 1** accordingly: it needs only a `claude` subprocess, and it decides whether FR90 is a valid requirement rather than merely which copy FR84 shows.
+  1. **Stop semantics** — *settled in Epic 1, Story 1.1.* `SIGINT` ends the persona session; an in-band interrupt written to the session's stdin halts one turn and keeps the session, so FR90 stands for stops (`ARCHITECTURE-SPINE.md` AD-18; `_bmad/spikes/spike-stop-semantics.md`).
   2. **Cross-persona continuity** — whether a conversation continuous in transcript and artifacts, but not in process, satisfies CAP-8 and the success signal's demonstrable form.
   3. **Turn queueing** — whether a composer that queues a message typed during a twelve-minute run reads as honest or as broken.
 - **Three resolver scripts must be invoked, and they do not share a directory**: `_bmad/scripts/resolve_config.py`, `_bmad/scripts/resolve_customization.py`, and the party skill's own `scripts/resolve_party.py`. Each invocation needs a timeout and a defined degrade path.
@@ -262,7 +262,7 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 
 #### Behaviour, copy and accessibility
 
-- **UX-DR30 — Microcopy:** implement the harness-voice string table — `writing · §4 Functional Requirements` not "Writing section 4 of 9…"; `saved · 3d` not "Last saved 3 days ago ✓"; `not yet written` not "Waiting for content…"; `no files under _bmad/ yet` not "Get started by running a skill"; `stop · ends this conversation` not a confirm modal; `queued · sends when John finishes` not "Message will be delivered shortly". Lower case, mono, `·` separator, no terminal punctuation.
+- **UX-DR30 — Microcopy:** implement the harness-voice string table — `writing · §4 Functional Requirements` not "Writing section 4 of 9…"; `saved · 3d` not "Last saved 3 days ago ✓"; `not yet written` not "Waiting for content…"; `no files under _bmad/ yet` not "Get started by running a skill"; `stop` not a confirm modal; `queued · sends when John finishes` not "Message will be delivered shortly". Lower case, mono, `·` separator, no terminal punctuation.
 - **UX-DR31 — Stale copy cut:** the mockup's rail footer ("Read from each agent's `customize.toml`…") and composer hint ("skills read from `.claude/skills/…/customize.toml`") are factually wrong under the resolver contract. **Both strings are cut and nothing replaces them.** No config file path appears in copy anywhere.
 - **UX-DR32 — Handoff sysline correction:** the mockup's "conversation and context continue" is false under the session model. The shipped line names the real mechanism — the artifacts — in write order: `handed off · John -> Amelia · picking up from PRD.md, epics.md`.
 - **UX-DR33 — Dead-air treatment (Option A):** the run-note feed **becomes the card body** when prose is not streaming. Reference implementation `mockups/document-card-dead-air.html`, with EXPERIENCE.md winning on any disagreement. Options B (a separate reasoning band with an empty prose body) and C (foot-anchored reasons) are rejected and must not be built.
@@ -283,7 +283,7 @@ Every one of the 105 FRs maps to exactly one epic.
 | FR3 | Epic 1 | Config only via BMad's three resolvers |
 | FR4 | Epic 1 | Resolver timeout, degrade to last good, named error |
 | FR5 | Epic 1 | Config watched and re-resolved (the live-session clause is verified in Epic 2) |
-| FR6 | Epic 2 | Orphaned live session keeps transcript, card, stop and close |
+| FR6 | Epic 2 | Orphaned live session keeps transcript and working close (the card and stop clauses are verified in Epic 3, Story 3.7) |
 | FR7 | Epic 1 | Three-check launch preflight with remedies |
 | FR8 | Epic 1 | The four-part "no agents resolve" message |
 | FR9 | Epic 1 | No setup step, wizard or "where are you?" question |
@@ -419,7 +419,7 @@ Point the harness at any BMad-installed project and get a real room: the install
 - **The portrait acceptance test is named and falsifiable**, despite the criterion sounding subjective: the generator matches the approved `mockups/portrait.html` reference and is reviewed at all four render sizes (32/36/38/44) plus the derived-agent grid. "Reads as a plausible colleague" has a concrete reference and a named judge.
 - **The eight spec amendments the architecture requires are applied in this epic** as documentation work. They are already-true decisions, so nothing blocks them — but owned by no epic they leave `SPEC.md` diverging permanently from what gets built, and the next planning pass reads the wrong contract.
 - **The run-note feed is built here, not in Epic 3.** It is a render over file content — time, kind, reason — so it needs a `.memlog.md`, not a session; eleven real ones exist in this repo to point it at. Building it in Epic 1 is the earliest point at which "you watch the why instead of being told it" can be judged thrilling rather than a changelog, and it means the next format surprise lands with nothing built on top of it. Epic 3 mounts the same component in the card body and feeds it live.
-- **The SIGINT spike runs at the front of this epic, ahead of the scaffold.** It is one subprocess, one turn, one signal — and it decides whether FR90 is a valid requirement at all, since under Branch B there is no persona left to explain a stop. It has no dependency on anything the harness builds, so nothing is gained by holding it until Epic 2.
+- **The stop-semantics spike ran at the front of this epic, ahead of the scaffold.** It was one subprocess, one turn and a stop attempted two ways, and it decided whether FR90 is a valid requirement at all. *Settled (Story 1.1):* `SIGINT` ends the session; an in-band interrupt on the session's stdin halts the turn and keeps it, so FR90 stands for stops (`ARCHITECTURE-SPINE.md` AD-18). It had no dependency on anything the harness builds, so nothing was gained by holding it until Epic 2.
 - **Format sweep result — three of five external formats were wrong on paper.** Verified clean: the `[agents.*]` roster fields (FR2) and the menu entry shape (FR24), both exactly as specified. Verified wrong: the memlog vocabulary (FR41), the sprint status file (FR10), and the PRD template's section structure (FR36). The pattern is worth carrying into the build — **every format that had been executed was correct; every format described from memory was wrong.** Read the file before writing a parser against it.
 - **Negative-surface check:** this epic's final story verifies the UX-DR38 prohibitions that apply to its own surfaces — no launcher or command palette, no badges, no next-step guidance, no editing affordance or refresh control in the document window, no spinner in any empty or loading state. Prohibitions cannot be demoed, so each epic owns a review of its own rather than three epics sharing one nobody runs.
 
@@ -437,7 +437,7 @@ Hold a real conversation with any installed persona in their own voice, hand off
 
 **Implementation notes:**
 - The full events-out/commands-in contract is declared **once** here, including the `doc:*` events Epic 3 consumes — a renderer-only event is a smell, and the contract version stamps every persisted log from this point on.
-- **The SIGINT spike has moved to the front of Epic 1** — it needs a `claude` subprocess and nothing else the harness builds, and it decides whether FR90 is a valid requirement. This epic *consumes* its answer: Branch B means a stop leaves no persona to explain itself, and the session lifecycle here must account for that.
+- **The stop-semantics spike moved to the front of Epic 1 and is settled.** This epic consumes its answer: a stop (the in-band interrupt) ends the turn and leaves the session, so the session lifecycle here has no stop-ends-the-session case. A session ends only through `session.close`, `conversation.end` or process exit (`ARCHITECTURE-SPINE.md` AD-18, AD-21).
 - **One of the three open items resolves here** — whether a conversation continuous in transcript and artifacts, but not in process, satisfies CAP-8. Stop semantics resolve earlier, in Epic 1. The third, whether a queued message reads as honest, **cannot resolve here**: it asks about a message typed during a twelve-minute run, and this epic has no runs. It resolves in Epic 3.
 - Recording the `fixtures/runs/` replay corpus starts here — `fold/` interpreters are pure functions over recorded sequences, so the corpus is a build dependency for Epic 3, not a test nicety. **Fixtures store raw CLI `stream-json` frames, not domain events.** The version stamp is metadata for forensics, not a validity constraint — storing domain events would mean any later contract bump invalidated the corpus, and re-recording a scenario like a failure inside the reviewer gate is not cheap.
 - **Negative-surface check:** this epic's final story verifies the UX-DR38 prohibitions on its own surfaces — no refusal-with-handoff, no sound, no tooltip derived from a resolved skill name, no composer that parses skill names, and a decision-option block with no recommended styling, no default selection and no surviving chosen state.
@@ -459,7 +459,7 @@ Press a button belonging to whoever you are talking to and watch the document be
 - The dead-air treatment (the run-note feed becoming the card body) is the hardest problem in the product: in a Fast-path run nothing is on disk for ~8.5 minutes and the card is the only evidence of life. Options B and C are rejected and must not be built.
 - Streaming performance is load-bearing here, not a polish pass: one observed write was 5,795 deltas carrying 69,031 characters.
 - **Epic 2's replay corpus is critical path for this epic, not a test convenience.** It is what lets the card and the `fold/` interpreters be built and exercised against recorded runs instead of waiting out live multi-minute ones. Treat a missing or unusable corpus as a blocker here, not as missing coverage.
-- **The stop spike's outcome reaches further than the control's copy.** Under Branch B, FR90's "the persona explains it in conversation" is unavailable for a stop, and FR89's deliberate conflation of `stopped` and `failed` on the tile covers two outcomes with different recoverability. The failure stories must resolve both cases explicitly once the spike lands.
+- **The stop spike's outcome reaches further than the control's copy.** Settled in Epic 1: a stop keeps the session, so FR90's "the persona explains it in conversation" holds for stops as well as failures, and FR89's deliberate conflation of `stopped` and `failed` on the tile covers two outcomes with the same recoverability whenever the session survives. The failure stories must still resolve the case where the session ends with the run (process exit, or the interrupt's `SIGINT` fallback), where no persona remains (`ARCHITECTURE-SPINE.md` AD-18).
 - The turn-queueing open item inherited from Epic 2 resolves here, against a real run.
 - **The merge is load-bearing for 31 of the 34 FRs, and the other three are the epic's cut line.** The card's six states are one state machine, not six features — its head status, dot, caret and foot all read one projection, so building half the transitions means redesigning rather than extending. The stop control is a field in the head's layout and one of exactly four in the collapsed line, so removing it designs a different component rather than the same one minus a button. And FR88's commit-on-`tool_result` is a single function whose happy and failure paths are the same branch — split across two epics it gets fixed in opposite directions by two owners. **What is *not* coupled: FR92 (contention, a rail annotation) and FR93–FR94 (a macOS notification in `main/windows/`).** Those three share no file, projection or token with the card and sit here by association. If this epic runs long they are the only FRs that can be dropped without breaking a state machine or splitting a function — which makes them the descope boundary, not a recommendation to drop them.
 - **The run-note feed component arrives from Epic 1 already built and already judged.** This epic mounts it in the card body and feeds it live from `run:note`; it does not re-specify the note. The `.memlog.md` format is a verified constraint, not an assumption — open kind vocabulary (13 kinds observed, `event`/`constraint`/`capability` ranking 2nd/3rd/4th) and **no per-entry timestamp**.
@@ -1039,6 +1039,8 @@ So that the interpreters can be built and exercised in seconds instead of by wai
 **When** Epic 2 begins
 **Then** recording starts immediately and proceeds alongside stories 2.2 through 2.4, so its elapsed time overlaps development rather than following it.
 
+*Amended after close (Story 1.1 outcome, `_bmad/spikes/spike-stop-semantics.md`, 2026-09-25; recorded by the pre-Epic 3 reconciliation, `ARCHITECTURE-SPINE.md` AD-18).* The branches above were framed as a property of `SIGINT`. Measured: `SIGINT` is Branch B (4 of 4: a `result` row about 16ms after the signal, then exit `rc=0` at 217-390ms, no next turn possible). An in-band `control_request` with `subtype: "interrupt"` on the session's stdin is Branch A (4 of 4: `result` in 3-6ms, process alive, next turn answered in persona). So `run.stop` uses the in-band interrupt, FR84 ships a plain `stop`, and FR90 stands as written for stops. `SIGINT` is reserved for ending a session. The ~250ms figure is corrected to under 400ms and no longer bears on stop. The criteria above are left as written; this note records which one fired.
+
 **Given** the four scenarios the architecture names as the minimum corpus
 **Then** `fixtures/runs/` contains a Fast-path single large write, a Coaching-path batched write, a `SIGINT` sent mid-write, and a failure inside the reviewer gate.
 
@@ -1056,6 +1058,8 @@ So that the interpreters can be built and exercised in seconds instead of by wai
 
 **Given** the corpus
 **Then** Epic 3 treats a missing or unusable corpus as a blocker rather than as missing test coverage.
+
+*Amended after close (Story 1.1 outcome; `fixtures/runs/README.md`).* The "`SIGINT` sent mid-write" scenario is recorded as two files: `interrupt-sigint` (the session ends) and `interrupt-inband` (the session survives). The in-band recording is the corpus for the stop mechanism FR83 now names; the `SIGINT` one is the session-ending path.
 
 **Carried in from the Epic 1 retrospective** (`_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md`, action item 6). Story 1.14 replaced Electron's default application menu with a role-only one (`src/main/windows/app-menu.ts`) to guarantee the document window has no refresh. That removed zoom and reload from every window, which no requirement asked for. These two criteria are the exception to this story's "needs no harness code" premise; they restore the two capabilities.
 
@@ -1219,6 +1223,15 @@ So that a long turn never makes the composer feel broken.
 **Given** the honesty test this treatment exists to satisfy
 **Then** a send always produces a visible transcript entry in the same frame; an entry that appears only once the turn ends is a defect.
 
+*Amended after close (Epic 2 retrospective F1; `fixtures/runs/README.md`, "A session takes turns nobody sent"; `ARCHITECTURE-SPINE.md` AD-11 as corrected).* The first criterion's clause "so a `result` row always belongs to the turn the harness is waiting on" is superseded. The harness serialises the turns it sends, but a session also takes turns nobody sent, so a main-thread `result` row ends *a* turn and not necessarily the one the harness sent (`fast-path-opus.jsonl` holds 14 main-thread `result` rows against 3 sends). The criterion now reads:
+
+**Given** turns within a session are strictly serialised by the harness
+**Then** at most one turn the harness sent — chat or run — is in flight at a time, and the next is sent only when that turn is over
+**And** a `result` row for a turn nobody sent neither ends the turn the harness sent, nor frees the session for a queued message, nor sets the persona idle while the sent turn is still in flight
+**And** different sessions run concurrently without interfering.
+
+The same premise is removed from FR98, AD-11, AD-18 and FR87.
+
 ### Story 2.6: Every indicator means something
 
 As someone reading the room at a glance,
@@ -1272,6 +1285,15 @@ So that the transcript is a record rather than a session artifact.
 **Given** a session is reclaimed
 **Then** it happens when the persona is closed or the session ended, and never silently.
 
+*Amended after close (Epic 2 retrospective F18; `spec-2-7` Design Notes, FR100, NFR2; `ARCHITECTURE-SPINE.md` AD-7 as corrected).* The first criterion is superseded. Only the transcript is persisted; session state and the install model live in main and are not written. The criterion now reads:
+
+**Given** durable state
+**Then** the conversation transcript lives in Electron main and is persisted per project under `userData`, keyed by project path
+**And** session state and the install model live in main but are not persisted — sessions are not held across restarts (FR100) and the install model is re-derived from disk on each launch (NFR2)
+**And** no harness byte is ever written inside the project root.
+
+The relaunch criterion's "dead terminal state ... no stop control" clause held vacuously, since no card exists before Epic 3. It is carried to Story 3.7, where it can fail. The reload criterion's "nothing is lost" is not amended here; it awaits the ruling on who owns the queue (F5).
+
 ### Story 2.8: End a conversation deliberately
 
 As someone starting fresh on a project,
@@ -1323,6 +1345,26 @@ So that planning and building happen in one window without a restart or a re-bri
 **Then** it renders in the harness's own mono register, centred with a rule filling the space either side
 **And** it is never styled as, or attributed to, a persona.
 
+*Amended after close (Epic 2 retrospective F6; `spec-2-9` Intent Contract).* The fourth criterion ("Given a handoff occurs / Then a sysline lands ...") says when a sysline lands without saying when it does not, who is "from", or what "the artifacts the previous persona wrote" can truthfully mean. It is superseded by:
+
+**Given** the user moves from one persona to another in a conversation that already has turns
+**When** the tile is activated, or `@<name>` resolves to a persona other than the current one
+**Then** one sysline lands reading `handed off · <from> → <to> · picking up from <files>`
+**And** `<from>` and `<to>` are fixed by the order of the user's actions, so two quick activations are recorded in click order whichever session finishes opening first.
+
+**Given** the sysline's file list
+**Then** it names the project-relative paths the previous persona wrote during this conversation, in write order, each once, and names a path only after the write succeeded
+**And** it names only writes the harness can see as a `Write` or `Edit` call, so files written through a shell command (a heredoc, `memlog.py`) are not named, and that limit is stated rather than hidden
+**And** with no visible writes it reads `handed off · <from> → <to>` with no file clause.
+
+**Given** the transcript is empty, or the current tile is re-activated, or the open fails, or `<from>` has not replied since it was last opened
+**Then** no sysline is written, because nothing was handed off (browsing A to B to A writes one sysline at most, and none when B said nothing).
+
+**Given** the window has reloaded or the app has relaunched
+**Then** the first switch writes no sysline, because main does not hold who was last opened across either.
+
+**And** every sysline never claims that context continues, which would be false — a handoff starts a new session and continuity is carried by the artifacts on disk.
+
 ### Story 2.10: When a persona stops to ask
 
 As someone whose decision a persona is waiting on,
@@ -1369,6 +1411,8 @@ So that editing the install never silently kills work in progress.
 
 **Given** an orphaned session
 **Then** its close control is reachable from the keyboard and carries the shared focus treatment.
+
+*Amended after close (Epic 2 retrospective F20; `spec-2-11` deferral).* The second criterion's "document card" and "working stop ... controls" could not be built or verified in this epic, because a card is born by `run:started` and a stop is `run.stop(runId)`, both Epic 3. What this story delivers and verifies is the transcript, the absence of a tile, and the working `close session` control. The card and stop clauses, and the live-run half of "never touches a live session", are carried to Story 3.7 and FR6's coverage row says so. The criteria above are left as written.
 
 ### Story 2.12: Confirm continuity actually holds
 
@@ -1600,7 +1644,7 @@ So that stepping away never costs me the state of the work.
 **Given** a collapsed card
 **When** the persona is switched to it, or the card is clicked, or it is focused and activated with `Enter`/`Space`
 **Then** it expands to the full form
-**And** focus lands on the card container, **never** on the stop control, whose cost may be the session.
+**And** focus lands on the card container, **never** on the stop control, which interrupts a running turn when activated.
 
 ### Story 3.6: The rail learns who is writing
 
@@ -1636,25 +1680,29 @@ As someone who has seen enough,
 I want to halt a run in progress and know the cost before I commit to it,
 So that stopping is a decision rather than a gamble.
 
-**Implements:** FR83, FR84, FR85, FR86
+**Implements:** FR83, FR84, FR85, FR86 · FR6 (card and stop clauses, carried from Story 2.11) · FR100 (dead-card clause, carried from Story 2.7)
 
 **Acceptance Criteria:**
 
 **Given** a run in flight
 **Then** a stop control is present on **both** the full card head, beside the elapsed time, and the collapsed line
-**And** activating it dispatches `run.stop(runId)`, which sends `SIGINT`.
+**And** activating it dispatches `run.stop(runId)`, which writes one in-band interrupt request (`{"type":"control_request","request_id":"<id>","request":{"subtype":"interrupt"}}`) to that session's stdin — never `SIGINT`, which ends the session (`ARCHITECTURE-SPINE.md` AD-18, *Stop (settled, Story 1.1)*; `execution-model.md` *Stop and failure*; `_bmad/spikes/spike-stop-semantics.md`).
 
-**Given** the branch settled by story 1.1
-**When** stopping is cheap
-**Then** the control reads `stop` with no confirmation
-**And when** stopping also ends the session
-**Then** the full-card control reads `stop · ends this conversation` and the collapsed line carries the cost in its accessible name, because that line has room for the word alone.
+**Given** the branch settled by story 1.1 — the in-band interrupt halts the turn and keeps the session
+**Then** the control reads `stop` with no confirmation and no cost copy, on the full card head and on the collapsed line alike, because stopping costs the turn and not the conversation
+**And** the session stays open, the next turn is accepted, and the persona answers it in its own voice.
 
-**Given** the cost
-**Then** it sits **on the control, before it is pressed** — never in a modal, which would be the harness arbitrating and would hide the cost until the user had already committed to looking.
+**Given** the interrupt is not acknowledged — no `control_response`, or one whose `subtype` is not `success`
+**Then** the harness falls back to ending the session, and states that in the transcript in its own register, never in a persona's name
+**And** that cost is surfaced to the user rather than hidden; the on-screen line is copy for `bmad-ux`.
 
-**Given** a subprocess exits within roughly 250ms of `SIGINT`
-**Then** there is no "stopping…" transitional state; the card reaches its terminal state directly.
+**Given** stopping costs only the turn
+**Then** no confirmation dialog is shown and no cost is printed on the control
+**And** if a later change makes a stop cost more than the turn, the cost sits **on the control, before it is pressed** — never in a modal, which would be the harness arbitrating and would hide the cost until the user had already committed to looking.
+
+**Given** the interrupt is acknowledged
+**Then** the turn's `result` row arrives within milliseconds (3-6ms measured, n=4) and the card reaches its terminal state on that row, not on the `control_response`
+**And** there is no "stopping…" transitional state.
 
 **Given** a stopped run
 **Then** the file on disk is left **byte-for-byte as written** — never reverted, never patched, never restored
@@ -1662,6 +1710,37 @@ So that stopping is a decision rather than a gamble.
 
 **Given** the stop control
 **Then** it is its own tab stop and carries the shared focus treatment.
+
+**Given** a run is in flight in a session whose agent then vanishes from the install (Story 2.11's orphan)
+**When** re-resolution runs
+**Then** the run is untouched: it keeps streaming, its card stays in the conversation in time order, and no tile is created or restored for it
+**And** the card renders in the collapsed one-line form, because an orphan can never be the current persona (the current persona is derived from the roster alone), and it expands on click like any collapsed card.
+
+**Given** an orphaned session's card
+**Then** its stop control is present, is its own tab stop, and carries the shared focus treatment
+**And** activating it dispatches `run.stop(runId)` to that run's own session, found by the run and session ids and never through the roster, so a stop works for a persona the install no longer lists.
+
+**Given** the stop is activated on an orphaned run
+**Then** the turn halts exactly as it does for a rostered persona (in-band interrupt, `result` within milliseconds, no "stopping…" state), the file is left byte-for-byte as written, and the session stays open
+**And** while the shell is mounted, the orphan's header and its `close session` control from Story 2.11 remain until the user closes the session — a stop never closes an orphan, and no session is closed silently.
+
+**Given** an orphan with a run in flight
+**When** the user activates `close session`
+**Then** the session ends, the card reaches a terminal state directly rather than continuing to read as live, and the file is left as written
+**And** the transcript, including the card, stays.
+
+**Given** an agent returns to the install while its orphaned run is in flight
+**Then** its tile returns, the same session and the same card carry on, and the card follows the ordinary full-or-collapsed rule again.
+
+**Given** the roster changes while any run is in flight — an agent added, removed or edited
+**Then** no run, card or stop control changes except through the orphan rules above
+**And** this is the live-run half of FR5's "never touches a live session", which Epic 2 could verify only against chat turns.
+
+**Given** the application is quit and relaunched while the transcript holds a run's card
+**Then** the card renders in its dead terminal state with no elapsed time ticking and no stop control, every persona reads `idle`, and nothing is offered to resume
+**And** this is the relaunch clause of Story 2.7, which could not fail while no card existed.
+
+*Accepted limit (Sherif, 2026-10-03, sprint change proposal decision 6):* the "remain until the user closes the session" clause holds only while the shell is mounted, i.e. while at least one agent still resolves. When the last agent vanishes the shell unmounts and `close session` is unreachable.
 
 ### Story 3.8: Understand a run that ended early
 
@@ -1674,8 +1753,8 @@ So that a failure is something I can act on rather than something I have to inve
 **Acceptance Criteria:**
 
 **Given** a turn ends
-**Then** its terminal state is read from the `result` row that arrives **per turn**, not once per process
-**And** `subtype: "error_during_execution"` with `is_error: true` and a `stop_reason` marks it stopped or failed, its absence marks it finished
+**Then** its terminal state is read from the `result` row that arrives **per turn**, not once per process, and a `result` row ends *a* turn, not necessarily the one the harness sent (`ARCHITECTURE-SPINE.md` AD-11, AD-18)
+**And** `is_error: true` marks it stopped or failed with the `subtype` saying which kind (`error_during_execution`, `error_max_budget_usd`, any other error subtype), its absence marks it finished, and `stop_reason` is never tested because it is not stable across them
 **And** the process exit code is never used as the signal, because a session outlives every turn in it.
 
 **Given** a write
@@ -1691,15 +1770,15 @@ So that a failure is something I can act on rather than something I have to inve
 **And** the rail row's annotation becomes `stopped` while its disk state is unchanged
 **And** the persona tile goes `error` with **no error text on the tile**.
 
-**Given** the session survives the failure
+**Given** the session survives the stop or the failure
 **Then** the persona picks it up in the conversation, in its own voice: what got done, what broke, and an offer to resume.
 
-**Given** stopping also ended the session
+**Given** the session ended with the run — the process exited, or the stop fell back to ending the session
 **Then** no persona remains to deliver that explanation, so the harness states the outcome in its own register and never fabricates a persona voice.
 
-**Given** the corpus fixtures for a `SIGINT` mid-write and a reviewer-gate failure
+**Given** the corpus fixtures `interrupt-inband.jsonl` (the stop path; the session survives), `interrupt-sigint.jsonl` (the session-ending path) and a reviewer-gate failure
 **When** they are replayed
-**Then** both terminal paths render correctly without a live run.
+**Then** each terminal path renders correctly without a live run.
 
 ### Story 3.9: Two writers, one file, no arbitration
 
