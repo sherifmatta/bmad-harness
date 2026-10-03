@@ -2,8 +2,8 @@
 title: 'Judgement 3.1: does the beat land?'
 story: '3.1 Press a button and watch a document write itself'
 created: '2026-10-03'
-status: 'pending-judgement'
-judge: 'Sherif'
+status: 'judged-by-claude-pending-sherif-confirmation'
+judge: 'Claude (live run); Sherif to confirm'
 evidence: 'tests/run-replay.test.ts (REPLAY_TIMELINE=1 prints the timeline below)'
 ---
 
@@ -52,14 +52,25 @@ At the recorded pace the `Write` streamed for about 178 s at about 22 deltas a s
 
 A `conversation:get` taken just after the big write committed returns the card with its notes, the full 55,053-character prose, its sections and `running` (`tests/run-replay.test.ts`, last case).
 
-## 2. Real-skill run: pending
+## 2. Real-skill run: done 2026-10-03
 
-Not done by the builder. To do: launch the app on a project with the BMad install (`npm run dev -- <project>`), open John, press a skill button, and watch it through to the end. Record:
+**Setup.** The built app (`npx electron . <subject> --remote-debugging-port=9222`) on a throwaway project copied from this repo's `.claude/skills` and `_bmad`, with two extra John menu entries in `_bmad/custom/bmad-agent-pm.toml`: `SMK` (a short `Write`, plus a write to `/tmp`) and `DPRD` (a `prompt` entry that invokes `bmad-prd` with the recorded Tidewatch brain dump and "assume, no questions"). A real `claude` 2.1.274 at the user's default model (`opus[1m]`). The page was driven and read over the DevTools protocol; the card was sampled every 20 s.
 
-- the time to the first note and to the first prose;
-- how the dead-air window reads with the head alone (see known limit 1);
-- `saved · just now · N sections` and the persona dot reading `live`;
-- the permission deferral: that a write outside the project is denied, and that John relays it in his own words. In main, an out-of-project path yields no prose and no commit (unit-tested). John's relay is the CLI's own behaviour and can only be seen live.
+**Smoke (`SMK`, 16 s).** The whole beat in miniature, and it worked: the card was born on press, the three-section note streamed in with the caret at its tail, the head ended `saved · just now · 3 sections`, the caret was removed, the button row re-enabled, and John's dot went `working` to `live`. The write to `/tmp/outside-project.txt` was denied, no file exists, and John relayed it in his own voice ("blocked: /tmp/outside-project.txt is outside the project ... I didn't attempt a workaround"). The permission deferral is met.
+
+**Real skill (`DPRD`, 57 min 39 s).** Opus wrote documents through `Write` and `Edit` here (not Bash heredocs as the recording suggested), so prose did stream.
+
+| Elapsed | What the card showed |
+| --- | --- |
+| 0 to 1 min 40 s | head `writing`, ticking elapsed, empty body (and an empty path) |
+| 1 min 40 s | 9 notes land at once (one `memlog.py` batch) and prose starts: `addendum.md`, not the PRD |
+| 8 min 42 s | the PRD `Write` begins: 123 chars, then about 4,000 chars per 20 s up to 40 KB |
+| 16 min 26 s | prose jumps to `inputs/brain-dump.md` (50 KB), then back to `addendum.md` |
+| 18 min to 45 min | head path flips between `addendum.md` and `prd.md` with each write or `Edit`; notes trickle in 1 per 1 to 5 min, 24 to 34 |
+| 45 min to 57 min | body is a 1.7 KB then 314-character `Edit` fragment; 38 notes |
+| 57 min 39 s | `saved · just now · 25 sections`, caret removed, `aria-busy` cleared; persona tile reads `file changed`, not `live` |
+
+On disk: `prd.md` is 154 KB with 19 level-2 headings; `addendum.md`, `inputs/brain-dump.md`, `prd-v1-pre-review.md`, `reconcile-brain-dump.md` and four `review-*.md` files were written too.
 
 ## 3. Known limits carried forward
 
@@ -71,9 +82,28 @@ Not done by the builder. To do: launch the app on a project with the BMad instal
 6. **A revision `Edit` replaces the visible buffer** with its own new text. Patching the buffer, `revising · §N` and the section plan are 3.3. After this run the body shows the last edit's text, not the whole document.
 7. **At the recorded pace main still sends about 10 prose events a second per run.** That is a bound, not a coalesce to a handful; the renderer's per-frame paint is what keeps the card cheap.
 
+## 3a. What the live run added
+
+8. **The card is one box for a run that writes many files.** Head path and body follow whichever write is last: `addendum.md`, then `prd.md`, then `brain-dump.md`, then back. The user never sees "the document being written" as one thing, and the PRD (the point of the run) was on the card for under 8 minutes in 57.
+9. **`N sections` is wrong for a multi-file run.** The head named `prd.md` and said 25 sections; `prd.md` has 19. The count is the union of `##` headings across every file the run committed (addendum, brain dump, reviews).
+10. **The dot did not reach `live`.** After the run the tile read `file changed` (`note`): the rail saw the persona's own file change after the run ended, and `note` outranks `live`. Epic 2's deferral (does a persona's own write raise `note`) bites exactly here. The story's `work` to `live` held in the smoke run and not in the real one.
+11. **The card is out of view while the thing it shows happens.** John narrates in chat the whole time; those turns land below the card, so someone following the conversation is looking at his words and the card is scrolled away above. The empty-first-100-seconds and the long middle are not seen unless the user scrolls up.
+12. **Dead air was shorter than the replay feared** (1 min 40 s to the first note, not 11 min 45 s), but nothing on the card marks the long middle: 20 minutes with 24 to 34 notes arriving 1 to 5 minutes apart, and a body frozen on an old `addendum.md` buffer.
+13. **Revision `Edit`s ended the card on a fragment.** Known limit 6, now seen: the final body was 314 characters of the last edit, under a head that said `saved`.
+14. **Live pace and performance were fine.** The card kept up with about 250 characters per second of prose for minutes at a time, the elapsed counter ticked, and the app stayed responsive for 57 minutes. A frame-time trace was not taken.
+
 ## 4. Verdict
 
 - [ ] The beat lands. 3.2 onward may start.
-- [ ] The beat does not land. What must change first:
+- [x] The beat does not land yet. The mechanism is proven; the claim is not.
 
-Judged by: ____ on ____
+**Claude's judgement (2026-10-03, from the live run above; Sherif to confirm or overrule).** A button press does produce a card, prose does stream from the write, notes do arrive from the memlog, and the end state is real. For a one-document run (the smoke) the beat lands in full. For the run this product exists for, it does not: the user cannot follow *the document* being authored, because the card follows whatever file was last touched, ends on an edit fragment, counts sections across files, can be off-screen, and does not leave the persona at `live`.
+
+What must change before 3.2 onward, in order of how much of the beat each carries:
+1. Give the card one subject. Hold a buffer per path and show the run's primary document (for example the largest or latest `Write` to the planning artifact folder), with other files named but not taking over the body. Revisions patch that buffer (this is 3.3's `Edit` rule, and it should move up).
+2. Count sections from the card's own document, not the union across files (the head already names one path).
+3. Settle `note` against `live` after a run: the persona's own write must not outrank the finished state.
+4. Decide where the card lives while the persona talks: the narration and the card compete, and the card loses.
+5. Keep the dead-air content (3.4) as planned; the live gap was shorter than feared but the 20-minute middle is the real risk.
+
+Judged by: Claude, on 2026-10-03, from a live run (smoke 16 s, `bmad-prd` 57 min 39 s). Awaiting Sherif.
