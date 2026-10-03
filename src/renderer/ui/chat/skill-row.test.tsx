@@ -11,6 +11,9 @@ const ENTRIES = [
   { code: 'VP', description: 'Validate a PRD' }
 ]
 
+const entries = (count: number) => Array.from({ length: count }, (_, at) => ({ code: `C${at}`, description: `Entry ${at}` }))
+const ten = entries(10)
+
 const row = (disabled = false, items = ENTRIES): string =>
   renderToStaticMarkup(<SkillRow name="John" items={items} disabled={disabled} onRun={() => {}} />)
 
@@ -26,9 +29,32 @@ describe('the skill row', () => {
 
   it('renders at one entry and at ten, and is nothing at none', () => {
     expect(row(false, ENTRIES.slice(0, 1)).match(/class="skill-button"/g)).toHaveLength(1)
-    const ten = Array.from({ length: 10 }, (_, at) => ({ code: `C${at}`, description: `Entry ${at}` }))
-    expect(row(false, ten).match(/class="skill-button"/g)).toHaveLength(10)
+    expect(row(false, ENTRIES.slice(0, 1))).not.toContain('skill-more')
+    expect(row(false, ten).match(/class="skill-button"/g)).toHaveLength(5)
     expect(row(false, [])).toBe('')
+  })
+
+  it('shows every entry and no toggle up to five, and the first five then `+N more` beyond', () => {
+    expect(row(false, entries(5)).match(/class="skill-button"/g)).toHaveLength(5)
+    expect(row(false, entries(5))).not.toContain('skill-more')
+
+    const six = row(false, entries(6))
+    expect(six.match(/class="skill-button"/g)).toHaveLength(5)
+    expect(six).toContain('<button type="button" class="skill-more" aria-expanded="false">+1 more</button>')
+    expect(six).not.toContain('Entry 5')
+
+    const many = row(false, ten)
+    expect(many).toContain('>+5 more</button>')
+    expect(many).toContain('Entry 4')
+    expect(many).not.toContain('Entry 5')
+    // The toggle follows the entries, in the row's flow.
+    expect(many.indexOf('class="skill-more"')).toBeGreaterThan(many.lastIndexOf('class="skill-button"'))
+  })
+
+  it('never disables the toggle', () => {
+    const markup = row(true, ten)
+    expect(markup.match(/disabled=""/g)).toHaveLength(5)
+    expect(markup).toContain('<button type="button" class="skill-more" aria-expanded="false">+5 more</button>')
   })
 
   it('disables every button while the turn is in flight, and says nothing else about it', () => {
@@ -38,8 +64,9 @@ describe('the skill row', () => {
   })
 
   it('carries no tooltip, title, skill name or split between skill and prompt', () => {
-    const markup = row()
-    expect(markup).not.toMatch(/title=|tooltip|data-|aria-describedby|skill:|prompt|bmad-/i)
+    for (const markup of [row(), row(false, ten)]) {
+      expect(markup).not.toMatch(/title=|tooltip|data-|aria-describedby|skill:|prompt|action|bmad-/i)
+    }
   })
 
   it('sits above the composer’s field, inside the composer, in the chat column', () => {

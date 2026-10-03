@@ -643,6 +643,10 @@ describe("the text ramp", () => {
       kind: "label",
       why: "the row's `<Persona> can` lead-in; the composer and the header name the persona, and each button carries its own words at --text",
     },
+    "ui/chat/skill-row.css: .skill-more": {
+      kind: "restated",
+      why: "the `+N more` / `fewer` toggle on a long menu; the entries it hides are the same buttons it reveals, and the row reads as complete at five without it",
+    },
   };
 
   /** `file: selector` for every rule under `src/renderer/` that spends a faint token. */
@@ -1375,6 +1379,41 @@ describe("the skill row knows nothing about what it runs (Story 3.1)", () => {
         /\.action\b|['"]prompt['"]|['"]skill['"]|ResolvedMenuEntry/,
       ),
     ).toEqual([]);
+  });
+
+  it("owns one piece of local state and adds one interactive element, the toggle, which is no tooltip and no list", () => {
+    expect(row.match(/\buseState\(/g)).toHaveLength(1);
+    expect(row.match(/<button\b/g)).toHaveLength(2);
+    expect(row).toContain('type="button" className="skill-more" aria-expanded={expanded}');
+    // The toggle hands nothing to `onRun` and reaches no store, bridge or announcer.
+    expect(row).not.toMatch(/useEffect|useRef|announce|dispatch|\bsend\b|localStorage/);
+  });
+
+  it("names `+N more` and `fewer` in the row alone, and no transcript entry carries them", () => {
+    expect(offenders(RENDERER_CODE.filter((path) => path.endsWith(".tsx") && !path.endsWith(".test.tsx")), /\bfewer\b|\+\$\{[^}]*\}\s*more/)).toEqual([
+      "src/renderer/ui/chat/skill-row.tsx: fewer",
+    ]);
+    expect(row).toMatch(/`\+\$\{[^}]*\} more`/);
+    // The conversation never writes a menu into the thread, expanded or not.
+    expect(code.get("src/renderer/ui/chat/use-conversation.ts") ?? "").not.toMatch(/\bmenus?\b|SkillRow|skill-row/);
+    expect(code.get("src/renderer/ui/chat/conversation-state.ts") ?? "").not.toMatch(/\bmenus?\b|\bfewer\b/);
+    expect(code.get("src/renderer/ui/chat/transcript-entry.ts") ?? "").not.toMatch(/\bmenus?\b|\bfewer\b/);
+  });
+
+  it("is mounted once, under the current persona, and nowhere else", () => {
+    expect(
+      RENDERER_CODE.filter(
+        (path) => /<SkillRow\b/.test(code.get(path) ?? "") && !path.endsWith(".test.tsx"),
+      ),
+    ).toEqual(["src/renderer/ui/app.tsx"]);
+  });
+
+  it("styles the toggle with no animation, no literal value and no focus rule of its own", () => {
+    const css = code.get("src/renderer/ui/chat/skill-row.css") ?? "";
+    const rule = css.slice(css.indexOf(".skill-more {"));
+    expect(rule).toContain("var(--faint)");
+    expect(rule).not.toMatch(/animation|transition|@keyframes|#[0-9a-f]{3,8}\b|\d+px|rgb\(|:focus/i);
+    expect(css).not.toMatch(/:focus/);
   });
 
   it("dispatches through the one conversation call, which sends the session and the code and nothing else", () => {

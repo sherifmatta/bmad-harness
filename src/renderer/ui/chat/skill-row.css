@@ -61,3 +61,19 @@
   font-size: var(--fs-micro);
   letter-spacing: var(--track-skill-code);
 }
+
+/*
+ * `+N more` / `fewer`: the row's one toggle, in `faint`, on no ground and with no
+ * border so it reads as a note on the row rather than as a ninth skill. It takes
+ * the shared focus ring and has no disabled look: a turn in flight never holds it.
+ */
+.skill-more {
+  padding: var(--skill-button-padding);
+  background: none;
+  border: var(--rule-width) solid transparent;
+  border-radius: var(--radius-control);
+  color: var(--faint);
+  font-family: var(--sans);
+  font-size: var(--fs-body-ui);
+  cursor: pointer;
+}

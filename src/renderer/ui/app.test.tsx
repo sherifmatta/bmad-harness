@@ -909,3 +909,118 @@ describe('App, pressing a skill button (Story 3.1)', () => {
     expect(buttons().every((button) => !button.disabled)).toBe(true)
   })
 })
+
+describe('App, the whole menu and only the menu (Story 3.2)', () => {
+  let dispatched: [string, string][]
+  const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
+  const buttons = (): HTMLButtonElement[] => [...mounted!.container.querySelectorAll<HTMLButtonElement>('button.skill-button')]
+  const toggle = (): HTMLButtonElement | null => mounted!.container.querySelector<HTMLButtonElement>('button.skill-more')
+  const ten = Array.from({ length: 10 }, (_, at) => ({ code: `C${at}`, description: `Entry ${at}` }))
+  const sessionOf = (id: string): string => `session-of-${id}`
+
+  function install(extra: Partial<InstallSnapshot> = {}): void {
+    const harness = window.harness as unknown as Record<string, unknown>
+    harness.getInstall = async () => ({
+      ...snapshot,
+      menus: { [mary.id]: ten, [john.id]: [{ code: 'CP', description: 'Create the PRD' }] },
+      ...extra
+    })
+    harness.dispatchMenu = async (sessionId: string, code: string) => {
+      dispatched.push([sessionId, code])
+      return 'r1'
+    }
+  }
+
+  async function openMary(): Promise<void> {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    act(() => tile('Mary').click())
+    await settle()
+  }
+
+  beforeEach(() => {
+    dispatched = []
+    install()
+  })
+
+  it('shows five of ten and `+5 more`; expanding adds nothing to the transcript and calls no bridge command', async () => {
+    await openMary()
+    expect(buttons()).toHaveLength(5)
+    expect(toggle()?.textContent).toBe('+5 more')
+    const before = mounted!.container.querySelectorAll('.turn').length
+
+    act(() => toggle()?.click())
+    expect(buttons()).toHaveLength(10)
+    expect(toggle()?.textContent).toBe('fewer')
+    expect(mounted!.container.querySelectorAll('.turn')).toHaveLength(before)
+    expect(mounted!.container.querySelector('.run-card')).toBeNull()
+    expect(dispatched).toEqual([])
+    expect(sent).toEqual([])
+
+    act(() => toggle()?.click())
+    expect(buttons()).toHaveLength(5)
+    expect(toggle()?.textContent).toBe('+5 more')
+  })
+
+  it('rebuilds the row collapsed for a persona that is switched back to, and shows no toggle for one entry', async () => {
+    await openMary()
+    act(() => toggle()?.click())
+    expect(buttons()).toHaveLength(10)
+
+    act(() => tile('John').click())
+    await settle()
+    expect(buttons().map((button) => button.textContent)).toEqual(['CPCreate the PRD'])
+    expect(toggle()).toBeNull()
+
+    act(() => tile('Mary').click())
+    await settle()
+    expect(buttons()).toHaveLength(5)
+    expect(toggle()?.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('holds every skill button for a turn in flight and not the toggle or the composer, and not for a live persona', async () => {
+    await openMary()
+    const session = sessionOf(mary.id)
+    push({ name: 'session:awaiting-turn', payload: { sessionId: session, at: 1 } })
+    push({ name: 'persona:state', payload: { agentId: mary.id, state: 'live', at: 2 } })
+    expect(buttons().every((button) => !button.disabled)).toBe(true)
+
+    act(() => buttons()[0].click())
+    await settle()
+    expect(buttons().every((button) => button.disabled)).toBe(true)
+    expect(toggle()?.disabled).toBe(false)
+    expect(field().disabled).toBe(false)
+
+    act(() => toggle()?.click())
+    expect(buttons()).toHaveLength(10)
+    expect(buttons().every((button) => button.disabled)).toBe(true)
+    expect(toggle()?.disabled).toBe(false)
+    expect(field().disabled).toBe(false)
+  })
+
+  it('draws a malformed entry as one harness error line naming its code and what is missing, with no button and no persona turn', async () => {
+    install({
+      errors: [
+        {
+          code: 'menu/entry-malformed',
+          message: 'menu · Mary · entry ZZ has neither skill nor prompt'
+        }
+      ]
+    })
+    await openMary()
+    const lines = [...mounted!.container.querySelectorAll('.error-line')]
+    expect(lines).toHaveLength(1)
+    expect(lines[0].querySelector('.error-line-message')?.textContent).toBe('menu · Mary · entry ZZ has neither skill nor prompt')
+    expect(buttons().map((button) => button.querySelector('.skill-code')?.textContent)).not.toContain('ZZ')
+    expect(mounted!.container.querySelector('.turn')).toBeNull()
+  })
+
+  it('gives a skill no title and no word for what it is, expanded or not', async () => {
+    await openMary()
+    act(() => toggle()?.click())
+    const row = mounted!.container.querySelector('.skill-row') as HTMLElement
+    expect(row.querySelector('[title]')).toBeNull()
+    expect(row.textContent).not.toMatch(/skill|prompt|action/i)
+  })
+})

@@ -485,6 +485,17 @@ describe('persona:state', () => {
     expect(state.personas.get('other')).toEqual({ state: 'error', at: 6 })
   })
 
+  it('leaves a persona session with no turn in flight answerable whatever its dot reads, and holds it for `work` alone', () => {
+    const idle = fold([
+      { name: 'session:opened', payload: { sessionId: 's1', agentId: mary.id, at: 1 } },
+      { name: 'session:awaiting-turn', payload: { sessionId: 's1', at: 2 } }
+    ])
+    for (const dot of ['idle', 'live', 'note', 'error'] as const) {
+      expect(canAnswer(foldEvent(idle, personaState(dot, 5), agentOf).state, mary.id)).toBe(true)
+    }
+    expect(canAnswer(foldEvent(idle, personaState('work', 5), agentOf).state, mary.id)).toBe(false)
+  })
+
   it('does not change what the conversation sends or holds busy when the persona has no session', () => {
     const folded = foldEvent(initialConversation, personaState('work', 5), agentOf)
 
