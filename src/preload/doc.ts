@@ -1,16 +1,25 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import {
+  DOC_CHANGED_CHANNEL,
+  DOC_CLOSE_CHANNEL,
+  DOC_EDIT_CHANNEL,
+  DOC_GET_CHANNEL,
+  DOC_REVEAL_CHANNEL
+} from '../shared/channels'
 import type { DocAck, DocReply, DocSnapshot } from '../shared/document'
 import type { DocWindowApi } from './doc-api'
 
-// The document window's own bridge: its own bundle, sharing nothing with the
-// shell's preload. Kept in step with src/main/doc-bridge.ts by hand, and held
-// equal by tests/bridge-contract.test.ts. No method takes a path: main acts on
-// the file this window was opened for, and on nothing else.
-export const DOC_GET_CHANNEL = 'doc:get'
-export const DOC_CHANGED_CHANNEL = 'doc:changed'
-export const DOC_REVEAL_CHANNEL = 'doc:reveal'
-export const DOC_EDIT_CHANNEL = 'doc:open-in-editor'
-export const DOC_CLOSE_CHANNEL = 'doc:close'
+// The document window's own bundle, sharing no file with the shell's preload.
+// The channels are spelled once, in src/shared/channels.ts, and the build inlines
+// the five it uses here. Re-exported for tests/bridge-contract.test.ts. No method
+// takes a path: main acts on the file this window was opened for, and on nothing else.
+export {
+  DOC_CHANGED_CHANNEL,
+  DOC_CLOSE_CHANNEL,
+  DOC_EDIT_CHANNEL,
+  DOC_GET_CHANNEL,
+  DOC_REVEAL_CHANNEL
+}
 
 /** Invoke a no-argument command and throw the envelope if main refused it. */
 async function command(channel: string): Promise<void> {

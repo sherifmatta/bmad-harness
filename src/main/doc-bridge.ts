@@ -1,8 +1,24 @@
 import { join } from 'node:path'
 import { ipcMain } from 'electron'
 import type { BrowserWindow, IpcMainInvokeEvent, WebContents } from 'electron'
+import {
+  DOC_CHANGED_CHANNEL,
+  DOC_CLOSED_CHANNEL,
+  DOC_CLOSE_CHANNEL,
+  DOC_EDIT_CHANNEL,
+  DOC_GET_CHANNEL,
+  DOC_OPEN_CHANNEL,
+  DOC_REVEAL_CHANNEL
+} from '../shared/channels'
 import type { DocAck, DocReply } from '../shared/document'
 import type { HarnessError } from '../shared/install'
+import {
+  defaultProjectPathFor,
+  defaultWriteDiagnostic,
+  failure,
+  noProject,
+  unexpected
+} from './bridge-kit'
 import { documentKindFor } from './fold/document-kind'
 import { createDocumentProjection } from './projections/document'
 import type { DocumentProjection } from './projections/document'
@@ -13,20 +29,21 @@ import { openDocWindow, parentWindowFor } from './windows/doc-window'
 import type { DocWindowCloseReason, DocWindowHandle } from './windows/doc-window'
 import { openInEditor, revealInFinder } from './windows/macos-escapes'
 import type { EscapeTarget } from './windows/macos-escapes'
-import { projectPathForWebContents } from './windows/main-window'
 
 /**
  * The channels behind the shell's `openDoc` / `onDocClosed` and the document
  * window's five methods. Exported so tests/bridge-contract.test.ts can tie each
  * to the literal in the preload that speaks it.
  */
-export const DOC_OPEN_CHANNEL = 'doc:open'
-export const DOC_CLOSED_CHANNEL = 'doc:closed'
-export const DOC_GET_CHANNEL = 'doc:get'
-export const DOC_CHANGED_CHANNEL = 'doc:changed'
-export const DOC_REVEAL_CHANNEL = 'doc:reveal'
-export const DOC_EDIT_CHANNEL = 'doc:open-in-editor'
-export const DOC_CLOSE_CHANNEL = 'doc:close'
+export {
+  DOC_CHANGED_CHANNEL,
+  DOC_CLOSED_CHANNEL,
+  DOC_CLOSE_CHANNEL,
+  DOC_EDIT_CHANNEL,
+  DOC_GET_CHANNEL,
+  DOC_OPEN_CHANNEL,
+  DOC_REVEAL_CHANNEL
+}
 
 export type DocBridgeDeps = {
   projectPathFor?: (webContentsId: number) => string | undefined
@@ -56,14 +73,6 @@ type Entry = {
   ready: Promise<void>
 }
 
-function failure(error: HarnessError): { ok: false; error: HarnessError } {
-  return { ok: false, error }
-}
-
-const NO_PROJECT: HarnessError = {
-  code: 'doc/no-project',
-  message: 'doc · no project is open for this window'
-}
 const NO_DOCUMENT: HarnessError = {
   code: 'doc/no-document',
   message: 'doc · no document is open for this window'
@@ -85,13 +94,12 @@ const INVALID_PATH: HarnessError = {
  * validated before anything is resolved, watched or opened.
  */
 export function registerDocBridge(deps: DocBridgeDeps = {}): void {
-  const projectPathFor = deps.projectPathFor ?? projectPathForWebContents
+  const projectPathFor = deps.projectPathFor ?? defaultProjectPathFor
   const parentOf = deps.parentWindowFor ?? parentWindowFor
   const resolve = deps.resolve ?? resolveDocument
   const watch = deps.watch ?? watchDocument
   const openWindow = deps.openWindow ?? openDocWindow
-  const writeDiagnostic =
-    deps.writeDiagnostic ?? ((line: string) => void process.stderr.write(`${line}\n`))
+  const writeDiagnostic = deps.writeDiagnostic ?? defaultWriteDiagnostic
   const reveal = deps.reveal ?? ((target) => void revealInFinder(target, { writeDiagnostic }))
   const edit = deps.openInEditor ?? ((target) => void openInEditor(target, { writeDiagnostic }))
 
@@ -127,7 +135,7 @@ export function registerDocBridge(deps: DocBridgeDeps = {}): void {
     async (event: IpcMainInvokeEvent, path: unknown): Promise<DocAck> => {
       const projectRoot = projectPathFor(event.sender.id)
       if (projectRoot === undefined) {
-        return failure(NO_PROJECT)
+        return noProject('doc')
       }
 
       // The window, once one is made: if anything after that fails, it must not
@@ -140,7 +148,7 @@ export function registerDocBridge(deps: DocBridgeDeps = {}): void {
         }
         const parent = parentOf(event.sender)
         if (parent === null || parent.isDestroyed()) {
-          return failure(NO_PROJECT)
+          return noProject('doc')
         }
 
         // Valid, so it is a string: `resolve` refuses everything else.
@@ -198,17 +206,7 @@ export function registerDocBridge(deps: DocBridgeDeps = {}): void {
         return { ok: true }
       } catch (error) {
         created?.close()
-        const name = error instanceof Error ? error.constructor.name : 'unknown'
-        // The cause is for the developer's terminal only; the reply carries the
-        // class name and nothing else.
-        writeDiagnostic(
-          `doc/unexpected · ${error instanceof Error ? error.message : String(error)}`
-        )
-        return failure({
-          code: 'doc/unexpected',
-          message: 'doc · unexpected failure',
-          detail: name
-        })
+        return unexpected('doc', error, writeDiagnostic)
       }
     }
   )

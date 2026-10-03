@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process'
 import { StringDecoder } from 'node:string_decoder'
+import { errnoOf } from '../errno'
 
 /**
  * The one long-lived `claude` process behind one persona's session.
@@ -217,9 +218,4 @@ export function spawnSession(options: SpawnSessionOptions): Promise<SpawnOutcome
       }
     })
   })
-}
-
-function errnoOf(error: unknown): string {
-  const code = (error as NodeJS.ErrnoException | null)?.code
-  return typeof code === 'string' ? code : 'failed'
 }

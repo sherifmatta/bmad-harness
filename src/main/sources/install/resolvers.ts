@@ -2,6 +2,7 @@ import { access } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { AgentView } from '../../../shared/install'
+import { errnoName } from '../errno'
 import { runCommand } from './run-command'
 import type { CommandResult, CommandRunner } from './run-command'
 import { isSafeAgentId, parseMenu, parseRoster } from './schema'
@@ -63,7 +64,7 @@ function failureOf(result: Extract<CommandResult, { ok: false }>, timeoutMs: num
     case 'timeout':
       return { kind: 'timeout', detail: `exceeded ${timeoutMs}ms` }
     case 'spawn':
-      return { kind: 'invocation-failed', detail: `spawn ${result.errno ?? 'failed'}` }
+      return { kind: 'invocation-failed', detail: `spawn ${errnoName(result.errno)}` }
     case 'output-too-large':
       return { kind: 'invocation-failed', detail: 'output too large' }
     case 'exit':

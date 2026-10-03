@@ -279,7 +279,7 @@ action_items:
       into registry, IPC handlers and handoff composer, align the four errno mappings,
       correct the stale comment at src/main/index.ts:15-18."
     owner: "dev"
-    status: open
+    status: done
     ref: "_bmad/implementation-artifacts/epic-2-retro-2026-10-02.md"
   - id: "epic-2-retro-item-24-rule-on-the-nfr6-raw-stream-json-log-bui"
     epic: 2

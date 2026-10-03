@@ -1,5 +1,6 @@
 import { tmpdir } from 'node:os'
 import { runCommand } from '../install/run-command'
+import { errnoName } from '../errno'
 import type { CommandResult, CommandRunner } from '../install/run-command'
 
 /**
@@ -25,9 +26,6 @@ const MIN_PYTHON = '>=3.11'
 
 /** What `uv python find --show-version` prints, and nothing wider. */
 const VERSION = /^\d+\.\d+(\.\d+)?$/
-
-/** A spawn error code is an errno name; anything else is not shown. */
-const ERRNO = /^[A-Za-z0-9_]{1,32}$/
 
 export type ToolFailureKind =
   | 'claude-missing'
@@ -60,7 +58,7 @@ function detailOf(result: Failed, timeoutMs: number): string {
     case 'timeout':
       return `exceeded ${timeoutMs}ms`
     case 'spawn':
-      return `spawn ${result.errno !== undefined && ERRNO.test(result.errno) ? result.errno : 'failed'}`
+      return `spawn ${errnoName(result.errno)}`
     case 'output-too-large':
       return 'output was not the expected shape'
     case 'exit':

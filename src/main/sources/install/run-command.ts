@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { errnoOf } from '../errno'
 
 /**
  * Run one command, bounded, and say what happened as data.
@@ -75,7 +76,7 @@ export const runCommand: CommandRunner = (command, args, { timeoutMs, cwd, env }
     }, timeoutMs)
 
     child.on('error', (error: NodeJS.ErrnoException) => {
-      settle({ ok: false, kind: 'spawn', errno: error.code ?? 'failed' })
+      settle({ ok: false, kind: 'spawn', errno: errnoOf(error) })
     })
 
     child.on('close', (code, signal) => {

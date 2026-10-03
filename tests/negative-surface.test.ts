@@ -728,6 +728,7 @@ describe("no configuration path and none of the four cut strings", () => {
 describe("the handoff says only what is true and parses no skill (Story 2.9)", () => {
   const PARSER = "src/renderer/ui/chat/handoff-target.ts";
   const BRIDGE = "src/main/session-bridge.ts";
+  const HANDOFF = "src/main/session-handoff.ts";
 
   it("parses `@<name>` against the roster's display names alone: no skill, menu, code, description or id match", () => {
     const parser = code.get(PARSER) ?? "";
@@ -749,12 +750,9 @@ describe("the handoff says only what is true and parses no skill (Story 2.9)", (
   });
 
   it("authors the handoff text with no claim that context continues and no restart or cleared framing", () => {
-    const bridge = code.get(BRIDGE) ?? "";
-    const start = bridge.indexOf("function handoffFor");
-    const handler = bridge.indexOf("SESSION_OPEN_CHANNEL,", start);
+    const text = code.get(HANDOFF) ?? "";
 
-    expect(start).toBeGreaterThan(-1);
-    const text = bridge.slice(start, handler);
+    expect(text).toContain("function handoffFor");
     expect(text).toContain("handed off · ");
     expect(text).toContain(" → ");
     expect(text).toContain(" · picking up from ");
@@ -764,7 +762,7 @@ describe("the handoff says only what is true and parses no skill (Story 2.9)", (
   it("orders the written files by when they were written: no sort in the fold or the bridge that keeps them", () => {
     expect(
       offenders(
-        ["src/main/fold/written-paths.ts", BRIDGE],
+        ["src/main/fold/written-paths.ts", BRIDGE, HANDOFF],
         /\.sort\(|\.toSorted\(|localeCompare/,
       ),
     ).toEqual([]);
@@ -943,6 +941,7 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
   const CHAT_ALL = sources(CHAT, [".ts", ".tsx", ".css"]);
   const PARSER = "src/renderer/ui/chat/handoff-target.ts";
   const BRIDGE = "src/main/session-bridge.ts";
+  const HANDOFF = "src/main/session-handoff.ts";
   const APP = "src/renderer/ui/app.tsx";
   const TURN = "src/renderer/ui/chat/turn.tsx";
   const TRANSCRIPT = "src/renderer/ui/chat/transcript.tsx";
@@ -1062,8 +1061,8 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
 
     it("writes the user's text into the session as given: `turn.send` hands `text` to `write` untouched", () => {
       const bridge = code.get(BRIDGE) ?? "";
-      const handler = bridge.slice(bridge.indexOf("TURN_SEND_CHANNEL,"));
-      const body = handler.slice(0, handler.indexOf("\n  )\n"));
+      const handler = bridge.slice(bridge.indexOf("function sendTurn"));
+      const body = handler.slice(0, handler.indexOf("\n}\n"));
 
       expect(body).toContain("entry.session.write(text)");
       expect(body).toContain("recordUserTurn(text, at)");
@@ -1134,13 +1133,16 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
 
     it("writes a handoff sysline from the open's reply alone: `handoffFor` is defined once and called once", () => {
       const bridge = code.get(BRIDGE) ?? "";
-      const open = bridge.slice(bridge.indexOf("SESSION_OPEN_CHANNEL,"));
+      const open = bridge.slice(bridge.indexOf("function openSession"), bridge.indexOf("function sendTurn"));
 
-      expect(bridge.match(/\bhandoffFor\b/g)).toHaveLength(2);
+      // Typed on the handlers' context, built by the composer, and called once, inside the open handler.
+      expect(bridge.match(/\bhandoffFor\b/g)).toHaveLength(3);
+      expect(bridge.match(/\bhandoffFor\(/g)).toHaveLength(1);
       expect(open.match(/\bhandoffFor\(/g)).toHaveLength(1);
-      expect(offenders(MAIN_CODE.filter((path) => path !== BRIDGE), /\bhandoffFor\b|recordSysline/).map((hit) => hit.split(":")[0])).toEqual([
-        "src/main/projections/transcript.ts",
-      ]);
+      expect(code.get(HANDOFF)?.match(/\bfunction handoffFor\b/g)).toHaveLength(1);
+      expect(
+        offenders(MAIN_CODE.filter((path) => path !== BRIDGE && path !== HANDOFF), /\bhandoffFor\b|recordSysline/).map((hit) => hit.split(":")[0]),
+      ).toEqual(["src/main/projections/transcript.ts"]);
       // The persona's words are never read for a handoff: no fold parses `said` text for a name.
       expect(offenders(MAIN_CODE, /\bpersona:said\b[^\n]*(?:handoff|handed)/)).toEqual([]);
     });

@@ -314,14 +314,22 @@ describe('the document window stands apart from the shell', () => {
     expect(read('src/preload/index.ts')).not.toMatch(/docWindow|DOC_GET|DOC_CHANGED|DOC_REVEAL|DOC_EDIT|DOC_CLOSE_/)
   })
 
-  it('shares no runtime module between the two preloads: each imports its types and electron only', () => {
+  it('loads no second file at run time: each preload imports its types, electron and the channel constants, which the build inlines into each', () => {
     for (const path of ['src/preload/index.ts', 'src/preload/doc.ts']) {
-      const imports = [...code(path).matchAll(/^import\s+(type\s+)?[^;\n]*from\s+'([^']+)'/gm)]
+      const imports = [
+        ...code(path).matchAll(/^import\s+(type\s+)?[^;]*?from\s+'([^']+)'/gm)
+      ]
+      expect(imports.length, path).toBeGreaterThan(1)
 
       for (const [, isType, specifier] of imports) {
-        expect(isType !== undefined || specifier === 'electron', `${path} imports ${specifier}`).toBe(true)
+        expect(
+          isType !== undefined || specifier === 'electron' || specifier === '../shared/channels',
+          `${path} imports ${specifier}`
+        ).toBe(true)
       }
     }
+    // A module both entries import is built as a chunk the other `require`s; the config makes each entry its own copy.
+    expect(read('electron.vite.config.ts')).toMatch(/inlineSharedIntoEachPreload\(\)/)
   })
 })
 

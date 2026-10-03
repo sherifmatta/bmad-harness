@@ -1,30 +1,27 @@
 import { ipcMain } from 'electron'
 import type { IpcMainInvokeEvent } from 'electron'
-import type { ContractEvent } from '../shared/events'
-import type { HarnessError } from '../shared/install'
-import type { ArtifactObservation, RailReply, RailSnapshot } from '../shared/rail'
+import { RAIL_CHANGED_CHANNEL, RAIL_GET_CHANNEL } from '../shared/channels'
+import type { ArtifactObservation, RailReply } from '../shared/rail'
+import {
+  defaultProjectPathFor,
+  defaultWriteDiagnostic,
+  noProject,
+  senderOf,
+  sendTo,
+  unexpected
+} from './bridge-kit'
 import { personaProjectionFor } from './persona-states'
 import { createRailProjection } from './projections/rail'
 import type { RailProjection } from './projections/rail'
+import type { Sender } from './bridge-kit'
 import { watchArtifacts } from './sources/project/watch-artifacts'
 import type { ArtifactWatcher } from './sources/project/watch-artifacts'
-import { projectPathForWebContents } from './windows/main-window'
 
 /**
  * The two channels behind the preload's two rail methods. Exported so
  * tests/bridge-contract.test.ts can tie them to the preload's own literals.
  */
-export const RAIL_GET_CHANNEL = 'rail:get'
-export const RAIL_CHANGED_CHANNEL = 'rail:changed'
-
-/** The parts of a `WebContents` the bridge touches. */
-type Sender = {
-  id: number
-  /** A rail snapshot on its own channel, and the window's `persona:state` on the session one. */
-  send(channel: string, payload: RailSnapshot | ContractEvent): void
-  isDestroyed(): boolean
-  once(event: 'destroyed', listener: () => void): unknown
-}
+export { RAIL_CHANGED_CHANNEL, RAIL_GET_CHANNEL }
 
 export type RailBridgeDeps = {
   projectPathFor?: (webContentsId: number) => string | undefined
@@ -41,10 +38,6 @@ export type RailBridgeDeps = {
 
 type Service = { projection: RailProjection; watcher: ArtifactWatcher; ready: Promise<void> }
 
-function failure(error: HarnessError): RailReply {
-  return { ok: false, error }
-}
-
 /**
  * Answer `rail:get`, and push `rail:changed` whenever the rows change.
  *
@@ -54,10 +47,9 @@ function failure(error: HarnessError): RailReply {
  * initial scan, so the first snapshot is the project as it stands.
  */
 export function registerRailBridge(deps: RailBridgeDeps = {}): void {
-  const projectPathFor = deps.projectPathFor ?? projectPathForWebContents
+  const projectPathFor = deps.projectPathFor ?? defaultProjectPathFor
   const watch = deps.watch ?? watchArtifacts
-  const writeDiagnostic =
-    deps.writeDiagnostic ?? ((line: string) => void process.stderr.write(`${line}\n`))
+  const writeDiagnostic = deps.writeDiagnostic ?? defaultWriteDiagnostic
 
   const services = new Map<number, Service>()
 
@@ -70,9 +62,7 @@ export function registerRailBridge(deps: RailBridgeDeps = {}): void {
     const personas = personaProjectionFor(sender, deps.now)
     const projection = createRailProjection({
       onChange: (snapshot) => {
-        if (!sender.isDestroyed()) {
-          sender.send(RAIL_CHANGED_CHANNEL, snapshot)
-        }
+        sendTo(sender, RAIL_CHANGED_CHANNEL, snapshot)
         personas.apply({ name: 'rail:changed', payload: snapshot })
       },
       ...(deps.now !== undefined ? { now: deps.now } : {}),
@@ -105,28 +95,17 @@ export function registerRailBridge(deps: RailBridgeDeps = {}): void {
   }
 
   ipcMain.handle(RAIL_GET_CHANNEL, async (event: IpcMainInvokeEvent): Promise<RailReply> => {
-    const sender = event.sender as unknown as Sender
+    const sender = senderOf(event)
     const projectRoot = projectPathFor(sender.id)
     if (projectRoot === undefined) {
-      return failure({
-        code: 'rail/no-project',
-        message: 'rail · no project is open for this window'
-      })
+      return noProject('rail')
     }
     try {
       const service = serviceFor(sender, projectRoot)
       await service.ready
       return { ok: true, snapshot: service.projection.snapshot() }
     } catch (error) {
-      const name = error instanceof Error ? error.constructor.name : 'unknown'
-      // The cause is for the developer's terminal only; the reply carries the
-      // class name and nothing else.
-      writeDiagnostic(`rail/unexpected · ${error instanceof Error ? error.message : String(error)}`)
-      return failure({
-        code: 'rail/unexpected',
-        message: 'rail · unexpected failure',
-        detail: name
-      })
+      return unexpected('rail', error, writeDiagnostic)
     }
   })
 }

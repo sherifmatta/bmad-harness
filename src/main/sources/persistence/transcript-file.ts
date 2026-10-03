@@ -10,6 +10,7 @@ import {
 } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { TranscriptFile, TranscriptRecord } from '../../../shared/conversation'
+import { errnoOf } from '../errno'
 
 /**
  * Where a project's transcript lives and how it is read and written. The one
@@ -135,7 +136,6 @@ export function writeTranscript(
     } catch {
       // Nothing was left to remove.
     }
-    const code = (error as NodeJS.ErrnoException | undefined)?.code
-    return { ok: false, errno: typeof code === 'string' ? code : 'UNKNOWN' }
+    return { ok: false, errno: errnoOf(error, 'UNKNOWN') }
   }
 }

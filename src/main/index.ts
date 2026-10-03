@@ -1,4 +1,5 @@
 import { BrowserWindow, app, ipcMain } from 'electron'
+import { PROJECT_PATH_CHANNEL } from '../shared/channels'
 import { registerDocBridge } from './doc-bridge'
 import { registerInstallBridge } from './install-bridge'
 import { registerProjectBridge } from './project-bridge'
@@ -10,13 +11,11 @@ import { ProjectPathError, resolveProjectPath } from './windows/choose-project'
 import { createProjectWindow, projectPathForWebContents } from './windows/main-window'
 
 /**
- * The one channel behind the preload's single named method.
- *
- * Exported so tests/bridge-contract.test.ts can tie it to the preload's own
- * constant. `src/shared/` carries the IPC contract from Story 2.2; until then
- * the two literals are held equal by a test rather than by a shared module.
+ * The one channel behind the preload's `getProjectPath`. It is spelled in
+ * `src/shared/channels.ts`, where the preload reads it too, and re-exported here
+ * for tests/bridge-contract.test.ts.
  */
-export const PROJECT_PATH_CHANNEL = 'project:path'
+export { PROJECT_PATH_CHANNEL }
 
 /** The command-line argument names the project for the first window only. */
 let useCommandLineArgument = true

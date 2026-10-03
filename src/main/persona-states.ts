@@ -1,13 +1,10 @@
+import { SESSION_EVENT_CHANNEL } from '../shared/channels'
 import type { ContractEvent } from '../shared/events'
 import { createPersonaProjection } from './projections/personas'
 import type { PersonaProjection } from './projections/personas'
 
-/**
- * The channel every event travels on, as `{name, payload}`. It lives here, with
- * the one thing both bridges share, and `session-bridge` re-exports it for the
- * test that ties it to the preload's own literal.
- */
-export const SESSION_EVENT_CHANNEL = 'session:event'
+/** The channel every event travels on, as `{name, payload}`; `session-bridge` re-exports it too. */
+export { SESSION_EVENT_CHANNEL }
 
 /** The parts of a `WebContents` the projection's holder touches. */
 export type PersonaSender = {

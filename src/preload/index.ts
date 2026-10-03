@@ -1,4 +1,20 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import {
+  CONVERSATION_END_CHANNEL,
+  CONVERSATION_GET_CHANNEL,
+  DOC_CLOSED_CHANNEL,
+  DOC_OPEN_CHANNEL,
+  INSTALL_CHANGED_CHANNEL,
+  INSTALL_GET_CHANNEL,
+  PROJECT_BRANCH_CHANNEL,
+  PROJECT_PATH_CHANNEL,
+  RAIL_CHANGED_CHANNEL,
+  RAIL_GET_CHANNEL,
+  SESSION_CLOSE_CHANNEL,
+  SESSION_EVENT_CHANNEL,
+  SESSION_OPEN_CHANNEL,
+  TURN_SEND_CHANNEL
+} from '../shared/channels'
 import type { ContractCommands } from '../shared/commands'
 import type { ConversationReply, OpenedSession, SessionOpenReply } from '../shared/conversation'
 import type { DocAck } from '../shared/document'
@@ -7,25 +23,27 @@ import type { InstallReply, InstallSnapshot } from '../shared/install'
 import type { RailReply, RailSnapshot } from '../shared/rail'
 import type { HarnessApi } from './harness-api'
 
-// Kept in step with src/main/index.ts, src/main/install-bridge.ts,
-// src/main/project-bridge.ts, src/main/rail-bridge.ts and src/main/session-bridge.ts by hand.
-// Exported so that tests/bridge-contract.test.ts fails the moment a pair of
-// literals diverges - renaming one silently would leave lint, typecheck and
-// build green while the window rendered an error.
-export const PROJECT_PATH_CHANNEL = 'project:path'
-export const INSTALL_GET_CHANNEL = 'install:get'
-export const INSTALL_CHANGED_CHANNEL = 'install:changed'
-export const PROJECT_BRANCH_CHANNEL = 'project:branch'
-export const RAIL_GET_CHANNEL = 'rail:get'
-export const RAIL_CHANGED_CHANNEL = 'rail:changed'
-export const DOC_OPEN_CHANNEL = 'doc:open'
-export const DOC_CLOSED_CHANNEL = 'doc:closed'
-export const SESSION_OPEN_CHANNEL = 'session:open'
-export const SESSION_CLOSE_CHANNEL = 'session:close'
-export const TURN_SEND_CHANNEL = 'turn:send'
-export const SESSION_EVENT_CHANNEL = 'session:event'
-export const CONVERSATION_GET_CHANNEL = 'conversation:get'
-export const CONVERSATION_END_CHANNEL = 'conversation:end'
+// The channels are spelled once, in src/shared/channels.ts, and the build
+// inlines them here: a sandboxed preload cannot load a second file. Re-exported
+// so that tests/bridge-contract.test.ts can tie each to the bridge that answers
+// it - a name changed on one side alone would leave lint, typecheck and build
+// green while the window rendered an error.
+export {
+  CONVERSATION_END_CHANNEL,
+  CONVERSATION_GET_CHANNEL,
+  DOC_CLOSED_CHANNEL,
+  DOC_OPEN_CHANNEL,
+  INSTALL_CHANGED_CHANNEL,
+  INSTALL_GET_CHANNEL,
+  PROJECT_BRANCH_CHANNEL,
+  PROJECT_PATH_CHANNEL,
+  RAIL_CHANGED_CHANNEL,
+  RAIL_GET_CHANNEL,
+  SESSION_CLOSE_CHANNEL,
+  SESSION_EVENT_CHANNEL,
+  SESSION_OPEN_CHANNEL,
+  TURN_SEND_CHANNEL
+}
 
 const harness: HarnessApi = {
   getProjectPath: () => ipcRenderer.invoke(PROJECT_PATH_CHANNEL) as Promise<string>,

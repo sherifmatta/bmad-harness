@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync }
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { SessionBridgeDeps } from './session-bridge'
 import type { ConversationReply } from '../shared/conversation'
 import type { ContractEvent } from '../shared/events'
 import { forgetInstall, rememberInstall } from './install-model'
@@ -83,6 +84,8 @@ let projectOf: (id: number) => string | undefined
 let userData: string
 let timers: (() => void)[]
 let logs: string[]
+/** What the bridge wrote to its diagnostic line, apart from the transcript's own log. */
+let diagnostics: string[]
 let registry: TranscriptRegistry
 /** The roster's display names in main's install model, by agent id; an id left out is not in it. */
 let names: Record<string, string>
@@ -91,7 +94,11 @@ let names: Record<string, string>
  * Start the app, or start it again over the same data directory: a fresh
  * registry and bridge, as a new process would have, and nothing carried over.
  */
-function launch(over: Partial<TranscriptRegistryDeps> = {}, realNames = false): void {
+function launch(
+  over: Partial<TranscriptRegistryDeps> = {},
+  realNames = false,
+  extra: Partial<SessionBridgeDeps> = {}
+): void {
   handlers.clear()
   timers = []
   registry = createTranscriptRegistry({
@@ -112,6 +119,7 @@ function launch(over: Partial<TranscriptRegistryDeps> = {}, realNames = false): 
     projectPathFor: (id) => projectOf(id),
     now: () => (clock += 1),
     newSessionId: () => `s${(ids += 1)}`,
+    writeDiagnostic: (line) => void diagnostics.push(line),
     // The shipped composition passes none: names then come from the real install model.
     ...(realNames ? {} : { agentName: (_id: number, agentId: string) => names[agentId] }),
     spawn: (options) =>
@@ -139,7 +147,8 @@ function launch(over: Partial<TranscriptRegistryDeps> = {}, realNames = false): 
           exit: () => options.onExit()
         }
         processes.push(fake)
-      })
+      }),
+    ...extra
   })
 }
 
@@ -148,6 +157,7 @@ beforeEach(() => {
   clock = 1_000
   ids = 0
   logs = []
+  diagnostics = []
   names = { 'bmad-agent-analyst': 'Mary', 'bmad-agent-pm': 'John', 'bmad-agent-dev': 'Amelia' }
   userData = mkdtempSync(join(tmpdir(), 'harness-session-bridge-'))
   projectOf = (id) => (id < 100 ? `/project-${id}` : undefined)
@@ -209,6 +219,52 @@ describe('channels', () => {
       'conversation:get',
       'conversation:end'
     ])
+  })
+})
+
+describe('a start that throws or rejects', () => {
+  const cases: [string, NonNullable<SessionBridgeDeps['spawn']>][] = [
+    ['rejects', () => Promise.reject(new TypeError('boom'))],
+    [
+      'throws',
+      () => {
+        throw new TypeError('boom')
+      }
+    ]
+  ]
+
+  it.each(cases)('replies session/unexpected, logs the cause, and forgets the session when the start %s', async (_how, spawn) => {
+    let starts = 0
+    launch({}, false, {
+      spawn: (options) => {
+        starts += 1
+        return spawn(options)
+      }
+    })
+    const sender = new FakeSender(1)
+
+    await expect(open(sender, 'bmad-agent-pm')).resolves.toEqual({
+      ok: false,
+      error: { code: 'session/unexpected', message: 'session · unexpected failure', detail: 'TypeError' }
+    })
+    expect(diagnostics).toEqual(['session/unexpected · boom'])
+    expect(sender.events).toEqual([])
+    // Nothing is left behind: the agent is not live, and asking again starts afresh.
+    const get = handlers.get(CONVERSATION_GET_CHANNEL) as unknown as (e: { sender: FakeSender }) => ConversationReply
+    expect(get({ sender })).toMatchObject({ ok: true, snapshot: { sessions: [], busy: [] } })
+    await open(sender, 'bmad-agent-pm')
+    expect(starts).toBe(2)
+  })
+
+  it('answers every overlapping open the same way', async () => {
+    launch({}, false, { spawn: () => Promise.reject(new TypeError('boom')) })
+    const sender = new FakeSender(1)
+
+    const replies = await Promise.all([open(sender, 'bmad-agent-pm'), open(sender, 'bmad-agent-pm')])
+
+    for (const reply of replies) {
+      expect(reply).toMatchObject({ ok: false, error: { code: 'session/unexpected' } })
+    }
   })
 })
 

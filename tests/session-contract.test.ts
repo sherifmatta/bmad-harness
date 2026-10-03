@@ -119,15 +119,24 @@ describe('the layers', () => {
     for (const path of filesUnder(join(SRC, 'main/sources/session')).filter((file) => /\.ts$/.test(file))) {
       expect(code(path), rel(path)).not.toMatch(/from '[^']*\/fold\//)
     }
+    // The registry folds frames and so imports Fold; the bridge starts the process and so imports Sources.
+    const registry = code(join(SRC, 'main/session-registry.ts'))
     const bridge = code(join(SRC, 'main/session-bridge.ts'))
 
-    expect(bridge).toMatch(/from '\.\/fold\/route-frame'/)
-    expect(bridge).toMatch(/from '\.\/fold\/turn-end'/)
+    expect(registry).toMatch(/from '\.\/fold\/route-frame'/)
+    expect(registry).toMatch(/from '\.\/fold\/turn-end'/)
+    expect(registry).toMatch(/from '\.\/sources\/session\/session-process'/)
     expect(bridge).toMatch(/from '\.\/sources\/session\/session-process'/)
+    expect(bridge).toMatch(/from '\.\/session-registry'/)
   })
 
   it('keeps the process start in Sources: no child_process in the bridge or the fold', () => {
-    for (const path of [join(SRC, 'main/session-bridge.ts'), ...filesUnder(join(SRC, 'main/fold'))]) {
+    for (const path of [
+      join(SRC, 'main/session-bridge.ts'),
+      join(SRC, 'main/session-registry.ts'),
+      join(SRC, 'main/session-handoff.ts'),
+      ...filesUnder(join(SRC, 'main/fold'))
+    ]) {
       expect(code(path), rel(path)).not.toMatch(/child_process/)
     }
   })
@@ -165,12 +174,10 @@ describe('the persona states', () => {
     }
   })
 
-  it('travel on the one session channel, spelled once in main', () => {
-    const spelling = shipping.filter(
-      (path) => path.startsWith(join(SRC, 'main')) && code(path).includes("'session:event'")
-    )
+  it('travel on the one session channel, spelled once in the shared channels module', () => {
+    const spelling = shipping.filter((path) => code(path).includes("'session:event'"))
 
-    expect(spelling.map(rel)).toEqual(['src/main/persona-states.ts'])
+    expect(spelling.map(rel)).toEqual(['src/shared/channels.ts'])
   })
 
   it('are set by no renderer file: the window only stores what main reports', () => {
@@ -231,12 +238,13 @@ describe('a session outlives the install changing under it (Story 2.11)', () => 
   })
 
   it('lets a session end by exactly four causes in main: the command, conversation.end, the process and the window', () => {
-    const bridge = code(join(SRC, 'main/session-bridge.ts'))
+    const bridge =
+      code(join(SRC, 'main/session-bridge.ts')) + code(join(SRC, 'main/session-registry.ts'))
     const finishes = [...bridge.matchAll(/\bfinish\(/g)].length
     const kills = [...bridge.matchAll(/\.kill\(\)/g)].map(([text]) => text)
 
-    // The definition, closeSessions (conversation.end and the window), the process's exit and session.close.
-    expect(finishes).toBe(4)
+    // The registry's type and definition of it, closeSessions (conversation.end and the window), the process's exit, and session.close in the bridge.
+    expect(finishes).toBe(5)
     expect(kills.length).toBe(3)
     expect(bridge).toMatch(/SESSION_CLOSE_CHANNEL,/)
   })

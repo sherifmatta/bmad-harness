@@ -1,6 +1,16 @@
 import { BrowserWindow, ipcMain } from 'electron'
 import type { IpcMainInvokeEvent, WebContents } from 'electron'
-import type { HarnessError, InstallReply, InstallSnapshot } from '../shared/install'
+import { INSTALL_CHANGED_CHANNEL, INSTALL_GET_CHANNEL } from '../shared/channels'
+import type { InstallReply } from '../shared/install'
+import {
+  defaultProjectPathFor,
+  defaultWriteDiagnostic,
+  noProject,
+  senderOf,
+  sendTo,
+  unexpected
+} from './bridge-kit'
+import type { Sender } from './bridge-kit'
 import { forgetInstall, rememberInstall } from './install-model'
 import { createInstallProjection } from './projections/install'
 import type { InstallProjection } from './projections/install'
@@ -10,22 +20,12 @@ import { createPrerequisiteChecks } from './sources/preflight/tools'
 import type { PrerequisiteChecks } from './sources/preflight/tools'
 import { watchInstall } from './sources/install/watch-install'
 import type { InstallWatcher } from './sources/install/watch-install'
-import { projectPathForWebContents } from './windows/main-window'
 
 /**
  * The two channels behind the preload's two install methods. Exported so
  * tests/bridge-contract.test.ts can tie them to the preload's own literals.
  */
-export const INSTALL_GET_CHANNEL = 'install:get'
-export const INSTALL_CHANGED_CHANNEL = 'install:changed'
-
-/** The parts of a `WebContents` the bridge touches. */
-export type Sender = {
-  id: number
-  send(channel: string, snapshot: InstallSnapshot): void
-  isDestroyed(): boolean
-  once(event: 'destroyed', listener: () => void): unknown
-}
+export { INSTALL_CHANGED_CHANNEL, INSTALL_GET_CHANNEL }
 
 export type InstallBridgeDeps = {
   projectPathFor?: (webContentsId: number) => string | undefined
@@ -53,10 +53,6 @@ function subscribeWindowFocus(sender: Sender, listener: () => void): () => void 
   }
 }
 
-function failure(error: HarnessError): InstallReply {
-  return { ok: false, error }
-}
-
 /**
  * Answer `install:get`, and push `install:changed` whenever the answer changes.
  *
@@ -66,13 +62,12 @@ function failure(error: HarnessError): InstallReply {
  * also keeps launching a window from spawning anything by itself.
  */
 export function registerInstallBridge(deps: InstallBridgeDeps = {}): void {
-  const projectPathFor = deps.projectPathFor ?? projectPathForWebContents
+  const projectPathFor = deps.projectPathFor ?? defaultProjectPathFor
   const createSource = deps.createSource ?? ((projectRoot) => createInstallSource({ projectRoot }))
   const createChecks = deps.createChecks ?? (() => createPrerequisiteChecks())
   const watch = deps.watch ?? watchInstall
   const subscribeFocus = deps.subscribeFocus ?? subscribeWindowFocus
-  const writeDiagnostic =
-    deps.writeDiagnostic ?? ((line: string) => void process.stderr.write(`${line}\n`))
+  const writeDiagnostic = deps.writeDiagnostic ?? defaultWriteDiagnostic
 
   const services = new Map<number, Service>()
 
@@ -85,11 +80,7 @@ export function registerInstallBridge(deps: InstallBridgeDeps = {}): void {
     const projection = createInstallProjection({
       source: createSource(projectRoot),
       checks: createChecks(),
-      onChange: (snapshot) => {
-        if (!sender.isDestroyed()) {
-          sender.send(INSTALL_CHANGED_CHANNEL, snapshot)
-        }
-      },
+      onChange: (snapshot) => sendTo(sender, INSTALL_CHANGED_CHANNEL, snapshot),
       onDiagnostic: writeDiagnostic
     })
     const watcher = watch({ projectRoot, onChange: () => void projection.refresh() })
@@ -119,30 +110,17 @@ export function registerInstallBridge(deps: InstallBridgeDeps = {}): void {
   }
 
   ipcMain.handle(INSTALL_GET_CHANNEL, async (event: IpcMainInvokeEvent): Promise<InstallReply> => {
-    const sender = event.sender as unknown as Sender
+    const sender = senderOf(event)
     const projectRoot = projectPathFor(sender.id)
     if (projectRoot === undefined) {
-      return failure({
-        code: 'install/no-project',
-        message: 'install · no project is open for this window'
-      })
+      return noProject('install')
     }
     try {
       const service = serviceFor(sender, projectRoot)
       await service.ready
       return { ok: true, snapshot: service.projection.snapshot() }
     } catch (error) {
-      const name = error instanceof Error ? error.constructor.name : 'unknown'
-      // The cause is for the developer's terminal only; the reply carries the
-      // class name and nothing else.
-      writeDiagnostic(
-        `install/unexpected · ${error instanceof Error ? error.message : String(error)}`
-      )
-      return failure({
-        code: 'install/unexpected',
-        message: 'install · unexpected failure',
-        detail: name
-      })
+      return unexpected('install', error, writeDiagnostic)
     }
   })
 }
