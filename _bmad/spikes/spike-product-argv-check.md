@@ -66,6 +66,25 @@ What this means for the choice:
 - `acceptEdits` and a static allow list each leave a hole that Epic 3 hits (the resolver call, or Bash document writes). Neither is sufficient alone.
 - Two options remain: `bypassPermissions` (no checks at all; one flag; the corpus already reflects it), or `--permission-prompt-tool stdio` with the harness answering each `can_use_tool` request from a fixed policy (for example allow when the path is inside the project root, deny otherwise). The second keeps a boundary and adds one inbound frame type to handle, which must always be answered or the turn wedges (the wedged-turn escape from Epic 2 retro item 18 would be the backstop).
 
+## Finding 5 — the chosen policy, run through the product's own code against a real `claude` (item 32). Met, n=1.
+
+Run 2026-10-03, `claude` 2.1.274, default model. Built from `spec-session-permission-policy.md`: `SESSION_ARGS` now ends `--permission-prompt-tool stdio`, `spawnSession` answers every `control_request` with `subtype: "can_use_tool"` by its `request_id` from an injected `decide`, and `decide` is `decidePermission` (`src/main/fold/permission-policy.ts`) over the session's project root, a data directory, the home directory and the real canonicaliser (`src/main/sources/session/canonical-path.ts`). The runner (`run.mjs policy`) bundles those three modules from `src/` with esbuild and drives them directly; the registry and Electron were not in the loop. The subject project was given as a `/tmp/...` path, so the CLI's own absolute paths (under `/private/tmp/...`) only matched the root through canonicalisation. Same subject setup as Finding 4, `/bmad-agent-analyst` then one turn: create `notes/a.md` with `Write`, `notes/b.md` with a Bash heredoc, and `c.md` in a sibling directory outside the project with `Write`, then report what worked and why. Evidence: `spike-product-argv-check-evidence/policy.{summary,files}.json` (paths shown as `<subject>` and `<base>`). The run was repeated after the review fixes to the Bash scan, and the evidence files are from that second run: same outcomes (activation with no denials, inside `Write` and heredoc created, outside `Write` denied and refused by the persona, no file created).
+
+| Permission request (in order) | Answer |
+| --- | --- |
+| `Bash` `uv run _bmad/scripts/resolve_customization.py ... 2>&1` (activation) | allow |
+| `Write` `<subject>/notes/a.md` | allow |
+| `Bash` `mkdir -p <subject>/notes && cat > <subject>/notes/b.md <<...` | allow |
+| `Write` `<base>/policy-outside/c.md` | deny: `blocked: <base>/policy-outside/c.md is outside the project` |
+| `Bash` `ls -l notes/ && ... && ls -l <base>/ 2>&1` (the persona checking its work) | deny: `blocked: <base>/ is outside the project` |
+
+- Activation: `result` `success`, `permission_denials: []`. The greeting no longer mentions the resolver needing a permission (Finding 2). It did carry an unrelated note that the claude.ai connectors are not authorized in the session; whether that note recurs, and whether the harness should do anything about it, is not tested here.
+- `notes/a.md` and `notes/b.md` exist; `policy-outside/c.md` does not.
+- The deny shape `{behavior: "deny", message}` is what this CLI accepts: both denials appear in the turn's `permission_denials` with their tool input, the turn still ended `success` / `end_turn`, and the persona quoted the message verbatim and said the block "came from the harness, not from a filesystem permission error". It said it then re-ran its check without the outside path.
+- No control frame reached `onFrame` (`controlFramesHandedToOnFrame: 0`), and no turn waited on an answer.
+
+What it does not show: a run inside the real app (the registry's per-project wiring and `userData` are covered by `session-bridge.test.ts`, not by this run), an `Edit`, a read outside the project, a `cancel`, or any model but the default. The Bash rule is a boundary on paths written in the command, not a sandbox: the allowed `uv run` call could itself touch anything.
+
 ## Limits
 
 One run of each scenario, one model, one persona pair, a subject project that is not a real BMad project, no real Electron (the sessions were spawned by a script, not the app). The default model resolved at run time was not recorded in the summaries beyond the CLI default.

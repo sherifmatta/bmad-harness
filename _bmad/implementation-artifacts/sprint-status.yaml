@@ -355,7 +355,7 @@ action_items:
     ref: "_bmad/implementation-artifacts/epic-2-retro-2026-10-02.md"
   - id: "epic-2-retro-item-32-decide-how-persona-sessions-get-permission-to-run-uv-and-write"
     epic: 2
-    action: "Decide how persona sessions get permission to run uv and write files. Under the product's argv (no permission mode) every activation has its resolver call denied and every Write is denied, so Epic 3 documents cannot be written. Options not yet tried: acceptEdits, allowedTools, a permission prompt tool answered by the harness, a project allow list, bypassPermissions. Changes SESSION_ARGS, tests/session-contract.test.ts and AD-18. Before story 3.1. Decided 10-03-2026 (Sherif): --permission-prompt-tool stdio, main answers each can_use_tool request from a fixed in-project policy (allow inside the project root and userData, deny elsewhere); bypassPermissions rejected. Evidence in the spike."
+    action: "Decide how persona sessions get permission to run uv and write files. Under the product's argv (no permission mode) every activation has its resolver call denied and every Write is denied, so Epic 3 documents cannot be written. Options not yet tried: acceptEdits, allowedTools, a permission prompt tool answered by the harness, a project allow list, bypassPermissions. Changes SESSION_ARGS, tests/session-contract.test.ts and AD-18. Before story 3.1. Decided 10-03-2026 (Sherif): --permission-prompt-tool stdio, main answers each can_use_tool request from a fixed in-project policy (allow inside the project root and userData, deny elsewhere); bypassPermissions rejected. Evidence in the spike. Built 10-03-2026 (spec-session-permission-policy.md), verified on a real claude in spike Finding 5; planning lines to amend are listed in deferred-work.md."
     owner: "Sherif + architect"
-    status: in-progress
+    status: done
     ref: "_bmad/spikes/spike-product-argv-check.md"

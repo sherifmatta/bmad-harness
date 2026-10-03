@@ -51,6 +51,11 @@ describe('the session argv', () => {
     expect(valueOf('--input-format')).toBe('stream-json')
   })
 
+  it('sends each call that would prompt to the harness as a control request on stdout', () => {
+    expect(valueOf('--permission-prompt-tool')).toBe('stdio')
+    expect(SESSION_ARGS.filter((arg) => arg === '--permission-prompt-tool')).toHaveLength(1)
+  })
+
   it('never forwards subagent text, injects an identity or a style, or sets a permission mode or a model', () => {
     for (const flag of [
       '--forward-subagent-text',
@@ -64,7 +69,7 @@ describe('the session argv', () => {
   })
 
   it('has no positional argument: the agent is a stdin turn, not a prompt', () => {
-    const values = new Set(['stream-json', 'project,local'])
+    const values = new Set(['stream-json', 'project,local', 'stdio'])
     const positional = SESSION_ARGS.filter(
       (arg, at) => !arg.startsWith('-') && !values.has(arg) && !SESSION_ARGS[at - 1]?.startsWith('--')
     )
@@ -101,7 +106,8 @@ describe('the first line written', () => {
       cwd: '/x',
       spawn: () => child,
       onFrame: () => {},
-      onExit: () => {}
+      onExit: () => {},
+      decide: () => ({ behavior: 'deny', message: 'x' })
     })
     listeners.get('spawn')?.()
     await pending
@@ -125,9 +131,17 @@ describe('the layers', () => {
 
     expect(registry).toMatch(/from '\.\/fold\/route-frame'/)
     expect(registry).toMatch(/from '\.\/fold\/turn-end'/)
+    expect(registry).toMatch(/from '\.\/fold\/permission-policy'/)
     expect(registry).toMatch(/from '\.\/sources\/session\/session-process'/)
     expect(bridge).toMatch(/from '\.\/sources\/session\/session-process'/)
+    expect(bridge).toMatch(/from '\.\/sources\/session\/canonical-path'/)
     expect(bridge).toMatch(/from '\.\/session-registry'/)
+  })
+
+  it('answers control requests in Sources alone: no fold, projection or bridge names a control frame', () => {
+    const naming = shipping.filter((path) => /control_request|control_response|can_use_tool/.test(code(path)))
+
+    expect(naming.map(rel)).toEqual(['src/main/sources/session/session-process.ts'])
   })
 
   it('keeps the process start in Sources: no child_process in the bridge or the fold', () => {

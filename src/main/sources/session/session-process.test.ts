@@ -9,7 +9,7 @@ import {
   spawnSession,
   userTurnLine
 } from './session-process'
-import type { SessionChild, SessionSpawn } from './session-process'
+import type { PermissionAnswer, PermissionAsk, SessionChild, SessionSpawn } from './session-process'
 
 class FakeChild extends EventEmitter {
   pid: number | undefined = 4242
@@ -43,7 +43,10 @@ class FakeChild extends EventEmitter {
   }
 }
 
-function harness() {
+function harness(decide: (ask: PermissionAsk) => PermissionAnswer = (ask) => ({
+  behavior: 'allow',
+  updatedInput: ask.input as Record<string, unknown>
+})) {
   const child = new FakeChild()
   const calls: { command: string; args: readonly string[]; cwd: string }[] = []
   const spawn: SessionSpawn = (command, args, { cwd }) => {
@@ -60,7 +63,8 @@ function harness() {
       spawn,
       killGroup: (pid) => void killed.push(pid),
       onFrame: (frame) => void frames.push(frame),
-      onExit: exits
+      onExit: exits,
+      decide
     })
   return { child, calls, frames, killed, exits, start }
 }
@@ -69,7 +73,7 @@ describe('SESSION_ARGS', () => {
   it('is exactly the session command', () => {
     expect(SESSION_COMMAND).toBe('claude')
     expect(SESSION_ARGS.join(' ')).toBe(
-      '-p --input-format stream-json --output-format stream-json --include-partial-messages --verbose --setting-sources project,local'
+      '-p --input-format stream-json --output-format stream-json --include-partial-messages --verbose --setting-sources project,local --permission-prompt-tool stdio'
     )
   })
 })
@@ -170,7 +174,8 @@ describe('spawnSession', () => {
         throw Object.assign(new Error('boom'), { code: 'EACCES' })
       },
       onFrame: () => {},
-      onExit: () => {}
+      onExit: () => {},
+      decide: () => ({ behavior: 'deny', message: 'x' })
     })
     expect(outcome).toEqual({ ok: false, errno: 'EACCES' })
   })
@@ -289,6 +294,172 @@ describe('spawnSession', () => {
 
       expect(() => child.stdinErrors.forEach((listener) => listener())).not.toThrow()
       await expect(live.write('x')).resolves.toBe(false)
+    })
+  })
+
+  describe('a permission request from the CLI', () => {
+    async function live(decide?: (ask: PermissionAsk) => PermissionAnswer) {
+      const parts = harness(decide)
+      const pending = parts.start()
+      parts.child.spawn()
+      const outcome = await pending
+      if (!outcome.ok) throw new Error('expected a session')
+      return { ...parts, session: outcome.session, answers: () => parts.child.writes.slice(1).map((line) => JSON.parse(line)) }
+    }
+
+    const ask = (requestId: unknown, toolName: unknown, input: unknown) =>
+      `${JSON.stringify({ type: 'control_request', request_id: requestId, request: { subtype: 'can_use_tool', tool_name: toolName, input } })}\n`
+
+    it('is answered once, by its request_id, with what `decide` said, and never reaches onFrame', async () => {
+      const decide = vi.fn((request: PermissionAsk): PermissionAnswer => ({
+        behavior: 'allow',
+        updatedInput: request.input as Record<string, unknown>
+      }))
+      const { child, frames, answers } = await live(decide)
+
+      child.out(ask('req-1', 'Write', { file_path: 'notes/a.md', content: 'a' }))
+
+      expect(decide).toHaveBeenCalledWith({ toolName: 'Write', input: { file_path: 'notes/a.md', content: 'a' } })
+      expect(answers()).toEqual([
+        {
+          type: 'control_response',
+          response: {
+            subtype: 'success',
+            request_id: 'req-1',
+            response: { behavior: 'allow', updatedInput: { file_path: 'notes/a.md', content: 'a' } }
+          }
+        }
+      ])
+      expect(frames).toEqual([])
+    })
+
+    it('writes a deny as the CLI reads it: behavior and message', async () => {
+      const { child, answers } = await live(() => ({ behavior: 'deny', message: 'blocked: /etc is outside the project' }))
+
+      child.out(ask('req-2', 'Read', { file_path: '/etc/hosts' }))
+
+      expect(answers()).toEqual([
+        {
+          type: 'control_response',
+          response: {
+            subtype: 'success',
+            request_id: 'req-2',
+            response: { behavior: 'deny', message: 'blocked: /etc is outside the project' }
+          }
+        }
+      ])
+    })
+
+    it('answers two requests that arrive before either is answered, each by its own id', async () => {
+      const { child, answers } = await live((request) =>
+        request.toolName === 'Write'
+          ? { behavior: 'allow', updatedInput: {} }
+          : { behavior: 'deny', message: 'no' }
+      )
+
+      child.out(ask('a', 'Write', {}) + ask('b', 'Bash', {}))
+
+      expect(answers().map((line) => [line.response.request_id, line.response.response.behavior])).toEqual([
+        ['a', 'allow'],
+        ['b', 'deny']
+      ])
+    })
+
+    it('turns a `decide` that throws into a deny, still answered', async () => {
+      const { child, answers } = await live(() => {
+        throw new Error('boom /secret/path')
+      })
+
+      child.out(ask('req-3', 'Write', {}))
+
+      const [answer] = answers()
+      expect(answer.response.request_id).toBe('req-3')
+      expect(answer.response.response.behavior).toBe('deny')
+      expect(answer.response.response.message).not.toContain('/secret/path')
+    })
+
+    it('hands a malformed request to `decide` unread, so the policy denies it, and answers it', async () => {
+      const decide = vi.fn((): PermissionAnswer => ({ behavior: 'deny', message: 'unrecognised permission request' }))
+      const { child, answers } = await live(decide)
+
+      child.out(`${JSON.stringify({ type: 'control_request', request_id: 'm', request: { subtype: 'can_use_tool' } })}\n`)
+
+      expect(decide).toHaveBeenCalledWith({ toolName: undefined, input: undefined })
+      expect(answers()).toHaveLength(1)
+      expect(answers()[0].response).toMatchObject({ request_id: 'm', response: { behavior: 'deny' } })
+    })
+
+    it('answers another subtype, or a request with no body, with an error for its id, and asks `decide` nothing', async () => {
+      const decide = vi.fn()
+      const { child, frames, answers } = await live(decide)
+
+      child.out(`${JSON.stringify({ type: 'control_request', request_id: 'x', request: { subtype: 'mcp_message' } })}\n`)
+      child.out(`${JSON.stringify({ type: 'control_request', request_id: 'y', request: 'garbage' })}\n`)
+
+      expect(decide).not.toHaveBeenCalled()
+      expect(answers().map((line) => line.response)).toEqual([
+        { subtype: 'error', request_id: 'x', error: 'unsupported control request' },
+        { subtype: 'error', request_id: 'y', error: 'unsupported control request' }
+      ])
+      expect(frames).toEqual([])
+    })
+
+    it('ignores a cancel and a control response, and hands neither to onFrame', async () => {
+      const decide = vi.fn()
+      const { child, frames, answers } = await live(decide)
+
+      child.out(`${JSON.stringify({ type: 'control_cancel_request', request_id: 'req-1' })}\n`)
+      child.out(`${JSON.stringify({ type: 'control_response', response: { subtype: 'success', request_id: 'z' } })}\n`)
+
+      expect(answers()).toEqual([])
+      expect(frames).toEqual([])
+      expect(decide).not.toHaveBeenCalled()
+    })
+
+    it('cannot answer a request with no id: nothing is written and nothing reaches onFrame', async () => {
+      const { child, frames, answers } = await live()
+
+      child.out(`${JSON.stringify({ type: 'control_request', request: { subtype: 'can_use_tool', tool_name: 'Write', input: {} } })}\n`)
+
+      expect(answers()).toEqual([])
+      expect(frames).toEqual([])
+    })
+
+    it('writes nothing and throws nothing for a request that arrives after the process closed', async () => {
+      const { child, exits, answers } = await live()
+      child.emit('close')
+
+      expect(() => child.out(ask('late', 'Write', {}))).not.toThrow()
+      expect(answers()).toEqual([])
+      expect(exits).toHaveBeenCalledTimes(1)
+    })
+
+    it('writes nothing and throws nothing to a stdin that is destroyed or has failed', async () => {
+      const destroyed = await live()
+      destroyed.child.stdin.destroyed = true
+      expect(() => destroyed.child.out(ask('d', 'Write', {}))).not.toThrow()
+      expect(destroyed.answers()).toEqual([])
+
+      const failed = await live()
+      failed.child.stdinErrors.forEach((listener) => listener())
+      expect(() => failed.child.out(ask('f', 'Write', {}))).not.toThrow()
+      expect(failed.answers()).toEqual([])
+    })
+
+    it('throws nothing when the write of an answer itself throws', async () => {
+      const { child } = await live()
+      child.failWrites = true
+
+      expect(() => child.out(ask('t', 'Write', {}))).not.toThrow()
+    })
+
+    it('still hands every other frame to onFrame, in order around the requests', async () => {
+      const { child, frames, answers } = await live()
+
+      child.out(`{"type":"a"}\n${ask('r', 'Write', {}).trimEnd()}\n{"type":"b"}\n`)
+
+      expect(frames).toEqual([{ type: 'a' }, { type: 'b' }])
+      expect(answers()).toHaveLength(1)
     })
   })
 

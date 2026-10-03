@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { homedir, tmpdir } from 'node:os'
+import { join, posix } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SessionBridgeDeps } from './session-bridge'
 import type { ConversationReply } from '../shared/conversation'
@@ -21,7 +21,9 @@ vi.mock('electron', () => ({
   ipcMain: {
     handle: (channel: string, handler: (...args: never[]) => unknown) => handlers.set(channel, handler)
   },
-  BrowserWindow: { fromWebContents: () => null }
+  BrowserWindow: { fromWebContents: () => null },
+  // The app's data directory, for the permission policy's real default.
+  app: { getPath: (name: string) => (name === 'userData' ? userData : `/unexpected/${name}`) }
 }))
 
 const {
@@ -1961,5 +1963,59 @@ describe('handoff', () => {
     } finally {
       forgetInstall(sender.id, projection)
     }
+  })
+})
+
+describe('permission requests', () => {
+  const write = (filePath: string) => ({ toolName: 'Write', input: { file_path: filePath, content: '' } })
+
+  it('are decided per session, against that session’s own project root, the data directory and the home directory', async () => {
+    let dataReads = 0
+    launch({}, false, {
+      userDataDir: () => ((dataReads += 1), '/data'),
+      homeDir: '/home/me',
+      canonicalize: (path) => posix.normalize(path)
+    })
+    const one = await opened(new FakeSender(1))
+    const two = await opened(new FakeSender(2))
+    expect(dataReads).toBe(0)
+
+    expect(one.proc.options.decide(write('/project-1/a.md'))).toEqual({
+      behavior: 'allow',
+      updatedInput: { file_path: '/project-1/a.md', content: '' }
+    })
+    expect(one.proc.options.decide(write('notes/a.md')).behavior).toBe('allow')
+    expect(one.proc.options.decide(write('/data/logs/a.log')).behavior).toBe('allow')
+    expect(one.proc.options.decide(write('/project-2/a.md'))).toEqual({
+      behavior: 'deny',
+      message: 'blocked: /project-2/a.md is outside the project'
+    })
+    expect(one.proc.options.decide(write('~/a.md')).behavior).toBe('deny')
+    expect(two.proc.options.decide(write('/project-2/a.md')).behavior).toBe('allow')
+    expect(two.proc.options.decide(write('/project-1/a.md')).behavior).toBe('deny')
+    // The data directory is read when a request arrives, not when the bridge starts.
+    expect(dataReads).toBeGreaterThan(0)
+  })
+
+  it('read the real userData and home directory when the composition passes neither', async () => {
+    const project = join(homedir(), 'harness-session-bridge-no-such-project')
+    projectOf = () => project
+    launch()
+    const { proc } = await opened(new FakeSender(1))
+
+    expect(proc.options.decide(write(join(userData, 'logs', 'a.log'))).behavior).toBe('allow')
+    expect(proc.options.decide(write('~/harness-session-bridge-no-such-project/a.md')).behavior).toBe('allow')
+    expect(proc.options.decide(write('~/elsewhere.md'))).toEqual({
+      behavior: 'deny',
+      message: 'blocked: ~/elsewhere.md is outside the project'
+    })
+  })
+
+  it('use the real canonicaliser when the composition passes none', async () => {
+    launch({}, false, { userDataDir: () => '/data' })
+    const { proc } = await opened(new FakeSender(1))
+
+    expect(proc.options.decide(write('/project-1/new/a.md')).behavior).toBe('allow')
+    expect(proc.options.decide(write('/project-1/../a.md')).behavior).toBe('deny')
   })
 })

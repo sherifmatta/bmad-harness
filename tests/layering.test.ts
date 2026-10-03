@@ -1,4 +1,5 @@
-import { posix } from 'node:path'
+import { readFileSync } from 'node:fs'
+import { posix, resolve } from 'node:path'
 import { ESLint } from 'eslint'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { LAYER_GRAPH } from '../eslint.config.mjs'
@@ -230,5 +231,25 @@ describe('what the layer rule deliberately permits', () => {
     }
   ])('permits $what', async ({ filePath, code }) => {
     expect(await violationsAt(filePath, code)).toHaveLength(0)
+  })
+})
+
+describe('the permission policy', () => {
+  const POLICY = 'src/main/fold/permission-policy.ts'
+  const source = readFileSync(resolve(import.meta.dirname, '..', POLICY), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '')
+
+  it('is pure: path arithmetic only, with the file system, the home directory and the clock handed in', () => {
+    const imports = [...source.matchAll(/^import\b[^;]*?from\s+'([^']+)'/gm)].map(([, from]) => from)
+
+    expect(imports).toEqual(['node:path'])
+    expect(source).not.toMatch(/\bprocess\.|\brequire\(|\bimport\(|electron|node:fs|node:os|homedir|realpath/)
+    expect(source).not.toMatch(/Date\.now|new Date\(|Math\.random|performance\.now|setTimeout|setInterval/)
+  })
+
+  it('is reached by the registry, which composes it, and by no Source', async () => {
+    expect(await violationsAt('src/main/probe.ts', "import './fold/permission-policy'")).toHaveLength(0)
+    expect(await violationsAt('src/main/sources/session/probe.ts', "import '../../fold/permission-policy'")).toHaveLength(1)
   })
 })

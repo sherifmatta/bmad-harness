@@ -15,7 +15,10 @@ import { foldTurn, initialTurn } from './fold/turn-end'
 import type { TurnState } from './fold/turn-end'
 import { foldWrittenPaths, initialWrittenState, withWrittenPaths } from './fold/written-paths'
 import type { WrittenState } from './fold/written-paths'
+import { decidePermission } from './fold/permission-policy'
 import type {
+  PermissionAnswer,
+  PermissionAsk,
   SessionProcess,
   SpawnOutcome,
   SpawnSessionOptions
@@ -88,6 +91,14 @@ export type SessionRegistryDeps = {
   /** Run `run` after `ms`; returns the way to cancel it. Replaceable by a test that holds time still. */
   schedule?: (run: () => void, ms: number) => () => void
   quietMs?: number
+  /**
+   * What the permission policy reads besides each session's own project root:
+   * the app's data directory (read when a request arrives), the home directory
+   * `~` and `$HOME` stand for, and the file system's view of a path.
+   */
+  userDataDir: () => string
+  homeDir: string
+  canonicalize: (absolutePath: string) => string
 }
 
 export type SessionRegistry = {
@@ -191,6 +202,8 @@ type StartKit = {
   discard: (service: Service, entry: Entry) => void
   finish: SessionRegistry['finish']
   onFrame: (sender: Sender, service: Service, entry: Entry, frame: unknown) => void
+  /** The permission policy, for a session in this project. */
+  decide: (projectRoot: string, ask: PermissionAsk) => PermissionAnswer
 }
 
 /**
@@ -206,6 +219,7 @@ function startProcess(kit: StartKit, sender: Sender, service: Service, entry: En
         agentId,
         cwd: projectRoot,
         onFrame: (frame) => kit.onFrame(sender, service, entry, frame),
+        decide: (ask) => kit.decide(projectRoot, ask),
         onExit: () => {
           if (!entry.closed) {
             kit.say(sender, entry, LINES.exited)
@@ -268,6 +282,13 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
     onQuiet: (sender, entry) => say(sender, entry, LINES.quiet(deps.quietMs ?? QUIET_MS))
   })
   const watch = (sender: Sender, _service: Service, entry: Entry): void => clock(sender, entry)
+  const decide = (projectRoot: string, ask: PermissionAsk): PermissionAnswer =>
+    decidePermission(ask, {
+      projectRoot,
+      userDataDir: deps.userDataDir(),
+      homeDir: deps.homeDir,
+      canonicalize: deps.canonicalize
+    })
 
   function serviceFor(sender: Sender, projectRoot: string): Service {
     const existing = services.get(sender.id)
@@ -357,7 +378,7 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
     service.byAgent.set(agentId, entry)
 
     entry.ready = startProcess(
-      { start, now, announce, say, watch, discard, finish, onFrame },
+      { start, now, announce, say, watch, discard, finish, onFrame, decide },
       sender,
       service,
       entry

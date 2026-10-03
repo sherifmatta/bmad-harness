@@ -12,6 +12,15 @@ import { errnoOf } from '../errno'
  * module hands each parsed frame up as `unknown` and says when the process is
  * gone.
  *
+ * Control frames are the one exception, and never go up. A `control_request`
+ * asking whether a tool may run (`can_use_tool`) is answered here, at once and
+ * exactly once, by its `request_id`, with what the injected `decide` says; a
+ * `decide` that throws is a deny, and any other subtype is answered with an
+ * error, so no turn is left waiting on an answer. The one exception is a
+ * request with no `request_id`, which cannot be answered and is dropped; the
+ * CLI always sends an id. A cancel, and a control response the CLI might send,
+ * are dropped too.
+ *
  * Stderr is ignored outright, never read: it names files the harness must
  * never show. The exit code is not reported either, because a turn ends on a
  * `result` frame and the process exit is only ever "gone". A write to a pipe
@@ -27,9 +36,11 @@ import { errnoOf } from '../errno'
  * as they are written), `--setting-sources project,local` (the user source is
  * excluded, so the session sees only the target project's skills) and
  * `--input-format stream-json` (the agent's skill is a stdin turn, not a
- * positional prompt). `--forward-subagent-text` is deliberately absent, and so
- * is any flag that would give the persona an identity or a style: the agent's
- * own skill loads both.
+ * positional prompt). `--permission-prompt-tool stdio` sends each call that
+ * would prompt here as a `control_request` instead of denying it, and the
+ * answer comes from a fixed policy. `--forward-subagent-text` is deliberately
+ * absent, and so is any flag that would give the persona an identity or a
+ * style (the agent's own skill loads both), a permission mode or a model.
  */
 export const SESSION_ARGS: readonly string[] = [
   '-p',
@@ -40,7 +51,9 @@ export const SESSION_ARGS: readonly string[] = [
   '--include-partial-messages',
   '--verbose',
   '--setting-sources',
-  'project,local'
+  'project,local',
+  '--permission-prompt-tool',
+  'stdio'
 ]
 
 /** The executable the session runs. */
@@ -63,6 +76,32 @@ export function userTurnLine(text: string): string {
 export function activationTurn(agentId: string): string {
   return `/${agentId}`
 }
+
+/** A tool call the CLI asks permission for, as it arrived: neither field is checked here. */
+export type PermissionAsk = { toolName: unknown; input: unknown }
+
+/** The answer, in the shape the CLI reads. */
+export type PermissionAnswer =
+  | { behavior: 'allow'; updatedInput: Record<string, unknown> }
+  | { behavior: 'deny'; message: string }
+
+/** The answer to one permission request, as a stdin line. */
+export function permissionAnswerLine(requestId: string | number, answer: PermissionAnswer): string {
+  const frame = { type: 'control_response', response: { subtype: 'success', request_id: requestId, response: answer } }
+  return `${JSON.stringify(frame)}\n`
+}
+
+/** A control request this module does not handle, refused by its id as a stdin line. */
+export function controlErrorLine(requestId: string | number, error: string): string {
+  const frame = { type: 'control_response', response: { subtype: 'error', request_id: requestId, error } }
+  return `${JSON.stringify(frame)}\n`
+}
+
+/** The frames the CLI and the harness speak to each other in; none is a frame of the conversation. */
+const CONTROL_TYPES = new Set(['control_request', 'control_response', 'control_cancel_request'])
+
+/** The deny for a request the policy could not decide. */
+const UNDECIDED: PermissionAnswer = { behavior: 'deny', message: 'blocked: the permission check failed' }
 
 /**
  * Split a byte stream into whole lines. A partial line is held until its
@@ -146,6 +185,8 @@ export type SpawnSessionOptions = {
   onFrame: (frame: unknown) => void
   /** The process has gone. Called once, and only for a process that did spawn. */
   onExit: () => void
+  /** Whether a tool call may run. Called once per permission request; a throw is a deny. */
+  decide: (ask: PermissionAsk) => PermissionAnswer
   spawn?: SessionSpawn
   killGroup?: (pid: number | undefined) => void
 }
@@ -181,29 +222,55 @@ export function spawnSession(options: SpawnSessionOptions): Promise<SpawnOutcome
       for (const settle of [...pending]) settle(written)
     }
 
-    const session: SessionProcess = {
-      write(text) {
-        if (exited || broken || child.stdin.destroyed === true || child.stdin.writable === false) {
-          return Promise.resolve(false)
+    /** One line on stdin; nothing is attempted once the process or its pipe has gone. */
+    const writeLine = (line: string): Promise<boolean> => {
+      if (exited || broken || child.stdin.destroyed === true || child.stdin.writable === false) {
+        return Promise.resolve(false)
+      }
+      return new Promise<boolean>((resolveWrite) => {
+        const settle = (written: boolean): void => {
+          pending.delete(settle)
+          resolveWrite(written)
         }
-        return new Promise<boolean>((resolveWrite) => {
-          const settle = (written: boolean): void => {
-            pending.delete(settle)
-            resolveWrite(written)
-          }
-          pending.add(settle)
-          try {
-            child.stdin.write(userTurnLine(text), (error) => {
-              if (error !== undefined && error !== null) {
-                broken = true
-              }
-              settle(error === undefined || error === null)
-            })
-          } catch {
-            settle(false)
-          }
-        })
-      },
+        pending.add(settle)
+        try {
+          child.stdin.write(line, (error) => {
+            if (error !== undefined && error !== null) {
+              broken = true
+            }
+            settle(error === undefined || error === null)
+          })
+        } catch {
+          settle(false)
+        }
+      })
+    }
+
+    /** Answer one control request; anything that cannot be answered by an id is dropped. */
+    const answerControl = (frame: { request_id?: unknown; request?: unknown }): void => {
+      const requestId = frame.request_id
+      if (typeof requestId !== 'string' && typeof requestId !== 'number') {
+        return
+      }
+      const request =
+        typeof frame.request === 'object' && frame.request !== null
+          ? (frame.request as { subtype?: unknown; tool_name?: unknown; input?: unknown })
+          : undefined
+      if (request?.subtype !== 'can_use_tool') {
+        void writeLine(controlErrorLine(requestId, 'unsupported control request'))
+        return
+      }
+      let answer: PermissionAnswer
+      try {
+        answer = options.decide({ toolName: request.tool_name, input: request.input })
+      } catch {
+        answer = UNDECIDED
+      }
+      void writeLine(permissionAnswerLine(requestId, answer))
+    }
+
+    const session: SessionProcess = {
+      write: (text) => writeLine(userTurnLine(text)),
       kill() {
         kill(child.pid)
       }
@@ -222,6 +289,11 @@ export function spawnSession(options: SpawnSessionOptions): Promise<SpawnOutcome
       try {
         frame = JSON.parse(line)
       } catch {
+        return
+      }
+      const type = typeof frame === 'object' && frame !== null ? (frame as { type?: unknown }).type : undefined
+      if (typeof type === 'string' && CONTROL_TYPES.has(type)) {
+        if (type === 'control_request') answerControl(frame as { request_id?: unknown; request?: unknown })
         return
       }
       options.onFrame(frame)

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { homedir } from 'node:os'
 import { app, ipcMain } from 'electron'
 import type { IpcMainInvokeEvent } from 'electron'
 import {
@@ -28,6 +29,7 @@ import type { TranscriptRegistry } from './projections/transcript'
 import { createHandoffComposer } from './session-handoff'
 import { NOT_FOUND, createSessionRegistry } from './session-registry'
 import type { OpenReply, SessionRegistry } from './session-registry'
+import { canonicalPath } from './sources/session/canonical-path'
 import { isAgentId, spawnSession } from './sources/session/session-process'
 import type { SpawnOutcome, SpawnSessionOptions } from './sources/session/session-process'
 
@@ -74,6 +76,14 @@ export type SessionBridgeDeps = {
   /** The silence clock: how long a busy session may say nothing, and what runs the timer. */
   quietMs?: number
   schedule?: (run: () => void, ms: number) => () => void
+  /**
+   * What the permission policy reads: the app's data directory (the real one is
+   * `userData`, read when a request arrives), the home directory and the file
+   * system's view of a path (the real one resolves links).
+   */
+  userDataDir?: () => string
+  homeDir?: string
+  canonicalize?: (absolutePath: string) => string
 }
 
 /** What the five handlers share. */
@@ -273,6 +283,9 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): void {
       now,
       newSessionId: deps.newSessionId ?? (() => randomUUID()),
       transcripts,
+      userDataDir: deps.userDataDir ?? (() => app.getPath('userData')),
+      homeDir: deps.homeDir ?? homedir(),
+      canonicalize: deps.canonicalize ?? canonicalPath,
       ...(deps.quietMs !== undefined ? { quietMs: deps.quietMs } : {}),
       ...(deps.schedule !== undefined ? { schedule: deps.schedule } : {})
     }),

@@ -93,3 +93,35 @@
 - source_spec: `_bmad/implementation-artifacts/spec-2-12-confirm-continuity-actually-holds.md`
   summary: Not tried in the continuity spike: a handoff to a persona other than John, a project with many artifacts, a populated `docs/`, an artifact written by plain chat rather than a skill workflow, a run in the real app, or any model other than the default.
   evidence: Every counted trial is Mary to John on a one-folder scratch project with `claude-opus-5[1m]`, 3 counted Pass 1 and 2 counted Pass 2 trials (`_bmad/spikes/spike-handoff-continuity.md`). Low.
+
+- source_spec: `_bmad/implementation-artifacts/spec-session-permission-policy.md`
+  summary: Planning lines that still give the session argv without `--permission-prompt-tool stdio`, or say nothing of the in-project permission policy that answers it (Epic 2 retro item 32, built 2026-10-03).
+  evidence: The product now passes `--permission-prompt-tool stdio` and answers each `can_use_tool` request in `src/main/sources/session/session-process.ts` from `src/main/fold/permission-policy.ts` (allow inside the project root and `userData`, deny elsewhere; Bash is a path check, not a sandbox); verified on a real `claude` in `_bmad/spikes/spike-product-argv-check.md` Finding 5. Owning skills amend these, not by hand: `ARCHITECTURE-SPINE.md` AD-18 rule (line 190: the argv, and a sentence on the policy and the always-answered control request) and the process diagram edge (line 267: stdin also carries permission answers) (`bmad-architecture`); `epics.md` FR95 (line 161, the argv), FR96 (line 162, the flag list) and Story 2.4's criteria (lines 1167 and 1171, the argv and the pinned flags), and a criterion for Epic 3's first document-writing story that a write outside the project is denied and relayed by the persona (`bmad-create-epics-and-stories`); `_bmad/specs/spec-bmad-visual-harness/execution-model.md` lines 13-16 and the flag list after it (`bmad-spec`); the derived `epic-2-context.md:42` when the contexts are next regenerated. `epics.md:504` is Story 2.1's recording argv and stays as recorded. Line numbers are as of 2026-10-03. Medium.
+
+- source_spec: `_bmad/implementation-artifacts/spec-session-permission-policy.md`
+  summary: A word that starts with `/` counts as a path even when it is a search string, so `sed -n '/x/p' f` and `grep -rn "/api/users" src` are denied by the session permission policy.
+  evidence: Reproduced against `decidePermission` in `src/main/fold/permission-policy.ts` (review finding 12, Pass 1). The policy is pure and cannot tell a path from a pattern without the filesystem. The persona sees `blocked: /x/p is outside the project` and can rephrase, so each hit costs one retry. Revisit if Epic 3 runs show it often, for example by treating a quoted word as a path only when its parent directory exists (an injected check).
+
+- source_spec: `_bmad/implementation-artifacts/spec-session-permission-policy.md`
+  summary: The session permission policy does not protect files inside the project that change how the next session behaves: `.claude/settings*.json`, `.claude/skills/**`, `.git/hooks/**`.
+  evidence: Review finding 13. Writes inside the project root are allowed by the decision (Sherif, 2026-10-03). A persona or injected content could write a hook or an allow rule that the next session reads (`--setting-sources project,local`). Bash is also allowed, so denying these paths for `Write` and `Edit` alone would not stop the same effect through a shell command; closing this properly needs the Bash scan to know them too. Record only until a story needs it.
+
+- source_spec: `_bmad/implementation-artifacts/spec-session-permission-policy.md`
+  summary: Sessions can read and write the whole `userData` directory, though the harness writes its own transcripts and logs there from main and no persona needs it.
+  evidence: Review finding 14. The decision text said "project root and userData", so the policy allows both. `userData` also holds Electron's cookies and local storage. The narrower option, a `logs/` subdirectory or nothing, is a one-line change in `permission-policy.ts` (`userDataDir` in the bounds). Decide whether any session needs it before Epic 3.
+
+- source_spec: `_bmad/implementation-artifacts/spec-session-permission-policy.md`
+  summary: `WebFetch` and `WebSearch` are allowed by the session permission policy and are unbounded network egress: a persona that has read project files can send their content out in a URL or query.
+  evidence: Review finding 15. Allowed because the research skills use them and the decision was flagged at the spec checkpoint and approved. No domain or content limit exists. A denylist or an allowlist would be a product decision (it changes what personas can research).
+
+- source_spec: `_bmad/implementation-artifacts/spec-session-permission-policy.md`
+  summary: `canonicalPath` treats a dangling symlink, and a missing component followed by `..` then a link (`<root>/missing/../out/x`), as a missing tail, so the policy compares the uncanonicalised path.
+  evidence: Review finding 16, `src/main/sources/session/canonical-path.ts`. Needs a link into the project that points outside to already exist; creating one through Bash is denied by the scan, since the target is an outside path. Closing it means an `lstat` on each tail segment.
+
+- source_spec: `_bmad/implementation-artifacts/spec-session-permission-policy.md`
+  summary: A relative symlink reached through a Bash argument (`cat out/secret`, `cd out`) is not checked: only words that look like paths are canonicalised.
+  evidence: Review finding 17. Needs a pre-existing in-project link that points outside, and is inside the stated limit (a boundary check on obvious path arguments, not a sandbox). File tools do canonicalise.
+
+- source_spec: `_bmad/implementation-artifacts/spec-session-permission-policy.md`
+  summary: The session permission policy leaves no record of what it allowed or denied.
+  evidence: Review finding 18. An unexpectedly broad allow cannot be reconstructed afterwards. A minimal decision line (tool, allow or deny, redacted path) through the bridge's `writeDiagnostic` would do; stderr must not carry project file names beyond what that channel already shows.

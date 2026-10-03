@@ -61,7 +61,10 @@ export type Watched = {
  * when it runs out `onQuiet` is told once. It only tells: nothing is closed,
  * interrupted or retried, and the close control the window shows for every open
  * session is the way out. A session that is not mid-turn, or is gone, has no
- * clock, and it is not run again until the next frame or turn.
+ * clock, and it is not run again until the next frame or turn. A permission
+ * request is answered in Sources as it arrives and never reaches the clock;
+ * the frames the CLI sends once it has its answer start the clock again, so a
+ * turn left waiting on a control response is a silence like any other.
  */
 export function createQuietClock<S, E extends Watched>(deps: {
   schedule: (run: () => void, ms: number) => () => void
