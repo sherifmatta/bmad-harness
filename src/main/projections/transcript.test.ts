@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -145,18 +145,13 @@ describe('the transcript registry', () => {
     ])
   })
 
-  it('treats a file that is not this project’s as empty and leaves it until the first write', () => {
-    const other = join(root, 'other')
-    writeTranscript(fileOf(), other, [{ kind: 'user', id: 'm-7', at: 1, text: 'foreign' }])
-    const before = readFileSync(fileOf(), 'utf8')
+  it('says nothing and moves nothing for a project that has no file yet', () => {
     const transcript = registry().forProject(project)
 
     expect(transcript.entries()).toEqual([])
-    expect(readFileSync(fileOf(), 'utf8')).toBe(before)
-
-    transcript.recordUserTurn('mine', 2)
-    transcript.flush()
-    expect(onDisk().entries).toEqual([{ kind: 'user', id: 'm-0', at: 2, text: 'mine' }])
+    expect(logs).toEqual([])
+    expect(timers).toEqual([])
+    expect(() => readdirSync(join(userData, 'conversations'))).toThrow()
   })
 
   it('keeps two projects in two files without mixing them', () => {
@@ -332,5 +327,164 @@ describe('a sysline in the registry', () => {
     expect(transcript.clear()).toEqual({ ok: true })
     expect(transcript.entries()).toEqual([])
     expect(onDisk().entries).toEqual([])
+  })
+})
+
+describe('a file that cannot be used whole', () => {
+  const NOTICE = 'earlier conversation could not be read · kept aside'
+  const asideOf = (): string => `${fileOf()}.aside`
+  const plant = (content: string): void => {
+    mkdirSync(join(userData, 'conversations'), { recursive: true })
+    writeFileSync(fileOf(), content)
+  }
+  const listing = (): string[] => readdirSync(join(userData, 'conversations')).sort()
+
+  it.each([
+    ['not JSON', '{not json', 'corrupt'],
+    ['of another version', JSON.stringify({ version: 2, projectPath: 'P', entries: [] }), 'unknown-version'],
+    ['another project’s', JSON.stringify({ version: 1, projectPath: 'other', entries: [] }), 'corrupt']
+  ])('moves a file that is %s aside before any write, logs it, and opens with a line saying so', (_name, content, kind) => {
+    const original = content.replace('"P"', JSON.stringify(project))
+    plant(original)
+
+    const transcript = registry({ now: () => 77 }).forProject(project)
+
+    // Before anything is written: the file is gone from its place and whole beside it.
+    expect(readFileSync(asideOf(), 'utf8')).toBe(original)
+    expect(listing()).toEqual([`${fileOf().split('/').pop()}.aside`])
+    expect(logs).toEqual([`persist/quarantined · ${kind}`])
+    expect(transcript.entries()).toEqual([{ kind: 'sysline', id: 'm-0', at: 77, text: NOTICE }])
+  })
+
+  it('never lets a later write replace it: the file written afterwards is a new one, and the original stays whole', () => {
+    plant('{not json')
+    const transcripts = registry({ now: () => 5 })
+    const transcript = transcripts.forProject(project)
+    transcript.recordUserTurn('hello', 6)
+    tick()
+    transcript.recordPersonaSaid(said('m1', 'hi', 7))
+    transcripts.flushAll()
+    transcript.clear()
+
+    expect(readFileSync(asideOf(), 'utf8')).toBe('{not json')
+    expect(onDisk().entries).toEqual([])
+  })
+
+  it('writes the line with the first change, so it is in the stored conversation, ahead of everything', () => {
+    plant('{not json')
+    const transcripts = registry({ now: () => 5 })
+    const transcript = transcripts.forProject(project)
+    expect(timers.filter((timer) => !timer.cancelled)).toHaveLength(1)
+    transcript.recordUserTurn('hello', 6)
+    transcripts.flushAll()
+
+    expect(onDisk().entries).toEqual([
+      { kind: 'sysline', id: 'm-0', at: 5, text: NOTICE },
+      { kind: 'user', id: 'm-1', at: 6, text: 'hello' }
+    ])
+    // A later launch finds a good file, with the line in it, and moves nothing.
+    logs.length = 0
+    const next = registry().forProject(project)
+    expect(next.entries()).toHaveLength(2)
+    expect(logs).toEqual([])
+    expect(listing()).toHaveLength(2)
+  })
+
+  it('keeps the records that are records, drops the others, moves the original aside and says so at the top', () => {
+    const good = { kind: 'user', id: 'm-3', at: 1, text: 'kept' }
+    const original = JSON.stringify({
+      version: 1,
+      projectPath: project,
+      entries: [good, { kind: 'user', id: 'm-4' }, { kind: 'sysline', id: 'm-5', at: 2, text: 'line' }]
+    })
+    plant(original)
+
+    const transcript = registry({ now: () => 9 }).forProject(project)
+
+    expect(logs).toEqual(['persist/entries-dropped · 1'])
+    expect(readFileSync(asideOf(), 'utf8')).toBe(original)
+    expect(transcript.entries()).toEqual([
+      { kind: 'sysline', id: 'm-6', at: 9, text: NOTICE },
+      good,
+      { kind: 'sysline', id: 'm-5', at: 2, text: 'line' }
+    ])
+    // The next record's id goes on past the highest the file held.
+    expect(transcript.recordUserTurn('next', 10)).toBeUndefined()
+    expect(transcript.entries().at(-1)).toMatchObject({ id: 'm-7' })
+  })
+
+  it('writes the kept records as a file of their own, and the original is still there whole', () => {
+    const original = JSON.stringify({
+      version: 1,
+      projectPath: project,
+      entries: [{ kind: 'user', id: 'm-0', at: 1, text: 'kept' }, 'junk']
+    })
+    plant(original)
+    const transcripts = registry({ now: () => 9 })
+    transcripts.forProject(project)
+    transcripts.flushAll()
+
+    expect(onDisk().entries.map((entry: { text: string }) => entry.text)).toEqual([NOTICE, 'kept'])
+    expect(readFileSync(asideOf(), 'utf8')).toBe(original)
+  })
+
+  it('treats a file it cannot read as one to move aside, logging the errno', () => {
+    plant('whatever')
+    const transcript = registry({ load: () => ({ kind: 'unreadable', errno: 'EACCES' }) }).forProject(project)
+
+    expect(logs).toEqual(['persist/quarantined · unreadable EACCES'])
+    expect(readFileSync(asideOf(), 'utf8')).toBe('whatever')
+    expect(transcript.entries()).toMatchObject([{ kind: 'sysline', text: NOTICE }])
+  })
+
+  describe('that cannot be moved either', () => {
+    const stuck = (over: Partial<TranscriptRegistryDeps> = {}) =>
+      registry({ setAside: () => ({ ok: false, errno: 'EPERM' }), now: () => 3, ...over })
+
+    it('logs it, opens with the line that says this conversation is not being saved, and writes nothing at all', () => {
+      plant('{not json')
+      const transcripts = stuck()
+      const transcript = transcripts.forProject(project)
+      transcript.recordUserTurn('hello', 4)
+      tick()
+      transcripts.flushAll()
+
+      expect(logs).toEqual(['persist/quarantined · corrupt', 'persist/quarantine-failed · EPERM'])
+      expect(transcript.entries().map((entry) => entry.text)).toEqual([
+        'earlier conversation could not be read · this conversation is not being saved',
+        'hello'
+      ])
+      expect(readFileSync(fileOf(), 'utf8')).toBe('{not json')
+    })
+
+    it('ends the conversation in memory without touching the file it could not move', () => {
+      plant('{not json')
+      const transcript = stuck().forProject(project)
+      transcript.recordUserTurn('hello', 4)
+
+      expect(transcript.clear()).toEqual({ ok: true })
+      expect(transcript.entries()).toEqual([])
+      expect(readFileSync(fileOf(), 'utf8')).toBe('{not json')
+    })
+  })
+
+  it('does a file inside the project root no harm: it is neither moved nor written to', () => {
+    const inside = join(project, 'userData')
+    mkdirSync(join(inside, 'conversations'), { recursive: true })
+    const file = transcriptFilePath(inside, project)
+    writeFileSync(file, '{not json')
+    const transcripts = registry({ userDataPath: () => inside })
+    transcripts.forProject(project).recordUserTurn('x', 1)
+    transcripts.flushAll()
+
+    expect(readFileSync(file, 'utf8')).toBe('{not json')
+    expect(readdirSync(join(inside, 'conversations'))).toEqual([file.split('/').pop()])
+  })
+
+  it('is not a file that is merely absent: that is quiet', () => {
+    const transcript = registry().forProject(project)
+
+    expect(transcript.entries()).toEqual([])
+    expect(logs).toEqual([])
   })
 })

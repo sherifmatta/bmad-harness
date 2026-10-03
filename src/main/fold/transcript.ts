@@ -62,3 +62,14 @@ export function foldUserTurn(state: TranscriptState, text: string, at: number): 
 export function foldSysline(state: TranscriptState, text: string, at: number): TranscriptState {
   return withRecord(state, { kind: 'sysline', id: `m-${state.nextId}`, at, text })
 }
+
+/**
+ * The harness's own line as the very first record, ahead of everything the
+ * transcript holds: what a conversation that was found damaged says of what came
+ * before it. Its id continues past the highest, like any other, so it never
+ * collides with a record that is already there.
+ */
+export function foldNoticeAtTop(state: TranscriptState, text: string, at: number): TranscriptState {
+  const record: TranscriptRecord = { kind: 'sysline', id: `m-${state.nextId}`, at, text }
+  return { entries: [record, ...state.entries], nextId: state.nextId + 1 }
+}

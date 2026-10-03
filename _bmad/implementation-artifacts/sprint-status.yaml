@@ -244,7 +244,7 @@ action_items:
       write, validates entries individually; fix the realish root-parent slice; replace
       the shape-bound clear() pin with a behavior test."
     owner: "dev"
-    status: open
+    status: done
     ref: "_bmad/implementation-artifacts/epic-2-retro-2026-10-02.md"
   - id: "epic-2-retro-item-20-conversation-view-follow-the-newest-turn"
     epic: 2

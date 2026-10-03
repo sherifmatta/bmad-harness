@@ -1,11 +1,34 @@
-import { readFileSync, readdirSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join, relative, resolve } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { ContractEvent } from '../src/shared/events'
 import type { AgentView } from '../src/shared/install'
 import { foldEvent, hydrate, initialConversation, withHandoff } from '../src/renderer/ui/chat/conversation-state'
 import { EMPTY_TRANSCRIPT, foldPersonaSaid, foldSysline, foldUserTurn } from '../src/main/fold/transcript'
+import type { ConversationReply } from '../src/shared/conversation'
+import type { SpawnOutcome, SpawnSessionOptions } from '../src/main/sources/session/session-process'
+
+const handlers = new Map<string, (...args: never[]) => unknown>()
+
+vi.mock('electron', () => ({
+  ipcMain: {
+    handle: (channel: string, handler: (...args: never[]) => unknown) => handlers.set(channel, handler)
+  },
+  BrowserWindow: { fromWebContents: () => null }
+}))
+
+const { createTranscriptRegistry } = await import('../src/main/projections/transcript')
+const { transcriptFilePath, writeTranscript } = await import('../src/main/sources/persistence/transcript-file')
+const {
+  CONVERSATION_END_CHANNEL,
+  CONVERSATION_GET_CHANNEL,
+  SESSION_CLOSE_CHANNEL,
+  SESSION_OPEN_CHANNEL,
+  TURN_SEND_CHANNEL,
+  registerSessionBridge
+} = await import('../src/main/session-bridge')
 
 /**
  * Story 2.7's persistence, asserted from the two folds and the sources. The
@@ -183,20 +206,6 @@ describe('what is stored, and where', () => {
     expect(code(join(SRC, 'shared/conversation.ts'))).toMatch(/version: 1/)
   })
 
-  it('is cleared only by ending the conversation: one caller of clear(), and one writer of an empty transcript', () => {
-    const callers = shipping.filter((path) => /forProject\([^)]*\)\.clear\(\)/.test(code(path)))
-    const writers = shipping.filter((path) => /\bwriteTranscript\(|\bwrite\(filePath/.test(code(path)))
-
-    expect(callers.map(rel)).toEqual(['src/main/session-bridge.ts'])
-    expect(code(join(SRC, 'main/session-bridge.ts')).match(/forProject\([^)]*\)\.clear\(\)/g)).toHaveLength(1)
-    // The file is written by the projection (through the source's own function) and nowhere else, and it writes an empty list only in `clear`.
-    expect(writers.map(rel)).toEqual([
-      'src/main/projections/transcript.ts',
-      'src/main/sources/persistence/transcript-file.ts'
-    ])
-    expect(code(join(SRC, 'main/projections/transcript.ts')).match(/write\(filePath, projectPath, \[\]\)/g)).toHaveLength(1)
-  })
-
   it('stores the sysline and nothing of what made it: not the last persona, the written files or a name', () => {
     const projection = code(join(SRC, 'main/projections/transcript.ts'))
     const file = code(join(SRC, 'main/sources/persistence/transcript-file.ts'))
@@ -216,5 +225,199 @@ describe('what is stored, and where', () => {
     expect([...events.matchAll(/^\s{2}'([a-z-]+:[a-z-]+)': EventSpec/gm)]).toHaveLength(15)
     expect([...commands.matchAll(/^\s{2}'([a-z]+\.[a-z]+)': CommandSpec/gm)]).toHaveLength(7)
     expect(events + commands).not.toMatch(/conversation:get|getConversation/)
+  })
+})
+
+/**
+ * A transcript is cleared by ending the conversation, and by nothing else. This
+ * is held by behaviour, not by where a call is spelled: every way a transcript
+ * could be emptied that the app has is driven here against the real files, and
+ * only `conversation.end` may leave one with fewer records than it had.
+ */
+describe('a transcript is cleared only by ending the conversation', () => {
+  const PROJECT = '/project-1'
+
+  class Sender {
+    constructor(readonly id = 1) {}
+    send(): void {}
+    isDestroyed(): boolean {
+      return false
+    }
+    once(): void {}
+  }
+
+  type Scene = {
+    userData: string
+    /** Every write the registry made: its size, and whether `clear()` made it. */
+    writes: { size: number; clearing: boolean }[]
+    clears: number
+    call: <T>(channel: string, ...args: unknown[]) => T
+    frame: (frame: unknown) => void
+    exit: () => void
+    fileEntries: () => number | undefined
+    flush: () => void
+    done: () => void
+  }
+
+  async function scene(plant?: string): Promise<Scene> {
+    handlers.clear()
+    const userData = mkdtempSync(join(tmpdir(), 'harness-persist-'))
+    if (plant !== undefined) {
+      mkdirSync(join(userData, 'conversations'), { recursive: true })
+      writeFileSync(transcriptFilePath(userData, PROJECT), plant)
+    }
+    const writes: Scene['writes'] = []
+    const state = { clears: 0, clearing: false }
+    const inner = createTranscriptRegistry({
+      userDataPath: () => userData,
+      schedule: () => () => {},
+      log: () => {},
+      write: (file, path, entries) => {
+        writes.push({ size: entries.length, clearing: state.clearing })
+        return writeTranscript(file, path, entries)
+      }
+    })
+    const transcripts = {
+      ...inner,
+      forProject: (path: string) => {
+        const transcript = inner.forProject(path)
+        return {
+          ...transcript,
+          clear: () => {
+            state.clears += 1
+            state.clearing = true
+            try {
+              return transcript.clear()
+            } finally {
+              state.clearing = false
+            }
+          }
+        }
+      }
+    }
+    let feed: (frame: unknown) => void = () => {}
+    let exit: () => void = () => {}
+    let clock = 0
+    registerSessionBridge({
+      transcripts,
+      projectPathFor: () => PROJECT,
+      now: () => (clock += 1),
+      newSessionId: (() => {
+        let n = 0
+        return () => `s${(n += 1)}`
+      })(),
+      agentName: (_id: number, agentId: string) => agentId,
+      writeDiagnostic: () => {},
+      spawn: (options: SpawnSessionOptions): Promise<SpawnOutcome> => {
+        feed = options.onFrame
+        exit = options.onExit
+        return Promise.resolve({ ok: true, session: { write: () => true, kill: () => {} } })
+      }
+    })
+    const sender = new Sender()
+    return {
+      userData,
+      writes,
+      get clears() {
+        return state.clears
+      },
+      call: <T>(channel: string, ...args: unknown[]): T =>
+        (handlers.get(channel) as unknown as (...a: unknown[]) => T)({ sender }, ...args),
+      frame: (frame) => feed(frame),
+      exit: () => exit(),
+      fileEntries: () => {
+        try {
+          return (JSON.parse(readFileSync(transcriptFilePath(userData, PROJECT), 'utf8')) as { entries: unknown[] })
+            .entries.length
+        } catch {
+          return undefined
+        }
+      },
+      flush: () => inner.flushAll(),
+      done: () => rmSync(userData, { recursive: true, force: true })
+    }
+  }
+
+  const streamEvent = (event: unknown) => ({ type: 'stream_event', parent_tool_use_id: null, event })
+  const speak = (text: string): unknown[] => [
+    streamEvent({ type: 'message_start', message: { id: `m-${text}` } }),
+    streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text' } }),
+    streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } })
+  ]
+
+  it('is emptied by nothing the session does: speech, results, failures, an exit, a close, a reload, a handoff or a window going', async () => {
+    const world = await scene()
+    try {
+      await world.call<Promise<unknown>>(SESSION_OPEN_CHANNEL, 'bmad-agent-analyst')
+      for (const frame of speak('hello')) world.frame(frame)
+      world.frame({ type: 'result', subtype: 'success', is_error: false })
+      expect(world.call(TURN_SEND_CHANNEL, 's1', 'hi')).toEqual({ ok: true })
+      world.flush()
+      world.frame({ type: 'result', subtype: 'error_during_execution', is_error: true })
+      world.call(CONVERSATION_GET_CHANNEL)
+      await world.call<Promise<unknown>>(SESSION_OPEN_CHANNEL, 'bmad-agent-pm')
+      world.flush()
+      expect(world.fileEntries()).toBeGreaterThan(2)
+      const before = world.fileEntries() ?? 0
+
+      world.exit()
+      world.call(SESSION_CLOSE_CHANNEL, 's2')
+      world.call(CONVERSATION_GET_CHANNEL)
+      world.flush()
+
+      expect(world.clears).toBe(0)
+      expect(world.writes.length).toBeGreaterThan(0)
+      expect(world.fileEntries()).toBeGreaterThanOrEqual(before)
+      // Every write after the first holds at least as much as the one before it.
+      world.writes.reduce((previous, write) => {
+        expect(write.size).toBeGreaterThanOrEqual(previous)
+        return write.size
+      }, 0)
+    } finally {
+      world.done()
+    }
+  })
+
+  it('is emptied by conversation.end, once, with the file written empty first', async () => {
+    const world = await scene()
+    try {
+      await world.call<Promise<unknown>>(SESSION_OPEN_CHANNEL, 'bmad-agent-analyst')
+      for (const frame of speak('hello')) world.frame(frame)
+      world.flush()
+      expect(world.fileEntries()).toBe(1)
+
+      expect(world.call(CONVERSATION_END_CHANNEL, PROJECT)).toEqual({ ok: true })
+
+      expect(world.clears).toBe(1)
+      expect(world.fileEntries()).toBe(0)
+      expect(world.writes.filter((write) => write.size === 0)).toEqual([{ size: 0, clearing: true }])
+      const reply = world.call<ConversationReply>(CONVERSATION_GET_CHANNEL)
+      expect(reply.ok && reply.snapshot.entries).toEqual([])
+    } finally {
+      world.done()
+    }
+  })
+
+  it.each([
+    ['not JSON', '{not json'],
+    ['of another version', JSON.stringify({ version: 2, projectPath: PROJECT, entries: [] })],
+    ['with a record that is not one', JSON.stringify({ version: 1, projectPath: PROJECT, entries: [{ kind: 'user', id: 'm-0', at: 1, text: 'ok' }, 5] })]
+  ])('is not emptied by a file that is %s: it is set aside whole, and no write replaces it', async (_name, original) => {
+    const world = await scene(original)
+    try {
+      await world.call<Promise<unknown>>(SESSION_OPEN_CHANNEL, 'bmad-agent-analyst')
+      for (const frame of speak('hello')) world.frame(frame)
+      world.frame({ type: 'result', subtype: 'success', is_error: false })
+      world.call(TURN_SEND_CHANNEL, 's1', 'more')
+      world.flush()
+
+      const aside = readFileSync(`${transcriptFilePath(world.userData, PROJECT)}.aside`, 'utf8')
+      expect(aside).toBe(original)
+      expect(world.clears).toBe(0)
+      expect(world.writes.every((write) => write.size > 0)).toBe(true)
+      expect(world.fileEntries()).toBeGreaterThanOrEqual(3)
+    } finally {
+      world.done()
+    }
   })
 })

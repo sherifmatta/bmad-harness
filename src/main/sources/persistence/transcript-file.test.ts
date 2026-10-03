@@ -16,6 +16,7 @@ import {
   TRANSCRIPT_VERSION,
   isInsideProject,
   loadTranscript,
+  setAsideTranscript,
   transcriptFilePath,
   writeTranscript
 } from './transcript-file'
@@ -63,7 +64,7 @@ describe('writeTranscript and loadTranscript', () => {
       projectPath: project,
       entries
     })
-    expect(loadTranscript(file, project)).toEqual(entries)
+    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', entries, dropped: 0 })
   })
 
   it('leaves no temporary file behind, and replaces what was there', () => {
@@ -72,7 +73,7 @@ describe('writeTranscript and loadTranscript', () => {
     writeTranscript(file, project, entries.slice(0, 1))
 
     expect(readdirSync(join(userData, 'conversations'))).toEqual([`${file.split('/').pop()}`])
-    expect(loadTranscript(file, project)).toEqual(entries.slice(0, 1))
+    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', entries: entries.slice(0, 1), dropped: 0 })
   })
 
   it('keeps every earlier record when a sysline sits among them, at version 1', () => {
@@ -81,7 +82,12 @@ describe('writeTranscript and loadTranscript', () => {
 
     expect(JSON.parse(readFileSync(file, 'utf8')).version).toBe(1)
     expect(TRANSCRIPT_VERSION).toBe(1)
-    expect(loadTranscript(file, project).map((record) => record.kind)).toEqual(['user', 'persona', 'sysline'])
+    const loaded = loadTranscript(file, project)
+    expect(loaded.kind === 'loaded' && loaded.entries.map((record) => record.kind)).toEqual([
+      'user',
+      'persona',
+      'sysline'
+    ])
   })
 
   it('reports the errno code and throws nothing when the write cannot happen', () => {
@@ -93,7 +99,7 @@ describe('writeTranscript and loadTranscript', () => {
     expect(outcome.ok === false && outcome.errno).toMatch(/^[A-Z]+$/)
   })
 
-  it('refuses a file inside the project root, writes nothing and loads nothing', () => {
+  it('refuses a file inside the project root, writes nothing and reads nothing of it', () => {
     const inside = join(project, 'conversations', 'x.json')
 
     expect(writeTranscript(inside, project, entries)).toEqual({ ok: false, errno: 'inside-project' })
@@ -103,7 +109,9 @@ describe('writeTranscript and loadTranscript', () => {
       inside,
       JSON.stringify({ version: TRANSCRIPT_VERSION, projectPath: project, entries })
     )
-    expect(loadTranscript(inside, project)).toEqual([])
+    expect(loadTranscript(inside, project)).toEqual({ kind: 'missing' })
+    expect(setAsideTranscript(inside, project)).toEqual({ ok: false, errno: 'inside-project' })
+    expect(existsSync(inside)).toBe(true)
   })
 
   it('sees through a link into the project, and a path that does not exist yet', () => {
@@ -116,31 +124,137 @@ describe('writeTranscript and loadTranscript', () => {
     expect(isInsideProject(project, join(project, '..cache', 'b.json'))).toBe(true)
   })
 
-  describe.each([
-    ['absent', undefined],
-    ['corrupt', '{not json'],
-    ['not an object', '[1]'],
-    ['a wrong version', JSON.stringify({ version: 2, projectPath: 'P', entries: [] })],
-    ['another project’s', JSON.stringify({ version: 1, projectPath: 'other', entries: [] })],
-    ['without entries', JSON.stringify({ version: 1, projectPath: 'P' })],
-    ['with a malformed record', JSON.stringify({ version: 1, projectPath: 'P', entries: [{ kind: 'user', id: 'm-0' }] })],
-    ['with a sysline that has no text', JSON.stringify({ version: 1, projectPath: 'P', entries: [{ kind: 'sysline', id: 'm-0', at: 1 }] })],
-    [
-      'with an unknown kind',
-      JSON.stringify({ version: 1, projectPath: 'P', entries: [{ kind: 'x', id: 'm-0', at: 1, text: '' }] })
-    ]
-  ])('a file that is %s', (_name, content) => {
-    it('loads as an empty transcript and is left as it lies', () => {
-      const file = join(userData, 'file.json')
-      const text = content?.replace('"P"', JSON.stringify(project))
-      if (text !== undefined) writeFileSync(file, text)
+  it('keeps the first character of a first segment that does not exist, whose parent is the root', () => {
+    // Two different directories at the root that differ only in their first character: the old
+    // reading dropped it from both, so each was the other's.
+    expect(isInsideProject('/xa-harness-missing-dir', '/ya-harness-missing-dir')).toBe(false)
+    expect(isInsideProject('/xa-harness-missing-dir', '/xa-harness-missing-dir/inside/b.json')).toBe(true)
+    expect(isInsideProject('/xa-harness-missing-dir/p', '/xa-harness-missing-dir/p-sibling/b.json')).toBe(false)
+    expect(isInsideProject('/xa-harness-missing-dir', '/a-harness-missing-dir')).toBe(false)
+  })
 
-      expect(loadTranscript(file, project)).toEqual([])
-      if (text !== undefined) {
-        expect(readFileSync(file, 'utf8')).toBe(text)
-      } else {
-        expect(existsSync(file)).toBe(false)
-      }
+  describe.each([
+    ['not JSON', '{not json', { kind: 'corrupt' }],
+    ['truncated', '{"version":1,"projectPath":"P","entries":[{"kind":"us', { kind: 'corrupt' }],
+    ['empty', '', { kind: 'corrupt' }],
+    ['not an object', '[1]', { kind: 'corrupt' }],
+    ['null', 'null', { kind: 'corrupt' }],
+    ['of a version this build does not write', JSON.stringify({ version: 2, projectPath: 'P', entries: [] }), { kind: 'unknown-version' }],
+    ['of version 0', JSON.stringify({ version: 0, projectPath: 'P', entries: [] }), { kind: 'unknown-version' }],
+    ['with no version', JSON.stringify({ projectPath: 'P', entries: [] }), { kind: 'corrupt' }],
+    ['another project’s', JSON.stringify({ version: 1, projectPath: 'other', entries: [] }), { kind: 'corrupt' }],
+    ['without entries', JSON.stringify({ version: 1, projectPath: 'P' }), { kind: 'corrupt' }],
+    ['with entries that are not a list', JSON.stringify({ version: 1, projectPath: 'P', entries: {} }), { kind: 'corrupt' }]
+  ])('a file that is %s', (_name, content, expected) => {
+    it('says which way it is not a transcript, and is left exactly as it lies', () => {
+      const file = join(userData, 'file.json')
+      const text = content.replace('"P"', JSON.stringify(project))
+      writeFileSync(file, text)
+
+      expect(loadTranscript(file, project)).toEqual(expected)
+      expect(readFileSync(file, 'utf8')).toBe(text)
     })
+  })
+
+  it('says a file that is absent is missing, which is not a problem, and creates nothing', () => {
+    const file = join(userData, 'conversations', 'none.json')
+
+    expect(loadTranscript(file, project)).toEqual({ kind: 'missing' })
+    expect(existsSync(file)).toBe(false)
+  })
+
+  it('says a file it cannot read is unreadable, with the errno and nothing of the system’s own words', () => {
+    // A directory where the file should be: reading it is an error that is not "no such file".
+    const file = join(userData, 'a-directory.json')
+    mkdirSync(file)
+    const outcome = loadTranscript(file, project)
+
+    expect(outcome).toMatchObject({ kind: 'unreadable' })
+    expect(outcome.kind === 'unreadable' && outcome.errno).toMatch(/^[A-Z0-9_]+$/)
+    expect(JSON.stringify(outcome)).not.toContain(userData)
+  })
+
+  describe('a file with a record that is not one', () => {
+    const good = { kind: 'user', id: 'm-0', at: 1, text: 'kept' }
+    const write = (listed: unknown[]): string => {
+      const file = join(userData, 'partly.json')
+      writeFileSync(file, JSON.stringify({ version: 1, projectPath: project, entries: listed }))
+      return file
+    }
+
+    it.each([
+      ['a user record with no text', { kind: 'user', id: 'm-1', at: 2 }],
+      ['a sysline with no text', { kind: 'sysline', id: 'm-1', at: 2 }],
+      ['an unknown kind', { kind: 'x', id: 'm-1', at: 2, text: '' }],
+      ['a persona with no agent', { kind: 'persona', id: 'm-1', at: 2, messageId: 'x', text: '' }],
+      ['a time that is not a number', { kind: 'user', id: 'm-1', at: 'now', text: 'x' }],
+      ['null', null],
+      ['a string', 'm-1']
+    ])('keeps the others and counts %s as left out', (_name, bad) => {
+      const file = write([good, bad, { kind: 'user', id: 'm-2', at: 3, text: 'also kept' }])
+      const before = readFileSync(file, 'utf8')
+
+      expect(loadTranscript(file, project)).toEqual({
+        kind: 'loaded',
+        entries: [good, { kind: 'user', id: 'm-2', at: 3, text: 'also kept' }],
+        dropped: 1
+      })
+      expect(readFileSync(file, 'utf8')).toBe(before)
+    })
+
+    it('is loaded with nothing left out when every record is one, and when there are none', () => {
+      expect(loadTranscript(write([good]), project)).toEqual({ kind: 'loaded', entries: [good], dropped: 0 })
+      expect(loadTranscript(write([]), project)).toEqual({ kind: 'loaded', entries: [], dropped: 0 })
+    })
+  })
+})
+
+describe('setAsideTranscript', () => {
+  it('moves the very file to a name beside it, byte for byte, and leaves nothing at the old one', () => {
+    const file = transcriptFilePath(userData, project)
+    mkdirSync(join(userData, 'conversations'))
+    writeFileSync(file, '{not json')
+
+    const outcome = setAsideTranscript(file, project)
+
+    expect(outcome).toEqual({ ok: true, to: `${file}.aside` })
+    expect(existsSync(file)).toBe(false)
+    expect(readFileSync(`${file}.aside`, 'utf8')).toBe('{not json')
+    expect(loadTranscript(file, project)).toEqual({ kind: 'missing' })
+  })
+
+  it('never overwrites an earlier one that was set aside', () => {
+    const file = transcriptFilePath(userData, project)
+    mkdirSync(join(userData, 'conversations'))
+    writeFileSync(file, 'first')
+    setAsideTranscript(file, project)
+    writeFileSync(file, 'second')
+    setAsideTranscript(file, project)
+    writeFileSync(file, 'third')
+    const outcome = setAsideTranscript(file, project)
+
+    expect(outcome).toEqual({ ok: true, to: `${file}.aside-3` })
+    expect([`${file}.aside`, `${file}.aside-2`, `${file}.aside-3`].map((path) => readFileSync(path, 'utf8'))).toEqual([
+      'first',
+      'second',
+      'third'
+    ])
+  })
+
+  it('is not loaded or listed as a transcript, and a later write leaves it alone', () => {
+    const file = transcriptFilePath(userData, project)
+    mkdirSync(join(userData, 'conversations'))
+    writeFileSync(file, 'bad')
+    setAsideTranscript(file, project)
+    writeTranscript(file, project, entries)
+
+    expect(readFileSync(`${file}.aside`, 'utf8')).toBe('bad')
+    expect(loadTranscript(file, project)).toMatchObject({ kind: 'loaded' })
+  })
+
+  it('reports the errno and throws nothing when there is nothing to move', () => {
+    const outcome = setAsideTranscript(join(userData, 'nothing-here.json'), project)
+
+    expect(outcome).toEqual({ ok: false, errno: 'ENOENT' })
   })
 })

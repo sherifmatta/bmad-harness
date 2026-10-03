@@ -2,6 +2,7 @@ import type { PersonaSaid } from '../../shared/events'
 import type { SyslineRecord, TranscriptRecord } from '../../shared/conversation'
 import {
   EMPTY_TRANSCRIPT,
+  foldNoticeAtTop,
   foldPersonaSaid,
   foldSysline,
   foldUserTurn,
@@ -10,10 +11,15 @@ import {
 import type { TranscriptState } from '../fold/transcript'
 import {
   loadTranscript,
+  setAsideTranscript,
   transcriptFilePath,
   writeTranscript
 } from '../sources/persistence/transcript-file'
-import type { WriteOutcome } from '../sources/persistence/transcript-file'
+import type {
+  AsideOutcome,
+  LoadOutcome,
+  WriteOutcome
+} from '../sources/persistence/transcript-file'
 
 /**
  * The transcript read model: one per project path, shared by every window and
@@ -27,9 +33,23 @@ import type { WriteOutcome } from '../sources/persistence/transcript-file'
  * and leaves the transcript dirty so the next change, or the next flush, tries
  * again.
  *
+ * A file that is there and cannot be used whole is never written over. It is
+ * moved aside before the first write (`persist/quarantined`, or
+ * `persist/entries-dropped` when only some records were not records and the rest
+ * are kept), and the conversation opens with a line of the harness's own at the
+ * top saying so. If it cannot be moved, the conversation of this launch is not
+ * stored at all (`persist/quarantine-failed`) and the line says that instead.
+ *
  * The data directory is asked for on the first project, not at construction,
  * because Electron's `userData` is not to be read before the app is ready.
  */
+
+/** At the top of a conversation whose stored file could not be read and was set aside. */
+export const SET_ASIDE_LINE = 'earlier conversation could not be read · kept aside'
+
+/** At the top of one whose stored file could not be read and could not be set aside either. */
+export const NOT_SAVED_LINE =
+  'earlier conversation could not be read · this conversation is not being saved'
 
 export type ProjectTranscript = {
   entries(): readonly TranscriptRecord[]
@@ -63,8 +83,12 @@ export type TranscriptRegistryDeps = {
   debounceMs?: number
   /** One diagnostic line, without its newline. */
   log?: (line: string) => void
+  /** The clock the line at the top of a damaged conversation is stamped from. */
+  now?: () => number
   /** The file I/O, replaceable by a test that needs a write to fail. */
-  load?: (filePath: string, projectPath: string) => TranscriptRecord[]
+  load?: (filePath: string, projectPath: string) => LoadOutcome
+  /** Move a file that could not be used out of the way, before anything writes. */
+  setAside?: (filePath: string, projectPath: string) => AsideOutcome
   write?: (
     filePath: string,
     projectPath: string,
@@ -84,28 +108,46 @@ export function createTranscriptRegistry(deps: TranscriptRegistryDeps): Transcri
   const schedule = deps.schedule ?? defaultSchedule
   const debounceMs = deps.debounceMs ?? DEFAULT_DEBOUNCE_MS
   const log = deps.log ?? ((line: string) => void process.stderr.write(`${line}\n`))
+  const now = deps.now ?? (() => Date.now())
   const load = deps.load ?? loadTranscript
+  const setAside = deps.setAside ?? setAsideTranscript
   const write = deps.write ?? writeTranscript
 
   const projects = new Map<string, ProjectTranscript>()
 
+  /** What a file that is there but cannot be used whole is called in the log. */
+  function troubleOf(outcome: LoadOutcome): string | undefined {
+    switch (outcome.kind) {
+      case 'unreadable':
+        return `unreadable ${outcome.errno}`
+      case 'corrupt':
+      case 'unknown-version':
+        return outcome.kind
+      default:
+        return undefined
+    }
+  }
+
   function create(projectPath: string): ProjectTranscript {
     const filePath = transcriptFilePath(deps.userDataPath(), projectPath)
-    let state: TranscriptState = transcriptFrom(load(filePath, projectPath))
+    const outcome = load(filePath, projectPath)
+    let state: TranscriptState = transcriptFrom(outcome.kind === 'loaded' ? outcome.entries : [])
     let dirty = false
     let cancel: (() => void) | undefined
+    /** The stored file is one that must not be written over and could not be moved: nothing is written. */
+    let blocked = false
 
     function flush(): void {
       cancel?.()
       cancel = undefined
-      if (!dirty) {
+      if (!dirty || blocked) {
         return
       }
-      const outcome = write(filePath, projectPath, state.entries)
-      if (outcome.ok) {
+      const stored = write(filePath, projectPath, state.entries)
+      if (stored.ok) {
         dirty = false
       } else {
-        log(`persist/write-failed · ${outcome.errno}`)
+        log(`persist/write-failed · ${stored.errno}`)
       }
     }
 
@@ -121,8 +163,26 @@ export function createTranscriptRegistry(deps: TranscriptRegistryDeps): Transcri
       }, debounceMs)
     }
 
+    // A file that cannot be used whole is moved aside before anything is written, so no write
+    // replaces it; what could be read of it stays, and a line at the top says what happened.
+    const trouble = troubleOf(outcome)
+    const dropped = outcome.kind === 'loaded' ? outcome.dropped : 0
+    if (trouble !== undefined || dropped > 0) {
+      log(trouble === undefined ? `persist/entries-dropped · ${dropped}` : `persist/quarantined · ${trouble}`)
+      const aside = setAside(filePath, projectPath)
+      if (aside.ok) {
+        changed(foldNoticeAtTop(state, SET_ASIDE_LINE, now()))
+      } else {
+        log(`persist/quarantine-failed · ${aside.errno}`)
+        blocked = true
+        state = foldNoticeAtTop(state, NOT_SAVED_LINE, now())
+      }
+    }
+
     function clear(): WriteOutcome {
-      const outcome = write(filePath, projectPath, [])
+      // A file that could not be moved aside is left as it is, even by this: the
+      // conversation of this launch is all there is to end.
+      const outcome: WriteOutcome = blocked ? { ok: true } : write(filePath, projectPath, [])
       if (!outcome.ok) {
         log(`persist/write-failed · ${outcome.errno}`)
         return outcome

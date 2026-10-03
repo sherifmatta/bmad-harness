@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -1272,6 +1272,52 @@ describe('conversation:get', () => {
     expect(timers).toHaveLength(1)
     timers.forEach((timer) => timer())
     expect(logs).toHaveLength(1)
+  })
+})
+
+describe('a stored conversation that cannot be read', () => {
+  const plant = (content: string): string => {
+    const file = transcriptFilePath(userData, '/project-1')
+    mkdirSync(join(userData, 'conversations'), { recursive: true })
+    writeFileSync(file, content)
+    return file
+  }
+  const get = (sender: FakeSender): ConversationReply =>
+    (handlers.get(CONVERSATION_GET_CHANNEL) as unknown as (e: { sender: FakeSender }) => ConversationReply)({ sender })
+
+  it('opens with a line of the harness’s own at the top, and the file set aside whole', () => {
+    const file = plant('{not json')
+
+    const reply = get(new FakeSender(1))
+
+    expect(reply.ok && reply.snapshot.entries).toMatchObject([
+      { kind: 'sysline', text: 'earlier conversation could not be read · kept aside' }
+    ])
+    expect(readFileSync(`${file}.aside`, 'utf8')).toBe('{not json')
+    expect(logs).toEqual(['persist/quarantined · corrupt'])
+  })
+
+  it('goes on from there: later turns come after the line, and nothing written replaces the original', async () => {
+    const file = plant(JSON.stringify({ version: 9, projectPath: '/project-1', entries: [] }))
+    const { sender, reply, proc } = await opened()
+    proc.frame(result())
+    send(sender, reply.sessionId, 'hello')
+    registry.flushAll()
+
+    const stored = JSON.parse(readFileSync(file, 'utf8'))
+    expect(stored.entries.map((entry: { text: string }) => entry.text)).toEqual([
+      'earlier conversation could not be read · kept aside',
+      'hello'
+    ])
+    expect(JSON.parse(readFileSync(`${file}.aside`, 'utf8')).version).toBe(9)
+    expect(logs).toEqual(['persist/quarantined · unknown-version'])
+  })
+
+  it('says nothing for a conversation that was simply never stored', () => {
+    const reply = get(new FakeSender(1))
+
+    expect(reply.ok && reply.snapshot.entries).toEqual([])
+    expect(logs).toEqual([])
   })
 })
 
