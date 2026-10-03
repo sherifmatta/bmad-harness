@@ -3,7 +3,7 @@ name: 'bmad-visual-harness'
 type: experience-spine
 status: final
 created: '2026-09-24'
-updated: '2026-09-25'
+updated: '2026-10-03'
 sources:
   - ../../../specs/spec-bmad-visual-harness/SPEC.md
   - ../../../specs/spec-bmad-visual-harness/ui-surfaces.md
@@ -96,7 +96,7 @@ This section therefore governs **harness-authored microcopy only**: rail states,
 | `saved · 3d` | `Last saved 3 days ago ✓` |
 | `not yet written` | `Waiting for content…` |
 | `no files under _bmad/ yet` | `Get started by running a skill` |
-| `stop · ends this conversation` | a modal asking `Are you sure?` |
+| `stop` | a modal asking `Are you sure?` |
 | `queued · sends when John finishes` | `Message will be delivered shortly` |
 | `handed off · John → Amelia · picking up from PRD.md, epics.md` | `conversation and context continue` |
 | Lower case, mono, `·` as the separator, no terminal punctuation | Sentence case with full stops in a state string |
@@ -365,20 +365,20 @@ AD-11's four mandated fields are preserved, **including a working stop control**
 
 ## Failure, Stopping and Contention
 
-### The stop-cost fork — both branches
+### Stopping costs the turn, not the conversation
 
-Whether `SIGINT` can halt a skill turn without ending the persona's session is **unverified**; it is the cheapest spike in the plan. The binding stance is set regardless: **the trade is stated to the user, never hidden.**
+Settled by Story 1.1 (`_bmad/spikes/spike-stop-semantics.md`; `execution-model.md` *Stop and failure*): an in-band interrupt written to the session's stdin halts the turn and keeps the session, while `SIGINT` ends it and is reserved for ending a session. The binding stance holds regardless: **if stopping ever costs more than the turn, the trade is stated to the user, never hidden.**
 
-| | Branch A — stop is cheap | Branch B — stop ends the session |
+| | Stop (interrupt acknowledged) | Interrupt not acknowledged |
 |---|---|---|
-| condition | the run ends, the persona stays to explain | stopping also ends the conversation with this persona |
-| full card head | a plain control reading `stop`. **No confirmation.** | the control reads **`stop · ends this conversation`** |
-| collapsed line | `stop` | `stop` — the line has room for the word only, so **the cost rides in the accessible name**: `stop — ends this conversation with John` |
-| after pressing | run terminates; the persona delivers what got done and what broke | the session ends; the transcript remains |
+| condition | the run ends, the persona stays to explain | the harness falls back to ending the session |
+| full card head | a plain control reading `stop`. **No confirmation.** | the same `stop`; the outcome is stated after the fact in the harness's own register |
+| collapsed line | `stop` | `stop` |
+| after pressing | run terminates; the persona delivers what got done and what broke | the session ends; the transcript remains; no persona voice |
 
-**In neither branch is the cost in a modal.** A modal is the harness arbitrating, which AD-12 forbids as a posture, and it hides the cost until the user has already committed to looking. The cost sits **on the control, before it is pressed** — which is the only placement where it can change the decision.
+**In neither case is the cost in a modal.** A modal is the harness arbitrating, which AD-12 forbids as a posture, and it hides the cost until the user has already committed to looking. A cost, where one exists, sits **on the control, before it is pressed** — the only placement where it can change the decision.
 
-A subprocess exits with `rc=0` within **~250 ms** of `SIGINT`. **[ASSUMPTION]** — there is therefore no "stopping…" transitional state; the card reaches its terminal state directly. A transitional state at that duration would be a spinner with a 250ms life.
+The turn's `result` row arrives within milliseconds of the interrupt (3-6ms measured, n=4), so there is no "stopping…" transitional state; the card reaches its terminal state directly on that row. A transitional state at that duration would be a spinner with a 6ms life.
 
 ### On stop or failure
 
@@ -494,7 +494,7 @@ No shortcut layer beyond this.
 | After | Focus goes to | Why |
 |---|---|---|
 | persona switch | **stays on the activated tile** (now `aria-current`) | the skill row is *rebuilt* on every persona change; moving focus into a row that is about to be replaced loses it. The rebuilt row must not steal focus |
-| card expand | the card container (`tabindex="-1"`) | **never the stop control.** Focus must not land on a control whose cost may be the session |
+| card expand | the card container (`tabindex="-1"`) | **never the stop control.** Focus must not land on a control that interrupts a running turn |
 | document window open | the window's document region (`tabindex="-1"`) | not *Close*. On `Esc`, focus returns to the rail row that opened it |
 | queued message send | unchanged — the composer keeps focus | the composer is never disabled; focus loss would read as the send failing |
 | run terminal event | unchanged | a completion must never move the user's focus out from under them |
