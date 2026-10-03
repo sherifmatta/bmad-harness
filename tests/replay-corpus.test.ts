@@ -1,6 +1,9 @@
-import { readdirSync, readFileSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import type { ConversationReply } from '../src/shared/conversation'
+import type { ContractEvent } from '../src/shared/events'
 
 /**
  * The replay corpus is a build dependency, so it is asserted rather than
@@ -9,6 +12,20 @@ import { describe, expect, it } from 'vitest'
  * mysteriously green interpreter test later. These read the frames raw and
  * route none of them; interpreting a frame is the fold's job.
  */
+
+const handlers = new Map<string, (...args: never[]) => unknown>()
+
+vi.mock('electron', () => ({
+  ipcMain: {
+    handle: (channel: string, handler: (...args: never[]) => unknown) => handlers.set(channel, handler)
+  },
+  BrowserWindow: { fromWebContents: () => null }
+}))
+
+const { createTranscriptRegistry } = await import('../src/main/projections/transcript')
+const { CONVERSATION_GET_CHANNEL, SESSION_OPEN_CHANNEL, TURN_SEND_CHANNEL, registerSessionBridge } = await import(
+  '../src/main/session-bridge'
+)
 
 const RUNS = resolve(import.meta.dirname, '..', 'fixtures', 'runs')
 
@@ -243,4 +260,171 @@ describe('reviewer-gate-failure-induced: a failure while reviewers are running, 
     expect(meta('reviewer-gate-failure-induced').notes.join(' ')).toMatch(/induced, not natural/i)
     expect(meta('reviewer-gate-failure-induced').argv).toContain('--max-budget-usd')
   })
+})
+
+/**
+ * Every recording replayed through the session bridge, frame by frame, with the
+ * harness sending each recorded turn where the recorder did. A `result` row is
+ * the end of *a* turn and not of the one sent, so the session is busy until the
+ * CLI says nothing is running behind it (`system/background_tasks_changed`),
+ * and it takes the turns nobody sent.
+ */
+describe('the corpus replayed through the session bridge', () => {
+  type Replayed = {
+    /** The frame index at which each `session:awaiting-turn` was emitted. */
+    idleAt: number[]
+    /** Whether the session was busy after each frame, by index. */
+    busyAfter: boolean[]
+    /** The persona's state after each `persona:state`, with the frame index it came at. */
+    personaAt: { at: number; state: string }[]
+    /** The sends the harness made: the frame count when each was made, and whether the session was idle then and took it. */
+    sends: { afterLine: number; idle: boolean; accepted: boolean }[]
+  }
+
+  class Sender {
+    sent: ContractEvent[] = []
+    constructor(readonly id = 1) {}
+    send(_channel: string, event: ContractEvent): void {
+      this.sent.push(event)
+    }
+    isDestroyed(): boolean {
+      return false
+    }
+    once(): void {}
+  }
+
+  async function replay(scenario: string): Promise<Replayed> {
+    handlers.clear()
+    const userData = mkdtempSync(join(tmpdir(), 'harness-replay-'))
+    try {
+      let feed: (frame: unknown) => void = () => {}
+      let clock = 0
+      registerSessionBridge({
+        transcripts: createTranscriptRegistry({
+          userDataPath: () => userData,
+          schedule: () => () => {},
+          log: () => {}
+        }),
+        projectPathFor: () => '/replay-project',
+        now: () => (clock += 1),
+        newSessionId: () => 's1',
+        agentName: () => 'Mary',
+        writeDiagnostic: () => {},
+        spawn: (options) => {
+          feed = options.onFrame
+          return Promise.resolve({ ok: true, session: { write: () => true, kill: () => {} } })
+        }
+      })
+      const sender = new Sender()
+      const call = <T>(channel: string, ...args: unknown[]): T =>
+        (handlers.get(channel) as unknown as (...a: unknown[]) => T)({ sender }, ...args)
+      await call<Promise<unknown>>(SESSION_OPEN_CHANNEL, 'bmad-agent-analyst')
+
+      const busy = (): boolean => {
+        const reply = call<ConversationReply>(CONVERSATION_GET_CHANNEL)
+        return reply.ok && reply.snapshot.busy.length > 0
+      }
+      // The first recorded turn is the activation, which the bridge's open already wrote.
+      const turns = meta(scenario).turns.filter((turn) => turn.text !== undefined && turn.afterLine > 0)
+      const all = frames(scenario)
+      const out: Replayed = { idleAt: [], busyAfter: [], personaAt: [], sends: [] }
+      let seen = 0
+      /** What main has said since the last look, filed under the frame it was said at. */
+      const collect = (at: number): void => {
+        for (const event of sender.sent.slice(seen)) {
+          if (event.name === 'session:awaiting-turn') out.idleAt.push(at)
+          if (event.name === 'persona:state') out.personaAt.push({ at, state: event.payload.state })
+        }
+        seen = sender.sent.length
+      }
+      collect(-1)
+      // One frame past the recording, so a send recorded after its last line is made too.
+      all.push({ type: 'end-of-recording' })
+      for (let at = 0; at < all.length; at += 1) {
+        for (const turn of turns.filter((candidate) => candidate.afterLine === at)) {
+          const idle = !busy()
+          const reply = call<{ ok: boolean }>(TURN_SEND_CHANNEL, 's1', turn.text)
+          out.sends.push({ afterLine: at, idle, accepted: reply.ok })
+          collect(at)
+        }
+        feed(all[at])
+        collect(at)
+        out.busyAfter.push(busy())
+      }
+      out.busyAfter.pop()
+      return out
+    } finally {
+      rmSync(userData, { recursive: true, force: true })
+    }
+  }
+
+  /** The 0-based frame index of each main-thread `result`. */
+  const resultIndexes = (scenario: string): number[] =>
+    frames(scenario).flatMap((frame, at) => (frame.type === 'result' && !frame.parent_tool_use_id ? [at] : []))
+
+  it.each(SCENARIOS)('%s: the session is idle at every recorded send, and each send is taken', async (scenario) => {
+    const replayed = await replay(scenario)
+
+    expect(replayed.sends.length).toBe(
+      meta(scenario).turns.filter((turn) => turn.text !== undefined && turn.afterLine > 0).length
+    )
+    for (const send of replayed.sends) {
+      expect(send, `${scenario} send after line ${send.afterLine}`).toMatchObject({ idle: true, accepted: true })
+    }
+  }, 120_000)
+
+  it('fast-path-opus: 14 result rows for 3 sends, three awaiting-turns, at result rows 533, 25780 and 46799', async () => {
+    const replayed = await replay('fast-path-opus')
+
+    expect(resultIndexes('fast-path-opus')).toHaveLength(14)
+    expect(replayed.idleAt).toEqual([533, 25780, 46799])
+    // Busy from each send until the true end of the turn, with the persona working throughout.
+    for (const [from, to] of [
+      [535, 25780],
+      [25782, 46799]
+    ]) {
+      for (let at = from; at < to; at += 1) {
+        expect(replayed.busyAfter[at], `busy after frame ${at}`).toBe(true)
+      }
+    }
+    expect(replayed.busyAfter[533]).toBe(false)
+    expect(replayed.busyAfter[25780]).toBe(false)
+    expect(replayed.busyAfter[46799]).toBe(false)
+    // Working from the open, idle at each true end, and working again from each send, which is made before frame 535 and 25782 are fed.
+    expect(replayed.personaAt).toEqual([
+      { at: -1, state: 'work' },
+      { at: 533, state: 'idle' },
+      { at: 535, state: 'work' },
+      { at: 25780, state: 'idle' },
+      { at: 25782, state: 'work' },
+      { at: 46799, state: 'idle' }
+    ])
+  }, 120_000)
+
+  it('fast-path-sonnet: takes the turn nobody sent after an idle at row 1553, and is idle again by the send at 1639', async () => {
+    const replayed = await replay('fast-path-sonnet')
+
+    expect(replayed.idleAt.slice(0, 3)).toEqual([277, 1553, 1637])
+    expect(replayed.busyAfter[1553]).toBe(false)
+    expect(replayed.busyAfter[1556]).toBe(true)
+    expect(replayed.busyAfter[1637]).toBe(false)
+  }, 120_000)
+
+  it.each(SCENARIOS)('%s: is idle after every awaiting-turn and busy after every frame that is not between a result and a send', async (scenario) => {
+    const replayed = await replay(scenario)
+    const idle = new Set(replayed.idleAt)
+
+    expect(replayed.idleAt.length).toBeGreaterThanOrEqual(
+      meta(scenario).turns.filter((turn) => turn.text !== undefined).length
+    )
+    for (const at of replayed.idleAt) {
+      expect(replayed.busyAfter[at], `${scenario} frame ${at}`).toBe(false)
+    }
+    // Every result row that did not free the session left a background task live.
+    for (const at of resultIndexes(scenario)) {
+      if (!idle.has(at)) {
+        expect(replayed.busyAfter[at], `${scenario} result ${at}`).toBe(true)
+      }
+    }
+  }, 120_000)
 })

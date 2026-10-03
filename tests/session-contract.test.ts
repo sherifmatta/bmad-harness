@@ -151,7 +151,7 @@ describe('the layers', () => {
   it('names the wire word for a finished turn in the fold alone', () => {
     const naming = shipping.filter((path) => /['"`]result['"`]/.test(code(path)))
 
-    expect(naming.map(rel)).toEqual(['src/main/fold/turn-end.ts'])
+    expect(naming.map(rel)).toEqual(['src/main/fold/frame.ts'])
   })
 })
 

@@ -515,6 +515,115 @@ describe('turn end and turn.send', () => {
   })
 })
 
+const tasksChanged = (...ids: string[]) => ({
+  type: 'system',
+  subtype: 'background_tasks_changed',
+  tasks: ids.map((task_id) => ({ task_id, task_type: 'local_agent', description: 'x' }))
+})
+
+describe('the pending turn', () => {
+  const personaStates = (sender: FakeSender) =>
+    sender.events.flatMap((event) => (event.name === 'persona:state' ? [event.payload.state] : []))
+  const awaiting = (sender: FakeSender) =>
+    sender.events.filter((event) => event.name === 'session:awaiting-turn')
+  const busyOf = (sender: FakeSender): string[] => {
+    const get = handlers.get(CONVERSATION_GET_CHANNEL) as unknown as (e: { sender: FakeSender }) => ConversationReply
+    const reply = get({ sender })
+    return reply.ok ? reply.snapshot.busy : []
+  }
+
+  it('stays busy and working through a result while a background task is live, and refuses a send as busy', async () => {
+    const { sender, reply, proc } = await opened()
+    proc.frame(tasksChanged('task-a'))
+    proc.frame(result())
+
+    expect(awaiting(sender)).toEqual([])
+    expect(personaStates(sender)).toEqual(['work'])
+    expect(busyOf(sender)).toEqual([reply.sessionId])
+    expect(send(sender, reply.sessionId, 'hi')).toMatchObject({ error: { code: 'session/busy' } })
+    expect(proc.writes).toEqual(['/bmad-agent-analyst'])
+  })
+
+  it('frees the session once a result arrives with the set empty, and only then', async () => {
+    const { sender, reply, proc } = await opened()
+    proc.frame(tasksChanged('task-a', 'task-b'))
+    proc.frame(result())
+    proc.frame(tasksChanged('task-b'))
+    proc.frame(result())
+    expect(awaiting(sender)).toEqual([])
+
+    proc.frame(tasksChanged())
+    proc.frame(result())
+
+    expect(awaiting(sender)).toHaveLength(1)
+    expect(personaStates(sender)).toEqual(['work', 'idle'])
+    expect(busyOf(sender)).toEqual([])
+    expect(send(sender, reply.sessionId, 'hi')).toEqual({ ok: true })
+  })
+
+  it('works as it always did when the CLI never sends the task frame: one result frees the session', async () => {
+    const { sender, proc } = await opened()
+    proc.frame(result())
+
+    expect(awaiting(sender)).toHaveLength(1)
+  })
+
+  it('treats a main-thread message that starts while the session is free as a turn nobody sent: busy and working again', async () => {
+    const { sender, reply, proc } = await opened()
+    proc.frame(result())
+    expect(busyOf(sender)).toEqual([])
+
+    proc.frame(messageStart('msg_wake'))
+
+    expect(busyOf(sender)).toEqual([reply.sessionId])
+    expect(personaStates(sender)).toEqual(['work', 'idle', 'work'])
+    expect(send(sender, reply.sessionId, 'hi')).toMatchObject({ error: { code: 'session/busy' } })
+
+    proc.frame(result())
+    expect(awaiting(sender)).toHaveLength(2)
+    expect(personaStates(sender)).toEqual(['work', 'idle', 'work', 'idle'])
+  })
+
+  it('does not take a subagent’s message start for a turn', async () => {
+    const { sender, proc } = await opened()
+    proc.frame(result())
+    proc.frame({
+      type: 'stream_event',
+      parent_tool_use_id: 'toolu_1',
+      event: { type: 'message_start', message: { id: 'sub' } }
+    })
+
+    expect(busyOf(sender)).toEqual([])
+  })
+
+  it('drops a text delta that has no open block, and says what is in one', async () => {
+    const { sender, proc } = await opened()
+    proc.frame(messageStart('m1'))
+    proc.frame(delta('stray'))
+    proc.frame(textStart)
+    proc.frame(delta('spoken'))
+
+    expect(
+      sender.events.flatMap((event) => (event.name === 'persona:said' ? [event.payload.text] : []))
+    ).toEqual(['spoken'])
+  })
+
+  it('gives two messages with no id two records, not one', async () => {
+    const { sender, proc } = await opened()
+    const noId = { type: 'stream_event', parent_tool_use_id: null, event: { type: 'message_start', message: {} } }
+    proc.frame(noId)
+    proc.frame(textStart)
+    proc.frame(delta('one'))
+    proc.frame(noId)
+    proc.frame(textStart)
+    proc.frame(delta('two'))
+
+    const get = handlers.get(CONVERSATION_GET_CHANNEL) as unknown as (e: { sender: FakeSender }) => ConversationReply
+    const reply = get({ sender })
+    expect(reply.ok && reply.snapshot.entries.map((entry) => entry.text)).toEqual(['one', 'two'])
+  })
+})
+
 describe('close', () => {
   it('pushes session:closed (process-exited) once, last, and lets the agent open afresh', async () => {
     const { sender, proc } = await opened()

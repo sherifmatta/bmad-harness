@@ -273,6 +273,53 @@ describe('routeFrame', () => {
     expect(events).toEqual([])
   })
 
+  it('drops a text delta with no open block, in the first message and after a new one resets the blocks', () => {
+    expect(run([messageStart('m'), textDelta(0, 'stray')]).events).toEqual([])
+    expect(run([textDelta(0, 'before any message')]).events).toEqual([])
+    const reset = run([messageStart('m1'), textStart(0), stop(0), textDelta(0, 'after the block closed')])
+    expect(reset.events).toEqual([])
+    const renewed = run([messageStart('m1'), textStart(0), messageStart('m2'), textDelta(0, 'no block in m2')])
+    expect(renewed.events).toEqual([])
+  })
+
+  it('gives a message with no id an id of its own, so two such messages are never one', () => {
+    const noId = stream({ type: 'message_start', message: {} })
+    const noMessage = stream({ type: 'message_start' })
+    const { events } = run([
+      noId,
+      textStart(0),
+      textDelta(0, 'one'),
+      noMessage,
+      textStart(0),
+      textDelta(0, 'two')
+    ])
+    const ids = events.map((event) => (event.name === 'persona:said' ? event.payload.messageId : ''))
+
+    expect(ids).toHaveLength(2)
+    expect(ids[0]).not.toBe('')
+    expect(ids[1]).not.toBe('')
+    expect(ids[0]).not.toBe(ids[1])
+    // Made from the session, so another session's cannot join this one's.
+    const elsewhere = run([noId, textStart(0), textDelta(0, 'x')], { ...CTX, sessionId: 's2' }).events[0]
+    expect(elsewhere.name === 'persona:said' && elsewhere.payload.messageId).not.toBe(ids[0])
+  })
+
+  it('keeps a real message id as it is', () => {
+    const { events } = run([messageStart('msg_real'), textStart(0), textDelta(0, 'x')])
+
+    expect(events[0].name === 'persona:said' && events[0].payload.messageId).toBe('msg_real')
+  })
+
+  it('yields no event and no state change for a result or a background-task frame', () => {
+    const start = run([messageStart('m')]).state
+    for (const frame of [
+      { type: 'result', subtype: 'success', is_error: false },
+      { type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: 'a' }] }
+    ]) {
+      expect(routeFrame(start, frame, CTX)).toEqual({ state: start, events: [] })
+    }
+  })
+
   it('resets block bookkeeping at each new message', () => {
     const { events } = run([
       messageStart('m1'),

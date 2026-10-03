@@ -11,6 +11,10 @@
 /** The parts of a main-thread frame the fold acts on. */
 export type FrameInput =
   | { kind: 'message-start'; messageId: string }
+  /** The CLI's whole set of live background tasks, as it stands after the change. */
+  | { kind: 'background-tasks'; taskIds: readonly string[] }
+  /** The main thread ended a turn; `failed` is the CLI's own `is_error`, and `subtype` how it says it ended. */
+  | { kind: 'turn-result'; failed: boolean; subtype: string | undefined }
   | { kind: 'block-start'; index: number; block: BlockHead }
   | { kind: 'text-delta'; index: number; text: string }
   | { kind: 'json-delta'; index: number; partial: string }
@@ -43,8 +47,24 @@ function blockHead(raw: unknown): BlockHead {
  * corrupt the main thread's blocks.
  */
 export function readFrame(frame: unknown): FrameInput | undefined {
-  if (!isRecord(frame) || frame.type !== 'stream_event') return undefined
+  if (!isRecord(frame)) return undefined
   if (frame.parent_tool_use_id !== null && frame.parent_tool_use_id !== undefined) return undefined
+  if (frame.type === 'result') {
+    return {
+      kind: 'turn-result',
+      failed: frame.is_error === true,
+      subtype: typeof frame.subtype === 'string' ? frame.subtype : undefined
+    }
+  }
+  if (frame.type === 'system' && frame.subtype === 'background_tasks_changed') {
+    // A frame that does not carry the list says nothing about it, rather than that it is empty.
+    if (!Array.isArray(frame.tasks)) return undefined
+    const taskIds = (frame.tasks as unknown[]).flatMap((task) =>
+      isRecord(task) && typeof task.task_id === 'string' ? [task.task_id] : []
+    )
+    return { kind: 'background-tasks', taskIds }
+  }
+  if (frame.type !== 'stream_event') return undefined
 
   const event = frame.event
   if (!isRecord(event)) return undefined

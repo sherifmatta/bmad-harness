@@ -225,7 +225,7 @@ action_items:
       asserts session/busy and persona working until the true end of the turn; reject
       text deltas with no open block and give empty message ids a unique id."
     owner: "dev"
-    status: open
+    status: done
     ref: "_bmad/implementation-artifacts/epic-2-retro-2026-10-02.md"
   - id: "epic-2-retro-item-18-before-epic-3-give-every-non-orphan-sess"
     epic: 2

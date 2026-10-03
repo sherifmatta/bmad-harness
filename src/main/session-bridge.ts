@@ -20,6 +20,7 @@ import {
   senderOf,
   unexpected
 } from './bridge-kit'
+import { beginTurn } from './fold/turn-end'
 import { agentNameFor } from './install-model'
 import { personaProjectionFor } from './persona-states'
 import { createTranscriptRegistry } from './projections/transcript'
@@ -119,7 +120,7 @@ function sendTurn(ctx: Context) {
     if (service === undefined || entry === undefined || entry.closed) {
       return NOT_FOUND
     }
-    if (entry.inFlight || entry.session === undefined) {
+    if (entry.turn.busy || entry.session === undefined) {
       return failure({
         code: 'session/busy',
         message: 'session · a turn is already in flight'
@@ -131,9 +132,9 @@ function sendTurn(ctx: Context) {
         message: 'session · a turn is text'
       })
     }
-    entry.inFlight = true
+    entry.turn = beginTurn(entry.turn)
     if (!entry.session.write(text)) {
-      entry.inFlight = false
+      entry.turn = { ...entry.turn, busy: false }
       return failure({
         code: 'session/write-failed',
         message: 'session · the turn could not be written'
@@ -228,7 +229,7 @@ function getConversation(ctx: Context) {
       snapshot: {
         entries: [...ctx.transcripts.forProject(projectRoot).entries()],
         sessions: live.map(({ agentId, sessionId }) => ({ agentId, sessionId })),
-        busy: live.filter((entry) => entry.inFlight).map((entry) => entry.sessionId),
+        busy: live.filter((entry) => entry.turn.busy).map((entry) => entry.sessionId),
         personas: personaProjectionFor(sender, ctx.now).snapshot()
       }
     }
@@ -239,9 +240,10 @@ function getConversation(ctx: Context) {
  * Open a persona's session, send it turns, and push what it says.
  *
  * Turns are serialised here, not in the renderer: a turn is in flight from the
- * activation write or a send until the CLI's `result` frame, and a send in that
- * window is refused, never queued. The registry holds the sessions and folds
- * their frames; this registers the five handlers that speak for them.
+ * activation write or a send until a main-thread `result` arrives with no
+ * background task live (`fold/turn-end`), and a send in that window is refused,
+ * never queued. The registry holds the sessions and folds their frames; this
+ * registers the five handlers that speak for them.
  *
  * Nothing crosses the bridge from stderr, and a failed start carries the
  * errno code and no message of the system's own.

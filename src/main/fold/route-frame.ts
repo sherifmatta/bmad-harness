@@ -63,9 +63,11 @@ export type RouteState = {
   messageId: string | undefined
   /** Keyed by block index, which is only unique within one message. */
   blocks: Readonly<Record<number, Block>>
+  /** How many messages arrived without an id, so each can be given one of its own. */
+  unnamed: number
 }
 
-export const initialRouteState: RouteState = { messageId: undefined, blocks: {} }
+export const initialRouteState: RouteState = { messageId: undefined, blocks: {}, unnamed: 0 }
 
 /** The tools whose input is a document write, and the field holding the words. */
 export const WRITE_FIELDS: Readonly<Record<string, string>> = { Write: 'content', Edit: 'new_string' }
@@ -191,8 +193,19 @@ export function routeFrame(state: RouteState, frame: unknown, ctx: RouteContext)
   if (input === undefined) return { state, events: [] }
 
   switch (input.kind) {
-    case 'message-start':
-      return { state: { messageId: input.messageId, blocks: {} }, events: [] }
+    case 'message-start': {
+      // A message with no id still needs one, or two of them would be one record:
+      // it is made from the session and a count, so no other message can share it.
+      const unnamed = input.messageId === '' ? state.unnamed + 1 : state.unnamed
+      const messageId =
+        input.messageId === '' ? `unnamed-${ctx.sessionId}-${unnamed}` : input.messageId
+      return { state: { messageId, blocks: {}, unnamed }, events: [] }
+    }
+
+    // The turn's end and the background tasks are the turn fold's, not a routing concern.
+    case 'turn-result':
+    case 'background-tasks':
+      return { state, events: [] }
 
     case 'block-start': {
       const head = input.block
@@ -215,8 +228,10 @@ export function routeFrame(state: RouteState, frame: unknown, ctx: RouteContext)
     }
 
     case 'text-delta': {
+      // Speech is a text block's: a delta with no open block, or in one that is
+      // not text, belongs to nothing the fold saw begin, and is dropped.
       const block = state.blocks[input.index]
-      if ((block !== undefined && block.kind !== 'text') || input.text === '') {
+      if (block === undefined || block.kind !== 'text' || input.text === '') {
         return { state, events: [] }
       }
       return { state, events: [personaSaid(state, input.text, ctx)] }

@@ -9,7 +9,9 @@ import type { PersonaProjection } from './projections/personas'
 import type { TranscriptRegistry } from './projections/transcript'
 import { initialRouteState, routeFrame } from './fold/route-frame'
 import type { RouteState } from './fold/route-frame'
-import { endsTurn } from './fold/turn-end'
+import { readFrame } from './fold/frame'
+import { foldTurn, initialTurn } from './fold/turn-end'
+import type { TurnState } from './fold/turn-end'
 import { foldWrittenPaths, initialWrittenState, withWrittenPaths } from './fold/written-paths'
 import type { WrittenState } from './fold/written-paths'
 import type {
@@ -36,8 +38,12 @@ export type Entry = {
   agentId: AgentId
   projectRoot: string
   session: SessionProcess | undefined
-  /** True from the activation write or a send until the turn's `result` frame. */
-  inFlight: boolean
+  /**
+   * Whether a turn is in flight and what is running behind it: from the
+   * activation write or a send until a main-thread `result` arrives with no
+   * background task live (see `fold/turn-end`).
+   */
+  turn: TurnState
   closed: boolean
   route: RouteState
   /** The writes of this session's chat turns that have begun and not yet closed. */
@@ -115,13 +121,21 @@ function foldFrame(
   if (entry.closed) {
     return
   }
-  if (endsTurn(frame)) {
-    entry.inFlight = false
+  const step = foldTurn(entry.turn, readFrame(frame))
+  entry.turn = step.state
+  if (step.signal?.kind === 'ended') {
     announce(sender, service, {
       name: 'session:awaiting-turn',
       payload: { sessionId: entry.sessionId, at: now() }
     })
     return
+  }
+  if (step.signal?.kind === 'resumed') {
+    // A turn nobody sent: the session works again, though the renderer sent nothing.
+    service.personas.apply({
+      name: 'turn:started',
+      payload: { sessionId: entry.sessionId, at: now() }
+    })
   }
   const routed = routeFrame(entry.route, frame, {
     sessionId: entry.sessionId,
@@ -235,7 +249,7 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
       agentId,
       projectRoot,
       session: undefined,
-      inFlight: true,
+      turn: initialTurn,
       closed: false,
       route: initialRouteState,
       written: initialWrittenState,
