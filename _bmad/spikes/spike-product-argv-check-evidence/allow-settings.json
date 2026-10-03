@@ -1,0 +1,1 @@
+{"permissions": {"allow": ["Write", "Edit", "Bash(uv run:*)", "Bash(python3:*)", "Bash(cat:*)", "Bash(mkdir:*)"]}}

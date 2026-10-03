@@ -21,9 +21,9 @@ function subject(name) {
   return dir
 }
 
-function session(label, cwd, turns, turnTimeoutMs = 300000) {
+function session(label, cwd, turns, turnTimeoutMs = 300000, extra = [], allowAll = false) {
   return new Promise((resolve) => {
-    const child = spawn('claude', ARGS, { cwd, detached: true, stdio: ['pipe', 'pipe', 'pipe'] })
+    const child = spawn('claude', [...ARGS, ...extra], { cwd, detached: true, stdio: ['pipe', 'pipe', 'pipe'] })
     const frames = []
     const texts = []
     const results = []
@@ -31,6 +31,7 @@ function session(label, cwd, turns, turnTimeoutMs = 300000) {
     let cur = ''
     let sent = 0
     let stderr = ''
+    const controlRequests = []
     child.stderr.on('data', (d) => (stderr += d))
     const send = (text) => {
       sent += 1
@@ -41,6 +42,10 @@ function session(label, cwd, turns, turnTimeoutMs = 300000) {
       frames.push(line)
       let f
       try { f = JSON.parse(line) } catch { return }
+      if (f.type === 'control_request') {
+        controlRequests.push({ subtype: f.request?.subtype, tool: f.request?.tool_name, input: JSON.stringify(f.request?.input ?? {}).slice(0, 200) })
+        if (allowAll && f.request?.subtype === 'can_use_tool') child.stdin.write(JSON.stringify({ type: 'control_response', response: { subtype: 'success', request_id: f.request_id, response: { behavior: 'allow', updatedInput: f.request.input } } }) + '\n')
+      }
       if (f.type === 'stream_event' && !f.parent_tool_use_id) {
         const ev = f.event
         if (ev?.type === 'content_block_delta' && ev.delta?.type === 'text_delta') cur += ev.delta.text
@@ -56,7 +61,7 @@ function session(label, cwd, turns, turnTimeoutMs = 300000) {
     child.on('close', (code, signal) => {
       clearTimeout(guard)
       writeFileSync(join(OUT, `${label}.jsonl`), frames.join('\n') + '\n')
-      const out = { label, argv: ['claude', ...ARGS], claude: execFileSync('claude', ['--version'], { encoding: 'utf8' }).trim(), exit: { code, signal }, turns: turns.map((t, i) => ({ sent: t, reply: texts[i] ?? null, result: results[i] ?? null })), toolNames: tools, stderr: stderr.slice(0, 2000) }
+      const out = { label, argv: ['claude', ...ARGS, ...extra], controlRequests, claude: execFileSync('claude', ['--version'], { encoding: 'utf8' }).trim(), exit: { code, signal }, turns: turns.map((t, i) => ({ sent: t, reply: texts[i] ?? null, result: results[i] ?? null })), toolNames: tools, stderr: stderr.slice(0, 2000) }
       writeFileSync(join(OUT, `${label}.summary.json`), JSON.stringify(out, null, 2))
       resolve(out)
     })
@@ -78,4 +83,14 @@ if (which === 'voice') {
   const dir = subject('handoff')
   await session('handoff-mary', dir, [MARY, 'Quick decision, chat only: we decided the product is called Lantern, the first user is solo founders, and the first release has no accounts. Do not write anything to disk. Just confirm back.'])
   await session('handoff-john', dir, [JOHN, 'Mary and I just talked. What did we decide, and where do you pick up?'])
+}
+
+if (which === 'perm') {
+  const label = process.argv[3]
+  const extra = JSON.parse(process.argv[4])
+  const allowAll = process.argv[5] === 'allow'
+  const dir = subject(label)
+  await session(label, dir, [MARY, 'Create notes/a.md with the Write tool containing exactly: a. Then create notes/b.md using a bash heredoc (cat with a heredoc) containing exactly: b. Report which of the two worked.'], 300000, extra, allowAll)
+  const have = ['a', 'b'].map((x) => existsSync(join(dir, 'notes', x + '.md')))
+  writeFileSync(join(OUT, label + '.files.json'), JSON.stringify({ 'notes/a.md': have[0], 'notes/b.md': have[1] }))
 }

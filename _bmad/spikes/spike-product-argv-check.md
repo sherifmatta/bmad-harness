@@ -38,7 +38,7 @@ Consequences:
 - `--setting-sources project,local` excludes the `user` source, so the operator's own allow rules do not apply either. Only an allow rule in the target project's `.claude/settings*.json` would, and the harness writes nothing into the project.
 - The prompt-less denial reads, in the transcript, as the persona's own failure ("it did not work"), because the harness shows persona words unaltered.
 
-Not tried: `--permission-mode acceptEdits`, `--allowedTools`, `--permission-prompt-tool stdio` (an approval round trip through the harness), a project `.claude/settings.json` allow list, or `bypassPermissions` on the product's argv. Choosing among them changes `SESSION_ARGS`, `tests/session-contract.test.ts` (which pins the absence of `--permission-mode`), AD-18 and the zero-write rule, so it is a decision for Sherif and the architect, not a fix made here.
+Choosing a remedy changes `SESSION_ARGS`, `tests/session-contract.test.ts` (which pins the absence of `--permission-mode`) and AD-18, so it is a decision for Sherif and the architect. Finding 4 tests the options.
 
 ## Finding 3 — a chat-only decision does not survive a handoff. Gap confirmed with the real argv (Story 2.12), n=1.
 
@@ -47,6 +47,24 @@ Mary was told, chat only and with no write to disk: the product is called Lanter
 John said "I wasn't in that conversation, and I have no transcript of it. Fresh session, empty memory", searched the project, and described only the brainstorm folder he found on disk. None of Lantern, solo founders or no accounts appeared. That matches the Pass 2 result in `spike-handoff-continuity.md` (0 of 3), now observed with the product's argv. It also shows John answering honestly rather than inventing, which is the good half of the gap.
 
 Confound: the subject project held a copy of this repo's `_bmad/brainstorming/` folder, so John had an artifact to find. It does not change the verdict for the chat-only decision, which was not recovered either way.
+
+## Finding 4 — four ways to give sessions permission, tried on the same turn (item 32)
+
+Same subject setup, `/bmad-agent-analyst` then one turn: "Create `notes/a.md` with the Write tool containing exactly: a. Then create `notes/b.md` using a bash heredoc containing exactly: b." The product argv plus one extra flag each. Evidence: `spike-product-argv-check-evidence/{accept-edits,prompt-tool,settings-file}.*`.
+
+| Extra flag | Activation (`uv run` resolver) | `Write` | Bash heredoc `cat > f <<EOF` | Notes |
+| --- | --- | --- | --- | --- |
+| none (Finding 2) | denied | denied | not tried | |
+| `--permission-mode acceptEdits` | **denied** (2 denials) | works | works on the second try; `mkdir`, `cat` redirect inside the project allowed, chained `&&` commands denied | `uv run` still needs approval, so every persona still narrates the missing permission |
+| `--settings <file>` with `allow: [Write, Edit, Bash(uv run:*), Bash(python3:*), Bash(cat:*), Bash(mkdir:*)]`, the file kept outside the project | **works**, no denials | works | **denied**: the allow rule matches `cat` but the redirect to a file is checked separately, and every heredoc attempt (five Bash calls) was denied | a rule list cannot cover model-dependent Bash document writes (opus carries documents in through heredocs, `fixtures/runs/README.md`) |
+| `--permission-prompt-tool stdio`, harness answers `allow` | works, 0 denials | works | works | the CLI sends a `control_request` with `subtype: "can_use_tool"` (`tool_name`, `input`) on stdout for every call that would prompt, and waits for a `control_response`. Four were sent in the one turn. An unanswered request would hold the turn open |
+
+An inline JSON string passed to `--settings` was rejected ("Invalid JSON provided to --settings") by this CLI version; a file path works. `bypassPermissions` is known to work (the whole corpus used it) and was not re-run.
+
+What this means for the choice:
+
+- `acceptEdits` and a static allow list each leave a hole that Epic 3 hits (the resolver call, or Bash document writes). Neither is sufficient alone.
+- Two options remain: `bypassPermissions` (no checks at all; one flag; the corpus already reflects it), or `--permission-prompt-tool stdio` with the harness answering each `can_use_tool` request from a fixed policy (for example allow when the path is inside the project root, deny otherwise). The second keeps a boundary and adds one inbound frame type to handle, which must always be answered or the turn wedges (the wedged-turn escape from Epic 2 retro item 18 would be the backstop).
 
 ## Limits
 
