@@ -70,13 +70,13 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 
 #### CAP-5 — Documents write visibly and live
 
-- **FR31:** `run:started` births a run-scoped document card inline in the conversation, in time order. The card dies with the run's terminal event. A plain chat turn raises no card.
-- **FR32:** The active persona's card renders full — **head:** state dot, file path, current section, elapsed run time, stop control; **body:** the prose streaming in; **foot:** the not-yet-written sections listed by name, plus counts.
+- **FR31:** `run:started` births a run-scoped document card inline in the conversation, in time order. **While its run is in flight and its persona is the one being viewed, the card is pinned at the top of the chat column; when the run's terminal event arrives it returns to its place in the thread, in one frame.** The card dies with the run's terminal event. A plain chat turn raises no card.
+- **FR32:** The active persona's card renders full — **head:** state dot, the subject document's file path, current section, elapsed run time, stop control; **body:** the subject document's prose streaming in; **foot:** the subject's not-yet-written sections listed by name, plus counts, **and the other files this run has written, named and never shown in the body**. The **subject** is the file with the most characters written by a `Write` in the run so far; ties go to the earlier file; it changes only when another file's `Write` passes it.
 - **FR33:** A card belonging to a non-active persona collapses to a single line carrying four fields: persona, **the last run note's reason**, elapsed, and a working stop control. It expands on persona switch or click. A collapsed card is never a spinner.
 - **FR34:** There is **no denominator anywhere** — the head reads `writing · §N <Name>`, never `§N of M`, and the rail annotation loses its denominator for the same reason. The plan is the foot's named list of not-yet-written sections.
 - **FR35:** The card body streams from the run's event stream — `input_json_delta` on the `Write`/`Edit` tool call, decoded as it arrives — never from re-reading the file.
 - **FR36:** Section names and the predicted plan come from the skill's own template under its `assets/` directory, then from the run's `.memlog.md` concern-scan entry. Observed headings win and the plan grows; a section the user has already seen is never renumbered. **The template is not a flat list of sections and a naive heading parse is wrong**: `bmad-prd/assets/prd-template.md` carries 14 h1/h2 headings of which three are scaffolding (`# PRD Template`, `## Essential Spine`, `## Adapt-In Menu`) rather than document sections; the real spine is the ten numbered `## 0.`–`## 9.` headings, and the Adapt-In clusters that expand a run to 15 sections are not counted in it at all. Heading text also carries markdown emphasis (`*(almost always present)*`) that must be stripped, or the card head renders it verbatim.
-- **FR37:** A revision `Edit` sets the head to `revising · §N <Name>`; it re-parses sections but never advances the section counter. A `Write` replaces the document buffer and may open new sections.
+- **FR37:** A revision `Edit` of the subject sets the head to `revising · §N <Name>`, **patches that document's buffer (its `old_string` replaced by its `new_string`)**, re-parses sections and never advances the section counter. A `Write` replaces **that path's** buffer and may open new sections. **Each path has its own buffer; an `Edit` or `Write` of another path never changes the subject's body.** An `Edit` whose `old_string` is not in the buffer leaves the buffer as it was.
 - **FR38:** Deltas are coalesced in main before emission; the card commits accumulated text to one node per animation frame. No render is driven by an individual `input_json_delta`.
 - **FR39:** The card body has two modes and **is never empty**: *prose mode* while document prose streams, and *run-note mode* — the `.memlog.md` run-note feed — when it does not. A placeholder sentence is a spinner wearing a sentence and is forbidden.
 - **FR40:** A run note renders three slots: time (tabular figures), a kind tag, and the reason — the decision and the reason it was made, with the load-bearing clause emphasised. Entries stack in time order, newest last. **The `.memlog.md` format carries no per-entry timestamp**, so the time slot is derived from when the harness observed the append; a note with no observed time (a dead card after a restart) renders without one, and the row must stay legible with the time column empty. The entry parser also tolerates the `(kind by author)` form the writer emits when authorship is recorded.
@@ -86,7 +86,7 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **FR44:** `doc:committed` removes every section it names from the foot list **in one frame** — no stagger, no sequential reveal, no per-section tick-through. A 15-section commit is one event moving fifteen names at once.
 - **FR45:** Subagent activity (anything carrying `parent_tool_use_id`) is never rendered as the persona's voice. `system/task_progress` may render subagent activity on the card where the runtime emits it; nothing may depend on it.
 - **FR46:** No spinner, skeleton, progress bar or staggered reveal appears at any point, in any state.
-- **FR47:** `run:finished` sets the head to `saved · just now · N sections`, moves the dot `work` -> `live`, and removes the caret.
+- **FR47:** `run:finished` sets the head to `saved · just now · N sections`, **where N is the number of sections of the subject document**, moves the dot `work` -> `live`, and removes the caret.
 
 #### CAP-6 — Outputs rail is a live view of the filesystem
 
@@ -166,7 +166,7 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **FR100:** Sessions are reclaimed when the persona is closed or the session ended, and are **not** held across app restarts. After a restart the transcript is present, every persona reads `idle`, every card renders dead with no elapsed ticking and no stop control, and nothing is offered to resume.
 - **FR101:** One contract crosses the bridge — events out, commands in — declared once in `src/shared/` with an explicit payload type and a stated cardinality. Events: `session:opened`, `session:awaiting-turn`, `session:closed`, `persona:said`, `persona:state`, `run:started`, `run:note`, `doc:section-opened`, `doc:prose`, `doc:committed`, `run:finished`, `run:stopped`, `run:failed`, `rail:changed`. Commands: `session.open(agentId)`, `session.close(sessionId)`, `turn.send(sessionId, text)`, `menu.dispatch(sessionId, code)`, `run.stop(runId)`, `doc.open(path)`, `conversation.end(projectId)`. Main folds raw `stream-json` into domain events; the renderer never parses a raw frame.
 - **FR102:** Stream routing is fixed so the same bytes are never rendered twice or lost: main-thread `text_delta` outside a tool call is `persona:said`; prose inside a document write comes from `input_json_delta` on that call and is `doc:prose`; writes to `.memlog.md` are `run:note` and **never** `doc:prose`, so memlog text can never enter the document buffer or its section parser; anything with `parent_tool_use_id` is subagent activity.
-- **FR103:** Persona state is a projection with exactly one source each: `idle` (no session, or nothing running), `work` (any turn in flight, persisting through quiet subagent phases), `live` (a long-running attached process the session started), `note` (the watcher saw a change to a file this persona owns), `error` (this persona's last run failed or was stopped). Five states, four colours.
+- **FR103:** Persona state is a projection with exactly one source each: `idle` (no session, or nothing running), `work` (any turn in flight, persisting through quiet subagent phases), `live` (a long-running attached process the session started), `note` (the watcher saw a change to a file this persona owns **that its own run did not make: a change observed while one of its runs is in flight, or within the watcher's settle window after that run's terminal event, is the run's own and raises no `note`**), `error` (this persona's last run failed or was stopped). Five states, four colours.
 - **FR104:** A persona tile aggregates every session carrying its `agentId` — a tile may stand for more than one session.
 - **FR105:** The decision-option block is rendered inside a persona turn when the persona stops to ask. Each option is its own control; activating one sends that option as the user's turn, in the user's name, and the whole block is then removed. There is no chosen state, no disabled state and no record of the block. The harness never authors the options, never reorders them and never marks one recommended; a stated lean is the persona's own words.
 
@@ -464,6 +464,7 @@ Press a button belonging to whoever you are talking to and watch the document be
 - **The merge is load-bearing for 31 of the 34 FRs, and the other three are the epic's cut line.** The card's six states are one state machine, not six features — its head status, dot, caret and foot all read one projection, so building half the transitions means redesigning rather than extending. The stop control is a field in the head's layout and one of exactly four in the collapsed line, so removing it designs a different component rather than the same one minus a button. And FR88's commit-on-`tool_result` is a single function whose happy and failure paths are the same branch — split across two epics it gets fixed in opposite directions by two owners. **What is *not* coupled: FR92 (contention, a rail annotation) and FR93–FR94 (a macOS notification in `main/windows/`).** Those three share no file, projection or token with the card and sit here by association. If this epic runs long they are the only FRs that can be dropped without breaking a state machine or splitting a function — which makes them the descope boundary, not a recommendation to drop them.
 - **The run-note feed component arrives from Epic 1 already built and already judged.** This epic mounts it in the card body and feeds it live from `run:note`; it does not re-specify the note. The `.memlog.md` format is a verified constraint, not an assumption — open kind vocabulary (13 kinds observed, `event`/`constraint`/`capability` ranking 2nd/3rd/4th) and **no per-entry timestamp**.
 - **Sequencing directive: a thin vertical slice of Flow 1 lands first in this epic, not last** — dispatch a menu entry, birth a card, stream prose, reach `saved`. This is the first point in the whole build at which the product's thesis is testable, and the structure is already three epics deep before it arrives. Depth (dead air, revisions, stop costs, failure states) comes after the slice proves the beat.
+- **Follow-ups from the Story 3.1 live judgement land before 3.2:** Stories 3.12 (one document per card), 3.13 (`live` after a run) and 3.14 (pinned card), from `sprint-change-proposal-2026-10-03-beat-judgement.md`. Story 3.4 stands as planned: the live run's dead air was 1 min 40 s to the first note, with a 20-minute middle in which the body must not freeze on a stale buffer, which 3.12 prevents.
 - **Negative-surface check:** this epic's final story verifies the UX-DR38 prohibitions most at risk here — no spinner at any point including a sentence doing a spinner's job, no progress bar or denominator, no per-section tick-through or staggered reveal of an atomic commit, no per-character typewriter, no undo or resolve/merge dialog, no Dock badge.
 
 ### Epic 4: Convene the room — party mode
@@ -1511,6 +1512,87 @@ So that the product's central claim can be judged end to end before anything els
 **When** the user runs it against a real skill end to end
 **Then** a judgement is recorded on whether the beat lands, before stories 3.2 onward proceed.
 
+### Story 3.12: A card follows one document
+
+*Sequencing: lands before Story 3.2 (added 2026-10-03, `sprint-change-proposal-2026-10-03-beat-judgement.md`).*
+
+As someone watching a run that writes several files,
+I want the card to follow one document from first word to saved,
+So that what I am watching is the document and not whichever file was touched last.
+
+**Implements:** FR32, FR35, FR37, FR47 · UX-DR19
+
+**Acceptance Criteria:**
+
+**Given** a run in which `Write` calls to more than one path stream
+**Then** the card holds a document buffer per path and shows exactly one of them, its subject, in the head path and the body
+**And** the subject is the file with the most characters written by a `Write` in this run so far (ties to the earlier), changing only when another file's `Write` passes it.
+
+**Given** other files the run writes
+**Then** they are named in the foot as written files and never take over the body or the head path.
+
+**Given** a revision `Edit` of the subject
+**Then** its buffer is patched by replacing `old_string` with `new_string`, and the body ends the run as the whole document, not as the last edit
+**And** an `Edit` whose `old_string` is absent leaves the buffer unchanged, and an `Edit` of another path does not touch the body.
+
+**Given** `run:finished`
+**Then** the head reads `saved · just now · N sections` with N the sections of the subject document.
+
+**Given** a multi-file run recorded with `scripts/record-run.mjs` (a `bmad-prd` run that writes an addendum, a pre-review copy and the PRD, and revises by `Edit`)
+**When** it is replayed through the card
+**Then** the subject is the PRD, the final body is the PRD's text, and N equals the PRD's section count.
+
+### Story 3.13: A finished run leaves its persona live
+
+*Sequencing: lands before Story 3.2 (added 2026-10-03).*
+
+As someone whose persona has just finished a run,
+I want its dot to read `live`,
+So that finishing reads as finishing and not as something being changed behind my back.
+
+**Implements:** FR47, FR103
+
+**Acceptance Criteria:**
+
+**Given** a persona's run in flight, or within the watcher's settle window after its terminal event
+**When** the rail sees a change to a file that persona owns
+**Then** no `note` is raised
+**And** a change outside that window, or to a file the persona does not own, still raises one.
+
+**Given** a run that writes files through `Write`, `Edit` and Bash
+**Then** the persona's dot reads `work` to `live` after the run in each case, never `note`, verified against a live run as well as the corpus.
+
+**Given** the next turn or run
+**Then** `live` clears as it does today.
+
+### Story 3.14: The running card stays in view
+
+*Sequencing: lands before Story 3.2 (added 2026-10-03).*
+
+As someone watching a run while the persona talks,
+I want the running card to stay where I can see it,
+So that the document being written is not scrolled away by the conversation about it.
+
+**Implements:** FR31 · UX-DR19
+
+**Acceptance Criteria:**
+
+**Given** the viewed persona has a run in flight
+**Then** its card is pinned at the top of the chat column, head and body, with the persona's turns scrolling beneath it
+**And** the body keeps its existing height cap.
+
+**Given** the run's terminal event
+**Then** the card returns to its time-ordered place in the thread in a single frame, with no animation, and the thread does not jump.
+
+**Given** a card of a persona that is not the one viewed
+**Then** it is not pinned (it is the collapsed line of Story 3.5).
+
+**Given** keyboard and assistive-technology use
+**Then** the pinned card is first in the chat column's tab order, takes no focus when it pins or unpins, is not a live region, and under reduced motion changes nothing visible but position.
+
+**Given** the negative surface
+**Then** no "jump to card" control, badge or toast exists.
+
 ### Story 3.2: The whole menu, and only ever the menu
 
 As someone working with a persona,
@@ -1574,8 +1656,8 @@ So that progress is legible against a known plan rather than an opaque percentag
 **And** a section the user has already seen is never renumbered.
 
 **Given** a revision `Edit` rather than a `Write`
-**Then** the head reads `revising · §N <Name>`, the document buffer is patched rather than replaced, and the section counter does not advance
-**And** this is verified against the corpus fixture in which twenty of twenty-one writes were revision edits.
+**Then** the head reads `revising · §N <Name>` and the section counter does not advance
+**And** the buffer patch itself is Story 3.12's, verified there (amended 2026-10-03 by `sprint-change-proposal-2026-10-03-beat-judgement.md`).
 
 **Given** `doc:committed` naming one or more sections
 **Then** every section it names leaves the foot list **in a single frame** — no stagger, no sequential reveal, no per-section tick-through

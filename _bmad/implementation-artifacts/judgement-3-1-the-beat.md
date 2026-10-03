@@ -65,7 +65,7 @@ A `conversation:get` taken just after the big write committed returns the card w
 | 0 to 1 min 40 s | head `writing`, ticking elapsed, empty body (and an empty path) |
 | 1 min 40 s | 9 notes land at once (one `memlog.py` batch) and prose starts: `addendum.md`, not the PRD |
 | 8 min 42 s | the PRD `Write` begins: 123 chars, then about 4,000 chars per 20 s up to 40 KB |
-| 16 min 26 s | prose jumps to `inputs/brain-dump.md` (50 KB), then back to `addendum.md` |
+| 16 min 26 s | head path flips to `inputs/brain-dump.md` (4 KB on disk) while the body still held 50 KB of the previous write's text for a frame: path and body update separately (sampling artefact worth a look in 3.12), then back to `addendum.md` |
 | 18 min to 45 min | head path flips between `addendum.md` and `prd.md` with each write or `Edit`; notes trickle in 1 per 1 to 5 min, 24 to 34 |
 | 45 min to 57 min | body is a 1.7 KB then 314-character `Edit` fragment; 38 notes |
 | 57 min 39 s | `saved · just now · 25 sections`, caret removed, `aria-busy` cleared; persona tile reads `file changed`, not `live` |
@@ -84,7 +84,7 @@ On disk: `prd.md` is 154 KB with 19 level-2 headings; `addendum.md`, `inputs/bra
 
 ## 3a. What the live run added
 
-8. **The card is one box for a run that writes many files.** Head path and body follow whichever write is last: `addendum.md`, then `prd.md`, then `brain-dump.md`, then back. The user never sees "the document being written" as one thing, and the PRD (the point of the run) was on the card for under 8 minutes in 57.
+8. **The card is one box for a run that writes many files.** Head path and body follow whichever write is last: `addendum.md`, then `prd.md`, then `brain-dump.md` (4 KB), then back. The user never sees "the document being written" as one thing, and the PRD (the point of the run) was on the card for under 8 minutes in 57.
 9. **`N sections` is wrong for a multi-file run.** The head named `prd.md` and said 25 sections; `prd.md` has 19. The count is the union of `##` headings across every file the run committed (addendum, brain dump, reviews).
 10. **The dot did not reach `live`.** After the run the tile read `file changed` (`note`): the rail saw the persona's own file change after the run ended, and `note` outranks `live`. Epic 2's deferral (does a persona's own write raise `note`) bites exactly here. The story's `work` to `live` held in the smoke run and not in the real one.
 11. **The card is out of view while the thing it shows happens.** John narrates in chat the whole time; those turns land below the card, so someone following the conversation is looking at his words and the card is scrolled away above. The empty-first-100-seconds and the long middle are not seen unless the user scrolls up.
