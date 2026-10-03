@@ -235,7 +235,7 @@ action_items:
       exit, fail the send on a dead-pipe write; decide whether the Epic 3 in-band
       interrupt covers chat turns."
     owner: "dev"
-    status: open
+    status: done
     ref: "_bmad/implementation-artifacts/epic-2-retro-2026-10-02.md"
   - id: "epic-2-retro-item-19-before-epic-3-transcript-load-separates"
     epic: 2

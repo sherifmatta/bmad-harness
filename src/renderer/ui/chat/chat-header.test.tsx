@@ -40,6 +40,16 @@ describe('ChatHeader', () => {
     expect(working).toContain('>working<')
   })
 
+  it('has no button until it is given a way to close the session, and then one native button, named for the persona', () => {
+    const closing = renderToStaticMarkup(<ChatHeader agent={AGENT} state="work" onClose={() => {}} />)
+
+    expect(count(closing, /<button/g)).toBe(1)
+    expect(closing).toContain('<button type="button" class="chat-close" aria-label="close session · John">close session</button>')
+    expect(closing.indexOf('chat-close')).toBeGreaterThan(closing.indexOf('state-line'))
+    expect(closing).not.toContain('title=')
+    expect(closing).not.toContain('tabindex')
+  })
+
   it('has no button, no hand-off, no composer and no inline style', () => {
     expect(markup).not.toMatch(/<button|<input|<textarea/)
     expect(markup).not.toMatch(/hand ?off/i)

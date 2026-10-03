@@ -17,6 +17,7 @@ const EVENTS = [
   'session:awaiting-turn',
   'session:closed',
   'persona:said',
+  'harness:said',
   'persona:state',
   'run:started',
   'run:note',
@@ -79,7 +80,7 @@ describe('the events out', () => {
   const body = mapBody(withoutComments(read('src/shared/events.ts')), 'ContractEvents')
   const declared = entries(body)
 
-  it('are exactly the fourteen', () => {
+  it('are exactly the fifteen', () => {
     expect([...declared.keys()]).toEqual(EVENTS)
   })
 

@@ -1,0 +1,86 @@
+import type { ContractEvent } from '../shared/events'
+import type { SessionId } from '../shared/ids'
+import type { Sender } from './bridge-kit'
+import type { TranscriptRegistry } from './projections/transcript'
+
+/**
+ * What the harness says in its own voice, and when a session has been silent
+ * long enough to say it. The words are lower case and plain, and carry nothing
+ * the CLI wrote beyond a short subtype word.
+ */
+
+/** How long a busy session may say nothing, in any frame, before the harness says so. */
+export const QUIET_MS = 120_000
+
+/** A CLI's own word for how a turn ended, when it is the plain word it always is. */
+const SUBTYPE = /^[a-z][a-z0-9_]{0,39}$/
+
+export const LINES = {
+  failed: (subtype: string | undefined): string =>
+    subtype !== undefined && SUBTYPE.test(subtype) ? `turn failed · ${subtype}` : 'turn failed',
+  exited: 'session ended · the process exited',
+  quiet: (ms: number): string =>
+    `no output for ${Math.round(ms / 1000)}s · the session may be stuck · close it to start over`,
+  /** At the top of a conversation whose stored file could not be read and was set aside. */
+  setAside: 'earlier conversation could not be read · kept aside'
+}
+
+/**
+ * The harness's own line: kept in the transcript where it fell, and told to the
+ * window as `harness:said`. The transcript is the project's, so the line is
+ * found again by a window that reloads.
+ */
+export function createVoice(deps: {
+  transcripts: TranscriptRegistry
+  now: () => number
+  emit: (sender: Sender, event: ContractEvent) => void
+}): (sender: Sender, line: { sessionId: SessionId; projectRoot: string; text: string }) => void {
+  return (sender, { sessionId, projectRoot, text }) => {
+    const record = deps.transcripts.forProject(projectRoot).recordSysline(text, deps.now())
+    deps.emit(sender, {
+      name: 'harness:said',
+      payload: { sessionId, id: record.id, text: record.text, at: record.at }
+    })
+  }
+}
+
+export function defaultSchedule(run: () => void, ms: number): () => void {
+  const timer = setTimeout(run, ms)
+  timer.unref()
+  return () => clearTimeout(timer)
+}
+
+/** What the silence clock reads and keeps of a session. */
+export type Watched = {
+  closed: boolean
+  turn: { busy: boolean }
+  /** Stops the clock, while one is running. */
+  stopQuietClock: (() => void) | undefined
+}
+
+/**
+ * The silence clock of a busy session: any frame at all starts it again, and
+ * when it runs out `onQuiet` is told once. It only tells: nothing is closed,
+ * interrupted or retried, and the close control the window shows for every open
+ * session is the way out. A session that is not mid-turn, or is gone, has no
+ * clock, and it is not run again until the next frame or turn.
+ */
+export function createQuietClock<S, E extends Watched>(deps: {
+  schedule: (run: () => void, ms: number) => () => void
+  quietMs: number
+  onQuiet: (sender: S, entry: E) => void
+}): (sender: S, entry: E) => void {
+  return (sender, entry) => {
+    entry.stopQuietClock?.()
+    entry.stopQuietClock = undefined
+    if (entry.closed || !entry.turn.busy) {
+      return
+    }
+    entry.stopQuietClock = deps.schedule(() => {
+      entry.stopQuietClock = undefined
+      if (!entry.closed && entry.turn.busy) {
+        deps.onQuiet(sender, entry)
+      }
+    }, deps.quietMs)
+  }
+}

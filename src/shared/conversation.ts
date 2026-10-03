@@ -9,7 +9,7 @@ import type { AgentId, EpochMs, MessageId, SessionId } from './ids'
  * rest of `shared/`.
  *
  * It is a read beside `rail:get`, not an event and not a command: the contract's
- * fourteen events and seven commands are as they were. Only the transcript is
+ * seven commands are as they were. Only the transcript is
  * ever stored; the sessions, the busy set and the persona states are main's own
  * memory of this launch and are never written (FR100, NFR2).
  */

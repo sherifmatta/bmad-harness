@@ -14,7 +14,10 @@ import { errnoOf } from '../errno'
  *
  * Stderr is ignored outright, never read: it names files the harness must
  * never show. The exit code is not reported either, because a turn ends on a
- * `result` frame and the process exit is only ever "gone".
+ * `result` frame and the process exit is only ever "gone". A write to a pipe
+ * that has died is refused rather than reported as written: the stream raises
+ * after `write` has returned, so the failure is remembered and the next write
+ * says so.
  */
 
 /**
@@ -88,8 +91,11 @@ export function createLineSplitter(onLine: (line: string) => void): {
 export type SessionChild = {
   pid?: number | undefined
   stdin: {
-    write(data: string): unknown
+    write(data: string, callback?: (error?: Error | null) => void): unknown
     on(event: 'error', listener: () => void): unknown
+    /** Set by a real stream once it has failed or been closed. */
+    destroyed?: boolean
+    writable?: boolean
   }
   stdout: { on(event: 'data', listener: (chunk: Buffer | string) => void): unknown }
   on(event: 'spawn', listener: () => void): unknown
@@ -166,14 +172,20 @@ export function spawnSession(options: SpawnSessionOptions): Promise<SpawnOutcome
 
     let spawned = false
     let exited = false
+    /** The pipe has failed: a write to a process that has gone raises on the stream, later than the write. */
+    let broken = false
 
     const session: SessionProcess = {
       write(text) {
-        if (exited) {
+        if (exited || broken || child.stdin.destroyed === true || child.stdin.writable === false) {
           return false
         }
         try {
-          child.stdin.write(userTurnLine(text))
+          child.stdin.write(userTurnLine(text), (error) => {
+            if (error !== undefined && error !== null) {
+              broken = true
+            }
+          })
           return true
         } catch {
           return false
@@ -184,9 +196,12 @@ export function spawnSession(options: SpawnSessionOptions): Promise<SpawnOutcome
       }
     }
 
-    // A write to a process that has gone raises on the stream; the session
-    // already reports that as the process being gone.
-    child.stdin.on('error', () => {})
+    // A write to a process that has gone raises on the stream, after `write`
+    // has returned. The error is not shown, but the pipe is dead from then on, so
+    // the next write is refused and the send that made it fails.
+    child.stdin.on('error', () => {
+      broken = true
+    })
 
     const lines = createLineSplitter((line) => {
       let frame: unknown

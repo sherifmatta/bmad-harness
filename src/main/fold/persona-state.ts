@@ -12,8 +12,9 @@ import type { RailRow, RailSnapshot } from '../../shared/rail'
  *   opening (the activation turn), a turn start or a run start until the
  *   session is awaiting a turn again. A quiet phase has no frames and stays
  *   `work` because nothing in it ends the turn.
- * - `error`: the agent's last run ended failed or stopped. Cleared by a run
- *   that finished, or by the agent's next turn start.
+ * - `error`: the agent's last run ended failed or stopped, or its last chat turn
+ *   ended in failure (the CLI's `is_error`), or its process exited without being
+ *   asked to. Cleared by a run that finished, or by the agent's next turn start.
  * - `note`: an owned file changed or was removed between two rail snapshots. Cleared
  *   by the agent's next turn start. The first snapshot is a baseline and
  *   raises none.
@@ -24,14 +25,16 @@ import type { RailRow, RailSnapshot } from '../../shared/rail'
  * aggregate of every session carrying its `agentId`; a session without one
  * belongs to the room and is ignored here.
  *
- * Three inputs are the harness's own and not contract events — a turn the user
- * sent, a process attached, a process detached — so they are declared here, in
- * the same `noun:verb-past` form, and never cross the bridge.
+ * Four inputs are the harness's own and not contract events — a turn the user
+ * sent, a turn that ended in failure, a process attached, a process detached —
+ * so they are declared here, in the same `noun:verb-past` form, and never cross
+ * the bridge.
  */
 
 /** What only main knows, in the contract's own form. `at` falls back to the injected clock. */
 export type InternalEvent =
   | { name: 'turn:started'; payload: { sessionId: SessionId; at?: EpochMs } }
+  | { name: 'turn:failed'; payload: { sessionId: SessionId; at?: EpochMs } }
   | { name: 'process:attached'; payload: { sessionId: SessionId; at?: EpochMs } }
   | { name: 'process:detached'; payload: { sessionId: SessionId; at?: EpochMs } }
 
@@ -196,12 +199,30 @@ export function foldPersonaState(table: PersonaTable, input: PersonaInput, now: 
       )
     }
 
+    // A chat turn that ended in failure: the persona reads `error` once the turn is
+    // no longer working, until its next turn starts.
+    case 'turn:failed': {
+      const flags = table.sessions.get(input.payload.sessionId)
+      if (flags === undefined) return table
+      return settled(
+        withAgent(table, flags.agentId, { error: true }),
+        [flags.agentId],
+        input.payload.at ?? now
+      )
+    }
+
     case 'session:closed': {
       const flags = table.sessions.get(input.payload.sessionId)
       if (flags === undefined) return table
       const sessions = new Map(table.sessions)
       sessions.delete(input.payload.sessionId)
-      return settled({ ...table, sessions }, [flags.agentId], input.payload.at)
+      // A process that went without being asked to is an error; closing a session on purpose is not.
+      const gone = input.payload.reason === 'process-exited'
+      return settled(
+        gone ? withAgent({ ...table, sessions }, flags.agentId, { error: true }) : { ...table, sessions },
+        [flags.agentId],
+        input.payload.at
+      )
     }
 
     case 'process:attached':

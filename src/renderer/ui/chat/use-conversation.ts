@@ -317,6 +317,8 @@ export function useConversation(
   close: (agentId: string) => Promise<boolean>
   /** Personas with a live session the roster no longer has, in session order. */
   orphans: readonly AgentView[]
+  /** The agent ids that have a live session, current or not. */
+  live: ReadonlySet<string>
   /** Whether a persona has a live session with no turn in flight. */
   canAnswer: (agentId: string) => boolean
 } {
@@ -378,6 +380,7 @@ export function useConversation(
     []
   )
   const orphans = useMemo(() => orphansOf(state, agents), [state, agents])
+  const live = useMemo(() => new Set(state.sessions.keys()), [state.sessions])
 
   // Who spoke is read from the roster as it is now, so a window that met the
   // transcript before the install was read names them once it is.
@@ -403,6 +406,7 @@ export function useConversation(
     end,
     close,
     orphans,
+    live,
     canAnswer: answerable
   }
 }

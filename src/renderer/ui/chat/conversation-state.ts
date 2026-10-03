@@ -192,7 +192,7 @@ export function cancelQueued(state: ConversationState, entryId: string): Convers
   return state
 }
 
-/** Drop everything queued for a persona, with its entries: its session is not coming. */
+/** Drop everything queued for a persona, with its entries: the user closed its session. */
 export function dropQueued(state: ConversationState, agentId: string): ConversationState {
   const dropped = new Set((state.queue.get(agentId) ?? []).map((message) => message.entryId))
   if (dropped.size === 0) {
@@ -272,10 +272,10 @@ export function ended(state: ConversationState): ConversationState {
 }
 
 /**
- * A handoff main wrote and returned on the open's reply: its sysline joins the
- * transcript, once and at the end, where the persona's later words will follow
- * it as a message of their own. A record already held (by its id) is not added
- * again.
+ * A line main wrote in the harness's own voice, a handoff returned on the open's
+ * reply or a line pushed on its own: its sysline joins the transcript, once and
+ * at the end, where the persona's later words will follow it as a message of
+ * their own. A record already held (by its id) is not added again.
  */
 export function withHandoff(state: ConversationState, record: SyslineRecord): ConversationState {
   if (state.entries.some((entry) => entry.id === record.id)) {
@@ -390,17 +390,25 @@ export function foldEvent(
     }
 
     case 'session:closed': {
-      const { sessionId } = event.payload
+      const { sessionId, reason } = event.payload
       let next = withBusy(state, sessionId, false)
       for (const [agentId, live] of state.sessions) {
         if (live === sessionId) {
           const sessions = new Map(next.sessions)
           sessions.delete(agentId)
-          // Text waiting for a session that is gone is not sent to the next one.
-          next = dropQueued({ ...next, sessions }, agentId)
+          // The user closed it, so what waited on it goes with it. A process that
+          // exited on its own took nothing the user asked for: what they typed
+          // stays queued, and goes to the persona's next session, first in first.
+          next = reason === 'closed' ? dropQueued({ ...next, sessions }, agentId) : { ...next, sessions }
         }
       }
       return { state: next }
+    }
+
+    case 'harness:said': {
+      // The harness's own line, once and at the end; one already held (by its id) is not added again.
+      const { id, at, text } = event.payload
+      return { state: withHandoff(state, { kind: 'sysline', id, at, text }) }
     }
 
     case 'session:awaiting-turn': {

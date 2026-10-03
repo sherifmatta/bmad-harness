@@ -71,6 +71,9 @@ export type SessionBridgeDeps = {
   transcripts?: TranscriptRegistry
   /** One diagnostic line, without its newline; the real one writes it to stderr. */
   writeDiagnostic?: (line: string) => void
+  /** The silence clock: how long a busy session may say nothing, and what runs the timer. */
+  quietMs?: number
+  schedule?: (run: () => void, ms: number) => () => void
 }
 
 /** What the five handlers share. */
@@ -115,7 +118,8 @@ function openSession(ctx: Context) {
 
 function sendTurn(ctx: Context) {
   return (event: IpcMainInvokeEvent, sessionId: unknown, text: unknown): SendReply => {
-    const service = ctx.registry.serviceOf(senderOf(event).id)
+    const sender = senderOf(event)
+    const service = ctx.registry.serviceOf(sender.id)
     const entry = typeof sessionId === 'string' ? service?.bySession.get(sessionId) : undefined
     if (service === undefined || entry === undefined || entry.closed) {
       return NOT_FOUND
@@ -147,6 +151,7 @@ function sendTurn(ctx: Context) {
       name: 'turn:started',
       payload: { sessionId: entry.sessionId, at }
     })
+    ctx.registry.watch(sender, service, entry)
     return { ok: true }
   }
 }
@@ -261,7 +266,9 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): void {
       start: deps.spawn ?? spawnSession,
       now,
       newSessionId: deps.newSessionId ?? (() => randomUUID()),
-      transcripts
+      transcripts,
+      ...(deps.quietMs !== undefined ? { quietMs: deps.quietMs } : {}),
+      ...(deps.schedule !== undefined ? { schedule: deps.schedule } : {})
     }),
     handoffFor: createHandoffComposer({
       transcripts,

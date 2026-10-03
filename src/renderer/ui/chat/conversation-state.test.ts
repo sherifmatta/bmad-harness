@@ -145,9 +145,9 @@ describe('sessions', () => {
     name: 'session:opened',
     payload: { sessionId, ...(agentId === null ? {} : { agentId }), at: 1 }
   })
-  const closed = (sessionId: string): ContractEvent => ({
+  const closed = (sessionId: string, reason: 'closed' | 'process-exited' = 'process-exited'): ContractEvent => ({
     name: 'session:closed',
-    payload: { sessionId, reason: 'process-exited', at: 2 }
+    payload: { sessionId, reason, at: 2 }
   })
 
   it('keeps a session per agent from session:opened and forgets it on session:closed', () => {
@@ -160,15 +160,52 @@ describe('sessions', () => {
     expect(sessionOf(state, john.id)).toBe('s2')
   })
 
-  it('drops that persona’s queued messages with their entries when its session closes, and no one else’s', () => {
+  it('drops that persona’s queued messages with their entries when the user closes its session, and no one else’s', () => {
     let state = fold([opened('s1'), opened('s2', john.id)])
     state = send(send(state, 'a').state, 'b', 51, john.id).state
-    state = fold([closed('s1')], state)
+    state = fold([closed('s1', 'closed')], state)
 
     expect([...state.queue.keys()]).toEqual([john.id])
     expect(state.entries.map((entry) => entry.kind === 'user' && entry.text)).toEqual(['b'])
     expect(state.busy.has('s1')).toBe(false)
     expect(state.busy.has('s2')).toBe(true)
+  })
+
+  it('keeps the queued messages, with their entries, when the process exits on its own, and sends the first to the next session', () => {
+    let state = fold([opened('s1')])
+    state = send(send(state, 'a', 50).state, 'b', 51).state
+    state = fold([closed('s1', 'process-exited')], state)
+
+    expect(sessionOf(state, mary.id)).toBeUndefined()
+    expect(state.queue.get(mary.id)?.map((message) => message.text)).toEqual(['a', 'b'])
+    expect(state.entries.map((entry) => entry.kind === 'user' && entry.text)).toEqual(['a', 'b'])
+    expect(state.busy.has('s1')).toBe(false)
+
+    // The next session takes them first in first, one per turn.
+    const next = foldEvent(
+      foldEvent(state, opened('s2'), agentOf).state,
+      { name: 'session:awaiting-turn', payload: { sessionId: 's2', at: 3 } },
+      agentOf
+    )
+    expect(next.deliver).toMatchObject({ sessionId: 's2', text: 'a' })
+    expect(next.state.queue.get(mary.id)?.map((message) => message.text)).toEqual(['b'])
+  })
+
+  it('takes the harness’s own line as a sysline at the end, once, and not again for the same id', () => {
+    const line: ContractEvent = {
+      name: 'harness:said',
+      payload: { sessionId: 's1', id: 'm-4', text: 'turn failed · error_during_execution', at: 9 }
+    }
+    let state = fold([opened('s1'), said('m1', 'Hello', 1, mary.id)])
+    state = fold([line, line], state)
+
+    expect(state.entries.map((entry) => [entry.kind, entry.id, entry.text])).toEqual([
+      ['persona', expect.any(String), 'Hello'],
+      ['sysline', 'm-4', 'turn failed · error_during_execution']
+    ])
+    // The words that follow it are a message of their own.
+    state = fold([said('m1', ' more', 10, mary.id)], state)
+    expect(state.entries.map((entry) => entry.kind)).toEqual(['persona', 'sysline', 'persona'])
   })
 
   describe('orphansOf', () => {

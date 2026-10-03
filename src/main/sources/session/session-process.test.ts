@@ -15,15 +15,23 @@ class FakeChild extends EventEmitter {
   pid: number | undefined = 4242
   writes: string[] = []
   stdout = new EventEmitter()
-  stdin = {
-    write: (data: string) => {
+  stdin: {
+    write: (data: string, callback?: (error?: Error | null) => void) => boolean
+    on: (event: 'error', listener: () => void) => void
+    destroyed?: boolean
+    writable?: boolean
+  } = {
+    write: (data: string, callback) => {
       this.writes.push(data)
       if (this.failWrites) throw new Error('write after end')
+      this.writeCallbacks.push(callback)
       return true
     },
-    on: () => undefined
+    on: (_event, listener) => void this.stdinErrors.push(listener)
   }
   failWrites = false
+  writeCallbacks: (((error?: Error | null) => void) | undefined)[] = []
+  stdinErrors: (() => void)[] = []
   spawn(): void {
     this.emit('spawn')
   }
@@ -203,6 +211,57 @@ describe('spawnSession', () => {
 
     child.failWrites = true
     expect(outcome.session.write('x')).toBe(false)
+  })
+
+  describe('a pipe that has died', () => {
+    async function session() {
+      const { child, start } = harness()
+      const pending = start()
+      child.spawn()
+      const outcome = await pending
+      if (!outcome.ok) throw new Error('expected a session')
+      return { child, session: outcome.session }
+    }
+
+    it('refuses the next write once stdin has raised, and writes nothing to it', async () => {
+      const { child, session: live } = await session()
+      expect(live.write('one')).toBe(true)
+
+      child.stdinErrors.forEach((listener) => listener())
+
+      expect(live.write('two')).toBe(false)
+      expect(child.writes).toHaveLength(2)
+    })
+
+    it('refuses a write to a stream that is destroyed or no longer writable', async () => {
+      const destroyed = await session()
+      destroyed.child.stdin.destroyed = true
+      expect(destroyed.session.write('x')).toBe(false)
+      expect(destroyed.child.writes).toHaveLength(1)
+
+      const closed = await session()
+      closed.child.stdin.writable = false
+      expect(closed.session.write('x')).toBe(false)
+    })
+
+    it('refuses the next write once a write’s own callback reported an error, and not for a clean one', async () => {
+      const { child, session: live } = await session()
+      expect(live.write('one')).toBe(true)
+      // The activation turn's callback, then the first send's.
+      child.writeCallbacks[0]?.(null)
+      child.writeCallbacks[1]?.(undefined)
+      expect(live.write('two')).toBe(true)
+
+      child.writeCallbacks[2]?.(Object.assign(new Error('EPIPE'), { code: 'EPIPE' }))
+      expect(live.write('three')).toBe(false)
+    })
+
+    it('stays silent about the failure itself: no error reaches a listener of the session’s own', async () => {
+      const { child, session: live } = await session()
+
+      expect(() => child.stdinErrors.forEach((listener) => listener())).not.toThrow()
+      expect(live.write('x')).toBe(false)
+    })
   })
 
   it('kills the process group', async () => {

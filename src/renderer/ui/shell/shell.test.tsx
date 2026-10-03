@@ -572,3 +572,29 @@ describe('Shell, the orphan headers', () => {
     expect(count(html, /aria-current="true"/g)).toBe(1)
   })
 })
+
+describe('Shell, the close control of an open session', () => {
+  const markup = (props: Partial<Parameters<typeof Shell>[0]> = {}): string =>
+    renderToStaticMarkup(<Shell projectPath="/work/falcon" snapshot={snapshot(2)} {...props} />)
+
+  it('draws none without an open session, or without a way to close one', () => {
+    expect(markup()).not.toContain('chat-close')
+    expect(markup({ onCloseSession: () => {} })).not.toContain('chat-close')
+    expect(markup({ liveSessions: new Set(['bmad-agent-0']) })).not.toContain('chat-close')
+  })
+
+  it('draws one in the current persona’s header while that persona has a session open, named for them', () => {
+    const html = markup({ liveSessions: new Set(['bmad-agent-0']), onCloseSession: () => {} })
+
+    expect(count(html, /class="chat-close"/g)).toBe(1)
+    expect(html).toContain('aria-label="close session · ')
+    expect(html.indexOf('chat-close')).toBeGreaterThan(html.indexOf('chat-head-state'))
+    expect(html.indexOf('chat-close')).toBeLessThan(html.indexOf('class="scroll"'))
+  })
+
+  it('draws none for a persona who is not current, even one with a session open', () => {
+    const html = markup({ liveSessions: new Set(['bmad-agent-1']), onCloseSession: () => {} })
+
+    expect(html).not.toContain('chat-close')
+  })
+})

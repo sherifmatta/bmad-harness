@@ -3,6 +3,7 @@ import type { AgentId, SessionId } from '../shared/ids'
 import type { SessionOpenReply } from '../shared/conversation'
 import { failure, sendTo } from './bridge-kit'
 import type { Sender } from './bridge-kit'
+import { LINES, QUIET_MS, createQuietClock, createVoice, defaultSchedule } from './session-voice'
 import { SESSION_EVENT_CHANNEL } from '../shared/channels'
 import { personaProjectionFor } from './persona-states'
 import type { PersonaProjection } from './projections/personas'
@@ -50,6 +51,8 @@ export type Entry = {
   written: WrittenState
   /** What `session.open` answers, for a second open that arrives mid-spawn. */
   ready: Promise<OpenReply>
+  /** Stops the silence clock, while one is running: set while a turn is in flight. */
+  stopQuietClock: (() => void) | undefined
 }
 
 export type Service = {
@@ -82,6 +85,9 @@ export type SessionRegistryDeps = {
   now: () => number
   newSessionId: () => SessionId
   transcripts: TranscriptRegistry
+  /** Run `run` after `ms`; returns the way to cancel it. Replaceable by a test that holds time still. */
+  schedule?: (run: () => void, ms: number) => () => void
+  quietMs?: number
 }
 
 export type SessionRegistry = {
@@ -93,6 +99,11 @@ export type SessionRegistry = {
   open(sender: Sender, service: Service, projectRoot: string, agentId: AgentId): Entry
   /** Kill every session of a window and close each one. */
   closeSessions(sender: Sender, service: Service): void
+  /**
+   * Start, or start again, the silence clock of a session whose turn is in
+   * flight; stop it for one whose turn is not. Called when a turn begins.
+   */
+  watch(sender: Sender, service: Service, entry: Entry): void
   /** Close one session; emits `session:closed` unless it already was. */
   finish(
     sender: Sender,
@@ -107,6 +118,8 @@ type FrameSinks = {
   transcripts: TranscriptRegistry
   announce: (sender: Sender, service: Service, event: ContractEvent) => void
   emit: (sender: Sender, event: ContractEvent) => void
+  /** The harness says a line in its own voice. */
+  say: (sender: Sender, entry: Entry, text: string) => void
 }
 
 /** What one raw frame from a session does: end its turn, or say something, or write a file. */
@@ -117,20 +130,27 @@ function foldFrame(
   entry: Entry,
   frame: unknown
 ): void {
-  const { now, transcripts, announce, emit } = sinks
+  const { now, transcripts, announce, emit, say } = sinks
   if (entry.closed) {
     return
   }
   const step = foldTurn(entry.turn, readFrame(frame))
   entry.turn = step.state
-  if (step.signal?.kind === 'ended') {
+  const signal = step.signal
+  // A failed result is told whether or not it freed the session: a line in the
+  // transcript, and the persona reads `error` once it is no longer working.
+  if (signal?.kind === 'failed-while-pending' || (signal?.kind === 'ended' && signal.failed)) {
+    say(sender, entry, LINES.failed(signal.subtype))
+    service.personas.apply({ name: 'turn:failed', payload: { sessionId: entry.sessionId, at: now() } })
+  }
+  if (signal?.kind === 'ended') {
     announce(sender, service, {
       name: 'session:awaiting-turn',
       payload: { sessionId: entry.sessionId, at: now() }
     })
     return
   }
-  if (step.signal?.kind === 'resumed') {
+  if (signal?.kind === 'resumed') {
     // A turn nobody sent: the session works again, though the renderer sent nothing.
     service.personas.apply({
       name: 'turn:started',
@@ -161,6 +181,70 @@ function foldFrame(
   }
 }
 
+/** What starting a session's process needs of the registry that holds it. */
+type StartKit = {
+  start: SessionRegistryDeps['start']
+  now: () => number
+  announce: (sender: Sender, service: Service, event: ContractEvent) => void
+  say: (sender: Sender, entry: Entry, text: string) => void
+  watch: (sender: Sender, service: Service, entry: Entry) => void
+  discard: (service: Service, entry: Entry) => void
+  finish: SessionRegistry['finish']
+  onFrame: (sender: Sender, service: Service, entry: Entry, frame: unknown) => void
+}
+
+/**
+ * Start the process behind an entry and say how it went. A start that throws or
+ * rejects leaves nothing behind: the entry is dropped from both maps and the
+ * failure goes to the handler's catch.
+ */
+function startProcess(kit: StartKit, sender: Sender, service: Service, entry: Entry): Promise<OpenReply> {
+  const { agentId, projectRoot } = entry
+  return new Promise<SpawnOutcome>((resolve) =>
+    resolve(
+      kit.start({
+        agentId,
+        cwd: projectRoot,
+        onFrame: (frame) => kit.onFrame(sender, service, entry, frame),
+        onExit: () => {
+          if (!entry.closed) {
+            kit.say(sender, entry, LINES.exited)
+          }
+          kit.finish(sender, service, entry, 'process-exited')
+        }
+      })
+    )
+  ).then(
+    (outcome): OpenReply => {
+      if (!outcome.ok) {
+        kit.discard(service, entry)
+        return failure({
+          code: 'session/spawn-failed',
+          message: 'session · could not start the session',
+          detail: outcome.errno
+        })
+      }
+      if (entry.closed) {
+        // The window went while the process was starting.
+        outcome.session.kill()
+        return NOT_FOUND
+      }
+      entry.session = outcome.session
+      kit.announce(sender, service, {
+        name: 'session:opened',
+        payload: { sessionId: entry.sessionId, agentId, at: kit.now() }
+      })
+      // The activation turn is in flight.
+      kit.watch(sender, service, entry)
+      return { ok: true, sessionId: entry.sessionId }
+    },
+    (error: unknown): never => {
+      kit.discard(service, entry)
+      throw error
+    }
+  )
+}
+
 export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistry {
   const { start, now, newSessionId, transcripts } = deps
   const services = new Map<number, Service>()
@@ -174,6 +258,16 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
     emit(sender, event)
     service.personas.apply(event)
   }
+
+  const sayLine = createVoice({ transcripts, now, emit })
+  const say = (sender: Sender, entry: Entry, text: string): void =>
+    sayLine(sender, { sessionId: entry.sessionId, projectRoot: entry.projectRoot, text })
+  const clock = createQuietClock<Sender, Entry>({
+    schedule: deps.schedule ?? defaultSchedule,
+    quietMs: deps.quietMs ?? QUIET_MS,
+    onQuiet: (sender, entry) => say(sender, entry, LINES.quiet(deps.quietMs ?? QUIET_MS))
+  })
+  const watch = (sender: Sender, _service: Service, entry: Entry): void => clock(sender, entry)
 
   function serviceFor(sender: Sender, projectRoot: string): Service {
     const existing = services.get(sender.id)
@@ -217,6 +311,8 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
   /** Forget a session that never came up: it was never announced, so nothing is closed. */
   function discard(service: Service, entry: Entry): void {
     entry.closed = true
+    entry.stopQuietClock?.()
+    entry.stopQuietClock = undefined
     service.bySession.delete(entry.sessionId)
     if (service.byAgent.get(entry.agentId) === entry) {
       service.byAgent.delete(entry.agentId)
@@ -240,7 +336,8 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
   }
 
   function onFrame(sender: Sender, service: Service, entry: Entry, frame: unknown): void {
-    foldFrame({ now, transcripts, announce, emit }, sender, service, entry, frame)
+    foldFrame({ now, transcripts, announce, emit, say }, sender, service, entry, frame)
+    watch(sender, service, entry)
   }
 
   function open(sender: Sender, service: Service, projectRoot: string, agentId: AgentId): Entry {
@@ -253,48 +350,17 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
       closed: false,
       route: initialRouteState,
       written: initialWrittenState,
-      ready: Promise.resolve(NOT_FOUND)
+      ready: Promise.resolve(NOT_FOUND),
+      stopQuietClock: undefined
     }
     service.bySession.set(entry.sessionId, entry)
     service.byAgent.set(agentId, entry)
 
-    // A start that throws or rejects leaves nothing behind: the entry is
-    // dropped from both maps and the failure goes to the handler's catch.
-    entry.ready = new Promise<SpawnOutcome>((resolve) =>
-      resolve(
-        start({
-          agentId,
-          cwd: projectRoot,
-          onFrame: (frame) => onFrame(sender, service, entry, frame),
-          onExit: () => finish(sender, service, entry, 'process-exited')
-        })
-      )
-    ).then(
-      (outcome): OpenReply => {
-        if (!outcome.ok) {
-          discard(service, entry)
-          return failure({
-            code: 'session/spawn-failed',
-            message: 'session · could not start the session',
-            detail: outcome.errno
-          })
-        }
-        if (entry.closed) {
-          // The window went while the process was starting.
-          outcome.session.kill()
-          return NOT_FOUND
-        }
-        entry.session = outcome.session
-        announce(sender, service, {
-          name: 'session:opened',
-          payload: { sessionId: entry.sessionId, agentId, at: now() }
-        })
-        return { ok: true, sessionId: entry.sessionId }
-      },
-      (error: unknown): never => {
-        discard(service, entry)
-        throw error
-      }
+    entry.ready = startProcess(
+      { start, now, announce, say, watch, discard, finish, onFrame },
+      sender,
+      service,
+      entry
     )
     return entry
   }
@@ -303,6 +369,7 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
     serviceOf: (senderId) => services.get(senderId),
     serviceFor,
     open,
+    watch,
     closeSessions,
     finish
   }

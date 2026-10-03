@@ -448,7 +448,13 @@ describe('turn end and turn.send', () => {
     const { sender, reply, proc } = await opened()
     proc.exit()
 
-    expect(sender.names).toEqual(['session:opened', 'persona:state', 'session:closed', 'persona:state'])
+    expect(sender.names).toEqual([
+      'session:opened',
+      'persona:state',
+      'harness:said',
+      'session:closed',
+      'persona:state'
+    ])
     expect(sender.names).not.toContain('session:awaiting-turn')
     expect(send(sender, reply.sessionId, 'hi')).toMatchObject({ error: { code: 'session/not-found' } })
   })
@@ -624,6 +630,243 @@ describe('the pending turn', () => {
   })
 })
 
+describe('what the harness says in its own voice', () => {
+  const lines = (sender: FakeSender) =>
+    sender.events.flatMap((event) => (event.name === 'harness:said' ? [event.payload] : []))
+  const states = (sender: FakeSender) =>
+    sender.events.flatMap((event) => (event.name === 'persona:state' ? [event.payload.state] : []))
+  const conversation = (sender: FakeSender) =>
+    (handlers.get(CONVERSATION_GET_CHANNEL) as unknown as (e: { sender: FakeSender }) => ConversationReply)({ sender })
+
+  it('says a failed result in a line and reads the persona as error until the next turn starts, then frees the session', async () => {
+    const { sender, reply, proc } = await opened()
+    proc.frame(result('error_during_execution', true))
+
+    expect(lines(sender)).toEqual([
+      { sessionId: 's1', id: 'm-0', text: 'turn failed · error_during_execution', at: expect.any(Number) }
+    ])
+    expect(states(sender)).toEqual(['work', 'error'])
+    expect(sender.names.filter((name) => name === 'session:awaiting-turn')).toHaveLength(1)
+    // The next send works, and a turn that starts clears the error.
+    expect(send(sender, reply.sessionId, 'again')).toEqual({ ok: true })
+    expect(states(sender)).toEqual(['work', 'error', 'work'])
+    proc.frame(result())
+    expect(states(sender)).toEqual(['work', 'error', 'work', 'idle'])
+  })
+
+  it('keeps the line in the transcript, after the words it follows, so a reload finds it', async () => {
+    const { sender, proc } = await opened()
+    proc.frame(messageStart('m'))
+    proc.frame(textStart)
+    proc.frame(delta('half a thought'))
+    proc.frame(result('error_max_budget_usd', true))
+
+    const reply = conversation(sender)
+    expect(reply.ok && reply.snapshot.entries.map((entry) => [entry.kind, entry.text])).toEqual([
+      ['persona', 'half a thought'],
+      ['sysline', 'turn failed · error_max_budget_usd']
+    ])
+  })
+
+  it.each([
+    ['carries no subtype', { type: 'result', is_error: true }],
+    ['carries one that is not a plain word', { type: 'result', is_error: true, subtype: 'Has Spaces /etc' }]
+  ])('says only that the turn failed when the result %s', async (_name, row) => {
+    const { sender, proc } = await opened()
+    proc.frame(row)
+
+    expect(lines(sender).map((line) => line.text)).toEqual(['turn failed'])
+  })
+
+  it('says nothing for a result that did not fail', async () => {
+    const { sender, proc } = await opened()
+    proc.frame(result())
+
+    expect(lines(sender)).toEqual([])
+    expect(states(sender)).toEqual(['work', 'idle'])
+  })
+
+  it('says a failed result while background tasks are live without freeing the session: working, with the line', async () => {
+    const { sender, reply, proc } = await opened()
+    proc.frame(tasksChanged('a'))
+    proc.frame(result('error_during_execution', true))
+
+    expect(lines(sender).map((line) => line.text)).toEqual(['turn failed · error_during_execution'])
+    expect(sender.names).not.toContain('session:awaiting-turn')
+    expect(states(sender)).toEqual(['work'])
+    expect(send(sender, reply.sessionId, 'x')).toMatchObject({ error: { code: 'session/busy' } })
+  })
+
+  it('says a process that exits, reads the persona as error, and lets the next open work', async () => {
+    const { sender, proc } = await opened()
+    proc.exit()
+
+    expect(lines(sender).map((line) => line.text)).toEqual(['session ended · the process exited'])
+    expect(sender.names.indexOf('harness:said')).toBeLessThan(sender.names.indexOf('session:closed'))
+    expect(states(sender)).toEqual(['work', 'error'])
+
+    const again = open(sender, 'bmad-agent-analyst')
+    await processes[1].up()
+    await expect(again).resolves.toEqual({ ok: true, sessionId: 's2' })
+    expect(states(sender)).toEqual(['work', 'error', 'work'])
+  })
+
+  it('says nothing when the user closes the session, or the window goes', async () => {
+    const one = await opened(new FakeSender(1), 'bmad-agent-pm')
+    closeSession(one.sender, one.reply.sessionId)
+    const two = await opened(new FakeSender(2), 'bmad-agent-pm')
+    two.sender.closing()
+    // The process reports its own exit after being killed; the session is already closed.
+    two.proc.exit()
+    one.proc.exit()
+
+    expect(lines(one.sender)).toEqual([])
+    expect(lines(two.sender)).toEqual([])
+  })
+
+  it('records the line where it fell, and its id is the transcript’s own', async () => {
+    const { sender, proc } = await opened()
+    proc.frame(result('error_during_execution', true))
+    proc.frame(messageStart('wake'))
+    proc.frame(textStart)
+    proc.frame(delta('later'))
+
+    const reply = conversation(sender)
+    expect(reply.ok && reply.snapshot.entries.map((entry) => entry.id)).toEqual(['m-0', 'm-1'])
+  })
+})
+
+describe('the silence clock', () => {
+  let clock: { run: () => void; ms: number; cancelled: boolean }[]
+  const lines = (sender: FakeSender) =>
+    sender.events.flatMap((event) => (event.name === 'harness:said' ? [event.payload.text] : []))
+  const live = () => clock.filter((timer) => !timer.cancelled)
+  const QUIET = 'no output for 120s · the session may be stuck · close it to start over'
+
+  beforeEach(() => {
+    clock = []
+    launch({}, false, {
+      quietMs: 120_000,
+      schedule: (run, ms) => {
+        // A timer that has run is spent, as a real one is.
+        const timer = {
+          run: () => {
+            timer.cancelled = true
+            run()
+          },
+          ms,
+          cancelled: false
+        }
+        clock.push(timer)
+        return () => void (timer.cancelled = true)
+      }
+    })
+  })
+
+  it('starts when the session opens, for the activation turn, at 120 s', async () => {
+    await opened()
+
+    expect(live().map((timer) => timer.ms)).toEqual([120_000])
+  })
+
+  it('writes a harness line when it runs out, and closes nothing, kills nothing, and leaves the session busy', async () => {
+    const { sender, reply, proc } = await opened()
+    live()[0].run()
+
+    expect(lines(sender)).toEqual([QUIET])
+    expect(proc.killed).toBe(false)
+    expect(sender.names).not.toContain('session:closed')
+    expect(send(sender, reply.sessionId, 'x')).toMatchObject({ error: { code: 'session/busy' } })
+    // The line is the transcript's own, and the persona is still working.
+    expect(sender.events.filter((event) => event.name === 'persona:state')).toHaveLength(1)
+  })
+
+  it('starts again on any frame at all, a subagent’s or a system row’s too, and says nothing while frames keep coming', async () => {
+    const { sender, proc } = await opened()
+    const first = live()[0]
+    proc.frame({ type: 'system', subtype: 'task_progress' })
+    proc.frame({ type: 'stream_event', parent_tool_use_id: 'toolu_1', event: { type: 'content_block_stop', index: 0 } })
+
+    expect(first.cancelled).toBe(true)
+    expect(live()).toHaveLength(1)
+    expect(lines(sender)).toEqual([])
+  })
+
+  it('says it once per silence, not repeatedly, and again after the session has spoken and gone quiet again', async () => {
+    const { sender, proc } = await opened()
+    live()[0].run()
+    expect(live()).toEqual([])
+
+    proc.frame({ type: 'system', subtype: 'task_progress' })
+    live()[0].run()
+
+    expect(lines(sender)).toEqual([QUIET, QUIET])
+  })
+
+  it('stops when the turn ends, and starts with the next send, and not for a failed write', async () => {
+    const { sender, reply, proc } = await opened()
+    proc.frame(result())
+    expect(live()).toEqual([])
+
+    send(sender, reply.sessionId, 'again')
+    expect(live()).toHaveLength(1)
+
+    proc.frame(result())
+    proc.session.write = () => false
+    send(sender, reply.sessionId, 'refused')
+    expect(live()).toEqual([])
+  })
+
+  it('does not run for a result that left a background task live: the session is still busy and the clock goes on', async () => {
+    const { proc } = await opened()
+    proc.frame(tasksChanged('a'))
+    proc.frame(result())
+
+    expect(live()).toHaveLength(1)
+  })
+
+  it('starts for a turn nobody sent', async () => {
+    const { proc } = await opened()
+    proc.frame(result())
+    expect(live()).toEqual([])
+    proc.frame(messageStart('wake'))
+
+    expect(live()).toHaveLength(1)
+  })
+
+  it('stops when the session closes, by the user, by the process or with the window, and a timer that runs late says nothing', async () => {
+    const one = await opened(new FakeSender(1), 'bmad-agent-pm')
+    const timer = live()[0]
+    closeSession(one.sender, one.reply.sessionId)
+    expect(timer.cancelled).toBe(true)
+    timer.run()
+    expect(lines(one.sender)).toEqual([])
+
+    const two = await opened(new FakeSender(2), 'bmad-agent-pm')
+    const second = live()[0]
+    two.proc.exit()
+    expect(second.cancelled).toBe(true)
+  })
+
+  it('is 120 seconds, and its real timer never holds the app open', async () => {
+    const { QUIET_MS, defaultSchedule } = await import('./session-voice')
+    expect(QUIET_MS).toBe(120_000)
+
+    const spy = vi.useFakeTimers()
+    try {
+      let ran = 0
+      const cancel = defaultSchedule(() => void (ran += 1), 120_000)
+      spy.advanceTimersByTime(119_999)
+      expect(ran).toBe(0)
+      spy.advanceTimersByTime(1)
+      expect(ran).toBe(1)
+      cancel()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
 describe('close', () => {
   it('pushes session:closed (process-exited) once, last, and lets the agent open afresh', async () => {
     const { sender, proc } = await opened()
@@ -638,10 +881,11 @@ describe('close', () => {
       'session:opened',
       'persona:state',
       'persona:said',
+      'harness:said',
       'session:closed',
       'persona:state'
     ])
-    expect(sender.events[3].payload).toMatchObject({
+    expect(sender.events[4].payload).toMatchObject({
       sessionId: 's1',
       agentId: 'bmad-agent-analyst',
       reason: 'process-exited'
@@ -809,9 +1053,16 @@ describe('persona:state', () => {
     expect(states(sender).map((payload) => payload.state)).toEqual(['work'])
   })
 
-  it('is idle again when the session closes mid-turn', async () => {
+  it('is error when the process exits mid-turn, which is not a thing the user asked for', async () => {
     const { sender, proc } = await opened()
     proc.exit()
+
+    expect(states(sender).map((payload) => payload.state)).toEqual(['work', 'error'])
+  })
+
+  it('is idle when the user closes the session mid-turn', async () => {
+    const { sender, reply } = await opened()
+    closeSession(sender, reply.sessionId)
 
     expect(states(sender).map((payload) => payload.state)).toEqual(['work', 'idle'])
   })
@@ -1040,7 +1291,11 @@ describe('reclaim', () => {
     const reply = (handlers.get(CONVERSATION_GET_CHANNEL) as unknown as (e: { sender: FakeSender }) => ConversationReply)({ sender })
     expect(reply).toMatchObject({
       ok: true,
-      snapshot: { entries: [{ text: 'Hi' }], sessions: [], busy: [] }
+      snapshot: {
+        entries: [{ text: 'Hi' }, { kind: 'sysline', text: 'session ended · the process exited' }],
+        sessions: [],
+        busy: []
+      }
     })
   })
 

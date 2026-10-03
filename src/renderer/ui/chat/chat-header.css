@@ -64,5 +64,25 @@
 .chat-head-state {
   display: flex;
   flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-xl);
   margin-left: auto;
+}
+
+/* The one control: neutral, in the end-session control's own tokens. */
+.chat-close {
+  flex: 0 0 auto;
+  padding: var(--switch-padding);
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--r);
+  background: var(--panel-2);
+  font-family: var(--sans);
+  font-size: var(--fs-control);
+  letter-spacing: var(--track-control);
+  color: var(--dim);
+  cursor: pointer;
+}
+
+.chat-close:hover {
+  color: var(--text);
 }

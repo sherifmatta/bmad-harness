@@ -63,6 +63,14 @@ export type PersonaSaid = {
   at: EpochMs
 }
 
+/**
+ * A line the harness wrote into the conversation in its own voice: a failed
+ * turn, a process that exited, a session that has gone quiet. It belongs to no
+ * persona, has no portrait or name, and is kept with the transcript under `id`,
+ * so a window that reloads finds it where it fell.
+ */
+export type HarnessSaid = { sessionId?: SessionId; id: string; text: string; at: EpochMs }
+
 /** A persona's aggregated state changed. Keyed by `agentId`, never by name. */
 export type PersonaStateChanged = { agentId: AgentId; state: PersonaState; at: EpochMs }
 
@@ -142,7 +150,7 @@ export type RunFailed = {
   at: EpochMs
 }
 
-/** The fourteen events out, by name. */
+/** The fifteen events out, by name. */
 export type ContractEvents = {
   'session:opened': EventSpec<'main', 'once per session', SessionOpened>
   'session:awaiting-turn': EventSpec<
@@ -152,6 +160,7 @@ export type ContractEvents = {
   >
   'session:closed': EventSpec<'main', 'once per session, last', SessionClosed>
   'persona:said': EventSpec<'main', 'many per turn, in order', PersonaSaid>
+  'harness:said': EventSpec<'main', 'once per line the harness writes, in order', HarnessSaid>
   'persona:state': EventSpec<
     'main',
     "once per change of a persona's aggregated state",

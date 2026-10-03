@@ -580,14 +580,14 @@ describe('messages waiting on a session that is lost', () => {
     expect(last().entries).toMatchObject([{ text: 'two' }])
   })
 
-  it('are dropped with their entries on session:closed, and never sent to a later session', async () => {
+  it('are dropped with their entries when the user closes the session, and never sent to a later session', async () => {
     const { conversation, last } = build()
     await connected(conversation)
     conversation.send(john.id, 'stale')
     bridge.push(opened('s7', john.id))
     bridge.push({
       name: 'session:closed',
-      payload: { sessionId: 's7', reason: 'process-exited', at: 3 }
+      payload: { sessionId: 's7', reason: 'closed', at: 3 }
     })
     expect(last().entries).toEqual([])
     bridge.push(opened('s8', john.id))
@@ -596,6 +596,23 @@ describe('messages waiting on a session that is lost', () => {
     expect(bridge.sends).toEqual([])
     conversation.send(john.id, 'fresh')
     expect(bridge.sends).toEqual([['s8', 'fresh']])
+  })
+
+  it('are kept when the process exits on its own, shown as queued, and sent first to the next session', async () => {
+    const { conversation, last } = build()
+    await connected(conversation)
+    conversation.send(john.id, 'kept')
+    bridge.push(opened('s7', john.id))
+    bridge.push({
+      name: 'session:closed',
+      payload: { sessionId: 's7', reason: 'process-exited', at: 3 }
+    })
+    expect(last().entries).toMatchObject([{ kind: 'user', text: 'kept', queuedFor: expect.any(String) }])
+    expect(bridge.sends).toEqual([])
+
+    bridge.push(opened('s8', john.id))
+    bridge.push(awaiting('s8'))
+    expect(bridge.sends).toEqual([['s8', 'kept']])
   })
 })
 

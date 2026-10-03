@@ -36,6 +36,9 @@ function RailHalf({ label, children }: { label: string; children?: ReactNode }):
 /** No session outlives the roster: no orphan header. */
 const NO_ORPHANS: readonly AgentView[] = []
 
+/** No session is open, so no header carries a close control. */
+const NO_LIVE: ReadonlySet<string> = new Set()
+
 /** A shell given no way to close an orphan still shows it. */
 function ignore(): void {}
 
@@ -76,6 +79,8 @@ export function Shell({
   onEndSession,
   orphans = NO_ORPHANS,
   onCloseOrphan,
+  liveSessions = NO_LIVE,
+  onCloseSession,
   composer,
   children
 }: {
@@ -108,6 +113,11 @@ export function Shell({
   orphans?: readonly AgentView[]
   /** Called with the agent's id when an orphan header's close control is activated. */
   onCloseOrphan?: (agentId: string) => void
+  /** The agent ids that have a session open. The current persona's header carries a
+      close control while it is one of them and `onCloseSession` is given. */
+  liveSessions?: ReadonlySet<string>
+  /** Called with the agent's id when the current persona's close control is activated. */
+  onCloseSession?: (agentId: string) => void
   /** The composer for the current persona, rendered in the chat column under the thread. */
   composer?: (agent: AgentView) => ReactNode
   children?: ReactNode
@@ -151,7 +161,16 @@ export function Shell({
             <OrphanHeader key={`orphan-${orphan.id}`} agent={orphan} onClose={onCloseOrphan ?? ignore} />
           ))}
           {current !== null && (
-            <ChatHeader key={current.id} agent={current} state={stateOf(current.id, states)} since={since.get(current.id)} />
+            <ChatHeader key={current.id}
+              agent={current}
+              state={stateOf(current.id, states)}
+              since={since.get(current.id)}
+              onClose={
+                onCloseSession !== undefined && liveSessions.has(current.id)
+                  ? () => onCloseSession(current.id)
+                  : undefined
+              }
+            />
           )}
           <div className="scroll">
             <div className="thread">{children}</div>

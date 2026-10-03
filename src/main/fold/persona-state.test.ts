@@ -29,6 +29,14 @@ const started = (sessionId: string, at?: number): InternalEvent => ({
   name: 'turn:started',
   payload: { sessionId, ...(at === undefined ? {} : { at }) }
 })
+const failed = (sessionId: string, at?: number): InternalEvent => ({
+  name: 'turn:failed',
+  payload: { sessionId, ...(at === undefined ? {} : { at }) }
+})
+const exited = (sessionId: string, agentId: string, at = 30): ContractEvent => ({
+  name: 'session:closed',
+  payload: { sessionId, agentId, reason: 'process-exited', at }
+})
 const runStarted = (sessionId: string, at = 40): ContractEvent => ({
   name: 'run:started',
   payload: { runId: 'r1', sessionId, code: 'CP', at }
@@ -184,8 +192,38 @@ describe('error', () => {
     expect(stateOf(table)).toBe('error')
   })
 
-  it('is not raised by a session that exits mid-turn, since no run event says so', () => {
+  it('is not raised by a session the user closes mid-turn', () => {
     expect(stateOf(fold([opened('s1', A), closed('s1', A)]))).toBe('idle')
+  })
+
+  it('is raised by a chat turn that ended in failure, and shows once the turn is no longer working', () => {
+    let table = fold([opened('s1', A), awaiting('s1'), started('s1'), failed('s1')])
+    expect(stateOf(table)).toBe('work')
+
+    table = fold([awaiting('s1', 60)], table)
+    expect(stateOf(table)).toBe('error')
+    expect(atOf(table)).toBe(60)
+  })
+
+  it('is cleared by the next turn that starts after a failed one', () => {
+    const table = fold([opened('s1', A), failed('s1'), awaiting('s1')])
+    expect(stateOf(table)).toBe('error')
+
+    expect(stateOf(fold([started('s1')], table))).toBe('work')
+    expect(stateOf(fold([started('s1'), awaiting('s1')], table))).toBe('idle')
+  })
+
+  it('is raised by a process that exits on its own, wherever the turn was, and cleared by the next session’s turn', () => {
+    const mid = fold([opened('s1', A), exited('s1', A, 31)])
+    expect(stateOf(mid)).toBe('error')
+    expect(atOf(mid)).toBe(31)
+    expect(stateOf(fold([opened('s1', A), awaiting('s1'), exited('s1', A)]))).toBe('error')
+
+    expect(stateOf(fold([opened('s2', A), awaiting('s2')], mid))).toBe('idle')
+  })
+
+  it('ignores a failure for a session it does not know', () => {
+    expect(fold([failed('nope')])).toBe(EMPTY_PERSONA_TABLE)
   })
 
   it('belongs to the agent whose run it was', () => {

@@ -925,7 +925,10 @@ describe("an orphaned session has one header and one control, and nothing else (
       "src/renderer/ui/chat/use-conversation.ts",
     ]);
     expect(app.match(/conversation\.close\(/g)).toHaveLength(1);
-    expect(app).toMatch(/onCloseOrphan=\{\(agentId\) => \{\s*void conversation\.close\(/);
+    // One handler closes a session, whether it is an orphan's or the current persona's, and only a button calls it.
+    expect(app).toMatch(/const closeSession = \(agentId: string\): void => \{\s*void conversation\.close\(/);
+    expect(app).toMatch(/onCloseOrphan=\{closeSession\}/);
+    expect(app).toMatch(/onCloseSession=\{closeSession\}/);
     expect(hook.match(/bridge\.closeSession\(/g)).toHaveLength(1);
     expect(hook).not.toMatch(/useEffect\([^)]*close\(/);
   });
@@ -1142,7 +1145,7 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
       expect(code.get(HANDOFF)?.match(/\bfunction handoffFor\b/g)).toHaveLength(1);
       expect(
         offenders(MAIN_CODE.filter((path) => path !== BRIDGE && path !== HANDOFF), /\bhandoffFor\b|recordSysline/).map((hit) => hit.split(":")[0]),
-      ).toEqual(["src/main/projections/transcript.ts"]);
+      ).toEqual(["src/main/projections/transcript.ts", "src/main/session-voice.ts"]);
       // The persona's words are never read for a handoff: no fold parses `said` text for a name.
       expect(offenders(MAIN_CODE, /\bpersona:said\b[^\n]*(?:handoff|handed)/)).toEqual([]);
     });

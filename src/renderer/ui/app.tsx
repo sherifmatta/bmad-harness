@@ -121,6 +121,20 @@ export function App(): JSX.Element | null {
     setCurrentId(agentId)
     setComposerFocus((held) => ({ id: agentId, n: held?.id === agentId ? held.n + 1 : 1 }))
   }
+  // Ending one persona's session, an orphan's or the current one's: the close
+  // control goes with the session, so the user's place is the current persona's
+  // composer, as after a decision answer.
+  const closeSession = (agentId: string): void => {
+    void conversation.close(agentId).then((closed) => {
+      const current = currentAgent(displayOrder(groupAgents(snapshot?.agents ?? NO_AGENTS)), currentId)
+      if (closed && current !== null) {
+        setComposerFocus((held) => ({
+          id: current.id,
+          n: held?.id === current.id ? held.n + 1 : 1
+        }))
+      }
+    })
+  }
   const room = roomState(snapshot, installFailure)
   if (room === 'pending') {
     return null
@@ -164,19 +178,9 @@ export function App(): JSX.Element | null {
           })
         }}
         orphans={conversation.orphans}
-        onCloseOrphan={(agentId) => {
-          void conversation.close(agentId).then((closed) => {
-            // The close control goes with the header that held focus, so the user's
-            // place is the current persona's composer, as after a decision answer.
-            const current = currentAgent(displayOrder(groupAgents(snapshot.agents)), currentId)
-            if (closed && current !== null) {
-              setComposerFocus((held) => ({
-                id: current.id,
-                n: held?.id === current.id ? held.n + 1 : 1
-              }))
-            }
-          })
-        }}
+        onCloseOrphan={closeSession}
+        liveSessions={conversation.live}
+        onCloseSession={closeSession}
         composer={(agent) => (
           // Keyed apart from the chat header, which carries the same agent id in the same list.
           <Composer
