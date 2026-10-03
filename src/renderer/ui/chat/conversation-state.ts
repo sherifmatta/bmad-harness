@@ -460,11 +460,16 @@ export function foldEvent(
     case 'persona:state': {
       // Stored as main said it: nothing here decides a state or puts one in place.
       const { agentId, state: personaState, at } = event.payload
+      const stored: ConversationState = {
+        ...state,
+        personas: new Map(state.personas).set(agentId, { state: personaState, at })
+      }
+      // A persona working has a turn in flight, one this window sent or one nobody
+      // sent (a background task finishing wakes the session), so its session is busy
+      // and nothing is sent into it, nor a decision offered over what it is still saying.
+      const sessionId = state.sessions.get(agentId)
       return {
-        state: {
-          ...state,
-          personas: new Map(state.personas).set(agentId, { state: personaState, at })
-        }
+        state: personaState === 'work' && sessionId !== undefined ? withBusy(stored, sessionId, true) : stored
       }
     }
 

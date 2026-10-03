@@ -483,12 +483,36 @@ describe('persona:state', () => {
     expect(state.personas.get('other')).toEqual({ state: 'error', at: 6 })
   })
 
-  it('does not change what the conversation sends or holds busy', () => {
+  it('does not change what the conversation sends or holds busy when the persona has no session', () => {
     const folded = foldEvent(initialConversation, personaState('work', 5), agentOf)
 
     expect(folded.deliver).toBeUndefined()
     expect(folded.state.busy).toBe(initialConversation.busy)
     expect(folded.state.sessions).toBe(initialConversation.sessions)
+  })
+
+  it('holds the persona’s session busy while it is working, for a turn nobody sent: nothing is sent into it and no decision is offered', () => {
+    const idle = fold([
+      { name: 'session:opened', payload: { sessionId: 's1', agentId: mary.id, at: 1 } },
+      { name: 'session:awaiting-turn', payload: { sessionId: 's1', at: 2 } }
+    ])
+    expect(canAnswer(idle, mary.id)).toBe(true)
+
+    const woken = foldEvent(idle, personaState('work', 5), agentOf)
+
+    expect(woken.state.busy.has('s1')).toBe(true)
+    expect(canAnswer(woken.state, mary.id)).toBe(false)
+    // What the user types meanwhile waits, in place, until the turn ends.
+    const typed = send(woken.state, 'later')
+    expect(typed.deliver).toBeUndefined()
+    expect(typed.state.queue.get(mary.id)).toHaveLength(1)
+  })
+
+  it('does not free a busy session when the persona stops working: the turn ending does', () => {
+    const working = fold([{ name: 'session:opened', payload: { sessionId: 's1', agentId: mary.id, at: 1 } }])
+    const next = foldEvent(working, personaState('error', 5), agentOf).state
+
+    expect(next.busy.has('s1')).toBe(true)
   })
 })
 
