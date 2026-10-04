@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { noteOf, runDotState, runLifecycleLine, runStatusText, sectionCount, subjectSections } from './run-status'
+import { noteOf, progressWords, runDotState, runLifecycleLine, runStatusText, sectionCount, subjectSections, subjectWritten } from './run-status'
 import type { RunCardEntry } from './transcript-entry'
 
 const card = (over: Partial<RunCardEntry> = {}): RunCardEntry => ({
@@ -22,6 +22,27 @@ describe('the run card’s words', () => {
     expect(runStatusText(card({ status: 'finished', endedAt: 2_000 }), 2_000 + 5 * 60_000, 1)).toBe('saved · 5m · 1 section')
     expect(runStatusText(card({ status: 'failed', endedAt: 2_000 }), 3_000, 1)).toBe('failed')
     expect(runStatusText(card({ status: 'stopped', endedAt: 2_000 }), 3_000, 1)).toBe('stopped')
+  })
+
+  it('say what a run in flight is doing: writing or revising, with the section by its place among those seen', () => {
+    expect(progressWords({ revising: false })).toBe('writing')
+    expect(progressWords({ revising: false, section: { name: 'Glossary', n: 4 } })).toBe('writing · §4 Glossary')
+    expect(progressWords({ revising: true, section: { name: 'Vision', n: 2 } })).toBe('revising · §2 Vision')
+    expect(progressWords({ revising: true })).toBe('revising')
+    const running = card()
+    expect(runStatusText(running, 5_000, 0, { revising: false, section: { name: 'Vision', n: 2 } })).toBe('writing · §2 Vision')
+    // A card that has ended says what became of it, whatever progress it had.
+    const progress = { revising: true, section: { name: 'Vision', n: 2 } }
+    expect(runStatusText(card({ status: 'finished', endedAt: 2_000 }), 2_500, 2, progress)).toBe('saved · just now · 2 sections')
+    expect(runStatusText(card({ status: 'stopped', endedAt: 2_000 }), 3_000, 1, progress)).toBe('stopped')
+    expect(runStatusText(card({ status: 'failed', endedAt: 2_000 }), 3_000, 1, progress)).toBe('failed')
+  })
+
+  it('name the sections a subject has had confirmed written, as the plan names them', () => {
+    const entry = card({ documents: [{ path: 'prd.md', sections: ['0. Document Purpose', '1. Vision'] }, { path: 'a.md', sections: ['Other'] }] })
+    expect(subjectWritten(entry, 'prd.md')).toEqual(['Document Purpose', 'Vision'])
+    expect(subjectWritten(entry, 'unknown.md')).toEqual([])
+    expect(subjectWritten(entry, undefined)).toEqual([])
   })
 
   it('count the sections of the subject document alone, and none without one', () => {

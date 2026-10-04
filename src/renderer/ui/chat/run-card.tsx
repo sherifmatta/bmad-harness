@@ -6,8 +6,9 @@ import { RunNoteFeed } from '../feed/run-note-feed'
 import { useNow } from '../outputs/use-now'
 import { formatElapsed } from '../status/format-elapsed'
 import { StatusDot } from '../status/status-dot'
-import type { ProseStore } from './prose-store'
-import { noteOf, runDotState, runStatusText, subjectSections } from './run-status'
+import { pendingSections } from '../../../shared/section-plan'
+import type { ProseStore, RunProgress } from './prose-store'
+import { noteOf, runDotState, runStatusText, subjectSections, subjectWritten } from './run-status'
 import type { RunCardEntry } from './transcript-entry'
 
 /** How often the elapsed counter re-reads the clock: it writes whole seconds. */
@@ -33,6 +34,15 @@ const ELAPSED_TICK_MS = 1000
  * with the largest single `Write` so far), and the foot names every other file
  * the run wrote, never drawing it. The saved count is the subject's sections.
  *
+ * **Progress against a plan** (Story 3.3). The head says which section is being
+ * written (`writing · §N <Name>`), read from the streamed text by the prose store
+ * and re-rendered only when those words change. The foot names the sections not
+ * yet written, with a count: the plan's names (what the skill's template
+ * predicted, and what a concern scan pulled in), then headings seen in the text
+ * that the plan does not hold. A name leaves the foot only when a confirmed
+ * commit of the subject names it, so one commit clears every name it lists in one
+ * render. There is no total, no bar and no per-section tick.
+ *
  * The card is `aria-busy` while its run is in flight. Its lifecycle is
  * announced by the window's one live region, not here, and prose never is.
  */
@@ -46,15 +56,21 @@ export function RunCard({ entry, prose }: { entry: RunCardEntry; prose: ProseSto
   const path = useSyncExternalStore(subscribe, pathOf, pathOf)
   const hasText = useSyncExternalStore(subscribe, textHeld, textHeld)
   const paths = useSyncExternalStore(subscribe, pathsOf, pathsOf)
+  const progressOf = (): RunProgress => prose.progress(runId)
+  const progress = useSyncExternalStore(subscribe, progressOf, progressOf)
+  const seenOf = (): readonly string[] => prose.seen(runId)
+  const seen = useSyncExternalStore(subscribe, seenOf, seenOf)
   const others = paths.filter((each) => each !== path)
   const sections = subjectSections(entry, path)
+  // Only a card in flight has sections still to write; a finished one has its count in the head.
+  const pending = running ? pendingSections(entry.plan ?? [], subjectWritten(entry, path), seen) : []
 
   return (
     <section className="run-card" aria-busy={running ? true : undefined}>
       <div className="run-card-head">
         <StatusDot state={runDotState(entry)} />
         <span className="run-card-path">{path}</span>
-        <RunStatus entry={entry} sections={sections} />
+        <RunStatus entry={entry} sections={sections} progress={progress} />
         <RunElapsed entry={entry} />
       </div>
       <div className="run-card-body">
@@ -66,14 +82,28 @@ export function RunCard({ entry, prose }: { entry: RunCardEntry; prose: ProseSto
           </div>
         </div>
       </div>
-      {others.length > 0 && (
+      {(pending.length > 0 || others.length > 0) && (
         <div className="run-card-foot">
-          <span>also written</span>
-          {others.map((other) => (
-            <span className="run-card-foot-path" key={other}>
-              {other}
-            </span>
-          ))}
+          {pending.length > 0 && (
+            <>
+              <span className="run-card-foot-count">{pending.length} to write</span>
+              {pending.map((name) => (
+                <span className="run-card-foot-name" key={name}>
+                  {name}
+                </span>
+              ))}
+            </>
+          )}
+          {others.length > 0 && (
+            <>
+              <span>also written</span>
+              {others.map((other) => (
+                <span className="run-card-foot-path" key={other}>
+                  {other}
+                </span>
+              ))}
+            </>
+          )}
         </div>
       )}
     </section>
@@ -81,10 +111,10 @@ export function RunCard({ entry, prose }: { entry: RunCardEntry; prose: ProseSto
 }
 
 /** The status string, counting the subject's sections; only a saved card reads the clock, for its age. */
-function RunStatus({ entry, sections }: { entry: RunCardEntry; sections: number }): JSX.Element {
+function RunStatus({ entry, sections, progress }: { entry: RunCardEntry; sections: number; progress: RunProgress }): JSX.Element {
   const className = `run-card-status run-card-status--${entry.status}`
   if (entry.status !== 'finished') {
-    return <span className={className}>{runStatusText(entry, entry.endedAt ?? entry.at, sections)}</span>
+    return <span className={className}>{runStatusText(entry, entry.endedAt ?? entry.at, sections, progress)}</span>
   }
   return <SavedStatus entry={entry} sections={sections} className={className} />
 }

@@ -7,9 +7,12 @@ import type { ContractEvent } from '../src/shared/events'
 import { projectRelative } from '../src/main/fold/route-frame'
 import { subjectOf } from '../src/main/fold/run-card'
 import { sectionHeadings } from '../src/main/fold/section-headings'
+import { readPlan } from '../src/main/sources/skill/read-plan'
+import { nameKey, pendingSections } from '../src/shared/section-plan'
 import { foldEvent, initialConversation, runCardOf } from '../src/renderer/ui/chat/conversation-state'
 import type { ConversationState } from '../src/renderer/ui/chat/conversation-state'
 import { createProseStore } from '../src/renderer/ui/chat/prose-store'
+import { progressWords, runStatusText, subjectSections, subjectWritten } from '../src/renderer/ui/chat/run-status'
 
 /**
  * Story 3.12's beat, replayed: `multi-file-sonnet`, a real session that writes
@@ -97,8 +100,10 @@ async function replay(): Promise<Replay> {
       newRunId: () => 'run-1',
       agentName: () => 'John',
       writeDiagnostic: () => {},
+      // A skill entry, as John's button is: main reads the skill's own template for the plan at dispatch.
       menuEntryFor: (_window, _agent, code) =>
-        code === 'MF' ? { code: 'MF', description: 'Write the PRD', action: { kind: 'prompt', prompt: meta.turns[0].text } } : undefined,
+        code === 'MF' ? { code: 'MF', description: 'Write the PRD', action: { kind: 'skill', skill: 'bmad-prd' } } : undefined,
+      readPlan: (_root, skill) => readPlan(resolve(import.meta.dirname, '..'), skill),
       readText: () => Promise.resolve(undefined),
       schedule: () => () => {},
       spawn: (options) => {
@@ -238,5 +243,49 @@ describe('multi-file-sonnet, replayed at full rate as a dispatched run', () => {
     }
     expect(calls).toBeGreaterThan(1)
     expect(store.get(result.runId)?.text).toBe(prd)
+  })
+
+  it('shows the head and the foot at each step: the plan to begin with, the section being written, and names leaving only on a commit', () => {
+    const store = createProseStore({ raf: (run) => run() })
+    let state = initialConversation
+    const steps: { name: string; head: string; foot: string[] }[] = []
+    for (const event of result.told) {
+      state = windowFold([event], store, state).state
+      const card = runCardOf(state, result.runId)
+      if (card === undefined) continue
+      const path = store.get(result.runId)?.path
+      steps.push({
+        name: event.name,
+        head: runStatusText(card, 1_000, subjectSections(card, path), store.progress(result.runId)),
+        foot: pendingSections(card.plan ?? [], subjectWritten(card, path), store.seen(result.runId))
+      })
+    }
+
+    // Born with the ten sections of bmad-prd's template, all to write.
+    expect(steps[0].name).toBe('run:started')
+    expect(steps[0].head).toBe('writing')
+    expect(steps[0].foot).toHaveLength(10)
+    expect(steps[0].foot[0]).toBe('Document Purpose')
+
+    // The head names a section once the subject's text shows one, by its place among those seen.
+    const writing = steps.map(({ head }) => head).filter((head) => head.startsWith('writing · §'))
+    expect(writing.length).toBeGreaterThan(0)
+    expect(steps.some(({ head }) => head.startsWith('revising · §'))).toBe(true)
+
+    // Streaming alone never takes a planned name out of the foot: only a commit does, all of its names at once.
+    const planned = new Set(steps[0].foot.map(nameKey))
+    for (let at = 1; at < steps.length; at += 1) {
+      const gone = steps[at - 1].foot.filter((name) => planned.has(nameKey(name)) && !steps[at].foot.map(nameKey).includes(nameKey(name)))
+      if (steps[at].name !== 'doc:committed') expect(gone, `${steps[at].name} at step ${at}`).toEqual([])
+    }
+
+    // No step, head or foot, carries a denominator (a section may be called `Out of Scope`: that is its name).
+    for (const { head, foot } of steps) expect([head, ...foot].join(' ')).not.toMatch(/\bof \d|\/\s*\d/)
+    expect(progressWords(store.progress(result.runId))).not.toMatch(/\bof \d/)
+
+    // The saved card reads as it did before this story: the subject's count, and no foot of sections to write.
+    const saved = steps.find(({ name }) => name === 'run:finished')
+    expect(saved?.head).toBe(`saved · just now · ${sectionHeadings(prd).length} sections`)
+    expect(sectionHeadings(prd).length).toBeGreaterThan(1)
   })
 })

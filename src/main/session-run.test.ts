@@ -1,10 +1,11 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConversationReply, ConversationSnapshot } from '../shared/conversation'
 import type { ContractEvent, EventName, EventPayload } from '../shared/events'
 import type { ArtifactObservation } from '../shared/rail'
+import type { TemplatePlan } from '../shared/section-plan'
 import { createTranscriptRegistry } from './projections/transcript'
 import type { SessionBridge } from './session-bridge'
 import type { ResolvedMenuEntry } from './sources/install/schema'
@@ -71,6 +72,12 @@ let timers: { at: number; run: () => void; cancelled: boolean }[]
 let files: Map<string, string>
 let bridge: SessionBridge
 let transcriptEntries: () => unknown[]
+/** What the plan read answers, by skill: a plan, nothing, or a failure. */
+let plans: Map<string, TemplatePlan | 'fails'>
+/** The skills whose plan was read, in order, and the project each was read for. */
+let planReads: [string, string][]
+/** How many turns had been written into sessions when each plan was read. */
+let writesWhenPlanRead: number[]
 
 beforeEach(() => {
   handlers.clear()
@@ -83,6 +90,9 @@ beforeEach(() => {
   writeOk = true
   timers = []
   files = new Map()
+  plans = new Map()
+  planReads = []
+  writesWhenPlanRead = []
   const transcripts = createTranscriptRegistry({ userDataPath: () => userData, schedule: () => () => {}, log: () => {} })
   transcriptEntries = () => [...transcripts.forProject(ROOT).entries()]
   bridge = registerSessionBridge({
@@ -95,6 +105,12 @@ beforeEach(() => {
     writeDiagnostic: () => {},
     menuEntryFor: (_window, agentId, code) => (agentId === A || agentId === B ? MENU[code] : undefined),
     readText: (path) => Promise.resolve(files.get(path)),
+    readPlan: (projectRoot, skill) => {
+      planReads.push([projectRoot, skill])
+      writesWhenPlanRead.push(writes.length)
+      const plan = plans.get(skill)
+      return plan === 'fails' ? Promise.reject(new Error('unreadable')) : Promise.resolve(plan)
+    },
     schedule: (run, ms) => {
       const timer = { at: clock + ms, run, cancelled: false }
       timers.push(timer)
@@ -442,6 +458,135 @@ describe('the end of a run', () => {
     const names = sender.names.filter((name) => name === 'doc:prose' || name === 'run:finished')
     expect(names).toEqual(['doc:prose', 'run:finished'])
     expect(timers.every((timer) => timer.cancelled)).toBe(true)
+  })
+})
+
+describe('the section plan, read at dispatch', () => {
+  const TEMPLATE: TemplatePlan = {
+    spine: ['Document Purpose', 'Vision', 'Target User'],
+    menu: ['Labour Relations Posture', 'Business Case/Pricing Posture', 'Why Now']
+  }
+  const PATH = `${ROOT}/_bmad/prds/x/.memlog.md`
+
+  it('puts the skill’s predicted sections on run:started, and in the card a reloading window is handed', async () => {
+    plans.set('bmad-prd', TEMPLATE)
+    const sender = await idle()
+    await dispatch(sender, 'CP')
+
+    expect(planReads).toEqual([[ROOT, 'bmad-prd']])
+    expect(sender.of('run:started')[0].plan).toEqual(['Document Purpose', 'Vision', 'Target User'])
+    expect(snapshot(sender).runs[0].plan).toEqual(['Document Purpose', 'Vision', 'Target User'])
+  })
+
+  it('reads the skill’s own template from the project by default, with no readPlan override', async () => {
+    const project = mkdtempSync(join(tmpdir(), 'harness-plan-project-'))
+    try {
+      const assets = join(project, '.claude', 'skills', 'bmad-prd', 'assets')
+      mkdirSync(assets, { recursive: true })
+      writeFileSync(join(assets, 'prd-template.md'), '## Scaffolding\n\n```markdown\n## 0. Purpose\n## 1. Vision\n```\n')
+      handlers.clear()
+      registerSessionBridge({
+        transcripts: createTranscriptRegistry({ userDataPath: () => userData, schedule: () => () => {}, log: () => {} }),
+        projectPathFor: () => project,
+        now: () => clock,
+        newSessionId: () => 's1',
+        newRunId: () => 'r1',
+        agentName: () => 'John',
+        writeDiagnostic: () => {},
+        menuEntryFor: (_window, _agent, code) => MENU[code],
+        readText: () => Promise.resolve(undefined),
+        schedule: () => () => {},
+        spawn: (options: SpawnSessionOptions) => {
+          feed = options.onFrame
+          return Promise.resolve<SpawnOutcome>({ ok: true, session: { write: () => Promise.resolve(true), kill: () => {} } })
+        }
+      })
+      const sender = await idle()
+      await dispatch(sender, 'CP')
+      expect(sender.of('run:started')[0].plan).toEqual(['Purpose', 'Vision'])
+    } finally {
+      rmSync(project, { recursive: true, force: true })
+    }
+  })
+
+  it('reads the plan before the turn is written, so the run starts with it', async () => {
+    plans.set('bmad-prd', TEMPLATE)
+    const sender = await idle()
+    const written = writes.length
+    await dispatch(sender, 'CP')
+    expect(writesWhenPlanRead).toEqual([written])
+    expect(writes).toHaveLength(written + 1)
+  })
+
+  it('carries no plan for a skill with no template, for a plan that cannot be read, and for a prompt entry, and the run still starts', async () => {
+    const sender = await idle()
+    await dispatch(sender, 'CP')
+    expect(sender.of('run:started')[0]).not.toHaveProperty('plan')
+    expect(snapshot(sender).runs[0]).not.toHaveProperty('plan')
+    feed(result())
+
+    plans.set('bmad-prd', 'fails')
+    await expect(dispatch(sender, 'CP')).resolves.toEqual({ ok: true, runId: 'r2' })
+    expect(sender.of('run:started')[1]).not.toHaveProperty('plan')
+    feed(result())
+
+    plans.set('bmad-prd', TEMPLATE)
+    await dispatch(sender, 'VP')
+    expect(sender.of('run:started')[2]).not.toHaveProperty('plan')
+    // Only a skill reads a template.
+    expect(planReads.map(([, skill]) => skill)).toEqual(['bmad-prd', 'bmad-prd'])
+  })
+
+  it('carries no plan for a template that names no sections', async () => {
+    plans.set('bmad-prd', { spine: [], menu: ['Why Now'] })
+    const sender = await idle()
+    await dispatch(sender, 'CP')
+    expect(sender.of('run:started')[0]).not.toHaveProperty('plan')
+  })
+
+  it('lets one press start one turn: a second dispatch while the plan is being read is refused busy', async () => {
+    plans.set('bmad-prd', TEMPLATE)
+    const sender = await idle()
+    const [first, second] = await Promise.all([dispatch(sender, 'CP'), dispatch(sender, 'CP')])
+    expect([first, second].filter((reply) => (reply as { ok: boolean }).ok)).toHaveLength(1)
+    expect(sender.of('run:started')).toHaveLength(1)
+    expect(writes.filter((text) => text === '/bmad-prd')).toHaveLength(1)
+  })
+
+  it('tells the Adapt-In sections a concern-scan note names as pulled, in menu order, once, and none for other notes', async () => {
+    plans.set('bmad-prd', TEMPLATE)
+    const sender = await idle()
+    files.set(PATH, '---\ntopic: x\n---\n\n')
+    await bridge.observeArtifact(sender, ROOT, memlog('artifact:found'))
+    await dispatch(sender, 'CP')
+    const append = async (line: string): Promise<void> => {
+      files.set(PATH, `${files.get(PATH) ?? ''}${line}\n`)
+      await bridge.observeArtifact(sender, ROOT, memlog('artifact:written'))
+    }
+    await append('- (event by john) Concern-Scan surfaced: labour relations posture and Why Now, and Something Else')
+    await append('- (event by john) concern scan surfaced: Why Now again')
+    await append('- (decision by john) we will mention Business Case/Pricing Posture')
+    await append('- (event by john) concern scan: nothing from the menu')
+
+    expect(sender.of('run:note').map((note) => note.pulled)).toEqual([
+      ['Labour Relations Posture', 'Why Now'],
+      undefined,
+      undefined,
+      undefined
+    ])
+    expect(sender.of('run:note')[1]).not.toHaveProperty('pulled')
+    expect(snapshot(sender).runs[0].plan).toEqual(['Document Purpose', 'Vision', 'Target User', 'Labour Relations Posture', 'Why Now'])
+  })
+
+  it('pulls nothing for a run with no template', async () => {
+    const sender = await idle()
+    files.set(PATH, '---\n---\n')
+    await bridge.observeArtifact(sender, ROOT, memlog('artifact:found'))
+    await dispatch(sender, 'CP')
+    files.set(PATH, '---\n---\n- concern scan surfaced: Why Now\n')
+    await bridge.observeArtifact(sender, ROOT, memlog('artifact:written'))
+    expect(sender.of('run:note')[0]).not.toHaveProperty('pulled')
+    expect(snapshot(sender).runs[0]).not.toHaveProperty('plan')
   })
 })
 

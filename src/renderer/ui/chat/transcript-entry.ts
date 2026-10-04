@@ -63,6 +63,12 @@ export type RunCardEntry = {
   endedAt?: number
   error?: HarnessError
   notes: readonly RunCardNote[]
+  /**
+   * The section names the run is predicted to write, in order: what the skill's
+   * template gave at dispatch and the Adapt-In names its notes pulled in. Absent
+   * when the skill had no readable template.
+   */
+  plan?: readonly string[]
   /** The sections of each document the run confirmed a write to, by path. Its text is the prose store's. */
   documents: readonly RunCardEntryDocument[]
 }

@@ -103,6 +103,11 @@ export type RunCardSnapshot = {
   agentId?: AgentId
   /** The menu code that started the run. */
   code: string
+  /**
+   * The section names the run is predicted to write: `run:started.plan`, then
+   * the Adapt-In names its notes pulled in, each once. Absent with no template.
+   */
+  plan?: string[]
   /** `run:started.at`: what elapsed counts from. */
   startedAt: EpochMs
   status: RunStatus

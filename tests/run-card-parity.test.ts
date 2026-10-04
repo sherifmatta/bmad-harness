@@ -36,7 +36,7 @@ function mainCard(events: ContractEvent[], runId: string): Card | undefined {
 function windowCard(state: ConversationState, prose: ProseStore, runId: string): Card | undefined {
   const entry = state.entries.find((each) => each.kind === 'run' && each.runId === runId)
   if (entry === undefined || entry.kind !== 'run') return undefined
-  const { at, notes, documents, sessionId, status } = entry
+  const { at, notes, documents, sessionId, status, plan } = entry
   return {
     runId: entry.runId,
     sessionId,
@@ -46,6 +46,7 @@ function windowCard(state: ConversationState, prose: ProseStore, runId: string):
     ...(entry.endedAt === undefined ? {} : { endedAt: entry.endedAt }),
     ...(entry.error === undefined ? {} : { error: entry.error }),
     notes: [...notes],
+    ...(plan === undefined ? {} : { plan: [...plan] }),
     documents: prose.documents(runId).map((document) => ({
       ...document,
       sections: [...(documents.find((each) => each.path === document.path)?.sections ?? [])]
@@ -71,7 +72,14 @@ function fold(events: ContractEvent[], from: ConversationState = initialConversa
 
 const R = { runId: 'r1', sessionId: 's1' }
 const started: ContractEvent = { name: 'run:started', payload: { ...R, agentId: 'bmad-agent-pm', code: 'CP', at: 100 } }
-const note = (text: string, at: number): ContractEvent => ({ name: 'run:note', payload: { ...R, text, at } })
+const startedWithPlan: ContractEvent = {
+  name: 'run:started',
+  payload: { ...R, agentId: 'bmad-agent-pm', code: 'CP', plan: ['Vision', 'Scope', 'Risks'], at: 100 }
+}
+const note = (text: string, at: number, pulled?: string[]): ContractEvent => ({
+  name: 'run:note',
+  payload: { ...R, text, ...(pulled === undefined ? {} : { pulled }), at }
+})
 const prose = (callId: string, path: string, text: string): ContractEvent => ({
   name: 'doc:prose',
   payload: { ...R, callId, path, text, at: 110 }
@@ -131,6 +139,19 @@ const SEQUENCES: [string, ContractEvent[]][] = [
       rejected('p2'),
       committed('e3', ['One', 'Two'], 'addendum.md', '## One\n## Two'),
       { name: 'run:finished', payload: { ...R, at: 140 } }
+    ]
+  ],
+  [
+    'a plan, a concern scan that pulls two names (one the plan holds), a later one that pulls the same, and the writes',
+    [
+      startedWithPlan,
+      note('- (event) concern scan surfaced: Why Now and vision', 101, ['Why Now', 'vision']),
+      note('- (event) concern scan surfaced: Why Now', 102, ['Why Now']),
+      note('- (event) plain', 103),
+      prose('c1', 'prd.md', '## Vision\nwords'),
+      committed('c1', ['Vision']),
+      { name: 'run:finished', payload: { ...R, at: 140 } },
+      note('- (event) after the end', 141, ['Late'])
     ]
   ],
   ['a stop', [started, { name: 'run:stopped', payload: { ...R, at: 160 } }]],

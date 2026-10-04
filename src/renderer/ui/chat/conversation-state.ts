@@ -1,6 +1,7 @@
 import type { ConversationSnapshot, RunCardSnapshot, SyslineRecord } from '../../../shared/conversation'
 import type { ContractEvent, PersonaState } from '../../../shared/events'
 import type { AgentView } from '../../../shared/install'
+import { withPulled } from '../../../shared/section-plan'
 import type { RunCardEntry, TranscriptEntry, UserEntry } from './transcript-entry'
 
 /** A message typed for a persona, waiting for its turn to come: the entry that shows it, and its words. */
@@ -306,14 +307,15 @@ function runEntryOf(card: RunCardSnapshot): RunCardEntry {
     ...(card.endedAt === undefined ? {} : { endedAt: card.endedAt }),
     ...(card.error === undefined ? {} : { error: card.error }),
     notes: card.notes,
+    ...(card.plan === undefined ? {} : { plan: card.plan }),
     documents: card.documents.map(({ path, sections }) => ({ path, sections }))
   }
 }
 
 /**
  * One run event folded into its card, as main folds it (`fold/run-card.ts`):
- * notes in order, a confirmed write's sections set on its path, and one
- * terminal event. A card that has ended takes nothing more. `doc:prose` and a
+ * notes in order, the plan names a note pulled, a confirmed write's sections
+ * set on its path, and one terminal event. A card that has ended takes nothing more. `doc:prose` and a
  * commit's text are not folded here: they are the prose store's.
  */
 function foldRunEntry(entry: RunCardEntry, event: ContractEvent): RunCardEntry {
@@ -321,8 +323,13 @@ function foldRunEntry(entry: RunCardEntry, event: ContractEvent): RunCardEntry {
     return entry
   }
   switch (event.name) {
-    case 'run:note':
-      return { ...entry, notes: [...entry.notes, { text: event.payload.text, at: event.payload.at }] }
+    case 'run:note': {
+      const notes = [...entry.notes, { text: event.payload.text, at: event.payload.at }]
+      const { pulled } = event.payload
+      return pulled === undefined || pulled.length === 0
+        ? { ...entry, notes }
+        : { ...entry, notes, plan: withPulled(entry.plan, pulled) }
+    }
     case 'doc:committed': {
       if (!event.payload.ok) {
         return entry
@@ -546,7 +553,7 @@ export function foldEvent(
 
     case 'run:started': {
       // The run's card, born in time order; its session has a turn in flight.
-      const { runId, sessionId, agentId, at } = event.payload
+      const { runId, sessionId, agentId, plan, at } = event.payload
       if (runCardOf(state, runId) !== undefined) {
         return { state }
       }
@@ -559,6 +566,7 @@ export function foldEvent(
         ...(agentId === undefined ? {} : { agentId }),
         status: 'running',
         notes: [],
+        ...(plan === undefined ? {} : { plan: [...plan] }),
         documents: []
       }
       return { state: withBusy({ ...state, entries: [...state.entries, card] }, sessionId, true) }

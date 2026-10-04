@@ -102,7 +102,7 @@ describe('the events out', () => {
     const source = withoutComments(read('src/shared/events.ts'))
     const start = source.indexOf('export type RunNote = {')
     const fields = [...source.slice(start, source.indexOf('\n}', start)).matchAll(/^ {2}(\w+)\??:/gm)].map(([, field]) => field)
-    expect(fields).toEqual(['runId', 'sessionId', 'text', 'at'])
+    expect(fields).toEqual(['runId', 'sessionId', 'text', 'pulled', 'at'])
   })
 
   it('reuse the rail snapshot rather than redefine it', () => {

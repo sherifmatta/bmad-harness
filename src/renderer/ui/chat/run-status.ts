@@ -1,8 +1,11 @@
-import type { PersonaState } from '../persona/portrait'
+import { sectionName } from '../../../shared/section-plan'
+import type { PersonaState } from '../../../shared/events'
 import { formatAge } from '../outputs/format-age'
 import type { RunNote } from '../feed/memlog'
 import { parseMemlog } from '../feed/memlog'
 import { formatTurnTime } from './format-turn-time'
+import { NO_PROGRESS } from './prose-store'
+import type { RunProgress } from './prose-store'
 import type { RunCardEntry } from './transcript-entry'
 
 /**
@@ -16,20 +19,45 @@ export function sectionCount(count: number): string {
   return `${count} ${count === 1 ? 'section' : 'sections'}`
 }
 
+/**
+ * The names a card's subject has had confirmed written: those of its last
+ * confirmed write, as the plan names them. None before one, or with no subject.
+ */
+export function subjectWritten(entry: RunCardEntry, path: string | undefined): readonly string[] {
+  return (entry.documents.find((document) => document.path === path)?.sections ?? []).map(sectionName)
+}
+
 /** How many sections the card's subject at `path` has: none before its first confirmed write, or with no subject. */
 export function subjectSections(entry: RunCardEntry, path: string | undefined): number {
   return entry.documents.find((document) => document.path === path)?.sections.length ?? 0
 }
 
 /**
- * The head's status string: `writing` while the run is in flight, then
- * `saved · <age> · N sections` with N the subject's, `failed` or `stopped`. No
- * denominator, and no word that stands in for progress.
+ * What the head says of a run in flight: `writing`, then `writing · §N <Name>`
+ * once the text shows a section, and `revising · §N <Name>` (or `revising`)
+ * from an applied `Edit`. `N` is the section's place among those seen, never a
+ * share of a total: there is no total.
  */
-export function runStatusText(entry: RunCardEntry, now: number, sections: number): string {
+export function progressWords(progress: RunProgress): string {
+  const verb = progress.revising ? 'revising' : 'writing'
+  return progress.section === undefined ? verb : `${verb} · §${progress.section.n} ${progress.section.name}`
+}
+
+/**
+ * The head's status string: what the run is doing while it is in flight (see
+ * `progressWords`), then `saved · <age> · N sections` with N the subject's,
+ * `failed` or `stopped`. No denominator, and no word that stands in for
+ * progress.
+ */
+export function runStatusText(
+  entry: RunCardEntry,
+  now: number,
+  sections: number,
+  progress: RunProgress = NO_PROGRESS
+): string {
   switch (entry.status) {
     case 'running':
-      return 'writing'
+      return progressWords(progress)
     case 'finished':
       return `saved · ${formatAge(entry.endedAt ?? now, now)} · ${sectionCount(sections)}`
     case 'failed':

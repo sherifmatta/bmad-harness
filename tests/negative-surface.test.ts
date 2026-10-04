@@ -1465,3 +1465,52 @@ describe("the pinned running card is a place, not a control (Story 3.14)", () =>
     expect(transcript.match(/<RunCard\b/g)).toHaveLength(1);
   });
 });
+
+describe("progress against a plan has no denominator, bar, stagger or tick-through (Story 3.3)", () => {
+  const CARD_SOURCES = [
+    "src/renderer/ui/chat/run-card.tsx",
+    "src/renderer/ui/chat/run-status.ts",
+    "src/renderer/ui/chat/prose-store.ts",
+    "src/shared/section-plan.ts",
+  ];
+  const CARD_CSS = "src/renderer/ui/chat/run-card.css";
+
+  it("reads the sources it claims to sweep", () => {
+    for (const path of [...CARD_SOURCES, CARD_CSS]) {
+      expect(code.get(path)?.length ?? 0, path).toBeGreaterThan(200);
+    }
+  });
+
+  it("names no denominator: no `of M`, `/ M` or total in any word the head, foot or announcement is made of", () => {
+    // Words are string and template literals and JSX text; `for … of` is code, not words.
+    const WORDS = /(["'`])(?:(?!\1)[^\n\\]|\\.)*\1|>[^<>{}\n]+</g;
+    const spoken = CARD_SOURCES.flatMap((path) =>
+      [...(code.get(path) ?? "").matchAll(WORDS)].map(([text]) => `${path}: ${text}`),
+    );
+    expect(spoken.filter((text) => /\bof\b|\/\s*\$\{|\/\s*\d|\btotal\b|\bdenominator\b/i.test(text))).toEqual([]);
+    expect(offenders(CARD_SOURCES, /\.length\s*\}?\s*(?:sections|\/)|\/\s*(?:plan|total)\b/)).toEqual([]);
+  });
+
+  it("draws no bar, meter or percentage for it", () => {
+    expect(offenders(CARD_SOURCES, /<progress\b|<meter\b|role=["']progressbar|aria-valuenow|aria-valuemax|\bpercent|%\s*[`'"]/i)).toEqual([]);
+    expect(offenders([CARD_CSS], /(?<![-\w])width\s*:\s*(?:calc|\d)|progress|meter|%/)).toEqual([]);
+  });
+
+  it("staggers, delays and ticks through nothing: no timer, frame or delay in the card's progress code", () => {
+    expect(offenders(CARD_SOURCES, /\bsetTimeout\b|\bsetInterval\b|\bqueueMicrotask\b|\bstagger\b|\bdelay\b|\brequestAnimationFrame\b|\.animate\(/i)).toEqual([]);
+    expect(offenders([CARD_CSS], /animation-delay|transition|stagger/)).toEqual([]);
+  });
+
+  it("styles the foot's list with no motion and no literal dimension", () => {
+    const css = code.get(CARD_CSS) ?? "";
+    const rules = [...css.matchAll(/\.run-card-foot[^{]*\{[^}]*\}/g)].map(([text]) => text).join("\n");
+    expect(rules).toContain(".run-card-foot-count");
+    expect(rules).not.toMatch(/animation|transition|@keyframes|#[0-9a-f]{3,8}\b|\d+px|rgba?\(/i);
+  });
+
+  it("adds no animation to the card beyond the caret's blink", () => {
+    const css = code.get(CARD_CSS) ?? "";
+    expect(css.match(/animation\s*:/g)).toHaveLength(1);
+    expect(css).toMatch(/\.run-card-caret\s*\{[^}]*animation\s*:/);
+  });
+});

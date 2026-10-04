@@ -32,8 +32,10 @@ import type { TranscriptRegistry } from './projections/transcript'
 import { createHandoffComposer } from './session-handoff'
 import { NOT_FOUND, createSessionRegistry } from './session-registry'
 import type { Entry, OpenReply, Service, SessionRegistry } from './session-registry'
+import type { TemplatePlan } from '../shared/section-plan'
 import type { ResolvedMenuEntry } from './sources/install/schema'
 import { readText } from './sources/project/read-text'
+import { readPlan } from './sources/skill/read-plan'
 import { canonicalPath } from './sources/session/canonical-path'
 import { isAgentId, spawnSession } from './sources/session/session-process'
 import type { SpawnOutcome, SpawnSessionOptions } from './sources/session/session-process'
@@ -99,6 +101,12 @@ export type SessionBridgeDeps = {
   newRunId?: () => RunId
   /** A memlog's text, read when the watcher saw it change; the real one reads the disk. */
   readText?: (absolutePath: string) => Promise<string | undefined>
+  /**
+   * The sections a skill's own template predicts, read once at dispatch for the
+   * project and skill; `undefined` when there is none to read. The real one
+   * reads the template under the project's `.claude/skills/<skill>/assets/`.
+   */
+  readPlan?: (projectRoot: string, skill: string) => Promise<TemplatePlan | undefined>
 }
 
 /** What the session side offers the rest of main: the rail's watcher tells it what it saw. */
@@ -117,6 +125,7 @@ type Context = {
   handoffFor: ReturnType<typeof createHandoffComposer>
   menuEntryFor: NonNullable<SessionBridgeDeps['menuEntryFor']>
   newRunId: () => RunId
+  readPlan: NonNullable<SessionBridgeDeps['readPlan']>
 }
 
 function openSession(ctx: Context) {
@@ -234,22 +243,45 @@ function dispatchMenu(ctx: Context) {
     if (!target.ok) {
       return target.error
     }
-    const { service, entry, arg: chosen } = target
-    const resolved = ctx.menuEntryFor(sender.id, entry.agentId, chosen)
+    const chosen = target.arg
+    const resolved = ctx.menuEntryFor(sender.id, target.entry.agentId, chosen)
     if (resolved === undefined) {
       return failure({
         code: 'menu/unknown-entry',
         message: 'menu · this persona has no such entry'
       })
     }
+    // A skill's plan is read before the turn is written, so `run:started` carries
+    // it. The read can take a moment and the session is not yet busy: it is
+    // checked again after, so two presses cannot both start a turn.
+    let plan: TemplatePlan | undefined
+    let writable = target
+    if (resolved.action.kind === 'skill') {
+      plan = await readPlanOf(ctx, target.entry.projectRoot, resolved.action.skill)
+      const again = writableSession(ctx, sender, sessionId, code)
+      if (!again.ok) {
+        return again.error
+      }
+      writable = again
+    }
+    const { service, entry } = writable
     const reply = await writeTurn(entry, turnOf(resolved))
     if (!reply.ok) {
       return reply
     }
     const runId = ctx.newRunId()
-    ctx.registry.startRun(sender, service, entry, runId, resolved.code)
+    ctx.registry.startRun(sender, service, entry, runId, resolved.code, plan)
     ctx.registry.watch(sender, service, entry)
     return { ok: true, runId }
+  }
+}
+
+/** The plan of a skill, or none: reading it is never a reason for a run not to start. */
+async function readPlanOf(ctx: Context, projectRoot: string, skill: string): Promise<TemplatePlan | undefined> {
+  try {
+    return await ctx.readPlan(projectRoot, skill)
+  } catch {
+    return undefined
   }
 }
 
@@ -381,7 +413,8 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): SessionBrid
       now
     }),
     menuEntryFor: deps.menuEntryFor ?? menuEntryFor,
-    newRunId: deps.newRunId ?? (() => randomUUID())
+    newRunId: deps.newRunId ?? (() => randomUUID()),
+    readPlan: deps.readPlan ?? readPlan
   }
 
   ipcMain.handle(SESSION_OPEN_CHANNEL, openSession(ctx))

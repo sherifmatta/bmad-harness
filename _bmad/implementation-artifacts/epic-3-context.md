@@ -13,7 +13,7 @@ Press a button belonging to the persona you are talking to and watch the documen
 - Story 3.13: A finished run leaves its persona live (done)
 - Story 3.14: The running card stays in view (done)
 - Story 3.2: The whole menu, and only ever the menu
-- Story 3.3: Progress you can read against a plan
+- Story 3.3: Progress you can read against a plan (done)
 - Story 3.4: The card is never empty
 - Story 3.5: The run you are not looking at
 - Story 3.6: The rail learns who is writing

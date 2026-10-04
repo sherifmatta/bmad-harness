@@ -59,7 +59,7 @@ describe('a card just born', () => {
 
 describe('a card with notes and prose', () => {
   const entry = card({ notes: [{ text: '- (decision) **Fast** path', at: Date.UTC(2026, 9, 3, 9, 7) }] })
-  const markup = draw(entry, { callId: 'c1', path: '_bmad/prds/x/prd.md', text: '# PRD\n## Vision' })
+  const markup = draw(entry, { callId: 'c1', path: '_bmad/prds/x/prd.md', text: '# PRD\n## Vision\n' })
 
   it('shows the path in the head and the note in the feed, with the caret at the tail of prose', () => {
     expect(markup).toContain('<span class="run-card-path">_bmad/prds/x/prd.md</span>')
@@ -75,8 +75,14 @@ describe('a card with notes and prose', () => {
     expect(body).not.toMatch(/<hr|role="separator"|run-card-divider/)
   })
 
-  it('has no foot while it holds one document', () => {
-    expect(markup).not.toContain('run-card-foot')
+  it('names no other file in its foot while it holds one document', () => {
+    expect(markup).not.toContain('also written')
+    expect(markup).not.toContain('run-card-foot-path')
+  })
+
+  it('reads the section being written in its head, and lists the one it has seen but not had committed in its foot', () => {
+    expect(words(markup)).toContain('writing · §1 Vision')
+    expect(words(markup)).toContain('1 to write')
   })
 })
 

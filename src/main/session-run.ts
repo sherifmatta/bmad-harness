@@ -2,6 +2,8 @@ import { join, posix } from 'node:path'
 import type { ContractEvent } from '../shared/events'
 import type { RunId } from '../shared/ids'
 import type { ArtifactObservation } from '../shared/rail'
+import { pulledSections } from '../shared/section-plan'
+import type { TemplatePlan } from '../shared/section-plan'
 import type { Sender } from './bridge-kit'
 import type { TranscriptRegistry } from './projections/transcript'
 import { coalesce, flushProse } from './fold/coalesce'
@@ -17,7 +19,7 @@ import type { Entry, Service } from './session-registry'
  *
  * - **Start.** The session is detached (a finished run's `live` ends when the
  *   next turn or run starts), the run is held on the entry and `run:started`
- *   is its first event.
+ *   is its first event, carrying the section plan the skill's template gave.
  * - **Events.** Everything the fold routes for the session goes through here.
  *   While a run is active, `doc:prose` is held in the prose buffer and joined
  *   (`fold/coalesce`): what is held is released before any other event, and on
@@ -27,7 +29,9 @@ import type { Entry, Service } from './session-registry'
  * - **Notes.** A `.memlog.md` the watcher saw change is read again, and each
  *   entry past the count main already knew is a `run:note` of the one run in
  *   flight in the window. With none, or with two, the note is nobody's: a
- *   wrong card is worse than a missing note. The initial scan only counts.
+ *   wrong card is worse than a missing note. The initial scan only counts. A
+ *   note that is a concern scan naming Adapt-In sections of the skill's
+ *   template carries them as `pulled`.
  * - **End.** The buffer is released, the writes still pending are dropped
  *   (none commits), and the terminal event is raised: `run:failed` for a
  *   result the CLI marked `is_error` or a session that ended mid-run,
@@ -51,6 +55,10 @@ const SUBTYPE = /^[a-z][a-z0-9_]{0,39}$/
 export type ActiveRun = {
   runId: RunId
   code: string
+  /** The Adapt-In names the skill's template offers, which a concern-scan note may pull into the plan. */
+  menu: readonly string[]
+  /** The section names the run's plan holds so far: the template's, then those pulled. */
+  plan: readonly string[]
   /** Prose held for the window, not yet told. */
   prose: ProseBuffer
   /** Cancels the timer that will release `prose`, while one is set. */
@@ -146,14 +154,23 @@ export function startRun(
   service: Service,
   entry: Entry,
   runId: RunId,
-  code: string
+  code: string,
+  template?: TemplatePlan
 ): void {
   service.personas.detach(entry.sessionId)
-  entry.run = { runId, code, prose: undefined, cancelFlush: undefined }
+  const plan = template?.spine ?? []
+  entry.run = { runId, code, menu: template?.menu ?? [], plan, prose: undefined, cancelFlush: undefined }
   tell(kit, sender, service, entry, [
     {
       name: 'run:started',
-      payload: { runId, sessionId: entry.sessionId, agentId: entry.agentId, code, at: kit.now() }
+      payload: {
+        runId,
+        sessionId: entry.sessionId,
+        agentId: entry.agentId,
+        code,
+        ...(plan.length === 0 ? {} : { plan: [...plan] }),
+        at: kit.now()
+      }
     }
   ])
 }
@@ -228,10 +245,21 @@ export function observeMemlog(
       sender,
       service,
       entry,
-      tail.entries.map((text) => ({
-        name: 'run:note',
-        payload: { runId: run.runId, sessionId: entry.sessionId, text, at }
-      }))
+      tail.entries.map((text): ContractEvent => {
+        // A concern scan that names Adapt-In sections adds them to the plan, once each.
+        const pulled = pulledSections(run.menu, text, run.plan)
+        run.plan = [...run.plan, ...pulled]
+        return {
+          name: 'run:note',
+          payload: {
+            runId: run.runId,
+            sessionId: entry.sessionId,
+            text,
+            ...(pulled.length === 0 ? {} : { pulled }),
+            at
+          }
+        }
+      })
     )
   })
   const settled = next.catch(() => undefined)

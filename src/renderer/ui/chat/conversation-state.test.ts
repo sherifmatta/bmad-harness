@@ -862,6 +862,44 @@ describe('a run’s card (Story 3.1)', () => {
     expect(runCardOf(state, 'r1')).not.toHaveProperty('code')
   })
 
+  it('is born with the plan run:started carried, adds the names a note pulled once each, and has none when the run had none (Story 3.3)', () => {
+    const plan: ContractEvent = {
+      name: 'run:started',
+      payload: { ...R, agentId: mary.id, code: 'CP', plan: ['Vision', 'Scope'], at: 50 }
+    }
+    const state = fold([
+      plan,
+      { name: 'run:note', payload: { ...R, text: '- concern scan: Why Now, scope', pulled: ['Why Now', 'scope'], at: 51 } },
+      { name: 'run:note', payload: { ...R, text: '- plain', at: 52 } },
+      { name: 'run:note', payload: { ...R, text: '- concern scan: Why Now', pulled: ['why now'], at: 53 } }
+    ])
+    expect(runCardOf(state, 'r1')?.plan).toEqual(['Vision', 'Scope', 'Why Now'])
+    expect(runCardOf(fold([started]), 'r1')).not.toHaveProperty('plan')
+    expect(runCardOf(fold([started, { name: 'run:note', payload: { ...R, text: '- n', at: 51 } }]), 'r1')).not.toHaveProperty('plan')
+  })
+
+  it('carries a card’s plan from the snapshot a reloading window is handed (Story 3.3)', () => {
+    const snapshot: ConversationSnapshot = {
+      entries: [],
+      sessions: [],
+      busy: [],
+      personas: [],
+      runs: [
+        {
+          ...R,
+          agentId: mary.id,
+          code: 'CP',
+          plan: ['Vision', 'Scope'],
+          startedAt: 20,
+          status: 'running',
+          notes: [],
+          documents: []
+        }
+      ]
+    }
+    expect(runCardOf(hydrate(initialConversation, snapshot, agentOf).state, 'r1')?.plan).toEqual(['Vision', 'Scope'])
+  })
+
   it('holds the session busy from a dispatch, and goes with the conversation when it ends', () => {
     expect(dispatchStarted(initialConversation, 's1').busy.has('s1')).toBe(true)
     expect(ended(fold([started])).entries).toEqual([])

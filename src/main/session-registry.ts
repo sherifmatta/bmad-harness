@@ -1,6 +1,7 @@
 import type { ContractEvent } from '../shared/events'
 import type { AgentId, RunId, SessionId } from '../shared/ids'
 import type { ArtifactObservation } from '../shared/rail'
+import type { TemplatePlan } from '../shared/section-plan'
 import type { SessionOpenReply } from '../shared/conversation'
 import { failure, sendTo } from './bridge-kit'
 import type { Sender } from './bridge-kit'
@@ -129,7 +130,7 @@ export type SessionRegistry = {
    */
   watch(sender: Sender, service: Service, entry: Entry): void
   /** A dispatch was written into a session: its run begins. */
-  startRun(sender: Sender, service: Service, entry: Entry, runId: RunId, code: string): void
+  startRun(sender: Sender, service: Service, entry: Entry, runId: RunId, code: string, plan?: TemplatePlan): void
   /**
    * The rail's watcher saw a file of the window's project; a memlog is read for
    * the notes of the run in flight. Resolves once it is accounted for.
@@ -414,7 +415,7 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
     serviceFor,
     open,
     watch,
-    startRun: (sender, service, entry, runId, code) => startRun(runs, sender, service, entry, runId, code),
+    startRun: (sender, service, entry, runId, code, plan) => startRun(runs, sender, service, entry, runId, code, plan),
     observe: (sender, projectRoot, observation) =>
       observeMemlog(runs, sender, () => serviceFor(sender, projectRoot), projectRoot, observation),
     closeSessions,

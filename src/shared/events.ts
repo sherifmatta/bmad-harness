@@ -74,12 +74,18 @@ export type HarnessSaid = { sessionId?: SessionId; id: string; text: string; at:
 /** A persona's aggregated state changed. Keyed by `agentId`, never by name. */
 export type PersonaStateChanged = { agentId: AgentId; state: PersonaState; at: EpochMs }
 
-/** A run began. `code` is the menu code that started it. */
+/**
+ * A run began. `code` is the menu code that started it. `plan` is the section
+ * names the skill's own template predicts for its document, leading numbering
+ * stripped and in template order; absent when the skill has no readable
+ * template, which is no failure.
+ */
 export type RunStarted = {
   runId: RunId
   sessionId: SessionId
   agentId?: AgentId
   code: string
+  plan?: string[]
   at: EpochMs
 }
 
@@ -93,6 +99,12 @@ export type RunNote = {
   runId: RunId
   sessionId: SessionId
   text: string
+  /**
+   * The Adapt-In sections of the skill's template that this note, a concern
+   * scan, names, in the template's order and not already in the plan. Absent
+   * when it names none. Main finds them; no window parses a memlog.
+   */
+  pulled?: string[]
   at: EpochMs
 }
 

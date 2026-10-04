@@ -43,6 +43,31 @@ describe('the run card fold', () => {
     expect(startCard({ ...started, agentId: undefined })).not.toHaveProperty('agentId')
   })
 
+  it('is born with the plan its run:started carried, as a copy, and with none when it carried none', () => {
+    const plan = ['Vision', 'Scope']
+    const card = startCard({ ...started, plan })
+    expect(card.plan).toEqual(['Vision', 'Scope'])
+    plan.push('Mutated')
+    expect(card.plan).toEqual(['Vision', 'Scope'])
+    expect(startCard(started)).not.toHaveProperty('plan')
+  })
+
+  it('adds the names a note pulled to the plan, each once and without regard to case, and leaves the plan alone for other notes', () => {
+    const note = (text: string, pulled?: string[]): ContractEvent => ({
+      name: 'run:note',
+      payload: { runId: 'r1', sessionId: 's1', text, ...(pulled === undefined ? {} : { pulled }), at: 101 }
+    })
+    const card = [note('- a'), note('- concern scan: B, vision', ['B', 'vision']), note('- concern scan: B', ['b']), note('- c', [])].reduce(
+      foldRunCard,
+      startCard({ ...started, plan: ['Vision', 'Scope'] })
+    )
+    expect(card.plan).toEqual(['Vision', 'Scope', 'B'])
+    expect(card.notes).toHaveLength(4)
+    // A run with no template that is told of pulled names has them as its plan.
+    expect([note('- x', ['Why Now'])].reduce(foldRunCard, startCard(started)).plan).toEqual(['Why Now'])
+    expect([note('- x')].reduce(foldRunCard, startCard(started))).not.toHaveProperty('plan')
+  })
+
   it('keeps notes in order, with when they were observed', () => {
     const card = fold([
       { name: 'run:note', payload: { runId: 'r1', sessionId: 's1', text: '- (event) a', at: 101 } },

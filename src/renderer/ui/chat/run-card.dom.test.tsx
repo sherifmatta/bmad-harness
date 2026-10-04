@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { Profiler, act, createElement } from 'react'
+import { createRoot } from 'react-dom/client'
+import type { Root } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { mount } from '../testing/render-hook'
@@ -162,5 +164,189 @@ describe('the skill row’s buttons', () => {
     mounted = mount(createElement(SkillRow, { name: 'John', items, disabled: true, onRun: (...args: unknown[]) => void ran.push(args) }))
     act(() => mounted?.container.querySelector('button')?.click())
     expect(ran).toEqual([['VP']])
+  })
+})
+
+const PRD_PLAN = [
+  'Document Purpose',
+  'Vision',
+  'Target User',
+  'Glossary',
+  'Features',
+  'Non-Goals (Explicit)',
+  'MVP Scope',
+  'Success Metrics',
+  'Open Questions',
+  'Assumptions Index'
+]
+
+/** A card mounted once, re-rendered in place with new props, as React does when the conversation state changes. */
+function drawLive(store: ProseStore, first: RunCardEntry) {
+  const container = document.createElement('div')
+  document.body.append(container)
+  const root: Root = createRoot(container)
+  let commits = 0
+  const render = (entry: RunCardEntry): void =>
+    act(() =>
+      root.render(
+        createElement(Profiler, { id: 'card', onRender: () => void (commits += 1) }, createElement(RunCard, { entry, prose: store }))
+      )
+    )
+  render(first)
+  return {
+    container,
+    render,
+    commits: () => commits,
+    head: (): string => container.querySelector('.run-card-status')?.textContent ?? '',
+    foot: (): string[] => [...container.querySelectorAll('.run-card-foot-name')].map((node) => node.textContent ?? ''),
+    count: (): string | undefined => container.querySelector('.run-card-foot-count')?.textContent ?? undefined,
+    stop: () => {
+      act(() => root.unmount())
+      container.remove()
+    }
+  }
+}
+
+describe('progress against a plan (Story 3.3)', () => {
+  let live: ReturnType<typeof drawLive> | null = null
+  afterEach(() => {
+    live?.stop()
+    live = null
+  })
+
+  const planned = (over: Partial<RunCardEntry> = {}): RunCardEntry => card({ plan: PRD_PLAN, ...over })
+
+  it('lists all ten planned sections by name, with a count, before any prose, and reads `writing` in the head', () => {
+    live = drawLive(createProseStore(crank()), planned())
+    expect(live.head()).toBe('writing')
+    expect(live.count()).toBe('10 to write')
+    expect(live.foot()).toEqual(PRD_PLAN)
+  })
+
+  it('reads the section being written from the streamed text: the fourth seen is §4, numbering stripped', () => {
+    const frames = crank()
+    const store = createProseStore(frames)
+    live = drawLive(store, planned())
+    store.append('r1', 'c1', 'prd.md', '# PRD\n\n## 0. Document Purpose\nx\n## 1. Vision\ny\n## 2. Target User\nz\n')
+    frames.frame()
+    expect(live.head()).toBe('writing · §3 Target User')
+    store.append('r1', 'c1', 'prd.md', '## 3. Glossary\nterms')
+    frames.frame()
+    expect(live.head()).toBe('writing · §4 Glossary')
+    // Streaming alone removes nothing from the foot: only a confirmed commit does.
+    expect(live.foot()).toEqual(PRD_PLAN)
+    expect(live.count()).toBe('10 to write')
+  })
+
+  it('re-renders the head only when its words change, not for each piece of prose', () => {
+    const frames = crank()
+    const store = createProseStore(frames)
+    live = drawLive(store, planned())
+    store.append('r1', 'c1', 'prd.md', '## 0. Document Purpose\n')
+    frames.frame()
+    const before = live.commits()
+    for (let at = 0; at < 300; at += 1) {
+      store.append('r1', 'c1', 'prd.md', `more words ${at} `)
+      if (at % 20 === 19) frames.frame()
+    }
+    expect(live.head()).toBe('writing · §1 Document Purpose')
+    expect(live.commits() - before).toBe(0)
+  })
+
+  it('appends a heading the plan lacks to the foot after the plan’s names, and never renumbers', () => {
+    const frames = crank()
+    const store = createProseStore(frames)
+    live = drawLive(store, planned())
+    store.append('r1', 'c1', 'prd.md', '## 0. Document Purpose\n## Risks\nx\n## 1. Vision\n')
+    frames.frame()
+    expect(live.head()).toBe('writing · §3 Vision')
+    expect(live.foot()).toEqual([...PRD_PLAN, 'Risks'])
+    expect(live.count()).toBe('11 to write')
+  })
+
+  it('takes every name an atomic commit lists out of the foot in one render, fifteen of them, with no stagger', () => {
+    const frames = crank()
+    const store = createProseStore(frames)
+    const plan = Array.from({ length: 15 }, (_, at) => `Section ${at + 1}`)
+    const text = plan.map((name, at) => `## ${at + 1}. ${name}\nwords`).join('\n') + '\n'
+    live = drawLive(store, card({ plan }))
+    store.append('r1', 'c1', 'prd.md', text)
+    frames.frame()
+    expect(live.foot()).toHaveLength(15)
+    const observer = new MutationObserver(() => {})
+    observer.observe(live.container, { childList: true, characterData: true, subtree: true, attributes: true })
+    const before = live.commits()
+    const footBefore = live.container.querySelector('.run-card-foot')
+    expect(footBefore?.querySelectorAll('.run-card-foot-name')).toHaveLength(15)
+
+    live.render(card({ plan, documents: [{ path: 'prd.md', sections: plan.map((name, at) => `${at + 1}. ${name}`) }] }))
+
+    expect(live.commits() - before).toBe(1)
+    // All fifteen leave as one removal of the foot that held them: no record touches a name on its own.
+    const records = observer.takeRecords()
+    expect(records.flatMap((record) => [...record.removedNodes])).toContain(footBefore)
+    expect(records.filter((record) => footBefore?.contains(record.target) && record.target !== footBefore)).toEqual([])
+    expect(live.foot()).toEqual([])
+    expect(live.count()).toBeUndefined()
+    observer.disconnect()
+  })
+
+  it('keeps a planned name in the foot until a commit names it, matching without regard to case or numbering', () => {
+    const store = createProseStore(crank())
+    live = drawLive(store, planned())
+    live.render(planned({ documents: [{ path: 'prd.md', sections: ['0. document purpose', '1. Vision'] }] }))
+    // Nothing is written until a subject exists, though: the plan is for the subject's own commits.
+    expect(live.foot()).toEqual(PRD_PLAN)
+    store.append('r1', 'c1', 'prd.md', '## 0. Document Purpose\n## 1. Vision\n## 2. Target User\n')
+    live.render(planned({ documents: [{ path: 'prd.md', sections: ['0. document purpose', '1. Vision'] }] }))
+    expect(live.foot()).toEqual(PRD_PLAN.slice(2))
+    expect(live.count()).toBe('8 to write')
+  })
+
+  it('reads `revising · §N <Name>` after an applied Edit, and `writing` again at the next Write piece', () => {
+    const frames = crank()
+    const store = createProseStore(frames)
+    live = drawLive(store, planned())
+    store.append('r1', 'c1', 'prd.md', '## 0. Purpose\nold\n## 1. Vision\nwords\n')
+    frames.frame()
+    store.commit('r1', 'prd.md', 'e1', '## 0. Purpose\nnew\n## 1. Vision\nwords\n')
+    frames.frame()
+    expect(live.head()).toBe('revising · §1 Purpose')
+    store.append('r1', 'c2', 'prd.md', '## 0. Purpose\n## 1. Vision\n## 2. Next\n')
+    frames.frame()
+    expect(live.head()).toBe('writing · §3 Next')
+  })
+
+  it('draws a reload’s card whole from the plan and the seeded text, having seen none of the pieces', () => {
+    const store = createProseStore(crank())
+    store.seed('r1', [
+      { path: 'prd.md', callId: 'c1', text: '## 0. Document Purpose\nx\n## 1. Vision\ny', written: 40, sections: ['Document Purpose'] }
+    ])
+    live = drawLive(store, planned({ documents: [{ path: 'prd.md', sections: ['0. Document Purpose'] }] }))
+    expect(live.head()).toBe('writing · §2 Vision')
+    expect(live.foot()).toEqual(PRD_PLAN.slice(1))
+  })
+
+  it('shows a saved card’s head as before, with no sections still to write in its foot', () => {
+    const store = createProseStore(crank())
+    store.seed('r1', [{ path: 'prd.md', callId: 'c1', text: '## Vision\nx', written: 12, sections: ['Vision'] }])
+    live = drawLive(
+      store,
+      planned({ status: 'finished', endedAt: Date.now(), documents: [{ path: 'prd.md', sections: ['Vision'] }] })
+    )
+    expect(live.head()).toBe('saved · just now · 1 section')
+    expect(live.container.querySelector('.run-card-foot')).toBeNull()
+  })
+
+  it('holds the foot and the head to no denominator, bar or per-section tick, in any state it draws', () => {
+    const frames = crank()
+    const store = createProseStore(frames)
+    live = drawLive(store, planned())
+    for (const text of ['', '## 0. Document Purpose\nx', '\n## 1. Vision\ny']) {
+      store.append('r1', 'c1', 'prd.md', text)
+      frames.frame()
+      const markup = live.container.innerHTML
+      expect(markup).not.toMatch(/\bof\b|\/\s*\d|%|<progress|role="progressbar"|aria-valuenow|style=/i)
+    }
   })
 })

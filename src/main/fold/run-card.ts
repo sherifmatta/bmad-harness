@@ -1,12 +1,15 @@
 import type { RunCardDocument, RunCardSnapshot } from '../../shared/conversation'
 import type { ContractEvent, RunStarted } from '../../shared/events'
+import { withPulled } from '../../shared/section-plan'
 
 /**
  * One run's card, folded from the run's own events. Pure and immutable: a card
  * and an event in, the next card out, no clock and no I/O.
  *
- * - `run:started` makes the card: running, no notes, no documents.
- * - `run:note` adds the line, in the order it came.
+ * - `run:started` makes the card: running, no notes, no documents, and the
+ *   section plan the event carried.
+ * - `run:note` adds the line, in the order it came, and the plan names it
+ *   pulled in, each once.
  * - `doc:prose` adds to its path's document: a piece of the call that set the
  *   text grows it, a piece of another call (a new `Write`) replaces it. The
  *   path's weight is the longest text any one `Write` gave it.
@@ -27,6 +30,7 @@ export function startCard(started: RunStarted): RunCardSnapshot {
     sessionId: started.sessionId,
     ...(started.agentId === undefined ? {} : { agentId: started.agentId }),
     code: started.code,
+    ...(started.plan === undefined ? {} : { plan: [...started.plan] }),
     startedAt: started.at,
     status: 'running',
     notes: [],
@@ -65,8 +69,13 @@ export function foldRunCard(card: RunCardSnapshot, event: ContractEvent): RunCar
     return card
   }
   switch (event.name) {
-    case 'run:note':
-      return { ...card, notes: [...card.notes, { text: event.payload.text, at: event.payload.at }] }
+    case 'run:note': {
+      const notes = [...card.notes, { text: event.payload.text, at: event.payload.at }]
+      const { pulled } = event.payload
+      return pulled === undefined || pulled.length === 0
+        ? { ...card, notes }
+        : { ...card, notes, plan: withPulled(card.plan, pulled) }
+    }
 
     case 'doc:prose': {
       const { callId, path, text } = event.payload

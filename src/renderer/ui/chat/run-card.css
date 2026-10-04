@@ -1,8 +1,9 @@
 /*
  * The run card — Story 3.1's slice of DESIGN.md's *Document card* and its
  * `components.document-card` block, from harness-mockup.html's `.doccard`
- * rules and `.caret` (:204-224). Head, body, and a foot that names the other
- * files the run wrote (Story 3.12); the foot's section list is a later story's.
+ * rules and `.caret` (:204-224). Head, body, and a foot that names the sections
+ * still to write, with a count (Story 3.3), and the other files the run wrote
+ * (Story 3.12).
  *
  * The body is one scroll container for both feeds: the run-note feed in sans
  * and the document prose in mono, told apart by typeface and nothing else —
@@ -97,7 +98,8 @@
   animation: var(--motion-blink);
 }
 
-/* The foot: the other files the run wrote, named and never shown. Label size
+/* The foot: the sections still to write and the other files the run wrote,
+   named and never shown. Label size
    in the faint tier on the head's ground, under the inner rule, wrapping. */
 .run-card-foot {
   display: flex;
@@ -113,6 +115,12 @@
   min-width: 0;
 }
 
-.run-card-foot-path {
+.run-card-foot-path,
+.run-card-foot-name {
   overflow-wrap: anywhere;
+}
+
+/* The count of sections still to write leads their names, a tier above them. */
+.run-card-foot-count {
+  color: var(--dim);
 }
