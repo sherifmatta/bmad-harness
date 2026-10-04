@@ -27,7 +27,7 @@ const card = (over: Partial<RunCardEntry> = {}): RunCardEntry => ({
   sessionId: 's1',
   status: 'running',
   notes: [],
-  sections: [],
+  documents: [],
   ...over
 })
 
@@ -85,22 +85,49 @@ describe('the run card’s prose', () => {
     observer.disconnect()
   })
 
-  it('starts the text again when a new call begins, under the new path', () => {
+  it('starts the text again when a new Write of the path begins, and draws the whole document an Edit commits', () => {
     const frames = crank()
     const store = createProseStore(frames)
     const view = draw(store)
     store.append('r1', 'c1', 'a.md', 'first write')
     frames.frame()
-    store.append('r1', 'c2', 'b.md', 'revision')
+    store.append('r1', 'c2', 'a.md', 'revision')
     frames.frame()
     expect(view.text()).toBe('revision')
-    expect(view.root.container.querySelector('.run-card-path')?.textContent).toBe('b.md')
+    store.commit('r1', 'a.md', 'e1', 'revision, patched whole')
+    frames.frame()
+    expect(view.text()).toBe('revision, patched whole')
+  })
+
+  it('stays on its subject until another file’s Write passes it, then switches head and body, naming the first in the foot', () => {
+    const frames = crank()
+    const store = createProseStore(frames)
+    const view = draw(store)
+    const path = (): string | null | undefined => view.root.container.querySelector('.run-card-path')?.textContent
+    const foot = (): string | null | undefined => view.root.container.querySelector('.run-card-foot')?.textContent
+    store.append('r1', 'c1', 'addendum.md', 'a'.repeat(30))
+    frames.frame()
+    expect(foot()).toBeUndefined()
+    store.append('r1', 'c2', 'prd.md', 'p'.repeat(30))
+    frames.frame()
+    expect(path()).toBe('addendum.md')
+    expect(view.text()).toBe('a'.repeat(30))
+    expect(foot()).toBe('also writtenprd.md')
+    store.append('r1', 'c2', 'prd.md', 'p')
+    frames.frame()
+    expect(path()).toBe('prd.md')
+    expect(view.text()).toBe('p'.repeat(31))
+    expect(foot()).toBe('also writtenaddendum.md')
+    // An Edit of the other file never touches the body.
+    store.commit('r1', 'addendum.md', 'e1', 'patched')
+    frames.frame()
+    expect(view.text()).toBe('p'.repeat(31))
   })
 
   it('draws the whole text on mounting after a reload, having seen none of its pieces', () => {
     const frames = crank()
     const store = createProseStore(frames)
-    store.seed('r1', { callId: 'c1', path: 'a.md', text: '## Vision\nwhole' })
+    store.seed('r1', [{ callId: 'c1', path: 'a.md', text: '## Vision\nwhole', written: 15, sections: ['Vision'] }])
     const view = draw(store)
     expect(view.text()).toBe('## Vision\nwhole')
     expect(view.root.container.querySelector('.run-card-caret')).not.toBeNull()
@@ -109,10 +136,10 @@ describe('the run card’s prose', () => {
   it('removes the caret, rather than fading it, when the run finishes, and drops aria-busy', () => {
     const frames = crank()
     const store = createProseStore(frames)
-    store.seed('r1', { callId: 'c1', path: 'a.md', text: 'text' })
+    store.seed('r1', [{ callId: 'c1', path: 'a.md', text: 'text', written: 4, sections: ['A'] }])
     const running = draw(store)
     expect(running.root.container.querySelector('section')?.getAttribute('aria-busy')).toBe('true')
-    const finished = running.rerender(card({ status: 'finished', endedAt: Date.now(), sections: ['A'] }))
+    const finished = running.rerender(card({ status: 'finished', endedAt: Date.now(), documents: [{ path: 'a.md', sections: ['A'] }] }))
     expect(finished.root.container.querySelector('.run-card-caret')).toBeNull()
     expect(finished.root.container.querySelector('section')?.hasAttribute('aria-busy')).toBe(false)
     expect(finished.root.container.querySelector('.run-card-status')?.textContent).toBe('saved · just now · 1 section')

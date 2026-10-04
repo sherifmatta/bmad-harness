@@ -4,6 +4,10 @@ import { join, resolve } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { ConversationReply, RunCardSnapshot } from '../src/shared/conversation'
 import type { ContractEvent } from '../src/shared/events'
+import { subjectOf } from '../src/main/fold/run-card'
+import { sectionHeadings } from '../src/main/fold/section-headings'
+import { foldEvent, initialConversation, runCardOf } from '../src/renderer/ui/chat/conversation-state'
+import { createProseStore } from '../src/renderer/ui/chat/prose-store'
 
 /**
  * Story 3.1's beat, replayed: `fast-path-sonnet` fed through the real session
@@ -118,6 +122,8 @@ type Replay = {
   dispatchedAt: number
   /** The card as a window reloading just after the big write committed would be handed it. */
   reloaded: RunCardSnapshot | undefined
+  /** The card as main holds it once the recording is over. */
+  final: RunCardSnapshot | undefined
   bigWrite: ToolUse
   bigDeltas: number
 }
@@ -223,7 +229,9 @@ async function replay(pace: 'full-rate' | 'recorded'): Promise<Replay> {
         }
       }
     }
-    return { told, runId, dispatchedAt, reloaded, bigWrite: big, bigDeltas }
+    const reply = call<ConversationReply>(CONVERSATION_GET_CHANNEL)
+    const final = reply.ok ? reply.snapshot.runs[0] : undefined
+    return { told, runId, dispatchedAt, reloaded, final, bigWrite: big, bigDeltas }
   } finally {
     rmSync(userData, { recursive: true, force: true })
   }
@@ -311,8 +319,53 @@ describe('fast-path-sonnet, replayed through main as a dispatched run', () => {
     expect(events('run:finished')).toHaveLength(1)
     expect(events('run:failed')).toHaveLength(0)
     expect(result.reloaded).toMatchObject({ status: 'running' })
-    expect(result.reloaded?.prose?.text).toBe(String(result.bigWrite.input.content))
-    expect(result.reloaded?.sections.length).toBeGreaterThan(5)
+    const subject = subjectOf(result.reloaded?.documents ?? [])
+    expect(subject?.text).toBe(String(result.bigWrite.input.content))
+    expect(subject?.sections.length).toBeGreaterThan(5)
     expect(result.reloaded?.notes.length).toBeGreaterThan(0)
+  })
+
+  it('streams no Edit: every doc:prose is a Write’s, and each Edit arrives whole on its commit', () => {
+    const edits = [...mainTools.values()].filter((tool) => tool.name === 'Edit').map((tool) => tool.id)
+    expect(edits).toHaveLength(32)
+    const prosed = new Set(events('doc:prose').flatMap((event) => (event.name === 'doc:prose' ? [event.payload.callId] : [])))
+    expect(edits.some((id) => prosed.has(id))).toBe(false)
+    expect([...prosed].every((id) => mainTools.get(id)?.name === 'Write')).toBe(true)
+  })
+
+  it('ends the card on the PRD the recorded Write and Edits made, with its section count, in main and in the window', () => {
+    const committed = new Set(events('doc:committed').flatMap((event) => (event.name === 'doc:committed' ? [event.payload.callId] : [])))
+    let prd = String(result.bigWrite.input.content)
+    for (const tool of mainTools.values()) {
+      if (tool.name !== 'Edit' || tool.input.file_path !== result.bigWrite.input.file_path || !committed.has(tool.id)) continue
+      const old = String(tool.input.old_string)
+      if (prd.includes(old)) prd = prd.split(old).join(String(tool.input.new_string))
+    }
+    expect(prd).not.toBe(String(result.bigWrite.input.content))
+
+    const subject = subjectOf(result.final?.documents ?? [])
+    expect(result.final?.status).toBe('finished')
+    expect(subject?.text).toBe(prd)
+    expect(subject?.sections).toEqual(sectionHeadings(prd))
+
+    // The window, folding what it was told.
+    const store = createProseStore({ raf: (run) => run() })
+    let state = initialConversation
+    for (const { event } of result.told) {
+      if (event.name === 'doc:prose') {
+        store.append(event.payload.runId, event.payload.callId, event.payload.path, event.payload.text)
+        continue
+      }
+      if (event.name === 'doc:committed' && event.payload.ok) {
+        store.commit(event.payload.runId, event.payload.path, event.payload.callId, event.payload.text)
+      }
+      state = foldEvent(state, event, () => undefined).state
+    }
+    const card = runCardOf(state, result.runId)
+    const shown = store.get(result.runId)
+    expect(card?.status).toBe('finished')
+    expect(shown?.text).toBe(prd)
+    // What the head and the live region count (`subjectSections`): the subject's sections alone.
+    expect(card?.documents.find((document) => document.path === shown?.path)?.sections).toEqual(sectionHeadings(prd))
   })
 })

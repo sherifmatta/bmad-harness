@@ -24,7 +24,7 @@ import {
 import type { ConversationState, Delivery, PersonaStateEntry } from './conversation-state'
 import { createProseStore } from './prose-store'
 import type { ProseStore } from './prose-store'
-import { runLifecycleLine } from './run-status'
+import { runLifecycleLine, subjectSections } from './run-status'
 import type { TranscriptEntry } from './transcript-entry'
 
 /** The seven bridge methods the conversation needs, and nothing else of the bridge. */
@@ -228,7 +228,8 @@ export function createConversation(deps: ConversationDeps): Conversation {
       return
     }
     const agentId = card.agentId ?? ''
-    onLifecycle(runLifecycleLine(card, agentOf(agentId)?.name || agentId))
+    const sections = subjectSections(card, prose.get(card.runId)?.path)
+    onLifecycle(runLifecycleLine(card, agentOf(agentId)?.name || agentId, sections))
   }
 
   return {
@@ -244,6 +245,11 @@ export function createConversation(deps: ConversationDeps): Conversation {
           const { runId, callId, path, text } = event.payload
           prose.append(runId, callId, path, text)
           return
+        }
+        // A confirmed write is the card's as well: its text, when it carries one, is the store's.
+        if (event.name === 'doc:committed' && event.payload.ok) {
+          const { runId, path, callId, text } = event.payload
+          prose.commit(runId, path, callId, text)
         }
         const folded = foldEvent(state, event, agentOf)
         commit(folded.state)
@@ -264,7 +270,7 @@ export function createConversation(deps: ConversationDeps): Conversation {
           }
           const taken = hydrate(state, snapshot, agentOf)
           for (const run of snapshot.runs) {
-            prose.seed(run.runId, run.prose)
+            prose.seed(run.runId, run.documents)
           }
           commit(taken.state)
           hydrated = true

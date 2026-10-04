@@ -118,6 +118,7 @@ describe('the corpus as a whole', () => {
       'fast-path-sonnet',
       'interrupt-inband',
       'interrupt-sigint',
+      'multi-file-sonnet',
       'reviewer-gate-failure-induced'
     ])
   })
@@ -171,6 +172,31 @@ describe('fast-path-sonnet: one large write minutes in, then revisions', () => {
       (f) => f.type === 'stream_event' && !f.parent_tool_use_id && f.event?.delta?.type === 'input_json_delta'
     )
     expect(deltas.length).toBeGreaterThan(50)
+  })
+})
+
+describe('multi-file-sonnet: several files by Write, the largest last, then revisions by Edit', () => {
+  const tools = mainThreadTools('multi-file-sonnet')
+  const writes = tools.filter((t) => t.name === 'Write')
+
+  it('writes an addendum, a pre-review copy and the PRD, each once and each larger than the one before', () => {
+    expect(writes.map((t) => String(t.input.file_path).split('/').at(-1))).toEqual(['addendum.md', 'prd.pre-review.md', 'prd.md'])
+    const sizes = writes.map((t) => String(t.input.content ?? '').length)
+    expect(sizes[0]).toBeLessThan(sizes[1])
+    expect(sizes[1]).toBeLessThan(sizes[2])
+  })
+
+  it('revises only the PRD, by Edit, after it was written', () => {
+    const prd = writes.at(-1)
+    const edits = tools.filter((t) => t.name === 'Edit')
+    expect(edits.length).toBeGreaterThanOrEqual(2)
+    expect(edits.every((t) => t.at > (prd?.at ?? Infinity) && t.input.file_path === prd?.input.file_path)).toBe(true)
+  })
+
+  it('uses no Bash, no subagent, and ends its one turn in success', () => {
+    expect(tools.every((t) => t.name === 'Write' || t.name === 'Edit')).toBe(true)
+    expect(frames('multi-file-sonnet').some((f) => f.parent_tool_use_id)).toBe(false)
+    expect(results('multi-file-sonnet')).toEqual([expect.objectContaining({ subtype: 'success', is_error: false })])
   })
 })
 

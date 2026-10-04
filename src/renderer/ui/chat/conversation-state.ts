@@ -306,14 +306,15 @@ function runEntryOf(card: RunCardSnapshot): RunCardEntry {
     ...(card.endedAt === undefined ? {} : { endedAt: card.endedAt }),
     ...(card.error === undefined ? {} : { error: card.error }),
     notes: card.notes,
-    sections: card.sections
+    documents: card.documents.map(({ path, sections }) => ({ path, sections }))
   }
 }
 
 /**
  * One run event folded into its card, as main folds it (`fold/run-card.ts`):
- * notes in order, each committed heading once, and one terminal event. A card
- * that has ended takes nothing more. `doc:prose` is not folded here.
+ * notes in order, a confirmed write's sections set on its path, and one
+ * terminal event. A card that has ended takes nothing more. `doc:prose` and a
+ * commit's text are not folded here: they are the prose store's.
  */
 function foldRunEntry(entry: RunCardEntry, event: ContractEvent): RunCardEntry {
   if (entry.status !== 'running') {
@@ -326,10 +327,15 @@ function foldRunEntry(entry: RunCardEntry, event: ContractEvent): RunCardEntry {
       if (!event.payload.ok) {
         return entry
       }
-      const fresh = event.payload.sections.filter(
-        (section, at, all) => !entry.sections.includes(section) && all.indexOf(section) === at
-      )
-      return fresh.length === 0 ? entry : { ...entry, sections: [...entry.sections, ...fresh] }
+      const { path, sections } = event.payload
+      const at = entry.documents.findIndex((document) => document.path === path)
+      const documents = [...entry.documents]
+      if (at === -1) {
+        documents.push({ path, sections })
+      } else {
+        documents[at] = { path, sections }
+      }
+      return { ...entry, documents }
     }
     case 'run:finished':
       return { ...entry, status: 'finished', endedAt: event.payload.at }
@@ -553,7 +559,7 @@ export function foldEvent(
         ...(agentId === undefined ? {} : { agentId }),
         status: 'running',
         notes: [],
-        sections: []
+        documents: []
       }
       return { state: withBusy({ ...state, entries: [...state.entries, card] }, sessionId, true) }
     }

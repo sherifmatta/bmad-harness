@@ -9,7 +9,7 @@ Press a button belonging to the persona you are talking to and watch the documen
 ## Stories
 
 - Story 3.1: Press a button and watch a document write itself (done)
-- Story 3.12: A card follows one document
+- Story 3.12: A card follows one document (done)
 - Story 3.13: A finished run leaves its persona live
 - Story 3.14: The running card stays in view
 - Story 3.2: The whole menu, and only ever the menu

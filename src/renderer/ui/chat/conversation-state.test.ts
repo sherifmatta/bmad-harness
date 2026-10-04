@@ -787,18 +787,23 @@ describe('a run’s card (Story 3.1)', () => {
       agentId: mary.id,
       status: 'running',
       notes: [],
-      sections: []
+      documents: []
     })
     expect(state.busy.has('s1')).toBe(true)
     expect(fold([started, started]).entries).toHaveLength(1)
   })
 
-  it('takes notes, committed headings once each, and one terminal event', () => {
+  it('takes notes, each committed path’s sections as its last confirmed write left them, and one terminal event', () => {
     const state = fold([
       started,
       { name: 'run:note', payload: { ...R, text: '- (event) a', at: 51 } },
       { name: 'doc:committed', payload: { ...R, ok: true, callId: 'c', path: 'p.md', sections: ['A', 'B'], at: 52 } },
-      { name: 'doc:committed', payload: { ...R, ok: true, callId: 'd', path: 'p.md', sections: ['B', 'C'], at: 53 } },
+      { name: 'doc:committed', payload: { ...R, ok: true, callId: 'e', path: 'q.md', sections: ['Q'], at: 53 } },
+      { name: 'doc:committed', payload: { ...R, ok: true, callId: 'd', path: 'p.md', sections: ['B', 'C'], text: '## B\n## C', at: 54 } },
+      {
+        name: 'doc:committed',
+        payload: { ...R, ok: false, callId: 'f', path: 'p.md', error: { code: 'doc/write-rejected', message: 'x' }, at: 55 }
+      },
       { name: 'run:finished', payload: { ...R, at: 60 } },
       { name: 'run:note', payload: { ...R, text: '- late', at: 61 } }
     ])
@@ -806,7 +811,10 @@ describe('a run’s card (Story 3.1)', () => {
       status: 'finished',
       endedAt: 60,
       notes: [{ text: '- (event) a', at: 51 }],
-      sections: ['A', 'B', 'C']
+      documents: [
+        { path: 'p.md', sections: ['B', 'C'] },
+        { path: 'q.md', sections: ['Q'] }
+      ]
     })
   })
 
@@ -839,14 +847,18 @@ describe('a run’s card (Story 3.1)', () => {
           status: 'finished',
           endedAt: 30,
           notes: [{ text: '- n', at: 21 }],
-          sections: ['A'],
-          prose: { callId: 'c', path: 'p.md', text: 'x' }
+          documents: [{ path: 'p.md', callId: 'c', text: 'x', written: 1, sections: ['A'] }]
         }
       ]
     }
     const state = hydrate(initialConversation, snapshot, agentOf).state
     expect(state.entries.map((entry) => entry.kind)).toEqual(['persona', 'run'])
-    expect(runCardOf(state, 'r1')).toMatchObject({ status: 'finished', endedAt: 30, sections: ['A'], notes: [{ text: '- n' }] })
+    expect(runCardOf(state, 'r1')).toMatchObject({
+      status: 'finished',
+      endedAt: 30,
+      documents: [{ path: 'p.md', sections: ['A'] }],
+      notes: [{ text: '- n' }]
+    })
     expect(runCardOf(state, 'r1')).not.toHaveProperty('code')
   })
 

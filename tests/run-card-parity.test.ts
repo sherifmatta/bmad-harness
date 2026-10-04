@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { RunCardSnapshot } from '../src/shared/conversation'
 import type { ContractEvent } from '../src/shared/events'
+import { subjectOf } from '../src/main/fold/run-card'
 import { createRunProjection } from '../src/main/projections/runs'
 import { foldEvent, hydrate, initialConversation } from '../src/renderer/ui/chat/conversation-state'
 import type { ConversationState } from '../src/renderer/ui/chat/conversation-state'
@@ -31,11 +32,11 @@ function mainCard(events: ContractEvent[], runId: string): Card | undefined {
   return rest
 }
 
-/** The window's card: the transcript entry, and its prose from the store. */
+/** The window's card: the transcript entry, and its documents' text from the store, their sections from the entry. */
 function windowCard(state: ConversationState, prose: ProseStore, runId: string): Card | undefined {
   const entry = state.entries.find((each) => each.kind === 'run' && each.runId === runId)
   if (entry === undefined || entry.kind !== 'run') return undefined
-  const { at, notes, sections, sessionId, status } = entry
+  const { at, notes, documents, sessionId, status } = entry
   return {
     runId: entry.runId,
     sessionId,
@@ -45,20 +46,25 @@ function windowCard(state: ConversationState, prose: ProseStore, runId: string):
     ...(entry.endedAt === undefined ? {} : { endedAt: entry.endedAt }),
     ...(entry.error === undefined ? {} : { error: entry.error }),
     notes: [...notes],
-    sections: [...sections],
-    prose: prose.get(runId) ?? null
+    documents: prose.documents(runId).map((document) => ({
+      ...document,
+      sections: [...(documents.find((each) => each.path === document.path)?.sections ?? [])]
+    }))
   }
 }
 
-/** Fold events as the window does: prose to the store, everything else through `foldEvent`. */
+/** Fold events as the window does (`use-conversation.ts`): prose to the store, an `ok` commit to both, all else through `foldEvent`. */
 function fold(events: ContractEvent[], from: ConversationState = initialConversation, store = createProseStore({ raf: (run) => run() })) {
   let state = from
   for (const event of events) {
     if (event.name === 'doc:prose') {
       store.append(event.payload.runId, event.payload.callId, event.payload.path, event.payload.text)
-    } else {
-      state = foldEvent(state, event, () => undefined).state
+      continue
     }
+    if (event.name === 'doc:committed' && event.payload.ok) {
+      store.commit(event.payload.runId, event.payload.path, event.payload.callId, event.payload.text)
+    }
+    state = foldEvent(state, event, () => undefined).state
   }
   return { state, store }
 }
@@ -70,13 +76,13 @@ const prose = (callId: string, path: string, text: string): ContractEvent => ({
   name: 'doc:prose',
   payload: { ...R, callId, path, text, at: 110 }
 })
-const committed = (callId: string, sections: string[]): ContractEvent => ({
+const committed = (callId: string, sections: string[], path = 'prd.md', text?: string): ContractEvent => ({
   name: 'doc:committed',
-  payload: { ...R, ok: true, callId, path: 'prd.md', sections, at: 120 }
+  payload: { ...R, ok: true, callId, path, sections, ...(text === undefined ? {} : { text }), at: 120 }
 })
-const rejected = (callId: string): ContractEvent => ({
+const rejected = (callId: string, path = 'prd.md'): ContractEvent => ({
   name: 'doc:committed',
-  payload: { ...R, ok: false, callId, path: 'prd.md', error: { code: 'doc/write-rejected', message: 'doc · the write was rejected' }, at: 121 }
+  payload: { ...R, ok: false, callId, path, error: { code: 'doc/write-rejected', message: 'doc · the write was rejected' }, at: 121 }
 })
 
 const SEQUENCES: [string, ContractEvent[]][] = [
@@ -109,6 +115,24 @@ const SEQUENCES: [string, ContractEvent[]][] = [
       { name: 'run:finished', payload: { ...R, at: 152 } }
     ]
   ],
+  [
+    'two paths, a switch of subject, an Edit with text, a rejection and a commit of a path never written',
+    [
+      started,
+      prose('a1', 'addendum.md', '## One\n'),
+      prose('a1', 'addendum.md', 'abc'),
+      committed('a1', ['One']),
+      prose('p1', 'prd.md', '# PRD\n'),
+      prose('p1', 'prd.md', '## Vision\nwords'),
+      committed('p1', ['Vision']),
+      committed('e1', ['Vision', 'Goals'], 'prd.md', '# PRD\n## Vision\nwords\n## Goals'),
+      committed('e2', [], 'elsewhere.md'),
+      prose('p2', 'prd.md', 'short'),
+      rejected('p2'),
+      committed('e3', ['One', 'Two'], 'addendum.md', '## One\n## Two'),
+      { name: 'run:finished', payload: { ...R, at: 140 } }
+    ]
+  ],
   ['a stop', [started, { name: 'run:stopped', payload: { ...R, at: 160 } }]],
   ['events of another run beside it', [started, { name: 'run:note', payload: { runId: 'r2', sessionId: 's2', text: '- x', at: 1 } }]]
 ]
@@ -131,7 +155,7 @@ describe('the run card, folded in main and in the window', () => {
         runs: runs.snapshot()
       }
       const store = createProseStore({ raf: (run) => run() })
-      for (const card of snapshot.runs) store.seed(card.runId, card.prose)
+      for (const card of snapshot.runs) store.seed(card.runId, card.documents)
       const hydrated = hydrate(initialConversation, snapshot, () => undefined).state
       const after = fold(events.slice(cut), hydrated, store)
 
@@ -158,5 +182,19 @@ describe('the run card, folded in main and in the window', () => {
     const live = fold(events)
     expect(windowCard(live.state, live.store, 'r1')).toEqual(mainCard(events, 'r1'))
     expect(live.store.get('r1')?.text).toBe(text)
+  })
+
+  it('agrees on the subject on both sides, after every event of a run that writes several files', () => {
+    const events = SEQUENCES.find(([label]) => label.startsWith('two paths'))?.[1] ?? []
+    const subjects: (string | undefined)[] = []
+    for (let cut = 1; cut <= events.length; cut += 1) {
+      const live = fold(events.slice(0, cut))
+      const main = mainCard(events.slice(0, cut), 'r1')
+      expect(live.store.get('r1')?.path, `cut at ${cut}`).toBe(subjectOf(main?.documents ?? [])?.path)
+      subjects.push(live.store.get('r1')?.path)
+    }
+    // The addendum until the PRD's one Write passes it, then the PRD to the end.
+    expect(subjects).toEqual([undefined, 'addendum.md', 'addendum.md', 'addendum.md', 'addendum.md', 'prd.md', ...Array(7).fill('prd.md')])
+    expect(fold(events).store.get('r1')?.text).toBe('short')
   })
 })

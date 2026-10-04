@@ -63,9 +63,12 @@ export type RunCardEntry = {
   endedAt?: number
   error?: HarnessError
   notes: readonly RunCardNote[]
-  /** The distinct level-2 headings the run's confirmed writes named. */
-  sections: readonly string[]
+  /** The sections of each document the run confirmed a write to, by path. Its text is the prose store's. */
+  documents: readonly RunCardEntryDocument[]
 }
+
+/** One document's sections, as a card's entry holds them: those of the path's last confirmed write. */
+export type RunCardEntryDocument = { path: string; sections: readonly string[] }
 
 export type TranscriptEntry = PersonaEntry | UserEntry | SyslineEntry | RunCardEntry
 

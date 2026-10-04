@@ -639,6 +639,10 @@ describe("the text ramp", () => {
       kind: "restated",
       why: "the run's elapsed time; the persona's own state line counts the same turn at --dim, and the status string beside it carries the state",
     },
+    "ui/chat/run-card.css: .run-card-foot": {
+      kind: "restated",
+      why: "the `also written` line naming the run's other files; each is a row of the rail under its own name at --dim or above, and the card follows one document, never these",
+    },
     "ui/chat/skill-row.css: .skill-row-label": {
       kind: "label",
       why: "the row's `<Persona> can` lead-in; the composer and the header name the persona, and each button carries its own words at --text",

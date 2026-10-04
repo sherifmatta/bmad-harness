@@ -290,7 +290,32 @@ describe('a run that writes a document', () => {
     expect(sender.of('doc:committed')).toEqual([
       expect.objectContaining({ ok: false, callId: 't1', error: { code: 'doc/write-rejected', message: 'doc · the write was rejected' } })
     ])
-    expect(snapshot(sender).runs[0].sections).toEqual([])
+    expect(snapshot(sender).runs[0].documents).toEqual([{ path: 'a.md', callId: 't1', text: DOC, written: DOC.length, sections: [] }])
+  })
+
+  it('commits an Edit that applied with the whole patched document, and streams none of it', async () => {
+    const sender = await idle()
+    await dispatch(sender, 'CP')
+    for (const frame of [messageStart('m1'), ...writeFrames('Write', 't1', { file_path: `${ROOT}/a.md`, content: DOC }), toolResult('t1')]) feed(frame)
+    for (const frame of [messageStart('m2'), ...writeFrames('Edit', 't2', { file_path: `${ROOT}/a.md`, old_string: 'Words.', new_string: '## Goals\nNew.' }), toolResult('t2')]) feed(frame)
+    advance(100)
+    const patched = DOC.replace('Words.', '## Goals\nNew.')
+    expect(sender.of('doc:prose').map((piece) => piece.callId)).not.toContain('t2')
+    expect(sender.of('doc:committed').at(-1)).toEqual({
+      ok: true, runId: 'r1', sessionId: 's1', callId: 't2', path: 'a.md', sections: ['Vision', 'Goals', 'Scope'], text: patched, at: expect.any(Number)
+    })
+    expect(snapshot(sender).runs[0].documents).toEqual([{ path: 'a.md', callId: 't2', text: patched, written: DOC.length, sections: ['Vision', 'Goals', 'Scope'] }])
+  })
+
+  it('keeps no document buffer past its run: the next run’s Edit of the path patches nothing', async () => {
+    const sender = await idle()
+    await dispatch(sender, 'CP')
+    for (const frame of [messageStart('m1'), ...writeFrames('Write', 't1', { file_path: `${ROOT}/a.md`, content: DOC }), toolResult('t1'), result()]) feed(frame)
+    await dispatch(sender, 'CP')
+    for (const frame of [messageStart('m2'), ...writeFrames('Edit', 't2', { file_path: `${ROOT}/a.md`, old_string: 'Words.', new_string: 'New.' }), toolResult('t2')]) feed(frame)
+    const commit = sender.of('doc:committed').at(-1)
+    expect(commit).toMatchObject({ ok: true, callId: 't2', path: 'a.md', sections: [] })
+    expect(commit).not.toHaveProperty('text')
   })
 
   it('drops a write that never came back when the run ends: no commit, then or later', async () => {
@@ -499,7 +524,7 @@ describe('the run’s notes, from its memlog', () => {
 })
 
 describe('a window that reloads mid-run', () => {
-  it('is handed the card with its notes, prose, sections and status', async () => {
+  it('is handed the card with its notes, every document, their sections and status', async () => {
     const sender = await idle()
     await dispatch(sender, 'CP')
     files.set(`${ROOT}/_bmad/x/.memlog.md`, '- (event) n\n')
@@ -517,8 +542,10 @@ describe('a window that reloads mid-run', () => {
         startedAt: expect.any(Number),
         status: 'running',
         notes: [{ text: '- (event) n', at: expect.any(Number) }],
-        sections: ['Vision', 'Scope'],
-        prose: { callId: 't2', path: 'b.md', text: 'partial' }
+        documents: [
+          { path: 'a.md', callId: 't1', text: DOC, written: DOC.length, sections: ['Vision', 'Scope'] },
+          { path: 'b.md', callId: 't2', text: 'partial', written: 7, sections: [] }
+        ]
       }
     ])
   })

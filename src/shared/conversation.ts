@@ -71,10 +71,26 @@ export type RunStatus = 'running' | 'finished' | 'stopped' | 'failed'
 export type RunCardNote = { text: string; at: EpochMs }
 
 /**
- * The document text a card holds: the call being written now, its path and
- * every piece of it so far, joined in order. A new call starts it again.
+ * The document a card shows, its subject: the call that last set its text,
+ * its path and the text itself.
  */
 export type RunCardProse = { callId: CallId; path: string; text: string }
+
+/**
+ * One document a run wrote, as its card holds it. A `Write` replaces `text` as
+ * it streams; an `Edit` that applied replaces it whole on its commit. `written`
+ * is the length of the longest single `Write` to the path so far, the weight
+ * that chooses the card's subject: the document with the greatest `written`
+ * above zero, the earlier on a tie. `sections` are those of the path's last
+ * confirmed write.
+ */
+export type RunCardDocument = {
+  path: string
+  callId: CallId
+  text: string
+  written: number
+  sections: string[]
+}
 
 /**
  * One run's card as main holds it, folded from the run's own events, so a
@@ -95,9 +111,8 @@ export type RunCardSnapshot = {
   /** A failed run's envelope. */
   error?: HarnessError
   notes: RunCardNote[]
-  /** The distinct level-2 headings of the run's confirmed writes, in the order first committed. */
-  sections: string[]
-  prose: RunCardProse | null
+  /** Every document the run wrote, in the order first seen (first piece, or first confirmed write). */
+  documents: RunCardDocument[]
 }
 
 /** What `conversation:get` answers. */

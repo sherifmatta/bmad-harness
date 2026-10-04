@@ -508,6 +508,13 @@
   --card-head-padding:7px 11px;
   --card-body-padding:11px 13px;
 
+  /* The card's foot (Story 3.12): padded `6px 11px` (`.doccard .df`, :222-223;
+     DESIGN.md `### Document card`, Foot), its items 14px apart and wrapping
+     (DESIGN.md, Foot). Its ground, rule, size and colour are --panel-2,
+     --line-soft, --fs-label and --faint as they are. */
+  --card-foot-padding:6px 11px;
+  --card-foot-gap:14px;
+
   /* The caret: a 6.5 by 13 accent block dropped 2px (`.caret`, :220; DESIGN.md
      `components.document-card.caret`). */
   --caret-width:6.5px;

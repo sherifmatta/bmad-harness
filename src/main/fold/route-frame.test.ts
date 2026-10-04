@@ -131,11 +131,21 @@ describe('routeFrame', () => {
     })
   })
 
-  it('routes the new text of an Edit as doc:prose and ignores the old', () => {
+  it('streams nothing for an Edit, holding its old and new text whole until its result', () => {
     const input = { file_path: `${ROOT}/_bmad/x/prd.md`, old_string: 'OLD TEXT', new_string: 'new text', replace_all: false }
-    const { events } = run(writeFrames('Edit', input, 5))
-    expect(proseText(events)).toBe('new text')
-    expect(names(events).every((name) => name === 'doc:prose')).toBe(true)
+    for (const size of [1, 5, 500]) {
+      const { events, state } = run(writeFrames('Edit', input, size))
+      expect(events, `size ${size}`).toEqual([])
+      expect(state.writes.toolu_1, `size ${size}`).toEqual({ path: '_bmad/x/prd.md', tool: 'Edit', text: 'new text', old: 'OLD TEXT' })
+    }
+  })
+
+  it('holds each Write as the run’s buffer of its path, as it streams, and a chat turn holds none', () => {
+    const streamed = run(writeFrames('Write', { file_path: `${ROOT}/_bmad/x/prd.md`, content: BODY }, 7))
+    expect(streamed.state.docs).toEqual({ '_bmad/x/prd.md': BODY })
+    const half = run(writeFrames('Write', { file_path: `${ROOT}/_bmad/x/prd.md`, content: BODY }, 7).slice(0, 6))
+    expect(BODY.startsWith(half.state.docs['_bmad/x/prd.md'] ?? '')).toBe(true)
+    expect(run(writeFrames('Write', { file_path: `${ROOT}/a.md`, content: 'x' }, 4), { ...CTX, runId: undefined }).state.docs).toEqual({})
   })
 
   it('routes a memlog write nowhere: no prose, no note, and nothing pending to commit', () => {
@@ -397,10 +407,75 @@ describe('routeFrame: a write commits on its tool_result (AD-5)', () => {
     }
   })
 
-  it('commits an Edit with the headings of its new text', () => {
-    const edit = { file_path: `${ROOT}/_bmad/x/prd.md`, old_string: '## Old', new_string: '## New\nbody' }
-    const commit = run([...writeFrames('Edit', edit, 4), toolResult('toolu_1')]).events.at(-1)
-    expect(commit?.name === 'doc:committed' && commit.payload.ok && commit.payload.sections).toEqual(['New'])
+  /** A Write of `text` to prd.md, its result, then an Edit (`toolu_2`) whose result is `failed`. */
+  function writeThenEdit(text: string, edit: Record<string, unknown>, failed?: boolean) {
+    const write = run([...writeFrames('Write', { file_path: `${ROOT}/_bmad/x/prd.md`, content: text }, 9), toolResult('toolu_1')])
+    const frames = [messageStart('msg_2'), toolStart(1, 'Edit', 'toolu_2'), ...inputFragments(edit, 4).map((piece) => jsonDelta(1, piece)), stop(1), toolResult('toolu_2', failed)]
+    return run(frames, CTX, write.state)
+  }
+
+  it('patches the run’s buffer with an Edit that applied, and commits the whole document and its sections', () => {
+    const edit = { file_path: `${ROOT}/_bmad/x/prd.md`, old_string: '## **Vision**\ntext', new_string: '## Vision\nnew $& text\n## Goals' }
+    const { events, state } = writeThenEdit(DOC, edit)
+    const patched = DOC.replace('## **Vision**\ntext', () => '## Vision\nnew $& text\n## Goals')
+    expect(events).toEqual([
+      {
+        name: 'doc:committed',
+        payload: { ok: true, runId: 'r1', sessionId: 's1', callId: 'toolu_2', path: '_bmad/x/prd.md', sections: ['Vision', 'Goals', 'Scope'], text: patched, at: CTX.now }
+      }
+    ])
+    expect(state.docs['_bmad/x/prd.md']).toBe(patched)
+  })
+
+  it('replaces every occurrence, as an Edit with replace_all did', () => {
+    const { events } = writeThenEdit('a x a x a', { file_path: `${ROOT}/_bmad/x/prd.md`, old_string: 'x', new_string: 'yy', replace_all: true })
+    expect(events[0]?.name === 'doc:committed' && events[0].payload.ok && events[0].payload.text).toBe('a yy a yy a')
+  })
+
+  it('changes no buffer and sends no text for an Edit whose old text is absent or empty, or that was rejected', () => {
+    for (const [edit, failed] of [
+      [{ file_path: `${ROOT}/_bmad/x/prd.md`, old_string: 'not there', new_string: '## Never' }, false],
+      [{ file_path: `${ROOT}/_bmad/x/prd.md`, old_string: '', new_string: '## Never' }, false],
+      [{ file_path: `${ROOT}/_bmad/x/prd.md`, new_string: '## Never' }, false],
+      [{ file_path: `${ROOT}/_bmad/x/prd.md`, old_string: 'text', new_string: '## Never' }, true]
+    ] as const) {
+      const { events, state } = writeThenEdit(DOC, edit, failed)
+      expect(state.docs['_bmad/x/prd.md']).toBe(DOC)
+      const commit = events[0]
+      expect(commit?.name).toBe('doc:committed')
+      if (commit?.name === 'doc:committed' && commit.payload.ok) {
+        expect(commit.payload).not.toHaveProperty('text')
+        expect(commit.payload.sections).toEqual(['Vision', 'Scope'])
+      } else {
+        expect(failed).toBe(true)
+      }
+    }
+  })
+
+  it('commits an Edit of a path no Write of this run started with no sections and no text, and keeps no buffer for it', () => {
+    const edit = { file_path: `${ROOT}/_bmad/x/other.md`, old_string: '## Old', new_string: '## New\nbody' }
+    const { events, state } = run([...writeFrames('Edit', edit, 4), toolResult('toolu_1')])
+    const commit = events.at(-1)
+    expect(commit?.name === 'doc:committed' && commit.payload.ok && commit.payload).toEqual(
+      expect.objectContaining({ path: '_bmad/x/other.md', sections: [] })
+    )
+    expect(commit?.payload).not.toHaveProperty('text')
+    expect(state.docs).toEqual({})
+  })
+
+  it('patches only the buffer of the path the Edit names', () => {
+    const write = run([...writeFrames('Write', { file_path: `${ROOT}/a.md`, content: 'alpha' }, 9), toolResult('toolu_1')])
+    const second = run(
+      [messageStart('m2'), toolStart(1, 'Write', 'toolu_2'), jsonDelta(1, JSON.stringify({ file_path: `${ROOT}/b.md`, content: 'alpha' })), stop(1), toolResult('toolu_2')],
+      CTX,
+      write.state
+    )
+    const edit = run(
+      [messageStart('m3'), toolStart(1, 'Edit', 'toolu_3'), jsonDelta(1, JSON.stringify({ file_path: `${ROOT}/b.md`, old_string: 'alpha', new_string: 'beta' })), stop(1), toolResult('toolu_3')],
+      CTX,
+      second.state
+    )
+    expect(edit.state.docs).toEqual({ 'a.md': 'alpha', 'b.md': 'beta' })
   })
 
   it('commits a rejected write as the envelope, naming no section', () => {
@@ -424,11 +499,12 @@ describe('routeFrame: a write commits on its tool_result (AD-5)', () => {
     expect(names(events).filter((name) => name === 'doc:committed')).toHaveLength(1)
   })
 
-  it('commits nothing for a write that never came back, once its pending writes are dropped', () => {
+  it('commits nothing for a write that never came back, once its pending writes are dropped, and drops the buffers', () => {
     const streamed = run(writeFrames('Write', input, 9))
     expect(Object.keys(streamed.state.writes)).toEqual(['toolu_1'])
     const dropped = withoutPendingWrites(streamed.state)
     expect(dropped.writes).toEqual({})
+    expect(dropped.docs).toEqual({})
     expect(run([toolResult('toolu_1')], CTX, dropped).events).toEqual([])
     expect(withoutPendingWrites(dropped)).toBe(dropped)
   })
@@ -474,7 +550,7 @@ describe('routeFrame against the recorded corpus', () => {
     expect(seen).toBeGreaterThan(0)
   })
 
-  it('reassembles the prose of every Write and Edit to exactly what the tool finally wrote', () => {
+  it('reassembles the prose of every Write to exactly what the tool wrote, and streams no Edit', () => {
     const events = run(frames, ctx).events
     const byCall = new Map<string, string>()
     for (const event of events) {
@@ -482,12 +558,28 @@ describe('routeFrame against the recorded corpus', () => {
         byCall.set(event.payload.callId, (byCall.get(event.payload.callId) ?? '') + event.payload.text)
       }
     }
-    const writes = mainTools.filter((tool) => tool.name === 'Write' || tool.name === 'Edit')
-    expect(writes.length).toBeGreaterThan(1)
+    const writes = mainTools.filter((tool) => tool.name === 'Write')
+    expect(writes.length).toBeGreaterThan(0)
     for (const tool of writes) {
-      const expected = String(tool.name === 'Write' ? tool.input?.content : tool.input?.new_string)
-      expect(byCall.get(tool.id ?? '') ?? '').toBe(expected)
+      expect(byCall.get(tool.id ?? '') ?? '').toBe(String(tool.input?.content))
     }
+    const edits = mainTools.filter((tool) => tool.name === 'Edit')
+    expect(edits.length).toBeGreaterThan(1)
+    for (const tool of edits) expect(byCall.has(tool.id ?? '')).toBe(false)
+  })
+
+  it('ends the run’s buffer of the big Write as the document its Edits made of it', () => {
+    const { state } = run(frames, ctx)
+    const big = mainTools.find((tool) => tool.name === 'Write' && String(tool.input?.content).length > 40_000)
+    const path = String(big?.input?.file_path).slice(root.length + 1)
+    let expected = String(big?.input?.content)
+    for (const tool of mainTools) {
+      if (tool.name !== 'Edit' || tool.input?.file_path !== big?.input?.file_path) continue
+      const old = String(tool.input?.old_string)
+      if (expected.includes(old)) expected = expected.split(old).join(String(tool.input?.new_string))
+    }
+    expect(expected).not.toBe(String(big?.input?.content))
+    expect(state.docs[path]).toBe(expected)
   })
 
   it('commits every Write and Edit exactly once, on its tool_result, and the big Write names its sections', () => {

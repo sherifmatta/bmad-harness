@@ -1,17 +1,18 @@
-import type { RunCardSnapshot } from '../../shared/conversation'
+import type { RunCardDocument, RunCardSnapshot } from '../../shared/conversation'
 import type { ContractEvent, RunStarted } from '../../shared/events'
 
 /**
  * One run's card, folded from the run's own events. Pure and immutable: a card
  * and an event in, the next card out, no clock and no I/O.
  *
- * - `run:started` makes the card: running, no notes, no prose, no sections.
+ * - `run:started` makes the card: running, no notes, no documents.
  * - `run:note` adds the line, in the order it came.
- * - `doc:prose` adds to the text of the call being written; a piece of a
- *   different call starts the text again, under that call's path.
- * - `doc:committed` that is `ok` adds the headings it names that the card does
- *   not already hold, so a revision naming a section already written adds
- *   none; a rejected write adds nothing.
+ * - `doc:prose` adds to its path's document: a piece of the call that set the
+ *   text grows it, a piece of another call (a new `Write`) replaces it. The
+ *   path's weight is the longest text any one `Write` gave it.
+ * - `doc:committed` that is `ok` sets its path's sections, and its `text`, when
+ *   it carries one (an `Edit` that applied), replaces the path's text; a path
+ *   not yet seen becomes an empty document. A rejected write changes nothing.
  * - `run:finished`, `run:stopped` and `run:failed` end the card, once: a
  *   terminal card takes nothing more.
  *
@@ -29,9 +30,34 @@ export function startCard(started: RunStarted): RunCardSnapshot {
     startedAt: started.at,
     status: 'running',
     notes: [],
-    sections: [],
-    prose: null
+    documents: []
   }
+}
+
+/**
+ * The document a card shows: the one with the greatest weight above zero, the
+ * earlier on a tie, so another path takes it only by passing it. None until a
+ * `Write` has streamed.
+ */
+export function subjectOf(documents: readonly RunCardDocument[]): RunCardDocument | undefined {
+  let subject: RunCardDocument | undefined
+  for (const document of documents) {
+    if (document.written > (subject?.written ?? 0)) subject = document
+  }
+  return subject
+}
+
+/** `documents` with the one at `path` replaced by what `change` makes of it, or appended when there is none. */
+function withDocument(
+  documents: readonly RunCardDocument[],
+  path: string,
+  change: (held: RunCardDocument | undefined) => RunCardDocument
+): RunCardDocument[] {
+  const at = documents.findIndex((document) => document.path === path)
+  if (at === -1) return [...documents, change(undefined)]
+  const next = [...documents]
+  next[at] = change(documents[at])
+  return next
 }
 
 export function foldRunCard(card: RunCardSnapshot, event: ContractEvent): RunCardSnapshot {
@@ -44,19 +70,27 @@ export function foldRunCard(card: RunCardSnapshot, event: ContractEvent): RunCar
 
     case 'doc:prose': {
       const { callId, path, text } = event.payload
-      const prose =
-        card.prose !== null && card.prose.callId === callId
-          ? { ...card.prose, text: card.prose.text + text }
-          : { callId, path, text }
-      return { ...card, prose }
+      const documents = withDocument(card.documents, path, (held) => {
+        const grown = held !== undefined && held.callId === callId ? held.text + text : text
+        return {
+          path,
+          callId,
+          text: grown,
+          written: Math.max(held?.written ?? 0, grown.length),
+          sections: held?.sections ?? []
+        }
+      })
+      return { ...card, documents }
     }
 
     case 'doc:committed': {
       if (!event.payload.ok) return card
-      const fresh = event.payload.sections.filter(
-        (section, at, all) => !card.sections.includes(section) && all.indexOf(section) === at
-      )
-      return fresh.length === 0 ? card : { ...card, sections: [...card.sections, ...fresh] }
+      const { callId, path, sections, text } = event.payload
+      const documents = withDocument(card.documents, path, (held) => {
+        const base = held ?? { path, callId, text: '', written: 0, sections: [] }
+        return text === undefined ? { ...base, sections } : { ...base, callId, text, sections }
+      })
+      return { ...card, documents }
     }
 
     case 'run:finished':

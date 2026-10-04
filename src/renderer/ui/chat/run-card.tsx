@@ -7,7 +7,7 @@ import { useNow } from '../outputs/use-now'
 import { formatElapsed } from '../status/format-elapsed'
 import { StatusDot } from '../status/status-dot'
 import type { ProseStore } from './prose-store'
-import { noteOf, runDotState, runStatusText } from './run-status'
+import { noteOf, runDotState, runStatusText, subjectSections } from './run-status'
 import type { RunCardEntry } from './transcript-entry'
 
 /** How often the elapsed counter re-reads the clock: it writes whole seconds. */
@@ -28,6 +28,11 @@ const ELAPSED_TICK_MS = 1000
  * Nothing here renders per piece; the head re-renders only when the path, or
  * whether there is any text, changes.
  *
+ * **One document per card** (Story 3.12). A run may write several files; the
+ * head path and the body follow one of them, the store's subject (the path
+ * with the largest single `Write` so far), and the foot names every other file
+ * the run wrote, never drawing it. The saved count is the subject's sections.
+ *
  * The card is `aria-busy` while its run is in flight. Its lifecycle is
  * announced by the window's one live region, not here, and prose never is.
  */
@@ -37,15 +42,19 @@ export function RunCard({ entry, prose }: { entry: RunCardEntry; prose: ProseSto
   const subscribe = useCallback((listener: () => void) => prose.subscribe(runId, listener), [prose, runId])
   const pathOf = (): string => prose.get(runId)?.path ?? ''
   const textHeld = (): boolean => (prose.get(runId)?.text ?? '') !== ''
+  const pathsOf = (): readonly string[] => prose.paths(runId)
   const path = useSyncExternalStore(subscribe, pathOf, pathOf)
   const hasText = useSyncExternalStore(subscribe, textHeld, textHeld)
+  const paths = useSyncExternalStore(subscribe, pathsOf, pathsOf)
+  const others = paths.filter((each) => each !== path)
+  const sections = subjectSections(entry, path)
 
   return (
     <section className="run-card" aria-busy={running ? true : undefined}>
       <div className="run-card-head">
         <StatusDot state={runDotState(entry)} />
         <span className="run-card-path">{path}</span>
-        <RunStatus entry={entry} />
+        <RunStatus entry={entry} sections={sections} />
         <RunElapsed entry={entry} />
       </div>
       <div className="run-card-body">
@@ -57,22 +66,32 @@ export function RunCard({ entry, prose }: { entry: RunCardEntry; prose: ProseSto
           </div>
         </div>
       </div>
+      {others.length > 0 && (
+        <div className="run-card-foot">
+          <span>also written</span>
+          {others.map((other) => (
+            <span className="run-card-foot-path" key={other}>
+              {other}
+            </span>
+          ))}
+        </div>
+      )}
     </section>
   )
 }
 
-/** The status string; only a saved card reads the clock, for its age. */
-function RunStatus({ entry }: { entry: RunCardEntry }): JSX.Element {
+/** The status string, counting the subject's sections; only a saved card reads the clock, for its age. */
+function RunStatus({ entry, sections }: { entry: RunCardEntry; sections: number }): JSX.Element {
   const className = `run-card-status run-card-status--${entry.status}`
   if (entry.status !== 'finished') {
-    return <span className={className}>{runStatusText(entry, entry.endedAt ?? entry.at)}</span>
+    return <span className={className}>{runStatusText(entry, entry.endedAt ?? entry.at, sections)}</span>
   }
-  return <SavedStatus entry={entry} className={className} />
+  return <SavedStatus entry={entry} sections={sections} className={className} />
 }
 
-function SavedStatus({ entry, className }: { entry: RunCardEntry; className: string }): JSX.Element {
+function SavedStatus({ entry, sections, className }: { entry: RunCardEntry; sections: number; className: string }): JSX.Element {
   const now = useNow()
-  return <span className={className}>{runStatusText(entry, now)}</span>
+  return <span className={className}>{runStatusText(entry, now, sections)}</span>
 }
 
 /** Elapsed from `run:started.at`: ticking while the run is in flight, fixed once it ends. */
@@ -104,7 +123,8 @@ function ProseText({ runId, prose }: { runId: string; prose: ProseStore }): JSX.
       const held = prose.get(runId)
       const text = held?.text ?? ''
       // One DOM write: the new tail when the same call grew, else the whole text.
-      // A call's text only ever grows, so the same call means the node holds a prefix of it.
+      // A call's text only ever grows, so the same call means the node holds a prefix of it;
+      // a patch by an `Edit` and a switch of subject both carry another call.
       if (held !== undefined && held.callId === callId && text.length > node.length) {
         node.appendData(text.slice(node.length))
       } else if (text !== node.data) {

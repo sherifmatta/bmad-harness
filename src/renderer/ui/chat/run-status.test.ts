@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { noteOf, runDotState, runLifecycleLine, runStatusText, sectionCount } from './run-status'
+import { noteOf, runDotState, runLifecycleLine, runStatusText, sectionCount, subjectSections } from './run-status'
 import type { RunCardEntry } from './transcript-entry'
 
 const card = (over: Partial<RunCardEntry> = {}): RunCardEntry => ({
@@ -11,26 +11,34 @@ const card = (over: Partial<RunCardEntry> = {}): RunCardEntry => ({
   agentId: 'bmad-agent-pm',
   status: 'running',
   notes: [],
-  sections: [],
+  documents: [],
   ...over
 })
 
 describe('the run card’s words', () => {
   it('read writing, then saved with its age and the count of sections, or failed or stopped', () => {
-    expect(runStatusText(card(), 5_000)).toBe('writing')
-    expect(runStatusText(card({ status: 'finished', endedAt: 2_000, sections: ['A', 'B'] }), 2_500)).toBe(
-      'saved · just now · 2 sections'
-    )
-    expect(runStatusText(card({ status: 'finished', endedAt: 2_000, sections: ['A'] }), 2_000 + 5 * 60_000)).toBe(
-      'saved · 5m · 1 section'
-    )
-    expect(runStatusText(card({ status: 'failed', endedAt: 2_000 }), 3_000)).toBe('failed')
-    expect(runStatusText(card({ status: 'stopped', endedAt: 2_000 }), 3_000)).toBe('stopped')
+    expect(runStatusText(card(), 5_000, 0)).toBe('writing')
+    expect(runStatusText(card({ status: 'finished', endedAt: 2_000 }), 2_500, 2)).toBe('saved · just now · 2 sections')
+    expect(runStatusText(card({ status: 'finished', endedAt: 2_000 }), 2_000 + 5 * 60_000, 1)).toBe('saved · 5m · 1 section')
+    expect(runStatusText(card({ status: 'failed', endedAt: 2_000 }), 3_000, 1)).toBe('failed')
+    expect(runStatusText(card({ status: 'stopped', endedAt: 2_000 }), 3_000, 1)).toBe('stopped')
+  })
+
+  it('count the sections of the subject document alone, and none without one', () => {
+    const entry = card({
+      documents: [
+        { path: 'addendum.md', sections: ['A', 'B', 'C', 'D', 'E', 'F'] },
+        { path: 'prd.md', sections: ['Vision', 'Scope'] }
+      ]
+    })
+    expect(subjectSections(entry, 'prd.md')).toBe(2)
+    expect(subjectSections(entry, 'unknown.md')).toBe(0)
+    expect(subjectSections(entry, undefined)).toBe(0)
   })
 
   it('never carry a denominator', () => {
     for (const status of ['running', 'finished', 'failed', 'stopped'] as const) {
-      expect(runStatusText(card({ status, endedAt: 2_000, sections: ['A'] }), 3_000)).not.toMatch(/\bof\b|\//)
+      expect(runStatusText(card({ status, endedAt: 2_000 }), 3_000, 1)).not.toMatch(/\bof\b|\//)
     }
     expect(sectionCount(0)).toBe('0 sections')
   })
@@ -43,9 +51,9 @@ describe('the run card’s words', () => {
   })
 
   it('announce the persona and what became of the run', () => {
-    expect(runLifecycleLine(card(), 'John')).toBe('John · writing')
-    expect(runLifecycleLine(card({ status: 'finished', sections: ['A', 'B', 'C'] }), 'John')).toBe('John · saved · 3 sections')
-    expect(runLifecycleLine(card({ status: 'failed' }), 'John')).toBe('John · failed')
+    expect(runLifecycleLine(card(), 'John', 0)).toBe('John · writing')
+    expect(runLifecycleLine(card({ status: 'finished' }), 'John', 3)).toBe('John · saved · 3 sections')
+    expect(runLifecycleLine(card({ status: 'failed' }), 'John', 3)).toBe('John · failed')
   })
 
   it('take a memlog line apart for the feed, with the time it was observed', () => {

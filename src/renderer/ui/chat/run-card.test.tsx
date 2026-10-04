@@ -14,13 +14,18 @@ const card = (over: Partial<RunCardEntry> = {}): RunCardEntry => ({
   agentId: 'bmad-agent-pm',
   status: 'running',
   notes: [],
-  sections: [],
+  documents: [],
   ...over
 })
 
-function draw(entry: RunCardEntry, prose?: { callId: string; path: string; text: string }): string {
+type Held = { callId: string; path: string; text: string; written?: number }
+
+function draw(entry: RunCardEntry, ...held: Held[]): string {
   const store = createProseStore({ raf: (run) => run() })
-  if (prose !== undefined) store.seed(entry.runId, prose)
+  store.seed(
+    entry.runId,
+    held.map(({ callId, path, text, written }) => ({ callId, path, text, written: written ?? text.length, sections: [] }))
+  )
   return renderToStaticMarkup(<RunCard entry={entry} prose={store} />)
 }
 
@@ -69,11 +74,48 @@ describe('a card with notes and prose', () => {
     expect(body.indexOf('run-note-feed')).toBeLessThan(body.indexOf('run-card-prose'))
     expect(body).not.toMatch(/<hr|role="separator"|run-card-divider/)
   })
+
+  it('has no foot while it holds one document', () => {
+    expect(markup).not.toContain('run-card-foot')
+  })
+})
+
+describe('a card whose run wrote several files', () => {
+  const now = Date.now()
+  const entry = card({
+    at: now - 1000,
+    status: 'finished',
+    endedAt: now,
+    documents: [
+      { path: 'addendum.md', sections: ['One', 'Two', 'Three', 'Four'] },
+      { path: 'prd.md', sections: ['Vision', 'Scope'] }
+    ]
+  })
+  const markup = draw(
+    entry,
+    { callId: 'c1', path: 'addendum.md', text: 'ADDENDUM', written: 3000 },
+    { callId: 'e1', path: 'prd.md', text: '## Vision\n## Scope', written: 5000 },
+    { callId: 'e2', path: '_bmad/copy.md', text: '', written: 0 }
+  )
+
+  it('shows only the subject in the head and the body, and counts its sections alone', () => {
+    // The body's text is written once a frame, after mounting (`run-card.dom.test.tsx`); the other file's never is.
+    expect(markup).toContain('<span class="run-card-path">prd.md</span>')
+    expect(markup).not.toContain('ADDENDUM')
+    expect(markup).toContain('saved · just now · 2 sections')
+  })
+
+  it('names every other file in the foot, after the body, and in no live region', () => {
+    const foot = markup.slice(markup.indexOf('<div class="run-card-foot">'))
+    expect(markup.indexOf('run-card-foot')).toBeGreaterThan(markup.indexOf('run-card-body'))
+    expect(words(foot)).toEqual(['also written', 'addendum.md', '_bmad/copy.md'])
+    expect(foot).not.toMatch(/\baria-|role=/)
+  })
 })
 
 describe('a finished card', () => {
   const now = Date.now()
-  const markup = draw(card({ at: now - 65_000, status: 'finished', endedAt: now, sections: ['A', 'B', 'C'] }), {
+  const markup = draw(card({ at: now - 65_000, status: 'finished', endedAt: now, documents: [{ path: 'prd.md', sections: ['A', 'B', 'C'] }] }), {
     callId: 'c1',
     path: 'prd.md',
     text: '## A'

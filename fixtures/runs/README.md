@@ -1,8 +1,8 @@
 # Replay corpus
 
-Raw `claude` `stream-json` from real `/bmad-prd` sessions. One frame per line, exactly as the CLI wrote it to stdout; nothing here is a domain event, and nothing was edited after recording. `<scenario>.meta.json` sits beside each file. `tests/replay-corpus.test.ts` asserts that every scenario still has the shape it is named for.
+Raw `claude` `stream-json` from real sessions, all but one of them `/bmad-prd`. One frame per line, exactly as the CLI wrote it to stdout; nothing here is a domain event, and nothing was edited after recording. `<scenario>.meta.json` sits beside each file. `tests/replay-corpus.test.ts` asserts that every scenario still has the shape it is named for.
 
-Recorded with `scripts/record-run.mjs` on 2026-10-01, `claude` 2.1.274, against throwaway subject projects (a copy of this repo's `.claude/skills` and `_bmad/scripts` in a scratch directory), `--permission-mode bypassPermissions`. Each session ran with the load-bearing flags: `--input-format stream-json --output-format stream-json --include-partial-messages --verbose --setting-sources project,local`.
+Recorded with `scripts/record-run.mjs` on 2026-10-01 (and `multi-file-sonnet` on 2026-10-03, flags in its row), `claude` 2.1.274, against throwaway subject projects (a copy of this repo's `.claude/skills` and `_bmad/scripts` in a scratch directory), `--permission-mode bypassPermissions`. Each session ran with the load-bearing flags: `--input-format stream-json --output-format stream-json --include-partial-messages --verbose --setting-sources project,local`.
 
 ## Scenarios
 
@@ -13,11 +13,12 @@ Recorded with `scripts/record-run.mjs` on 2026-10-01, `claude` 2.1.274, against 
 | `coaching-path` | opus | A Coaching-path conversation, 10 turns, with the PRD written in multi-kilobyte batches (Bash heredocs and Python patches) a few sections at a time, then a four-reviewer gate. |
 | `interrupt-sigint` | sonnet | `SIGINT` to the process once a `Write` had streamed 20 KB of input. The write's `content_block` never closes. The CLI emits a synthetic `user` frame and a final `result` with `error_during_execution`, `stop_reason: tool_use`, and exits 0. The session is over. |
 | `interrupt-inband` | sonnet | A `control_request` `interrupt` at the same point. The CLI answers with a `control_response`, ends the turn with `error_during_execution`, and **the session survives**: a follow-up turn produces a complete 38 KB `Write`. |
+| `multi-file-sonnet` | sonnet | **One card, several files** (Story 3.12). Recorded 2026-10-03 with `--permission-mode acceptEdits` and `--disallowedTools Bash,Task,Agent,WebFetch,WebSearch,NotebookEdit`, from one scripted turn rather than `/bmad-prd`: a 1.4 KB `addendum.md`, a 3.3 KB `prd.pre-review.md` and an 8.4 KB `prd.md`, each by one `Write` with a relative `file_path`, then three revision `Edit`s of `prd.md` (the last adds a section). A real recording, not hand-built; short so it can be replayed in every test run. |
 | `reviewer-gate-failure-induced` | sonnet | **Induced, not natural.** The gate run on a finished PRD under `--max-budget-usd 1.00`: two reviewer subagents dispatched, one reports, and the CLI ends with `result` `error_max_budget_usd`, `is_error: true`, no `stop_reason`. |
 
 ## Things the corpus shows that the planning text got wrong or left open
 
-- **Which tool writes the document depends on the model.** Sonnet uses `Write`/`Edit`; opus uses Bash heredocs. A `doc:prose` interpreter that watches only `Write` input sees nothing on opus. The interpreter has to recognise a document write inside a Bash command, or the product has to pin a model. Both are decisions for Epic 3, not for this story.
+- **Which tool writes the document depends on the model.** Sonnet uses `Write`/`Edit`; opus uses Bash heredocs. A `doc:prose` interpreter that watches only `Write` input sees nothing on opus. The interpreter has to recognise a document write inside a Bash command, or the product has to pin a model. **Still open after Story 3.12:** the card keeps a buffer per path only for `Write`s and patches it only by `Edit`; a run that writes through Bash heredocs or Python patches has no buffer and no subject, and its body stays the run-note feed. Naming a heredoc-aware interpreter is a later decision.
 - **A session takes turns nobody sent.** Background subagents finishing wake the main thread, which produces its own `result` rows. A `result` row is the end of *a* turn, not of the turn the harness sent; matching them one to one is wrong.
 - **The "quiet window" is not just `system/task_progress`.** While subagents run, the stream carries their `assistant`/`user`/`stream_event` frames (marked by `parent_tool_use_id`), `tool_progress`, `task_*` system frames and `rate_limit_event`. The main thread is silent; the stream is not.
 - **`SIGINT` ends the session and the in-band interrupt does not.** Both end the interrupted turn in `error_during_execution` with `stop_reason: tool_use`.

@@ -1232,6 +1232,29 @@ describe('a run, through the conversation (Story 3.1)', () => {
     expect(lines).toEqual(['Mary · writing', 'Mary · saved · 2 sections'])
   })
 
+  it('hands a confirmed write’s text to the prose store, and announces the subject’s sections alone', async () => {
+    const { lines, store } = await live()
+    bridge.push(started())
+    bridge.push(prose('## A\nold text'))
+    bridge.push({
+      name: 'doc:committed',
+      payload: { ok: true, runId: 'r1', sessionId: 's1', callId: 'c1', path: 'prd.md', sections: ['A'], at: 53 }
+    })
+    bridge.push({
+      name: 'doc:committed',
+      payload: { ok: true, runId: 'r1', sessionId: 's1', callId: 'c2', path: 'other.md', sections: ['X', 'Y', 'Z'], at: 54 }
+    })
+    bridge.push({
+      name: 'doc:committed',
+      payload: { ok: true, runId: 'r1', sessionId: 's1', callId: 'e1', path: 'prd.md', sections: ['A', 'B'], text: '## A\n## B', at: 55 }
+    })
+    bridge.push({ name: 'run:finished', payload: { runId: 'r1', sessionId: 's1', at: 56 } })
+
+    expect(store.get('r1')).toEqual({ callId: 'e1', path: 'prd.md', text: '## A\n## B' })
+    expect(store.paths('r1')).toEqual(['prd.md', 'other.md'])
+    expect(lines).toEqual(['Mary · writing', 'Mary · saved · 2 sections'])
+  })
+
   it('takes the cards and their prose from the snapshot a window reads on connecting', async () => {
     bridge.conversation = Promise.resolve({
       ...EMPTY,
@@ -1244,8 +1267,10 @@ describe('a run, through the conversation (Story 3.1)', () => {
           startedAt: 40,
           status: 'running',
           notes: [{ text: '- n', at: 41 }],
-          sections: ['A'],
-          prose: { callId: 'c9', path: 'prd.md', text: 'so far' }
+          documents: [
+            { path: 'addendum.md', callId: 'c8', text: 'small', written: 5, sections: [] },
+            { path: 'prd.md', callId: 'c9', text: 'so far', written: 6, sections: ['A'] }
+          ]
         }
       ]
     })
@@ -1261,7 +1286,10 @@ describe('a run, through the conversation (Story 3.1)', () => {
     })
     await connected(conversation)
 
-    expect(published.at(-1)?.entries).toMatchObject([{ kind: 'run', runId: 'r9', status: 'running', sections: ['A'] }])
+    expect(published.at(-1)?.entries).toMatchObject([
+      { kind: 'run', runId: 'r9', status: 'running', documents: [{ path: 'addendum.md', sections: [] }, { path: 'prd.md', sections: ['A'] }] }
+    ])
     expect(store.get('r9')).toEqual({ callId: 'c9', path: 'prd.md', text: 'so far' })
+    expect(store.paths('r9')).toEqual(['addendum.md', 'prd.md'])
   })
 })

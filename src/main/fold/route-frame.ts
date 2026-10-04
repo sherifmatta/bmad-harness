@@ -12,11 +12,14 @@ import { sectionHeadings } from './section-headings'
  * else, so that the renderer never has to parse a frame:
  *
  * - main-thread speech outside a tool call is what the persona said;
- * - the text of a run's `Write` or `Edit` to a file in the project is document
- *   prose, and the call is held as a pending write until its result;
+ * - the text of a run's `Write` to a file in the project is document prose,
+ *   and replaces the run's buffer of that path as it streams; an `Edit` streams
+ *   nothing, and its `old_string` and `new_string` are held whole. Either call
+ *   is held as a pending write until its result;
  * - a pending write's `tool_result` commits it: exactly one `doc:committed` per
- *   call, carrying the level-2 headings of what it wrote, or, when the tool
- *   refused it, the envelope and no sections (AD-5);
+ *   call, carrying the level-2 headings of the document at that path after the
+ *   call, and for an `Edit` that applied, the patched document whole; when the
+ *   tool refused it, the envelope and no sections (AD-5);
  * - the same text aimed at `.memlog.md` goes nowhere: run notes come from the
  *   file, which the watcher sees once, and never from the stream, so memlog
  *   text cannot enter a document's prose or its sections;
@@ -64,15 +67,18 @@ type ToolBlock = {
   /** The project-relative path, once the destination is prose. */
   docPath: string
   held: string
+  /** An `Edit`'s `old_string`, decoded so far. */
+  oldText: string
 }
 
 type Block = { kind: 'text' } | { kind: 'other' } | ToolBlock
 
 /**
  * A document write whose path is known and whose result has not come back:
- * where it writes, which tool, and every character of its text so far.
+ * where it writes, which tool, every character of its text so far, and for an
+ * `Edit`, the text it replaces.
  */
-export type PendingWrite = { path: string; tool: string; text: string }
+export type PendingWrite = { path: string; tool: string; text: string; old: string }
 
 export type RouteState = {
   /** The main thread's current message; a new one resets its blocks. */
@@ -87,17 +93,31 @@ export type RouteState = {
    * drops whatever never came back (`withoutPendingWrites`).
    */
   writes: Readonly<Record<string, PendingWrite>>
+  /**
+   * The run's documents by project-relative path: the text of the latest
+   * `Write` to each, as it streamed, patched by each `Edit` that applied. Only
+   * a `Write` starts one; the end of the run drops them all.
+   */
+  docs: Readonly<Record<string, string>>
 }
 
-export const initialRouteState: RouteState = { messageId: undefined, blocks: {}, unnamed: 0, writes: {} }
+export const initialRouteState: RouteState = { messageId: undefined, blocks: {}, unnamed: 0, writes: {}, docs: {} }
 
-/** The state with every pending write dropped: the run ended before they came back, so none commits. */
+/**
+ * The state with every pending write and every document buffer dropped: the
+ * run ended, so none of its writes commits and its buffers are not the next run's.
+ */
 export function withoutPendingWrites(state: RouteState): RouteState {
-  return Object.keys(state.writes).length === 0 ? state : { ...state, writes: {} }
+  return Object.keys(state.writes).length === 0 && Object.keys(state.docs).length === 0
+    ? state
+    : { ...state, writes: {}, docs: {} }
 }
 
 /** The tools whose input is a document write, and the field holding the words. */
 export const WRITE_FIELDS: Readonly<Record<string, string>> = { Write: 'content', Edit: 'new_string' }
+
+/** The `Edit` input field holding the text it replaces. */
+const OLD_FIELD = 'old_string'
 
 export const MEMLOG = '.memlog.md'
 
@@ -131,7 +151,7 @@ function textEvent(
   ctx: RouteContext,
   runId: RunId
 ): ContractEvent | undefined {
-  if (text === '') return undefined
+  if (text === '' || block.tool !== 'Write') return undefined
   if (block.destination === 'prose') {
     return {
       name: 'doc:prose',
@@ -148,20 +168,25 @@ function textEvent(
   return undefined
 }
 
-/** Apply decoded input ops to a tool block, returning it and what it emits. */
+/**
+ * Apply decoded input ops to a tool block, returning it, what it emits, and
+ * the text it added to the write, emitted or not (an `Edit` emits none).
+ */
 function applyOps(
   block: ToolBlock,
   ops: FieldOp[],
   decoder: FieldDecoder,
   ctx: RouteContext
-): { block: ToolBlock; events: ContractEvent[] } {
+): { block: ToolBlock; events: ContractEvent[]; text: string } {
   let next: ToolBlock = { ...block, decoder }
   const events: ContractEvent[] = []
   const runId = ctx.runId
+  let text = ''
 
-  const emit = (text: string): void => {
+  const take = (piece: string): void => {
+    text += piece
     if (runId === undefined) return
-    const event = textEvent(next, text, ctx, runId)
+    const event = textEvent(next, piece, ctx, runId)
     if (event) events.push(event)
   }
 
@@ -176,39 +201,56 @@ function applyOps(
         next = { ...next, destination: 'none', held: '' }
       } else {
         next = { ...next, destination: 'prose', docPath }
-        emit(next.held)
+        take(next.held)
         next = { ...next, held: '' }
       }
     } else if (op.field === next.textField && op.kind === 'text') {
       if (next.destination === 'pending') next = { ...next, held: next.held + op.text }
-      else emit(op.text)
+      else if (next.destination === 'prose') take(op.text)
+    } else if (op.field === OLD_FIELD && op.kind === 'text') {
+      next = { ...next, oldText: next.oldText + op.text }
     }
   }
-  return { block: next, events }
+  return { block: next, events, text }
 }
 
-/** Hold a write once its path is known, and add to it whatever prose it just emitted. */
-function withWritten(
-  writes: RouteState['writes'],
-  before: ToolBlock,
-  after: ToolBlock,
-  events: ContractEvent[]
-): RouteState['writes'] {
-  if (after.destination !== 'prose') return writes
-  const text = events.map((event) => (event.name === 'doc:prose' ? event.payload.text : '')).join('')
-  const held = writes[after.callId]
-  if (before.destination === 'prose' && held !== undefined && text === '') return writes
-  const base = held ?? { path: after.docPath, tool: after.tool, text: '' }
-  return { ...writes, [after.callId]: { ...base, text: base.text + text } }
+/**
+ * Hold a write once its path is known, and add to it the text it just gained;
+ * a `Write`'s text is also, from its first character, the run's buffer of that path.
+ */
+function withWritten(state: RouteState, before: ToolBlock, after: ToolBlock, text: string): RouteState {
+  if (after.destination !== 'prose') return state
+  const held = state.writes[after.callId]
+  if (before.destination === 'prose' && held !== undefined && text === '' && held.old === after.oldText) return state
+  const base = held ?? { path: after.docPath, tool: after.tool, text: '', old: '' }
+  const write = { ...base, text: base.text + text, old: after.oldText }
+  const writes = { ...state.writes, [after.callId]: write }
+  const docs = after.tool === 'Write' && write.text !== '' ? { ...state.docs, [write.path]: write.text } : state.docs
+  return { ...state, writes, docs }
 }
 
-/** One `doc:committed` per pending write a result answers; the write is no longer pending. */
+/**
+ * What an `Edit` that applied leaves of a document: every occurrence of its
+ * `old_string` replaced, since a successful `Edit` had one or `replace_all`.
+ * Nothing when there is no buffer, no old text, or the old text is not in it.
+ */
+function patched(doc: string | undefined, write: PendingWrite): string | undefined {
+  if (doc === undefined || write.old === '' || !doc.includes(write.old)) return undefined
+  return doc.split(write.old).join(write.text)
+}
+
+/**
+ * One `doc:committed` per pending write a result answers; the write is no
+ * longer pending. An `ok` commit names the sections of the document at its path
+ * after the call, and an `Edit` that applied carries the patched document whole.
+ */
 function commitResults(
   state: RouteState,
   results: readonly ToolResult[],
   ctx: RouteContext
 ): RouteResult {
   let writes = state.writes
+  let docs = state.docs
   const events: ContractEvent[] = []
   for (const { callId, failed } of results) {
     const write = writes[callId]
@@ -218,20 +260,35 @@ function commitResults(
     writes = rest
     if (ctx.runId === undefined) continue
     const base = { runId: ctx.runId, sessionId: ctx.sessionId, callId, path: write.path, at: ctx.now }
-    events.push(
-      failed
-        ? {
-            name: 'doc:committed',
-            payload: {
-              ...base,
-              ok: false,
-              error: { code: 'doc/write-rejected', message: `doc · the ${write.tool.toLowerCase()} was rejected` }
-            }
-          }
-        : { name: 'doc:committed', payload: { ...base, ok: true, sections: sectionHeadings(write.text) } }
-    )
+    if (failed) {
+      events.push({
+        name: 'doc:committed',
+        payload: {
+          ...base,
+          ok: false,
+          error: { code: 'doc/write-rejected', message: `doc · the ${write.tool.toLowerCase()} was rejected` }
+        }
+      })
+      continue
+    }
+    if (write.tool !== 'Edit') {
+      events.push({ name: 'doc:committed', payload: { ...base, ok: true, sections: sectionHeadings(write.text) } })
+      continue
+    }
+    const doc = docs[write.path]
+    const text = patched(doc, write)
+    if (text !== undefined) docs = { ...docs, [write.path]: text }
+    events.push({
+      name: 'doc:committed',
+      payload: {
+        ...base,
+        ok: true,
+        sections: sectionHeadings(text ?? doc ?? ''),
+        ...(text === undefined ? {} : { text })
+      }
+    })
   }
-  return writes === state.writes ? { state, events } : { state: { ...state, writes }, events }
+  return writes === state.writes ? { state, events } : { state: { ...state, writes, docs }, events }
 }
 
 function personaSaid(state: RouteState, text: string, ctx: RouteContext): ContractEvent {
@@ -290,7 +347,8 @@ export function routeFrame(state: RouteState, frame: unknown, ctx: RouteContext)
         pathText: '',
         destination: 'pending',
         docPath: '',
-        held: ''
+        held: '',
+        oldText: ''
       }
       return { state: withBlock(state, input.index, tool), events: [] }
     }
@@ -308,13 +366,12 @@ export function routeFrame(state: RouteState, frame: unknown, ctx: RouteContext)
     case 'json-delta': {
       const block = state.blocks[input.index]
       if (block === undefined || block.kind !== 'tool') return { state, events: [] }
-      const decoded = feedFields(block.decoder, input.partial, ['file_path', block.textField])
+      const watched = block.tool === 'Edit' ? ['file_path', block.textField, OLD_FIELD] : ['file_path', block.textField]
+      const decoded = feedFields(block.decoder, input.partial, watched)
       const applied = applyOps(block, decoded.ops, decoded.state, ctx)
       // A write is pending only inside a run: one left streaming after its run ended never commits.
-      const writes =
-        ctx.runId === undefined ? state.writes : withWritten(state.writes, block, applied.block, applied.events)
-      const next = withBlock(state, input.index, applied.block)
-      return { state: writes === state.writes ? next : { ...next, writes }, events: applied.events }
+      const written = ctx.runId === undefined ? state : withWritten(state, block, applied.block, applied.text)
+      return { state: withBlock(written, input.index, applied.block), events: applied.events }
     }
 
     case 'block-stop':

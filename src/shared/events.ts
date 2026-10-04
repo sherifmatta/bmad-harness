@@ -106,7 +106,11 @@ export type DocSectionOpened = {
   at: EpochMs
 }
 
-/** A piece of document text being written. Pieces concatenate in order. */
+/**
+ * A piece of the text a `Write` is writing to a document. Pieces of one call
+ * concatenate in order, and a call's pieces replace that path's text. An
+ * `Edit` streams none: what it did arrives whole on its `doc:committed`.
+ */
 export type DocProse = {
   runId: RunId
   sessionId: SessionId
@@ -117,8 +121,8 @@ export type DocProse = {
 }
 
 /**
- * The outcome of one document-writing tool call: the sections it left on disk,
- * or the envelope saying why it did not.
+ * The outcome of one document-writing tool call: the sections of the document
+ * at `path` after it, or the envelope saying why it did not land.
  */
 export type DocCommitted =
   | {
@@ -127,7 +131,19 @@ export type DocCommitted =
       sessionId: SessionId
       callId: CallId
       path: string
+      /**
+       * The level-2 headings of the document at `path` after the call, as main
+       * holds it: a `Write`'s text, or the run's buffer of the path after an
+       * `Edit`. None for an `Edit` of a path no `Write` of this run started.
+       */
       sections: string[]
+      /**
+       * The whole document after an `Edit` that applied to the run's buffer of
+       * `path` (its `old_string` replaced by its `new_string`). Absent for a
+       * `Write`, whose text streamed as `doc:prose`, and for an `Edit` that
+       * changed no buffer.
+       */
+      text?: string
       at: EpochMs
     }
   | {
