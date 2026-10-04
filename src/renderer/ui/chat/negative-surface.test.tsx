@@ -6,6 +6,9 @@ import { Shell } from '../shell/shell'
 import { Composer } from './composer'
 import { canAnswer, initialConversation, sendMessage } from './conversation-state'
 import { handoffTarget } from './handoff-target'
+import { createProseStore } from './prose-store'
+import { RunCard } from './run-card'
+import type { RunCardEntry } from './transcript-entry'
 import { Turns } from './transcript'
 import type { TranscriptEntry } from './transcript-entry'
 
@@ -365,5 +368,55 @@ describe('`@` in the composer', () => {
   it('resolves a roster name other than the current persona’s, and only that', () => {
     expect(handoffTarget('@Ben hello', ROSTER, ADA.id)).toEqual({ agent: BEN, text: 'hello' })
     expect(handoffTarget('@Ada', ROSTER, ADA.id)).toBeNull()
+  })
+})
+
+/**
+ * The run card in every state it can draw (Story 3.4): no waiting sentence,
+ * spinner, skeleton or bar, and nothing between the notes and the prose.
+ */
+describe('the run card, in every state', () => {
+  const entry = (over: Partial<RunCardEntry> = {}): RunCardEntry => ({
+    kind: 'run',
+    id: 'r1',
+    at: NOW,
+    runId: 'r1',
+    sessionId: 's1',
+    agentId: ADA.id,
+    status: 'running',
+    notes: [],
+    documents: [],
+    plan: ['Vision', 'Scope'],
+    ...over
+  })
+  const draw = (card: RunCardEntry, text = ''): string => {
+    const store = createProseStore({ raf: (run) => run() })
+    if (text !== '') store.seed(card.runId, [{ callId: 'c1', path: 'prd.md', text, written: text.length, sections: [] }])
+    return renderToStaticMarkup(<RunCard entry={card} prose={store} />)
+  }
+  const words = (markup: string): string => markup.replace(/<[^>]*>/g, '|')
+  const STATES: [string, string][] = [
+    ['born', draw(entry())],
+    ['in dead air with notes', draw(entry({ notes: [{ text: '- (decision) One', at: NOW + 1 }] }))],
+    ['writing', draw(entry(), '## 1. Vision\nwords')],
+    ['finished', draw(entry({ status: 'finished', endedAt: NOW + 5 }), '## 1. Vision\nwords')],
+    ['failed', draw(entry({ status: 'failed', endedAt: NOW + 5 }))],
+    ['stopped', draw(entry({ status: 'stopped', endedAt: NOW + 5 }))]
+  ]
+
+  it.each(STATES)('says no waiting sentence and draws no spinner, skeleton or bar when %s', (_state, markup) => {
+    expect(words(markup)).not.toMatch(STAND_IN)
+    expect(words(markup)).not.toMatch(/nothing written|opens when|awaiting|not yet|yet to/i)
+    expect(markup).not.toMatch(/<progress|<meter|role="progressbar"|aria-valuenow|skeleton|spinner|shimmer/i)
+  })
+
+  it.each(STATES)('has at least one row in its body when %s', (_state, markup) => {
+    expect(markup).toMatch(/class="run-note"/)
+  })
+
+  it.each(STATES)('puts no label, rule or container between the notes and the prose when %s', (_state, markup) => {
+    const flow = markup.slice(markup.indexOf('<div class="run-card-flow">'), markup.indexOf('</span></div></div></div>') + 1)
+    expect(flow).toMatch(/^<div class="run-card-flow"><div class="run-note-feed">.*<\/div><div class="run-card-prose"/)
+    expect(flow).not.toMatch(/<hr|<legend|<label|<h\d|role="separator"|divider/)
   })
 })

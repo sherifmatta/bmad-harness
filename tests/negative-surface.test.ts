@@ -1514,3 +1514,45 @@ describe("progress against a plan has no denominator, bar, stagger or tick-throu
     expect(css).toMatch(/\.run-card-caret\s*\{[^}]*animation\s*:/);
   });
 });
+
+describe("the card is never empty, and says nothing in place of what has not happened (Story 3.4)", () => {
+  const CARD = "src/renderer/ui/chat/run-card.tsx";
+  const STATUS = "src/renderer/ui/chat/run-status.ts";
+  const CARD_CSS = "src/renderer/ui/chat/run-card.css";
+
+  it("reads the sources it claims to sweep", () => {
+    for (const path of [CARD, STATUS, CARD_CSS]) {
+      expect(code.get(path)?.length ?? 0, path).toBeGreaterThan(200);
+    }
+  });
+
+  it("holds no waiting sentence, spinner, skeleton or bar in the words the card is made of", () => {
+    const WORDS = /(["'`])(?:(?!\1)[^\n\\]|\\.)*\1|>[^<>{}\n]+</g;
+    const spoken = [CARD, STATUS].flatMap((path) =>
+      [...(code.get(path) ?? "").matchAll(WORDS)].map(([text]) => `${path}: ${text}`),
+    );
+    expect(
+      spoken.filter((text) =>
+        /\b(?:loading|waiting|awaiting|pending|thinking|preparing|processing|nothing written|opens when|not yet|spinner|skeleton|shimmer)\b|\.\.\.|…/i.test(text),
+      ),
+    ).toEqual([]);
+    expect(offenders([CARD, STATUS], /<progress\b|<meter\b|role=["']progressbar|skeleton|spinner|shimmer/i)).toEqual([]);
+    expect(offenders([CARD_CSS], /skeleton|spinner|shimmer|progress|meter/i)).toEqual([]);
+  });
+
+  it("puts nothing between the notes and the prose: the flow holds the feed and the prose and no other element", () => {
+    const card = code.get(CARD) ?? "";
+    const flow = card.slice(card.indexOf('<div className="run-card-flow">'), card.indexOf("</div>\n        </div>\n      </div>"));
+    expect(flow).toContain("<RunNoteFeed");
+    expect(flow).toContain('<div className="run-card-prose"');
+    expect(flow).not.toMatch(/<hr\b|<legend\b|<label\b|<h\d\b|role=["']separator|divider/);
+    expect(offenders([CARD_CSS], /\.run-card-(?:flow|divider|separator|notes)[^{]*\{[^}]*(?:border|background)/)).toEqual([]);
+  });
+
+  it("keeps the two dead-air phrases in the foot and in no live region", () => {
+    const card = code.get(CARD) ?? "";
+    expect(card).toContain("0 words on disk");
+    expect(card).toContain("autosave on");
+    expect(offenders([CARD, STATUS], /aria-live|role=["'](?:status|alert)/)).toEqual([]);
+  });
+});

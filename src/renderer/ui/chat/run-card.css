@@ -62,13 +62,19 @@
   color: var(--red);
 }
 
-/* Elapsed in the faint tier: the status string beside it carries the state. */
+/* Elapsed in the faint tier: the status string beside it carries the state.
+   With no status (dead air) it takes the right edge itself. */
 .run-card-elapsed {
+  margin-left: auto;
   font-family: var(--mono);
   font-size: var(--fs-meta);
   color: var(--faint);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.run-card-status + .run-card-elapsed {
+  margin-left: 0;
 }
 
 .run-card-body {
@@ -118,6 +124,11 @@
 .run-card-foot-path,
 .run-card-foot-name {
   overflow-wrap: anywhere;
+}
+
+/* Dead air's two phrases on the disk's truth, a tier above the names that follow. */
+.run-card-foot-phrase {
+  color: var(--dim);
 }
 
 /* The count of sections still to write leads their names, a tier above them. */

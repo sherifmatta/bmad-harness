@@ -37,8 +37,13 @@ export function subjectSections(entry: RunCardEntry, path: string | undefined): 
  * once the text shows a section, and `revising · §N <Name>` (or `revising`)
  * from an applied `Edit`. `N` is the section's place among those seen, never a
  * share of a total: there is no total.
+ *
+ * In dead air, with no document text held for the card, there is no word: no
+ * feed states a phase, and `writing` before anything is written is a state
+ * nothing drives. It returns with the first piece of prose.
  */
-export function progressWords(progress: RunProgress): string {
+export function progressWords(progress: RunProgress, hasText: boolean = true): string {
+  if (!hasText) return ''
   const verb = progress.revising ? 'revising' : 'writing'
   return progress.section === undefined ? verb : `${verb} · §${progress.section.n} ${progress.section.name}`
 }
@@ -47,17 +52,19 @@ export function progressWords(progress: RunProgress): string {
  * The head's status string: what the run is doing while it is in flight (see
  * `progressWords`), then `saved · <age> · N sections` with N the subject's,
  * `failed` or `stopped`. No denominator, and no word that stands in for
- * progress.
+ * progress. A running card that holds no text (dead air) has an empty string:
+ * the head then draws no status at all.
  */
 export function runStatusText(
   entry: RunCardEntry,
   now: number,
   sections: number,
-  progress: RunProgress = NO_PROGRESS
+  progress: RunProgress = NO_PROGRESS,
+  hasText: boolean = true
 ): string {
   switch (entry.status) {
     case 'running':
-      return progressWords(progress)
+      return progressWords(progress, hasText)
     case 'finished':
       return `saved · ${formatAge(entry.endedAt ?? now, now)} · ${sectionCount(sections)}`
     case 'failed':
@@ -98,4 +105,20 @@ export function runLifecycleLine(entry: RunCardEntry, name: string, sections: nu
 export function noteOf(text: string, at: number): RunNote {
   const parsed = parseMemlog(text)[0] ?? { kind: null, author: null, time: null, reason: text }
   return { ...parsed, time: formatTurnTime(at) }
+}
+
+/**
+ * The run's own start record, the first row of every card's body: made from the
+ * card's `at`, with no kind and the reason `run started`. It is a record of
+ * something that happened, not a sentence about waiting, and it is never stored
+ * in `notes`: a card's last note stays the last `run:note`, and the fallback
+ * before any note has arrived stays true.
+ */
+export function startNote(entry: RunCardEntry): RunNote {
+  return { kind: null, author: null, time: formatTurnTime(entry.at), reason: 'run started' }
+}
+
+/** The rows of a card's body above its prose: the start row, then each `run:note` in order. */
+export function bodyNotes(entry: RunCardEntry): RunNote[] {
+  return [startNote(entry), ...entry.notes.map((note) => noteOf(note.text, note.at))]
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { noteOf, progressWords, runDotState, runLifecycleLine, runStatusText, sectionCount, subjectSections, subjectWritten } from './run-status'
+import { bodyNotes, noteOf, progressWords, runDotState, runLifecycleLine, runStatusText, sectionCount, startNote, subjectSections, subjectWritten } from './run-status'
 import type { RunCardEntry } from './transcript-entry'
 
 const card = (over: Partial<RunCardEntry> = {}): RunCardEntry => ({
@@ -30,7 +30,7 @@ describe('the run card’s words', () => {
     expect(progressWords({ revising: true, section: { name: 'Vision', n: 2 } })).toBe('revising · §2 Vision')
     expect(progressWords({ revising: true })).toBe('revising')
     const running = card()
-    expect(runStatusText(running, 5_000, 0, { revising: false, section: { name: 'Vision', n: 2 } })).toBe('writing · §2 Vision')
+    expect(runStatusText(running, 5_000, 0, { revising: false, section: { name: 'Vision', n: 2 } }, true)).toBe('writing · §2 Vision')
     // A card that has ended says what became of it, whatever progress it had.
     const progress = { revising: true, section: { name: 'Vision', n: 2 } }
     expect(runStatusText(card({ status: 'finished', endedAt: 2_000 }), 2_500, 2, progress)).toBe('saved · just now · 2 sections')
@@ -83,5 +83,45 @@ describe('the run card’s words', () => {
     expect(note).toMatchObject({ kind: 'decision', reason: '**Fast** path' })
     expect(note.time).toMatch(/^\d{2}:\d{2}$/)
     expect(noteOf('not an entry', at)).toMatchObject({ kind: null, reason: 'not an entry' })
+  })
+})
+
+describe('dead air (Story 3.4)', () => {
+  it('gives a running card that holds no text no status words, and a word again with the first text', () => {
+    expect(runStatusText(card(), 5_000, 0, undefined, false)).toBe('')
+    expect(runStatusText(card(), 5_000, 0, { revising: false }, false)).toBe('')
+    expect(progressWords({ revising: false }, false)).toBe('')
+    expect(progressWords({ revising: true, section: { name: 'Vision', n: 2 } }, false)).toBe('')
+    expect(progressWords({ revising: false }, true)).toBe('writing')
+  })
+
+  it('leaves every terminal head as it was, whether or not text is held', () => {
+    for (const hasText of [false, true]) {
+      expect(runStatusText(card({ status: 'finished', endedAt: 2_000 }), 2_500, 2, undefined, hasText)).toBe('saved · just now · 2 sections')
+      expect(runStatusText(card({ status: 'failed', endedAt: 2_000 }), 3_000, 1, undefined, hasText)).toBe('failed')
+      expect(runStatusText(card({ status: 'stopped', endedAt: 2_000 }), 3_000, 1, undefined, hasText)).toBe('stopped')
+    }
+  })
+
+  it('make the start row from the card’s own time, with no kind and the reason `run started`', () => {
+    const row = startNote(card({ at: Date.UTC(2026, 9, 3, 9, 7) }))
+    expect(row).toMatchObject({ kind: null, author: null, reason: 'run started' })
+    expect(row.time).toMatch(/^\d{2}:\d{2}$/)
+  })
+
+  it('open the body with the start row, then each note in order, and never store the start row in the notes', () => {
+    const born = card()
+    expect(bodyNotes(born).map((row) => row.reason)).toEqual(['run started'])
+    const noted = card({
+      notes: [
+        { text: '- (decision) First', at: 2_000 },
+        { text: '- (open) Second', at: 3_000 }
+      ]
+    })
+    expect(bodyNotes(noted).map((row) => row.reason)).toEqual(['run started', 'First', 'Second'])
+    expect(noted.notes).toHaveLength(2)
+    for (const status of ['finished', 'failed', 'stopped'] as const) {
+      expect(bodyNotes(card({ status, endedAt: 9_000 })).length).toBeGreaterThanOrEqual(1)
+    }
   })
 })

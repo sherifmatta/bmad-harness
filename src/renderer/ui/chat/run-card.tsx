@@ -8,7 +8,7 @@ import { formatElapsed } from '../status/format-elapsed'
 import { StatusDot } from '../status/status-dot'
 import { pendingSections } from '../../../shared/section-plan'
 import type { ProseStore, RunProgress } from './prose-store'
-import { noteOf, runDotState, runStatusText, subjectSections, subjectWritten } from './run-status'
+import { bodyNotes, runDotState, runStatusText, subjectSections, subjectWritten } from './run-status'
 import type { RunCardEntry } from './transcript-entry'
 
 /** How often the elapsed counter re-reads the clock: it writes whole seconds. */
@@ -64,26 +64,33 @@ export function RunCard({ entry, prose }: { entry: RunCardEntry; prose: ProseSto
   const sections = subjectSections(entry, path)
   // Only a card in flight has sections still to write; a finished one has its count in the head.
   const pending = running ? pendingSections(entry.plan ?? [], subjectWritten(entry, path), seen) : []
+  // Dead air: in flight with no document text held. The foot then says what is true of the disk.
+  const deadAir = running && !hasText
 
   return (
     <section className="run-card" aria-busy={running ? true : undefined}>
       <div className="run-card-head">
         <StatusDot state={runDotState(entry)} />
         <span className="run-card-path">{path}</span>
-        <RunStatus entry={entry} sections={sections} progress={progress} />
+        <RunStatus entry={entry} sections={sections} progress={progress} hasText={hasText} />
         <RunElapsed entry={entry} />
       </div>
       <div className="run-card-body">
         <div className="run-card-flow">
-          <RunNoteFeed notes={entry.notes.map((note) => noteOf(note.text, note.at))} />
+          <RunNoteFeed notes={bodyNotes(entry)} />
           <div className="run-card-prose" hidden={!hasText}>
             <ProseText runId={runId} prose={prose} />
             {running && hasText && <span className="run-card-caret" aria-hidden="true" />}
           </div>
         </div>
       </div>
-      {(pending.length > 0 || others.length > 0) && (
+      {(deadAir || pending.length > 0 || others.length > 0) && (
         <div className="run-card-foot">
+          {deadAir && (
+            <>
+              <span className="run-card-foot-phrase">0 words on disk · autosave on</span>
+            </>
+          )}
           {pending.length > 0 && (
             <>
               <span className="run-card-foot-count">{pending.length} to write</span>
@@ -110,11 +117,25 @@ export function RunCard({ entry, prose }: { entry: RunCardEntry; prose: ProseSto
   )
 }
 
-/** The status string, counting the subject's sections; only a saved card reads the clock, for its age. */
-function RunStatus({ entry, sections, progress }: { entry: RunCardEntry; sections: number; progress: RunProgress }): JSX.Element {
+/**
+ * The status string, counting the subject's sections; only a saved card reads the clock, for its age.
+ * In dead air it draws nothing, and the elapsed time takes the head's right edge.
+ */
+function RunStatus({
+  entry,
+  sections,
+  progress,
+  hasText
+}: {
+  entry: RunCardEntry
+  sections: number
+  progress: RunProgress
+  hasText: boolean
+}): JSX.Element | null {
   const className = `run-card-status run-card-status--${entry.status}`
   if (entry.status !== 'finished') {
-    return <span className={className}>{runStatusText(entry, entry.endedAt ?? entry.at, sections, progress)}</span>
+    const words = runStatusText(entry, entry.endedAt ?? entry.at, sections, progress, hasText)
+    return words === '' ? null : <span className={className}>{words}</span>
   }
   return <SavedStatus entry={entry} sections={sections} className={className} />
 }

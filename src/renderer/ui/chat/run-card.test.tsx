@@ -43,17 +43,74 @@ const STAND_IN =
 describe('a card just born', () => {
   const markup = draw(card())
 
-  it('is busy while its run is in flight, with the feed mounted and no rows, and no text standing in', () => {
+  it('is busy while its run is in flight, with the start row as its whole body and no text standing in', () => {
     expect(markup).toContain('aria-busy="true"')
-    expect(markup).toContain('<div class="run-note-feed"></div>')
-    expect(markup).not.toContain('class="run-note"')
-    expect(words(markup)).toEqual(['writing', '0s'])
+    expect(markup.match(/class="run-note"/g)).toHaveLength(1)
+    expect(markup).toContain('<span class="run-note-reason">run started</span>')
+    expect(markup).toContain('<span class="run-note-kind run-note-kind--neutral"></span>')
     expect(markup).not.toMatch(STAND_IN)
+  })
+
+  it('has no status in its head: the path (empty), then the elapsed time', () => {
+    const head = markup.slice(markup.indexOf('<div class="run-card-head">'), markup.indexOf('<div class="run-card-body">'))
+    expect(head).not.toContain('run-card-status')
+    expect(words(head)).toEqual(['0s'])
+  })
+
+  it('reads `0 words on disk` and `autosave on` in its foot, before any named section', () => {
+    const foot = markup.slice(markup.indexOf('<div class="run-card-foot">'))
+    expect(words(foot)).toEqual(['0 words on disk · autosave on'])
+  })
+
+  it('puts the phrases before the count and the names, then the other files', () => {
+    const entry = card({ plan: ['Vision', 'Scope'] })
+    const foot = draw(entry)
+    const tail = foot.slice(foot.indexOf('<div class="run-card-foot">'))
+    expect(words(tail)).toEqual(['0 words on disk · autosave on', '2 to write', 'Vision', 'Scope'])
   })
 
   it('draws no spinner, skeleton, progress bar or caret before any prose', () => {
     expect(markup).not.toMatch(/<progress|role="progressbar"|aria-valuenow|run-card-caret|skeleton|spinner/)
     expect(markup).toMatch(/<div class="run-card-prose" hidden="">/)
+  })
+})
+
+describe('a card in dead air with notes', () => {
+  it('shows the start row, then each note in order, and the dead-air foot', () => {
+    const entry = card({
+      notes: [
+        { text: '- (decision) First', at: Date.UTC(2026, 9, 3, 9, 7) },
+        { text: '- (open) Second', at: Date.UTC(2026, 9, 3, 9, 9) },
+        { text: '- (assumption) Third', at: Date.UTC(2026, 9, 3, 9, 12) }
+      ]
+    })
+    const markup = draw(entry)
+    const reasons = [...markup.matchAll(/<span class="run-note-reason">(.*?)<\/span>/g)].map((match) => match[1])
+    expect(reasons).toEqual(['run started', 'First', 'Second', 'Third'])
+    expect(words(markup.slice(markup.indexOf('<div class="run-card-foot">')))).toEqual(['0 words on disk · autosave on'])
+  })
+})
+
+describe('a card once prose is held', () => {
+  const markup = draw(card(), { callId: 'c1', path: 'prd.md', text: '## Vision\n' })
+
+  it('reads writing in the head, keeps the start row above the prose, and drops the two phrases from its foot', () => {
+    expect(words(markup)).toContain('writing · §1 Vision')
+    expect(markup).not.toContain('0 words on disk')
+    expect(markup).not.toContain('autosave on')
+    expect(markup.indexOf('run started')).toBeLessThan(markup.indexOf('run-card-prose'))
+  })
+})
+
+describe('a terminal card', () => {
+  it('keeps the start row and its notes, and never the dead-air foot', () => {
+    for (const status of ['finished', 'failed', 'stopped'] as const) {
+      const markup = draw(card({ status, endedAt: Date.now() + 1000, notes: [{ text: '- (decision) Kept', at: 1 }] }))
+      expect(markup).toContain('run started')
+      expect(markup).toContain('Kept')
+      expect(markup).not.toContain('0 words on disk')
+      expect(markup).not.toContain('autosave on')
+    }
   })
 })
 
@@ -140,7 +197,9 @@ describe('a failed card', () => {
   it('reads failed, with the error dot and no error text', () => {
     const at = Date.now()
     const markup = draw(card({ at, status: 'failed', endedAt: at + 1000, error: { code: 'run/failed', message: 'run · the run failed' } }))
-    expect(words(markup)).toEqual(['failed', '1s'])
+    // The start row stays: a terminal card is never empty either.
+    expect(words(markup)).toEqual(['failed', '1s', expect.stringMatching(/^\d{2}:\d{2}$/), 'run started'])
+    expect(markup).not.toContain('run-card-foot')
     expect(markup).toContain('status-dot--error')
     expect(markup).not.toContain('run · the run failed')
   })

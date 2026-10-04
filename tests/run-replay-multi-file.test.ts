@@ -256,14 +256,15 @@ describe('multi-file-sonnet, replayed at full rate as a dispatched run', () => {
       const path = store.get(result.runId)?.path
       steps.push({
         name: event.name,
-        head: runStatusText(card, 1_000, subjectSections(card, path), store.progress(result.runId)),
+        head: runStatusText(card, 1_000, subjectSections(card, path), store.progress(result.runId), (store.get(result.runId)?.text ?? '') !== ''),
         foot: pendingSections(card.plan ?? [], subjectWritten(card, path), store.seen(result.runId))
       })
     }
 
     // Born with the ten sections of bmad-prd's template, all to write.
     expect(steps[0].name).toBe('run:started')
-    expect(steps[0].head).toBe('writing')
+    // Dead air: no text held yet, so the head has no status string until the first prose.
+    expect(steps[0].head).toBe('')
     expect(steps[0].foot).toHaveLength(10)
     expect(steps[0].foot[0]).toBe('Document Purpose')
 

@@ -886,12 +886,14 @@ describe('App, pressing a skill button (Story 3.1)', () => {
     push({ name: 'run:started', payload: { ...R, agentId: mary.id, code: 'CP', at: Date.now() } })
     const card = mounted.container.querySelector('.run-card')
     expect(card?.getAttribute('aria-busy')).toBe('true')
-    expect(card?.querySelector('.run-card-status')?.textContent).toBe('writing')
+    // Dead air: no status string, and the body opens with the run's own start row.
+    expect(card?.querySelector('.run-card-status')).toBeNull()
+    expect(card?.querySelector('.run-note-reason')?.textContent).toBe('run started')
     // No user turn was recorded for the dispatch.
     expect(mounted.container.querySelector('.turn--user')).toBeNull()
 
     push({ name: 'run:note', payload: { ...R, text: '- (decision) Fast path', at: Date.now() } })
-    expect(card?.querySelectorAll('.run-note')).toHaveLength(1)
+    expect(card?.querySelectorAll('.run-note')).toHaveLength(2)
 
     push({ name: 'doc:prose', payload: { ...R, callId: 'c1', path: '_bmad/prd.md', text: '## Vision\n', at: Date.now() } })
     push({ name: 'doc:prose', payload: { ...R, callId: 'c1', path: '_bmad/prd.md', text: 'words', at: Date.now() } })
@@ -1134,7 +1136,7 @@ describe('App, the running card stays in view (Story 3.14)', () => {
       busy: pinned?.getAttribute('aria-busy'),
       notes: pinned?.querySelectorAll('.run-note').length
     }
-    expect(held).toEqual({ path: '_bmad/prd.md', text: '## Vision\nwords', busy: 'true', notes: 1 })
+    expect(held).toEqual({ path: '_bmad/prd.md', text: '## Vision\nwords', busy: 'true', notes: 2 })
 
     // John viewed: Mary's card, still running, is drawn in the thread.
     act(() => tile('John').click())

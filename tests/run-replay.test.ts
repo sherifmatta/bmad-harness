@@ -1,13 +1,19 @@
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { createElement } from 'react'
+import type { ComponentType } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { ConversationReply, RunCardSnapshot } from '../src/shared/conversation'
 import type { ContractEvent } from '../src/shared/events'
 import { subjectOf } from '../src/main/fold/run-card'
 import { sectionHeadings } from '../src/main/fold/section-headings'
 import { foldEvent, initialConversation, runCardOf } from '../src/renderer/ui/chat/conversation-state'
+import type { ProseStore } from '../src/renderer/ui/chat/prose-store'
 import { createProseStore } from '../src/renderer/ui/chat/prose-store'
+import type { RunCardEntry } from '../src/renderer/ui/chat/transcript-entry'
+import { runStatusText } from '../src/renderer/ui/chat/run-status'
 
 /**
  * Story 3.1's beat, replayed: `fast-path-sonnet` fed through the real session
@@ -39,6 +45,10 @@ vi.mock('electron', () => ({
   app: { getPath: () => '/unused' }
 }))
 
+// The card is a `.tsx` module that needs the DOM lib, which the node program does not have, so it is
+// loaded by a path the typechecker does not follow and drawn here with `createElement`.
+const RUN_CARD = resolve(import.meta.dirname, '..', 'src', 'renderer', 'ui', 'chat', 'run-card.tsx')
+const { RunCard } = (await import(/* @vite-ignore */ RUN_CARD)) as { RunCard: ComponentType<{ entry: RunCardEntry; prose: ProseStore }> }
 const { createTranscriptRegistry } = await import('../src/main/projections/transcript')
 const { CONVERSATION_GET_CHANNEL, MENU_DISPATCH_CHANNEL, SESSION_OPEN_CHANNEL, TURN_SEND_CHANNEL, registerSessionBridge } =
   await import('../src/main/session-bridge')
@@ -367,5 +377,77 @@ describe('fast-path-sonnet, replayed through main as a dispatched run', () => {
     expect(shown?.text).toBe(prd)
     // What the head and the live region count (`subjectSections`): the subject's sections alone.
     expect(card?.documents.find((document) => document.path === shown?.path)?.sections).toEqual(sectionHeadings(prd))
+  })
+
+  it('shows a body row, and no status in dead air, from run:started on, through the real pipeline (Story 3.4)', () => {
+    const store = createProseStore({ raf: (run) => run() })
+    let state = initialConversation
+    let deadAir = 0
+    let withText = 0
+    const checkpoints: string[] = []
+    let seenNote = false
+    let seenProse = false
+    const draw = (): string => {
+      const entry = runCardOf(state, result.runId)
+      return renderToStaticMarkup(createElement(RunCard, { entry: entry as RunCardEntry, prose: store }))
+    }
+    for (const { event } of result.told) {
+      if (event.name === 'doc:prose') {
+        store.append(event.payload.runId, event.payload.callId, event.payload.path, event.payload.text)
+      } else {
+        if (event.name === 'doc:committed' && event.payload.ok) {
+          store.commit(event.payload.runId, event.payload.path, event.payload.callId, event.payload.text)
+        }
+        state = foldEvent(state, event, () => undefined).state
+      }
+      const card = runCardOf(state, result.runId)
+      if (card === undefined) continue
+      const hasText = (store.get(result.runId)?.text ?? '') !== ''
+      const head = runStatusText(card, 1_000, 0, store.progress(result.runId), hasText)
+      if (card.status === 'running' && !hasText) {
+        deadAir += 1
+        expect(head, `dead air after ${event.name}`).toBe('')
+      } else if (card.status === 'running') {
+        withText += 1
+        expect(head, `text held after ${event.name}`).toMatch(/^(writing|revising)/)
+      }
+      // Three checkpoints, drawn: the card as born, after its first note, after its first prose.
+      const first = event.name === 'run:started' ? 0 : event.name === 'run:note' && !seenNote ? 1 : event.name === 'doc:prose' && !seenProse ? 2 : -1
+      seenNote = seenNote || event.name === 'run:note'
+      seenProse = seenProse || event.name === 'doc:prose'
+      if (first >= 0) {
+        const markup = draw()
+        checkpoints.push(markup)
+        expect(markup, `checkpoint ${first}`).toContain('class="run-note"')
+        expect(markup).not.toMatch(/<progress|skeleton|spinner/)
+        if (first === 0) expect(markup).not.toContain('run-card-status')
+        if (first === 2) expect(markup).toContain('run-card-status')
+      }
+    }
+    expect(checkpoints).toHaveLength(3)
+    expect(deadAir).toBeGreaterThan(0)
+    expect(withText).toBeGreaterThan(0)
+  })
+
+  it('tells no persona line and no note from a subagent frame or a task_* frame', () => {
+    const subagent = (at: number): boolean => {
+      const frame = frames[at]
+      return Boolean(frame?.parent_tool_use_id) || (frame?.type === 'system' && /task_/.test(String((frame as { subtype?: string }).subtype)))
+    }
+    // The fixture does carry such frames, so the assertion is not vacuous.
+    expect(frames.some((_, at) => subagent(at))).toBe(true)
+    const heard = result.told.filter(({ event }) => event.name === 'persona:said' || event.name === 'run:note')
+    expect(heard.length).toBeGreaterThan(0)
+    for (const { event, frame } of heard) expect(subagent(frame), `${event.name} from frame ${frame}`).toBe(false)
+    // And none of the subagent frames' own text reaches a persona line.
+    const said = result.told.flatMap(({ event }) => (event.name === 'persona:said' ? [JSON.stringify(event.payload)] : []))
+    const subagentText = frames.flatMap((frame) =>
+      frame.parent_tool_use_id && frame.type === 'assistant'
+        ? ((frame.message?.content ?? []) as { type?: string; text?: string }[]).flatMap((block) =>
+            block.type === 'text' && (block.text ?? '').length > 40 ? [block.text as string] : []
+          )
+        : []
+    )
+    for (const text of subagentText) expect(said.some((line) => line.includes(JSON.stringify(text).slice(1, -1)))).toBe(false)
   })
 })

@@ -216,9 +216,9 @@ describe('progress against a plan (Story 3.3)', () => {
 
   const planned = (over: Partial<RunCardEntry> = {}): RunCardEntry => card({ plan: PRD_PLAN, ...over })
 
-  it('lists all ten planned sections by name, with a count, before any prose, and reads `writing` in the head', () => {
+  it('lists all ten planned sections by name, with a count, before any prose, and reads no status in the head', () => {
     live = drawLive(createProseStore(crank()), planned())
-    expect(live.head()).toBe('writing')
+    expect(live.head()).toBe('')
     expect(live.count()).toBe('10 to write')
     expect(live.foot()).toEqual(PRD_PLAN)
   })
@@ -348,5 +348,95 @@ describe('progress against a plan (Story 3.3)', () => {
       const markup = live.container.innerHTML
       expect(markup).not.toMatch(/\bof\b|\/\s*\d|%|<progress|role="progressbar"|aria-valuenow|style=/i)
     }
+  })
+})
+
+describe('the card is never empty (Story 3.4)', () => {
+  let live: ReturnType<typeof drawLive> | null = null
+  afterEach(() => {
+    live?.stop()
+    live = null
+  })
+
+  const rows = (): string[] => [...(live?.container.querySelectorAll('.run-note-reason') ?? [])].map((node) => node.textContent ?? '')
+  const phrases = (): string[] => [...(live?.container.querySelectorAll('.run-card-foot-phrase') ?? [])].map((node) => node.textContent ?? '')
+  const foot = (): string[] => [...(live?.container.querySelector('.run-card-foot')?.children ?? [])].map((node) => node.textContent ?? '')
+
+  it('born: the start row only, a head of path and elapsed with no status, and a foot of the two phrases then the plan', () => {
+    live = drawLive(createProseStore(crank()), card({ plan: ['Vision', 'Scope'] }))
+    expect(rows()).toEqual(['run started'])
+    expect(live.container.querySelector('.run-card-status')).toBeNull()
+    expect(live.container.querySelector('.run-card-elapsed')).not.toBeNull()
+    expect(foot()).toEqual(['0 words on disk · autosave on', '2 to write', 'Vision', 'Scope'])
+  })
+
+  it('in dead air with three notes: the start row, then the notes in order, and the same foot', () => {
+    live = drawLive(
+      createProseStore(crank()),
+      card({
+        notes: [
+          { text: '- (decision) One', at: 1_000 },
+          { text: '- (open) Two', at: 2_000 },
+          { text: '- (note) Three', at: 3_000 }
+        ]
+      })
+    )
+    expect(rows()).toEqual(['run started', 'One', 'Two', 'Three'])
+    expect(phrases()).toEqual(['0 words on disk · autosave on'])
+  })
+
+  it('when prose begins: the head reads writing, the start row stays above the prose, and the foot loses the two phrases', () => {
+    const frames = crank()
+    const store = createProseStore(frames)
+    live = drawLive(store, card({ plan: ['Vision', 'Scope'] }))
+    expect(live.head()).toBe('')
+    store.append('r1', 'c1', 'prd.md', '## 1. Vision\nwords')
+    frames.frame()
+    expect(live.head()).toBe('writing · §1 Vision')
+    expect(rows()).toEqual(['run started'])
+    expect(phrases()).toEqual([])
+    expect(live.container.querySelector('.run-card-foot')?.textContent).not.toMatch(/words on disk|autosave/)
+  })
+
+  it('quiet after prose: the head keeps its last words, the body keeps its rows and the prose, and the foot is the plan’s', () => {
+    const frames = crank()
+    const store = createProseStore(frames)
+    live = drawLive(store, card({ plan: ['Vision', 'Scope'] }))
+    store.append('r1', 'c1', 'prd.md', '## 1. Vision\nwords')
+    frames.frame()
+    // Minutes pass with no piece; a note arrives and the card re-renders.
+    live.render(card({ plan: ['Vision', 'Scope'], notes: [{ text: '- (decision) Later', at: 9_000 }] }))
+    expect(live.head()).toBe('writing · §1 Vision')
+    expect(rows()).toEqual(['run started', 'Later'])
+    expect(live.container.querySelector('.run-card-text')?.textContent).toBe('## 1. Vision\nwords')
+    expect(phrases()).toEqual([])
+    expect(foot()[0]).toBe('2 to write')
+  })
+
+  it('a terminal card keeps its start row and notes and has no dead-air foot', () => {
+    for (const status of ['finished', 'failed', 'stopped'] as const) {
+      live = drawLive(
+        createProseStore(crank()),
+        card({ status, endedAt: Date.now(), notes: [{ text: '- (decision) Kept', at: 1_000 }] })
+      )
+      expect(rows()).toEqual(['run started', 'Kept'])
+      expect(phrases()).toEqual([])
+      live.stop()
+    }
+    live = null
+  })
+
+  it('keeps the rows and the prose as siblings in one scroll container, with no wrapper, label or rule between them', () => {
+    const frames = crank()
+    const store = createProseStore(frames)
+    live = drawLive(store, card({ notes: [{ text: '- (decision) One', at: 1_000 }] }))
+    store.append('r1', 'c1', 'prd.md', '## 1. Vision\nwords')
+    frames.frame()
+    const body = live.container.querySelector('.run-card-body')
+    const flow = body?.querySelector('.run-card-flow')
+    expect(body?.children).toHaveLength(1)
+    expect([...(flow?.children ?? [])].map((node) => node.className)).toEqual(['run-note-feed', 'run-card-prose'])
+    expect(body?.querySelector('hr, [role="separator"], legend, label, h1, h2, h3, h4')).toBeNull()
+    expect(flow?.querySelectorAll('.run-note-feed > *')).toHaveLength(2)
   })
 })
