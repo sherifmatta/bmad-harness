@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { ContractEvent } from '../../shared/events'
 import type { RailRow } from '../../shared/rail'
+import { SETTLE_MS } from '../fold/rail-rows'
 import { createPersonaProjection } from './personas'
 import type { PersonaProjection, PersonaStateEvent } from './personas'
 
@@ -141,6 +142,46 @@ describe('the persona projection', () => {
     projection.apply({ name: 'rail:changed', payload: { revision: 1, rows: [owned('_bmad/prd.md', B, 1)] } })
 
     expect(raised).toEqual([])
+  })
+})
+
+describe('the persona projection and a persona’s own run', () => {
+  const PRD = '_bmad/prd.md'
+  const runStart: ContractEvent = { name: 'run:started', payload: { runId: 'r', sessionId: 's1', code: 'CP', at: 40 } }
+  const runDone: ContractEvent = { name: 'run:finished', payload: { runId: 'r', sessionId: 's1', at: 50 } }
+  const railAt = (revision: number, row: RailRow): ContractEvent => ({
+    name: 'rail:changed',
+    payload: { revision, rows: [row] }
+  })
+  const changing: RailRow = { path: PRD, owner: { agentId: B }, state: 'changing' }
+
+  function runWithOwnWrite(): void {
+    projection.seedRail({ revision: 1, rows: [owned(PRD, B, 1)] })
+    projection.apply(opened('s1', B, 10))
+    projection.apply(awaiting('s1', 20))
+    projection.apply(runStart)
+    clock = 44
+    projection.apply(railAt(2, changing))
+    projection.apply(runDone)
+    projection.apply(awaiting('s1', 55))
+    projection.attach('s1')
+  }
+
+  it('reads work, then live, when the run’s own write and its settle flip arrive between the two ends', () => {
+    runWithOwnWrite()
+    clock = 50 + SETTLE_MS - 1
+    projection.apply(railAt(3, owned(PRD, B, 49)))
+
+    expect(raised.map(({ payload }) => payload.state)).toEqual(['work', 'idle', 'work', 'idle', 'live'])
+  })
+
+  it('raises one note for the same flip outside the window', () => {
+    runWithOwnWrite()
+    clock = 50 + SETTLE_MS + 1
+    projection.apply(railAt(3, owned(PRD, B, 49)))
+
+    expect(raised.map(({ payload }) => payload.state)).toContain('note')
+    expect(raised.filter(({ payload }) => payload.state === 'note')).toHaveLength(1)
   })
 })
 

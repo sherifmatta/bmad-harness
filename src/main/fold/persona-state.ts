@@ -1,6 +1,7 @@
 import type { ContractEvent, PersonaState } from '../../shared/events'
 import type { AgentId, EpochMs, SessionId } from '../../shared/ids'
 import type { RailRow, RailSnapshot } from '../../shared/rail'
+import { SETTLE_MS } from './rail-rows'
 
 /**
  * A persona's state, folded from what happened — pure, immutable, with the
@@ -15,9 +16,12 @@ import type { RailRow, RailSnapshot } from '../../shared/rail'
  * - `error`: the agent's last run ended failed or stopped, or its last chat turn
  *   ended in failure (the CLI's `is_error`), or its process exited without being
  *   asked to. Cleared by a run that finished, or by the agent's next turn start.
- * - `note`: an owned file changed or was removed between two rail snapshots. Cleared
- *   by the agent's next turn start. The first snapshot is a baseline and
- *   raises none.
+ * - `note`: an owned file changed or was removed between two rail snapshots, and
+ *   not by the owner's own run. A change seen while a run of the file's owner is
+ *   in flight, or within `SETTLE_MS` after that run's terminal event (or its
+ *   session closing), is the run's own and raises none; the rail baseline still
+ *   takes it. Cleared by the agent's next turn start. The first snapshot is a
+ *   baseline and raises none.
  * - `live`: a session has an attached long-running process.
  * - `idle`: none of the above.
  *
@@ -41,10 +45,11 @@ export type InternalEvent =
 /** Everything the fold reads. */
 export type PersonaInput = ContractEvent | InternalEvent
 
-type SessionFlags = { agentId: AgentId; working: boolean; live: boolean }
+/** `running`: a run of this session is in flight, from `run:started` to its terminal event or the session closing. */
+type SessionFlags = { agentId: AgentId; working: boolean; live: boolean; running: boolean }
 
-/** What outlives a session: the agent's last run and the files it owns. */
-type AgentFlags = { error: boolean; note: boolean }
+/** What outlives a session: the agent's last run and the files it owns. `runEndedAt`: when its last run ended. */
+type AgentFlags = { error: boolean; note: boolean; runEndedAt?: EpochMs }
 
 /** An owned row as the last snapshot showed it. */
 type OwnedRow = { agentId: AgentId; signature: string }
@@ -122,6 +127,15 @@ function startTurn(
   return settled(started, [flags.agentId], at)
 }
 
+/** A run of the agent is in flight, or ended no more than `SETTLE_MS` before `now`: its own writes are still landing. */
+function ownRunAt(table: PersonaTable, agentId: AgentId, now: EpochMs): boolean {
+  for (const session of table.sessions.values()) {
+    if (session.agentId === agentId && session.running) return true
+  }
+  const endedAt = table.agents.get(agentId)?.runEndedAt
+  return endedAt !== undefined && now - endedAt <= SETTLE_MS
+}
+
 function signatureOf(row: RailRow): string {
   return row.state === 'saved' ? `saved:${row.savedAt}` : row.state
 }
@@ -143,30 +157,32 @@ export function seedRail(table: PersonaTable, snapshot: RailSnapshot): PersonaTa
 
 /**
  * An owned row that is new, whose disk state differs, or that is gone since the
- * last snapshot: the watcher saw a change to a file the persona owns.
+ * last snapshot: the watcher saw a change to a file the persona owns. The
+ * baseline takes every change, but one the owner's own run made raises no `note`.
  */
-function foldRail(table: PersonaTable, snapshot: RailSnapshot, at: EpochMs): PersonaTable {
+function foldRail(table: PersonaTable, snapshot: RailSnapshot, now: EpochMs): PersonaTable {
   const before = table.rail
-  const now = ownedRows(snapshot)
-  const baseline: PersonaTable = { ...table, rail: now }
+  const after = ownedRows(snapshot)
+  const baseline: PersonaTable = { ...table, rail: after }
   if (before === null) {
     return baseline
   }
   let next = baseline
   const touched = new Set<AgentId>()
   const raise = (agentId: AgentId): void => {
+    if (ownRunAt(next, agentId, now)) return
     if (next.agents.get(agentId)?.note !== true) {
       next = withAgent(next, agentId, { note: true })
       touched.add(agentId)
     }
   }
-  for (const [path, row] of now) {
+  for (const [path, row] of after) {
     if (before.get(path)?.signature !== row.signature) raise(row.agentId)
   }
   for (const [path, row] of before) {
-    if (!now.has(path)) raise(row.agentId)
+    if (!after.has(path)) raise(row.agentId)
   }
-  return settled(next, touched, at)
+  return settled(next, touched, now)
 }
 
 /**
@@ -179,14 +195,16 @@ export function foldPersonaState(table: PersonaTable, input: PersonaInput, now: 
       const { sessionId, agentId } = input.payload
       if (agentId === undefined) return table
       // The activation turn is in flight until the session says it is awaiting.
-      return startTurn(table, sessionId, { agentId, working: false, live: false }, input.payload.at)
+      return startTurn(table, sessionId, { agentId, working: false, live: false, running: false }, input.payload.at)
     }
 
     case 'turn:started':
     case 'run:started': {
       const flags = table.sessions.get(input.payload.sessionId)
       if (flags === undefined) return table
-      return startTurn(table, input.payload.sessionId, flags, input.payload.at ?? now)
+      const turn = startTurn(table, input.payload.sessionId, flags, input.payload.at ?? now)
+      if (input.name !== 'run:started') return turn
+      return withSession(turn, input.payload.sessionId, { ...flags, working: true, running: true })
     }
 
     case 'session:awaiting-turn': {
@@ -218,8 +236,14 @@ export function foldPersonaState(table: PersonaTable, input: PersonaInput, now: 
       sessions.delete(input.payload.sessionId)
       // A process that went without being asked to is an error; closing a session on purpose is not.
       const gone = input.payload.reason === 'process-exited'
+      // A run in flight ends with its session, and its last writes are still landing.
+      const patch: Partial<AgentFlags> = {
+        ...(gone ? { error: true } : {}),
+        ...(flags.running ? { runEndedAt: input.payload.at } : {})
+      }
+      const closed = { ...table, sessions }
       return settled(
-        gone ? withAgent({ ...table, sessions }, flags.agentId, { error: true }) : { ...table, sessions },
+        Object.keys(patch).length === 0 ? closed : withAgent(closed, flags.agentId, patch),
         [flags.agentId],
         input.payload.at
       )
@@ -243,8 +267,12 @@ export function foldPersonaState(table: PersonaTable, input: PersonaInput, now: 
       const flags = table.sessions.get(input.payload.sessionId)
       if (flags === undefined) return table
       const error = input.name !== 'run:finished'
-      if ((table.agents.get(flags.agentId)?.error ?? false) === error) return table
-      return settled(withAgent(table, flags.agentId, { error }), [flags.agentId], input.payload.at)
+      // The run is over; the watcher's flip of what it wrote lands up to `SETTLE_MS` later.
+      const ended = withAgent(withSession(table, input.payload.sessionId, { ...flags, running: false }), flags.agentId, {
+        error,
+        runEndedAt: input.payload.at
+      })
+      return settled(ended, [flags.agentId], input.payload.at)
     }
 
     case 'rail:changed':

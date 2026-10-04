@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { SETTLE_MS } from './rail-rows'
 import type { ContractEvent, PersonaState } from '../../shared/events'
 import type { RailRow, RailSnapshot } from '../../shared/rail'
 import {
@@ -69,6 +70,10 @@ const rail = (revision: number, ...rows: RailRow[]): ContractEvent => ({
 
 function fold(inputs: PersonaInput[], from: PersonaTable = EMPTY_PERSONA_TABLE): PersonaTable {
   return inputs.reduce((table, input) => foldPersonaState(table, input, NOW), from)
+}
+/** Fold `inputs` with the injected clock reading `at`, so a rail change is observed at a chosen instant. */
+function foldAt(inputs: PersonaInput[], at: number, from: PersonaTable): PersonaTable {
+  return inputs.reduce((table, input) => foldPersonaState(table, input, at), from)
 }
 const stateOf = (table: PersonaTable, agentId = A): PersonaState => stateOfAgent(table, agentId)
 const atOf = (table: PersonaTable, agentId = A): number | undefined => table.shown.get(agentId)?.at
@@ -340,6 +345,150 @@ describe('note', () => {
   })
 })
 
+describe('note and the persona’s own run', () => {
+  const PRD = '_bmad/prd.md'
+  const ARCH = '_bmad/architecture.md'
+  /** The baseline: pm owns the PRD, analyst the architecture, both saved. */
+  const baseline = (): PersonaTable =>
+    seedRail(EMPTY_PERSONA_TABLE, {
+      revision: 1,
+      rows: [row(PRD, 'saved', B, 1), row(ARCH, 'saved', A, 1)]
+    })
+  /** pm's session, attached and awaiting, its run started at 40: the run in flight. */
+  const inFlight = (): PersonaTable =>
+    fold([opened('s1', B), awaiting('s1'), attached('s1'), runStarted('s1', 40)], baseline())
+  /** The same run ended at 50, its turn over and the process attached again: only the window is open. */
+  const ended = (end: 'run:failed' | 'run:stopped' | 'run:finished' = 'run:finished'): PersonaTable =>
+    fold([runEnd(end, 's1', 50), awaiting('s1', 55), attached('s1')], inFlight())
+  const changing = (revision: number, owner = B) => rail(revision, row(PRD, 'changing', owner), row(ARCH, 'saved', A, 1))
+  const flipped = (revision: number, savedAt = 49) => rail(revision, row(PRD, 'saved', B, savedAt), row(ARCH, 'saved', A, 1))
+
+  it('raises none for an owned write while its run is in flight, and the dot stays work', () => {
+    const table = foldAt([changing(2)], 45, inFlight())
+
+    expect(stateOf(table, B)).toBe('work')
+    expect(table.agents.get(B)?.note).not.toBe(true)
+    expect(foldAt([awaiting('s1', 60)], 60, table).shown.get(B)?.state).toBe('live')
+  })
+
+  it('raises none for the settle flip after the run ends, and the dot reads live', () => {
+    let table = foldAt([changing(2)], 45, inFlight())
+    table = fold([runEnd('run:finished', 's1', 50), awaiting('s1', 55), attached('s1')], table)
+    table = foldAt([flipped(3)], 50 + SETTLE_MS, table)
+
+    expect(stateOf(table, B)).toBe('live')
+  })
+
+  it('raises a note for a change one millisecond past the window, and none at its edge', () => {
+    expect(stateOf(foldAt([flipped(2)], 50 + SETTLE_MS, ended()), B)).toBe('live')
+    expect(stateOf(foldAt([flipped(2)], 50 + SETTLE_MS + 1, ended()), B)).toBe('note')
+  })
+
+  it('takes a suppressed change as the baseline, so the next unchanged snapshot raises nothing', () => {
+    let table = foldAt([flipped(2)], 50 + SETTLE_MS, ended())
+    expect(table.rail?.get(PRD)?.signature).toBe('saved:49')
+
+    table = foldAt([flipped(3)], 50 + SETTLE_MS + 5_000, table)
+    expect(stateOf(table, B)).toBe('live')
+  })
+
+  it('still raises a note for a file another persona owns', () => {
+    const table = foldAt(
+      [rail(2, row(PRD, 'saved', B, 1), row(ARCH, 'changing', A))],
+      45,
+      inFlight()
+    )
+
+    expect(stateOf(table, A)).toBe('note')
+    expect(stateOf(table, B)).toBe('work')
+  })
+
+  it('does not hide a file the running persona does not own from the owner, even inside the window', () => {
+    // Analyst's run in flight; the PRD is pm's.
+    const table = foldAt(
+      [opened('s9', A), awaiting('s9'), runStarted('s9', 40), changing(2)],
+      45,
+      baseline()
+    )
+
+    expect(stateOf(table, B)).toBe('note')
+  })
+
+  it('raises a note as today when no run is in flight and none ended lately', () => {
+    const table = foldAt([changing(2)], 5_000, fold([opened('s1', B), awaiting('s1')], baseline()))
+
+    expect(stateOf(table, B)).toBe('note')
+  })
+
+  it('clears a note raised outside a run at the agent’s next turn start', () => {
+    const noted = foldAt([changing(2)], 5_000, fold([opened('s1', B), awaiting('s1')], baseline()))
+    expect(stateOf(noted, B)).toBe('note')
+
+    expect(stateOf(fold([started('s1')], noted), B)).toBe('work')
+    expect(stateOf(fold([runStarted('s1'), awaiting('s1')], noted), B)).toBe('idle')
+  })
+
+  it('raises none for a flip after a failed or stopped run, and the dot reads error', () => {
+    for (const end of ['run:failed', 'run:stopped'] as const) {
+      const table = foldAt([flipped(2)], 50 + SETTLE_MS, ended(end))
+      expect(stateOf(table, B), end).toBe('error')
+      expect(table.agents.get(B)?.note, end).not.toBe(true)
+    }
+  })
+
+  it('raises none for a flip after a failed run when the error was already raised', () => {
+    // A turn failure first, then the run's own failure: the error flag does not change at the terminal event.
+    const table = foldAt(
+      [failed('s1'), runEnd('run:failed', 's1', 50), awaiting('s1', 55), flipped(2)],
+      50 + SETTLE_MS,
+      fold([opened('s1', B), awaiting('s1'), runStarted('s1', 40)], baseline())
+    )
+
+    expect(stateOf(table, B)).toBe('error')
+    expect(table.agents.get(B)?.note).not.toBe(true)
+  })
+
+  it('treats a session that closes mid-run as the run ending, stamped at the close', () => {
+    const closedMidRun = fold([closed('s1', B, 60)], inFlight())
+
+    expect(stateOf(foldAt([flipped(2)], 60 + SETTLE_MS, closedMidRun), B)).toBe('idle')
+    expect(stateOf(foldAt([flipped(2)], 60 + SETTLE_MS + 1, closedMidRun), B)).toBe('note')
+  })
+
+  it('does not open a window by a session that closes with no run in flight', () => {
+    const table = foldAt([flipped(2)], 61, fold([opened('s1', B), awaiting('s1'), closed('s1', B, 60)], baseline()))
+
+    expect(stateOf(table, B)).toBe('note')
+  })
+
+  it('counts an agent with one session running and another idle as in flight', () => {
+    const table = foldAt(
+      [flipped(2)],
+      9_999,
+      fold([opened('s2', B), awaiting('s2')], inFlight())
+    )
+
+    expect(table.agents.get(B)?.note).not.toBe(true)
+    expect(stateOf(table, B)).toBe('work')
+  })
+
+  it('opens a fresh in-flight run after a prior window, whose changes are suppressed', () => {
+    let table = ended()
+    table = fold([runStarted('s1', 5_000)], table)
+    table = foldAt([changing(2)], 5_100, table)
+
+    expect(table.agents.get(B)?.note).not.toBe(true)
+    expect(stateOf(table, B)).toBe('work')
+  })
+
+  it('closes the in-flight state at the terminal event, so only the window remains', () => {
+    const table = fold([runEnd('run:finished', 's1', 50)], inFlight())
+
+    expect(table.sessions.get('s1')?.running).toBe(false)
+    expect(foldAt([flipped(2)], 50 + SETTLE_MS + 1, table).agents.get(B)?.note).toBe(true)
+  })
+})
+
 describe('live', () => {
   it('is an attached process with no turn in flight, and ends when it detaches', () => {
     let table = fold([opened('s1', A), awaiting('s1'), attached('s1')])
@@ -398,7 +547,7 @@ describe('the fold', () => {
     const before = JSON.stringify([...table.shown])
 
     expect(foldPersonaState(table, awaiting('nope'), NOW)).toBe(table)
-    expect(foldPersonaState(table, runEnd('run:finished', 's1'), NOW)).toBe(table)
+    expect(foldPersonaState(table, runEnd('run:finished', 'nope'), NOW)).toBe(table)
     expect(foldPersonaState(table, { name: 'persona:said', payload: { sessionId: 's1', messageId: 'm', text: 't', at: 1 } }, NOW)).toBe(table)
     foldPersonaState(table, awaiting('s1'), NOW)
     expect(JSON.stringify([...table.shown])).toBe(before)

@@ -56,7 +56,7 @@
 
 - source_spec: `_bmad/implementation-artifacts/spec-2-6-every-indicator-means-something.md`
   summary: A persona's own write to a file it owns raises `note` once its turn ends, so the tile reads `file changed` after its own work.
-  evidence: The spec defines `note` as any owned-file change cleared at the next turn start; with no runs in Epic 2 the intended meaning could not be judged (`src/main/fold/persona-state.ts`, `foldRail`). Decide in Epic 3 whether notes raised while that persona is working are suppressed. Low.
+  evidence: The spec defines `note` as any owned-file change cleared at the next turn start; with no runs in Epic 2 the intended meaning could not be judged (`src/main/fold/persona-state.ts`, `foldRail`). Decide in Epic 3 whether notes raised while that persona is working are suppressed. Low. Resolved for runs by Story 3.13 (`spec-3-13-a-finished-run-leaves-its-persona-live.md`): a change to an owned file seen while its owner's run is in flight, or within `SETTLE_MS` after the run's terminal event, raises no `note`. Still open for a plain chat turn: its own write to an owned file raises `note` once the turn ends, because the gate keys on `run:started`, not on `working`.
 
 - source_spec: `_bmad/implementation-artifacts/spec-2-6-every-indicator-means-something.md`
   summary: `run:finished` clears `error` without checking `runId`, so a late finish of an earlier run could erase a newer run's error.
@@ -64,7 +64,7 @@
 
 - source_spec: `_bmad/implementation-artifacts/spec-2-6-every-indicator-means-something.md`
   summary: No test registers the session and rail bridges against one window to show `note` never replaces `work` on the shared projection.
-  evidence: The holder's identity and each bridge are tested separately, and a source-text test pins that both call `personaProjectionFor`; the cross-bridge case needs a two-bridge fixture (`src/main/persona-states.test.ts`). Low.
+  evidence: The holder's identity and each bridge are tested separately, and a source-text test pins that both call `personaProjectionFor`; the cross-bridge case needs a two-bridge fixture (`src/main/persona-states.test.ts`). Low. Resolved by Story 3.13: `tests/persona-live-after-run.test.ts` registers the real session and rail bridges on one window (the watcher and Electron are fakes) and shows the dot read `work` then `live`, never `note`.
 
 - source_spec: `_bmad/implementation-artifacts/spec-2-7-the-conversation-is-still-there-tomorrow.md`
   summary: A message typed mid-turn keeps its typed time in the live window but takes the time main wrote it after a reload, so it can move below a persona message that began after it was typed.
