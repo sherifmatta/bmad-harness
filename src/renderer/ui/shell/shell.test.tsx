@@ -598,3 +598,49 @@ describe('Shell, the close control of an open session', () => {
     expect(html).not.toContain('chat-close')
   })
 })
+
+describe('Shell, the pinned slot (Story 3.14)', () => {
+  const markup = (props: Partial<Parameters<typeof Shell>[0]> = {}): string =>
+    renderToStaticMarkup(<Shell projectPath="/work/falcon" snapshot={snapshot(2)} {...props} />)
+  const pinned = (): ReactNode => <section className="run-card" aria-busy="true">card</section>
+
+  it('draws no slot without a pinned render prop, or when it returns nothing', () => {
+    expect(markup()).not.toContain('class="pinned"')
+    expect(markup({ pinned: () => null })).not.toContain('class="pinned"')
+  })
+
+  it('is called with the current persona and draws what it returns in one slot', () => {
+    const seen: string[] = []
+    const html = markup({
+      currentId: 'bmad-agent-1',
+      pinned: (agent) => {
+        seen.push(agent.id)
+        return pinned()
+      }
+    })
+
+    expect(seen).toEqual(['bmad-agent-1'])
+    expect(count(html, /class="pinned"/g)).toBe(1)
+    expect(html).toContain('<div class="pinned"><section class="run-card" aria-busy="true">card</section></div>')
+  })
+
+  it('is the chat column’s first child: before the orphan headers, the persona header and the scroll region', () => {
+    const html = markup({ pinned, orphans: [agent('bmad-agent-gone')], onCloseOrphan: () => {} })
+    const chat = html.slice(html.indexOf('<div class="chat">'))
+
+    expect(chat.startsWith('<div class="chat"><div class="pinned">')).toBe(true)
+    expect(chat.indexOf('class="pinned"')).toBeLessThan(chat.indexOf('orphan'))
+    expect(chat.indexOf('class="pinned"')).toBeLessThan(chat.indexOf('chat-head'))
+    expect(chat.indexOf('class="pinned"')).toBeLessThan(chat.indexOf('class="scroll"'))
+  })
+
+  it('is outside the scrolling thread, and holds no attribute but its class', () => {
+    const html = markup({ pinned })
+    const slot = html.slice(html.indexOf('<div class="pinned">'), html.indexOf('</section></div>') + 1)
+
+    expect(html.slice(html.indexOf('class="scroll"'))).not.toContain('run-card')
+    // The slot's own tag carries a class and nothing else: no tab stop, role or live attribute.
+    expect(slot.startsWith('<div class="pinned">')).toBe(true)
+    expect(slot).not.toMatch(/tabindex|role=/i)
+  })
+})

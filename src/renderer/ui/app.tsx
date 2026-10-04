@@ -6,7 +6,8 @@ import { LiveRegion } from './a11y/live-region'
 import { Composer } from './chat/composer'
 import { handoffTarget } from './chat/handoff-target'
 import { SkillRow } from './chat/skill-row'
-import { Turns } from './chat/transcript'
+import { RunCard } from './chat/run-card'
+import { pinnedRun, Turns } from './chat/transcript'
 import { useConversation } from './chat/use-conversation'
 import { ErrorLine } from './install/error-line'
 import { Preflight } from './install/preflight'
@@ -159,6 +160,10 @@ export function App(): JSX.Element | null {
   if (snapshot === null) {
     return null
   }
+  // The viewed persona, resolved as the shell resolves it, and the one run card of theirs in
+  // flight: drawn in the shell's pinned slot and skipped in the thread (Story 3.14).
+  const viewed = currentAgent(displayOrder(groupAgents(snapshot.agents)), currentId)
+  const pinnedEntry = pinnedRun(conversation.entries, viewed?.id)
   return (
     <>
       <Shell
@@ -187,6 +192,9 @@ export function App(): JSX.Element | null {
         onCloseOrphan={closeSession}
         liveSessions={conversation.live}
         onCloseSession={closeSession}
+        pinned={() =>
+          pinnedEntry === null ? null : <RunCard key={pinnedEntry.id} entry={pinnedEntry} prose={conversation.prose} />
+        }
         composer={(agent, items) => (
           // Keyed apart from the chat header, which carries the same agent id in the same list.
           <Composer
@@ -229,7 +237,7 @@ export function App(): JSX.Element | null {
           <ErrorLine key={`${error.code}-${index}`} error={error} />
         ))}
         {conversation.failure !== null && <ErrorLine error={conversation.failure} />}
-        <Turns entries={conversation.entries} onCancel={conversation.cancel} canAnswer={conversation.canAnswer} onChoose={answer} prose={conversation.prose} />
+        <Turns entries={conversation.entries} onCancel={conversation.cancel} canAnswer={conversation.canAnswer} onChoose={answer} prose={conversation.prose} pinnedRunId={pinnedEntry?.id} />
       </Shell>
       <LiveRegion key="live-region" announcer={announcer} />
     </>

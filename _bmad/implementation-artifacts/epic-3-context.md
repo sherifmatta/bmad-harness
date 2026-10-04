@@ -11,7 +11,7 @@ Press a button belonging to the persona you are talking to and watch the documen
 - Story 3.1: Press a button and watch a document write itself (done)
 - Story 3.12: A card follows one document (done)
 - Story 3.13: A finished run leaves its persona live (done)
-- Story 3.14: The running card stays in view
+- Story 3.14: The running card stays in view (done)
 - Story 3.2: The whole menu, and only ever the menu
 - Story 3.3: Progress you can read against a plan
 - Story 3.4: The card is never empty

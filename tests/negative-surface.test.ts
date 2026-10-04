@@ -1430,3 +1430,38 @@ describe("the skill row knows nothing about what it runs (Story 3.1)", () => {
     expect(body).not.toMatch(/sendMessage|withEntry|queue/);
   });
 });
+
+describe("the pinned running card is a place, not a control (Story 3.14)", () => {
+  const SHELL = "src/renderer/ui/shell/shell.tsx";
+  const SHELL_CSS = "src/renderer/ui/shell/shell.css";
+  const APP = "src/renderer/ui/app.tsx";
+
+  it("has no jump-to-card control, badge, toast or label in the slot's sources", () => {
+    const shell = code.get(SHELL) ?? "";
+    const slot = shell.slice(shell.indexOf('className="pinned"') - 80, shell.indexOf('className="pinned"') + 160);
+    expect(slot).toContain("pinnedNode");
+    expect(slot).not.toMatch(/<button|onClick|jump|badge|toast/i);
+    const app = code.get(APP) ?? "";
+    const pinned = app.slice(app.indexOf("pinned={"), app.indexOf("composer={"));
+    expect(pinned).not.toMatch(/<button|onClick|jump|badge|toast/i);
+    expect(code.get("src/renderer/ui/chat/transcript.tsx") ?? "").not.toMatch(/jump|badge|toast/i);
+  });
+
+  it("adds no scroll code, no animation and no stacking: the slot's rule and its token are plain layout", () => {
+    const css = readFileSync(join(ROOT, SHELL_CSS), "utf8");
+    const start = css.indexOf(".pinned {");
+    const rule = css.slice(start, css.indexOf("}", start));
+    expect(rule).not.toMatch(/z-index|position|animation|transition|scroll|overflow/);
+    expect(offenders(RENDERER_CODE, /\.scroll(?:Top|To|By)\b|\bscrollIntoView\b|\.animate\(/)).toEqual([]);
+    expect(offenders(RENDERER_ALL.filter((path) => path.endsWith(".css")), /z-index/)).not.toContain(
+      `${SHELL_CSS}: z-index`,
+    );
+  });
+
+  it("leaves the card's own markup alone: it is drawn by `RunCard`, once, in the slot or in the thread", () => {
+    const app = code.get(APP) ?? "";
+    expect(app.match(/<RunCard\b/g)).toHaveLength(1);
+    const transcript = code.get("src/renderer/ui/chat/transcript.tsx") ?? "";
+    expect(transcript.match(/<RunCard\b/g)).toHaveLength(1);
+  });
+});

@@ -903,9 +903,16 @@ describe('App, pressing a skill button (Story 3.1)', () => {
     push({ name: 'doc:committed', payload: { ...R, ok: true, callId: 'c1', path: '_bmad/prd.md', sections: ['Vision'], at: Date.now() } })
     push({ name: 'run:finished', payload: { ...R, at: Date.now() } })
     push({ name: 'session:awaiting-turn', payload: { sessionId: R.sessionId, at: Date.now() } })
-    expect(card?.querySelector('.run-card-status')?.textContent).toBe('saved · just now · 1 section')
-    expect(card?.querySelector('.run-card-caret')).toBeNull()
-    expect(card?.hasAttribute('aria-busy')).toBe(false)
+    // The card moved from the pinned slot into the thread, so it is a new element.
+    const saved = mounted.container.querySelector('.run-card')
+    expect(mounted.container.querySelectorAll('.run-card')).toHaveLength(1)
+    expect(saved?.closest('.thread')).not.toBeNull()
+    expect(saved?.querySelector('.run-card-status')?.textContent).toBe('saved · just now · 1 section')
+    // The remount kept the document: path and text come from the prose store, not from the old element.
+    expect(saved?.querySelector('.run-card-path')?.textContent).toBe('_bmad/prd.md')
+    expect(saved?.querySelector('.run-card-text')?.textContent).toBe('## Vision\nwords')
+    expect(saved?.querySelector('.run-card-caret')).toBeNull()
+    expect(saved?.hasAttribute('aria-busy')).toBe(false)
     expect(buttons().every((button) => !button.disabled)).toBe(true)
   })
 })
@@ -1022,5 +1029,230 @@ describe('App, the whole menu and only the menu (Story 3.2)', () => {
     const row = mounted!.container.querySelector('.skill-row') as HTMLElement
     expect(row.querySelector('[title]')).toBeNull()
     expect(row.textContent).not.toMatch(/skill|prompt|action/i)
+  })
+})
+
+describe('App, the running card stays in view (Story 3.14)', () => {
+  const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
+  const root = (): HTMLElement => mounted!.container
+  const cards = (): HTMLElement[] => [...root().querySelectorAll<HTMLElement>('.run-card')]
+  const slot = (): HTMLElement | null => root().querySelector<HTMLElement>('.chat > .pinned')
+  const inThread = (): HTMLElement[] => cards().filter((card) => card.closest('.thread') !== null)
+  const started = (runId: string, sessionId: string, agent: AgentView, at: number): void =>
+    push({ name: 'run:started', payload: { runId, sessionId, agentId: agent.id, code: 'CP', at } })
+  const finished = (runId: string, sessionId: string, at: number): void =>
+    push({ name: 'run:finished', payload: { runId, sessionId, at } })
+  const frame = (): Promise<void> => new Promise((resolve) => requestAnimationFrame(() => resolve()))
+  const prose = (runId: string, sessionId: string, path: string, text: string, at: number): void =>
+    push({ name: 'doc:prose', payload: { runId, sessionId, callId: `c-${runId}`, path, text, at } })
+  const said = (agent: AgentView, messageId: string, text: string, at: number): void =>
+    push({ name: 'persona:said', payload: { sessionId: `s-${agent.name}`, agentId: agent.id, messageId, text, at } })
+
+  async function open(): Promise<void> {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    push({ name: 'session:opened', payload: { sessionId: 's-Mary', agentId: mary.id, at: 1 } })
+    push({ name: 'session:opened', payload: { sessionId: 's-John', agentId: john.id, at: 1 } })
+  }
+
+  it('draws a viewed run’s card in the slot that is the chat column’s first child, and not in the thread', async () => {
+    await open()
+    started('r1', 's-Mary', mary, 20)
+
+    expect(cards()).toHaveLength(1)
+    expect(slot()).not.toBeNull()
+    expect(slot()?.querySelector('.run-card')).toBe(cards()[0])
+    expect(inThread()).toHaveLength(0)
+    expect(root().querySelector('.chat')?.firstElementChild).toBe(slot())
+  })
+
+  it('draws no slot for a plain chat turn', async () => {
+    await open()
+    said(mary, 'm1', 'Hello', 10)
+
+    expect(slot()).toBeNull()
+    expect(cards()).toHaveLength(0)
+  })
+
+  it('moves the card into the thread at its time position on the terminal event, drawing exactly one card at each step', async () => {
+    await open()
+    said(mary, 'm1', 'before', 10)
+    started('r1', 's-Mary', mary, 20)
+    said(mary, 'm2', 'during', 30)
+    prose('r1', 's-Mary', '_bmad/prd.md', '## Vision\nwords', 35)
+    await act(frame)
+    expect(cards()).toHaveLength(1)
+    expect(slot()).not.toBeNull()
+    expect(slot()?.querySelector('.run-card-text')?.textContent).toBe('## Vision\nwords')
+
+    finished('r1', 's-Mary', 40)
+
+    expect(slot()).toBeNull()
+    expect(cards()).toHaveLength(1)
+    // The same document, drawn by the remounted card at its place in the thread.
+    expect(inThread()[0].querySelector('.run-card-path')?.textContent).toBe('_bmad/prd.md')
+    expect(inThread()[0].querySelector('.run-card-text')?.textContent).toBe('## Vision\nwords')
+    const order = [...root().querySelectorAll('.thread .turn, .thread .run-card')].map((node) =>
+      node.classList.contains('run-card') ? 'card' : (node.textContent ?? '')
+    )
+    expect(order).toHaveLength(3)
+    expect(order[0]).toContain('before')
+    expect(order[1]).toBe('card')
+    expect(order[2]).toContain('during')
+  })
+
+  it('does the same for a stopped and a failed run', async () => {
+    await open()
+    started('r1', 's-Mary', mary, 20)
+    push({ name: 'run:stopped', payload: { runId: 'r1', sessionId: 's-Mary', at: 30 } })
+    expect(slot()).toBeNull()
+    expect(inThread()).toHaveLength(1)
+
+    started('r2', 's-Mary', mary, 40)
+    expect(slot()).not.toBeNull()
+    expect(cards()).toHaveLength(2)
+    push({
+      name: 'run:failed',
+      payload: { runId: 'r2', sessionId: 's-Mary', error: { code: 'run/failed', message: 'failed' }, at: 50 }
+    })
+    expect(slot()).toBeNull()
+    expect(inThread()).toHaveLength(2)
+  })
+
+  it('holds the same path, text and busy state in the slot as the card has in the thread', async () => {
+    await open()
+    started('r1', 's-Mary', mary, 20)
+    push({ name: 'run:note', payload: { runId: 'r1', sessionId: 's-Mary', text: '- (decision) Fast path', at: 25 } })
+    prose('r1', 's-Mary', '_bmad/prd.md', '## Vision\nwords', 26)
+    await act(frame)
+    const pinned = slot()?.querySelector('.run-card')
+    expect(pinned).not.toBeNull()
+    const held = {
+      path: pinned?.querySelector('.run-card-path')?.textContent,
+      text: pinned?.querySelector('.run-card-text')?.textContent,
+      busy: pinned?.getAttribute('aria-busy'),
+      notes: pinned?.querySelectorAll('.run-note').length
+    }
+    expect(held).toEqual({ path: '_bmad/prd.md', text: '## Vision\nwords', busy: 'true', notes: 1 })
+
+    // John viewed: Mary's card, still running, is drawn in the thread.
+    act(() => tile('John').click())
+    await settle()
+    expect(slot()).toBeNull()
+    expect(cards()).toHaveLength(1)
+    const threaded = inThread()[0]
+    expect({
+      path: threaded.querySelector('.run-card-path')?.textContent,
+      text: threaded.querySelector('.run-card-text')?.textContent,
+      busy: threaded.getAttribute('aria-busy'),
+      notes: threaded.querySelectorAll('.run-note').length
+    }).toEqual(held)
+
+    act(() => tile('Mary').click())
+    await settle()
+    expect(slot()?.querySelectorAll('.run-card')).toHaveLength(1)
+    expect(inThread()).toHaveLength(0)
+    expect(slot()?.querySelector('.run-card-text')?.textContent).toBe('## Vision\nwords')
+  })
+
+  it('pins a card hydrated running for the viewed persona on reload, once, and not in the thread', async () => {
+    const harness = window.harness as unknown as Record<string, unknown>
+    harness.getConversation = async () => ({
+      entries: [],
+      sessions: [{ agentId: mary.id, sessionId: 's-Mary' }],
+      busy: ['s-Mary'],
+      personas: [],
+      runs: [
+        {
+          runId: 'r9',
+          sessionId: 's-Mary',
+          agentId: mary.id,
+          code: 'CP',
+          startedAt: 40,
+          status: 'running',
+          notes: [],
+          documents: [{ path: '_bmad/prd.md', callId: 'c9', text: 'so far', written: 6, sections: [] }]
+        }
+      ]
+    })
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    await act(frame)
+
+    expect(cards()).toHaveLength(1)
+    expect(slot()?.querySelectorAll('.run-card')).toHaveLength(1)
+    expect(inThread()).toHaveLength(0)
+    expect(root().querySelector('.chat')?.firstElementChild).toBe(slot())
+  })
+
+  it('draws no slot for another persona’s run, and moves the card with the switch, drawing it once either way', async () => {
+    await open()
+    started('r1', 's-John', john, 20)
+    // Mary is viewed: John's card stays in the thread.
+    expect(slot()).toBeNull()
+    expect(cards()).toHaveLength(1)
+    expect(inThread()).toHaveLength(1)
+
+    act(() => tile('John').click())
+    await settle()
+    expect(slot()?.querySelector('.run-card')).not.toBeNull()
+    expect(cards()).toHaveLength(1)
+    expect(inThread()).toHaveLength(0)
+
+    act(() => tile('Mary').click())
+    await settle()
+    expect(slot()).toBeNull()
+    expect(cards()).toHaveLength(1)
+    expect(inThread()).toHaveLength(1)
+  })
+
+  it('pins the newest of two runs of the viewed persona and leaves the other in the thread', async () => {
+    await open()
+    started('r1', 's-Mary', mary, 20)
+    expect(inThread()).toHaveLength(0)
+    started('r2', 's-Mary-2', mary, 30)
+
+    expect(cards()).toHaveLength(2)
+    expect(slot()?.querySelectorAll('.run-card')).toHaveLength(1)
+    expect(inThread()).toHaveLength(1)
+
+    // When the pinned one ends, the other is pinned.
+    finished('r2', 's-Mary-2', 40)
+    expect(slot()?.querySelectorAll('.run-card')).toHaveLength(1)
+    expect(inThread()).toHaveLength(1)
+    expect(cards()).toHaveLength(2)
+  })
+
+  it('never pins a running card with no agent id', async () => {
+    await open()
+    push({ name: 'run:started', payload: { runId: 'r1', sessionId: 's-Mary', code: 'CP', at: 20 } })
+
+    expect(slot()).toBeNull()
+    expect(cards()).toHaveLength(1)
+    expect(inThread()).toHaveLength(1)
+  })
+
+  it('takes no focus when it pins or unpins, and is no live region', async () => {
+    await open()
+    const input = field()
+    input.focus()
+    started('r1', 's-Mary', mary, 20)
+    expect(document.activeElement).toBe(field())
+    // The slot carries a class and nothing else, and holds no tab stop or role: not a live region.
+    expect(slot()?.getAttributeNames()).toEqual(['class'])
+    expect(slot()?.querySelector('[tabindex], [role]')).toBeNull()
+
+    finished('r1', 's-Mary', 30)
+    expect(document.activeElement).toBe(field())
+  })
+
+  it('offers no jump-to-card control, badge or toast beside the slot', async () => {
+    await open()
+    started('r1', 's-Mary', mary, 20)
+    const around = `${slot()?.outerHTML ?? ''}${slot()?.parentElement?.className ?? ''}`
+    expect(around).not.toMatch(/jump|badge|toast/i)
+    expect(slot()?.querySelectorAll('button')).toHaveLength(0)
   })
 })

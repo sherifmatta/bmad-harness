@@ -5,7 +5,7 @@ import type { ProseStore } from './prose-store'
 import { RunCard } from './run-card'
 import { Sysline } from './sysline'
 import { PersonaTurn, UserTurn } from './turn'
-import type { TranscriptEntry } from './transcript-entry'
+import type { RunCardEntry, TranscriptEntry } from './transcript-entry'
 
 /**
  * The transcript — a thread of turns in time order (UX-DR25).
@@ -40,6 +40,31 @@ export function orderEntries<T extends { at: number }>(entries: readonly T[]): T
 }
 
 /**
+ * The one card pinned to the top of the chat column (Story 3.14): among the
+ * entries, the run card of `agentId` that is in flight. With several sessions of
+ * that persona running, the greatest `at` wins, ties going to the later entry;
+ * the others stay in the thread. A card with no agent id is never pinned, and
+ * with no viewed persona (`agentId` undefined) nothing is.
+ */
+export function pinnedRun(entries: readonly TranscriptEntry[], agentId: string | undefined): RunCardEntry | null {
+  if (agentId === undefined) {
+    return null
+  }
+  let pinned: RunCardEntry | null = null
+  for (const entry of entries) {
+    if (
+      entry.kind === 'run' &&
+      entry.status === 'running' &&
+      entry.agentId === agentId &&
+      (pinned === null || entry.at >= pinned.at)
+    ) {
+      pinned = entry
+    }
+  }
+  return pinned
+}
+
+/**
  * The turns alone, with no thread around them: for a surface, like the shell,
  * that already provides the `.thread` they sit in.
  */
@@ -48,7 +73,8 @@ export function Turns({
   onCancel,
   canAnswer,
   onChoose,
-  prose
+  prose,
+  pinnedRunId
 }: {
   entries: readonly TranscriptEntry[]
   /** Take a queued message back, by its entry id. */
@@ -59,6 +85,8 @@ export function Turns({
   onChoose?: (agentId: string, text: string) => void
   /** Where each run's document text is held; without it no run card is drawn. */
   prose?: ProseStore
+  /** The run whose card is drawn in the shell's pinned slot instead (Story 3.14): its entry is skipped here. */
+  pinnedRunId?: string
 }): JSX.Element {
   const ordered = orderEntries(entries)
   const last = ordered.length - 1
@@ -69,7 +97,7 @@ export function Turns({
           return <Sysline key={entry.id} text={entry.text} />
         }
         if (entry.kind === 'run') {
-          return prose === undefined ? null : <RunCard key={entry.id} entry={entry} prose={prose} />
+          return prose === undefined || entry.id === pinnedRunId ? null : <RunCard key={entry.id} entry={entry} prose={prose} />
         }
         if (entry.kind === 'persona') {
           // A decision is read only from the last entry, and only while its persona can

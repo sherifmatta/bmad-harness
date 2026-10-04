@@ -508,6 +508,14 @@
   --card-head-padding:7px 11px;
   --card-body-padding:11px 13px;
 
+  /* The pinned slot (Story 3.14): the running card's place at the top of the
+     chat column, outside the scrolling thread. Padded like `.thread` (16px
+     sides, 16px top) with no bottom: the card's own margin is the gap. A
+     centred flex item with auto margins shrinks to its content, so the slot
+     states its width: all of the column, up to --thread-max. */
+  --pinned-padding:16px 16px 0;
+  --pinned-width:100%;
+
   /* The card's foot (Story 3.12): padded `6px 11px` (`.doccard .df`, :222-223;
      DESIGN.md `### Document card`, Foot), its items 14px apart and wrapping
      (DESIGN.md, Foot). Its ground, rule, size and colour are --panel-2,

@@ -85,6 +85,7 @@ export function Shell({
   liveSessions = NO_LIVE,
   onCloseSession,
   composer,
+  pinned,
   children
 }: {
   projectPath: string
@@ -124,6 +125,9 @@ export function Shell({
   /** The composer for the current persona, rendered in the chat column under the thread, and
       handed that persona's menu entries for the skill row it carries. */
   composer?: (agent: AgentView, items: readonly MenuEntryView[]) => ReactNode
+  /** What is pinned at the top of the chat column for the current persona (Story 3.14): the
+      running card. Called with the current persona; a `null` result draws no slot. */
+  pinned?: (agent: AgentView) => ReactNode
   children?: ReactNode
 }): JSX.Element {
   const [view, setView] = useState<ViewId>(initialView)
@@ -133,6 +137,8 @@ export function Shell({
   const currentId = chosenId === undefined ? ownId : chosenId
   const ordered = displayOrder(groupAgents(snapshot.agents))
   const current = currentAgent(ordered, currentId)
+
+  const pinnedNode = current === null ? null : (pinned?.(current) ?? null)
 
   // With nobody listening, selecting is only choosing the current persona.
   const select =
@@ -160,6 +166,7 @@ export function Shell({
         hidden={view !== 'conversation'}
       >
         <div className="chat">
+          {pinnedNode !== null && pinnedNode !== undefined && <div className="pinned">{pinnedNode}</div>}
           {orphans.map((orphan) => (
             // Prefixed: keeps these keys apart from the current persona's header key.
             <OrphanHeader key={`orphan-${orphan.id}`} agent={orphan} onClose={onCloseOrphan ?? ignore} />

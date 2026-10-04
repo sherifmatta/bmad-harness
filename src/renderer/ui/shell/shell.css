@@ -205,6 +205,17 @@
   background: var(--bg);
 }
 
+/* The running card's slot (Story 3.14): the chat column's first child, above
+   the scroll region, so the card never scrolls with the thread. Its width
+   matches the thread's; it takes no position, motion or stacking rule. */
+.pinned {
+  flex: 0 0 auto;
+  max-width: var(--thread-max);
+  width: var(--pinned-width);
+  margin: 0 auto;
+  padding: var(--pinned-padding);
+}
+
 .scroll {
   flex: 1 1 auto;
   min-height: 0;

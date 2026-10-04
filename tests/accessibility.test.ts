@@ -581,3 +581,35 @@ describe('a run, heard through the one live region (Story 3.1)', () => {
     expect(card).not.toMatch(/\.focus\(|autoFocus|tabIndex/)
   })
 })
+
+describe('the pinned running card, heard and reached (Story 3.14)', () => {
+  const read = (path: string): string => withoutAnyComments(readFileSync(join(ROOT, path), 'utf8'))
+  const SHELL = 'src/renderer/ui/shell/shell.tsx'
+  const SHELL_CSS = 'src/renderer/ui/shell/shell.css'
+
+  it('puts the slot first in the chat column in source, so DOM and tab order agree', () => {
+    const shell = read(SHELL)
+    const chat = shell.slice(shell.indexOf('<div className="chat">'))
+    const slot = chat.indexOf('className="pinned"')
+    expect(slot).toBeGreaterThan(-1)
+    expect(slot).toBeLessThan(chat.indexOf('orphans.map'))
+    expect(slot).toBeLessThan(chat.indexOf('<ChatHeader'))
+    expect(slot).toBeLessThan(chat.indexOf('className="scroll"'))
+  })
+
+  it('takes no focus and is no live region: the slot holds no tab stop, role or announcement', () => {
+    const shell = read(SHELL)
+    expect(shell).not.toMatch(/\.focus\(|autoFocus|tabIndex|aria-live|role=|announce/)
+    const app = read('src/renderer/ui/app.tsx')
+    const pinned = app.slice(app.indexOf('pinned={'), app.indexOf('composer={'))
+    expect(pinned).toContain('<RunCard')
+    expect(pinned).not.toMatch(/\.focus\(|autoFocus|tabIndex|aria-live|role=|announce/)
+  })
+
+  it('is no position or motion rule, so reduced motion changes nothing but position', () => {
+    const css = read(SHELL_CSS)
+    const rule = css.slice(css.indexOf('.pinned {'), css.indexOf('}', css.indexOf('.pinned {')))
+    expect(rule).toContain('padding: var(--pinned-padding)')
+    expect(rule).not.toMatch(/position|animation|transition|z-index|scroll|overflow|transform|opacity|(?<![\w-])order\s*:/)
+  })
+})
