@@ -5,3 +5,5 @@ dist/
 .omc/
 # oh-my-claudecode runtime state
 .omc/
+
+.claude/settings.local.json
