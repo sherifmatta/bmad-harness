@@ -15,6 +15,7 @@ import { createRunProjection } from './projections/runs'
 import type { RunProjection } from './projections/runs'
 import { createMemlogCounts, createRunKit, deliver, endRun, observeMemlog, startRun } from './session-run'
 import type { ActiveRun, MemlogCounts, RunKit } from './session-run'
+import { stopRun } from './session-stop'
 import type { TranscriptRegistry } from './projections/transcript'
 import { initialRouteState, routeFrame } from './fold/route-frame'
 import type { RouteState } from './fold/route-frame'
@@ -136,6 +137,11 @@ export type SessionRegistry = {
   /** A dispatch was written into a session: its run begins. */
   startRun(sender: Sender, service: Service, entry: Entry, runId: RunId, code: string, plan?: TemplatePlan): void
   /**
+   * The user asked to stop the run `entry` has in flight: it is marked stopping
+   * and interrupted (`session-stop`). `'not-found'` when the entry has no run.
+   */
+  stop(sender: Sender, service: Service, entry: Entry): Promise<'ok' | 'not-found'>
+  /**
    * The rail's watcher saw a file of the window's project; a memlog is read for
    * the notes of the run in flight. Resolves once it is accounted for.
    */
@@ -172,15 +178,17 @@ function foldFrame(
   const step = foldTurn(entry.turn, readFrame(frame))
   entry.turn = step.state
   const signal = step.signal
+  // A turn the user asked to stop ends on a failed `result`, which is the stop and not a failure.
+  const stopped = signal?.kind === 'ended' && signal.failed && entry.run?.stopping === true
   // A failed result is told whether or not it freed the session: a line in the
   // transcript, and the persona reads `error` once it is no longer working.
-  if (signal?.kind === 'failed-while-pending' || (signal?.kind === 'ended' && signal.failed)) {
+  if (signal?.kind === 'failed-while-pending' || (signal?.kind === 'ended' && signal.failed && !stopped)) {
     say(sender, entry, LINES.failed(signal.subtype))
     service.personas.apply({ name: 'turn:failed', payload: { sessionId: entry.sessionId, at: now() } })
   }
   if (signal?.kind === 'ended') {
     // A run ends with its turn: the terminal event comes before the session is free.
-    endRun(runs, sender, service, entry, { failed: signal.failed, subtype: signal.subtype })
+    endRun(runs, sender, service, entry, stopped ? 'stopped' : { failed: signal.failed, subtype: signal.subtype })
     announce(sender, service, {
       name: 'session:awaiting-turn',
       payload: { sessionId: entry.sessionId, at: now() }
@@ -375,8 +383,9 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
     if (entry.closed) {
       return
     }
-    // A run still in flight ends with its session, before the session is closed.
-    endRun(runs, sender, service, entry, 'session-ended')
+    // A run still in flight ends with its session, before the session is closed; one whose stop
+    // was asked for ends as that stop, whichever way the session went.
+    endRun(runs, sender, service, entry, entry.run?.stopping === true ? 'stopped' : 'session-ended')
     discard(service, entry)
     announce(sender, service, {
       name: 'session:closed',
@@ -421,6 +430,7 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
     open,
     watch,
     startRun: (sender, service, entry, runId, code, plan) => startRun(runs, sender, service, entry, runId, code, plan),
+    stop: (sender, service, entry) => stopRun({ runs, say, finish }, sender, service, entry),
     observe: (sender, projectRoot, observation) =>
       observeMemlog(runs, sender, () => serviceFor(sender, projectRoot), projectRoot, observation),
     closeSessions,

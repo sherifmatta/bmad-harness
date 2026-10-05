@@ -592,12 +592,16 @@ describe('the collapsed run card, reached and heard (Story 3.5)', () => {
   const LINE = 'src/renderer/ui/chat/run-card-line.tsx'
   const CHAT = 'src/renderer/ui/chat/'
 
-  it('is one native button: no key handler, role or tab index of its own, expanded=false, and busy', () => {
+  it('is one expanding native button and the stop beside it: no key handler, role or tab index of its own, expanded=false, and busy', () => {
     const line = read(LINE)
     expect(line.match(/<button\b/g)).toHaveLength(1)
     expect(line).toContain('<button type="button" className="run-card-line-button" aria-expanded={false} onClick={() => onExpand(runId)}>')
     expect(line).not.toMatch(/onKey|\.key\b|role=|tabIndex|autoFocus|\.focus\(/)
     expect(line).toContain('<section className="run-card-line" aria-busy>')
+    // The stop is a sibling after the button (a button inside a button is invalid), its own tab stop, named for the persona.
+    expect(line.match(/<RunStop\b/g)).toHaveLength(1)
+    expect(line.indexOf('<RunStop')).toBeGreaterThan(line.indexOf('</button>'))
+    expect(line).toContain('label={name}')
   })
 
   it('moves focus in exactly one place of its own: the expansion effect of the card the line becomes', () => {
@@ -619,6 +623,36 @@ describe('the collapsed run card, reached and heard (Story 3.5)', () => {
     const line = read(LINE)
     expect(line).toContain('<RunElapsed entry={entry} />')
     expect(line).not.toMatch(/matchMedia|prefers-reduced-motion/)
+  })
+})
+
+describe('the stop control, reached and heard (Story 3.7)', () => {
+  const read = (path: string): string => withoutAnyComments(readFileSync(join(ROOT, path), 'utf8'))
+  const STOP = 'src/renderer/ui/chat/run-stop.tsx'
+  const STOP_CSS = 'src/renderer/ui/chat/run-stop.css'
+
+  it('is one native button of type button, never disabled, with no role, tab index or key handler of its own', () => {
+    const stop = read(STOP)
+    expect(stop.match(/<button\b/g)).toHaveLength(1)
+    expect(stop).toContain('type="button"')
+    expect(stop).not.toMatch(/\bdisabled\b|aria-disabled|role=|tabIndex|onKey|\.key\b|autoFocus|\.focus\(/)
+  })
+
+  it('announces nothing and takes no focus, drawn or removed: the lifecycle line already says the run ended', () => {
+    expect(read(STOP)).not.toMatch(/announce|aria-live|aria-atomic|aria-busy|useEffect|useLayoutEffect|useRef|\.focus\(/)
+    // The two places that move focus in chat/ are as they were; the stop is not a third.
+    const sources = readdirSync(join(ROOT, 'src/renderer/ui/chat')).filter((name) => /\.tsx?$/.test(name) && !/\.test\./.test(name))
+    expect(sources.filter((name) => /\.focus\(/.test(read(`src/renderer/ui/chat/${name}`)))).toEqual(['composer.tsx', 'run-card.tsx'])
+  })
+
+  it('is named `stop`, and `stop · <label>` when it is told whose stop it is', () => {
+    expect(read(STOP)).toContain('`stop · ${label}`')
+    expect(read('src/renderer/ui/chat/run-card.tsx')).toContain("label={path === '' ? undefined : path}")
+  })
+
+  it('draws no focus treatment of its own: the shared ring is the one', () => {
+    const css = withoutAnyComments(readFileSync(join(ROOT, STOP_CSS), 'utf8'))
+    expect(css).not.toMatch(/:focus|outline|box-shadow/)
   })
 })
 

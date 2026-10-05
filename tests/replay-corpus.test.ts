@@ -338,7 +338,7 @@ describe('the corpus replayed through the session bridge', () => {
         writeDiagnostic: () => {},
         spawn: (options) => {
           feed = options.onFrame
-          return Promise.resolve({ ok: true, session: { write: () => Promise.resolve(true), kill: () => {} } })
+          return Promise.resolve({ ok: true, session: { write: () => Promise.resolve(true), interrupt: () => Promise.resolve(true), kill: () => {} } })
         }
       })
       const sender = new Sender()

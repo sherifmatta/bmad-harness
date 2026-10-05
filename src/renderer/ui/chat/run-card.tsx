@@ -8,6 +8,7 @@ import { formatElapsed } from '../status/format-elapsed'
 import { StatusDot } from '../status/status-dot'
 import { pendingSections } from '../../../shared/section-plan'
 import type { ProseStore, RunProgress } from './prose-store'
+import { RunStop } from './run-stop'
 import { bodyNotes, runDotState, runStatusText, subjectSections, subjectWritten } from './run-status'
 import type { RunCardEntry } from './transcript-entry'
 
@@ -53,17 +54,27 @@ const ELAPSED_TICK_MS = 1000
  * so whoever made the request can spend it. The request is read when the card
  * first renders and never again, so a card drawn any other way (pinned, or back
  * in the thread after a switch) takes no focus and has no tabindex.
+ *
+ * **Stop** (Story 3.7). The head carries the stop control after the elapsed time,
+ * drawn only while the run is in flight and the window handed down an `onStop`:
+ * it is the same control in the thread and in the pinned slot, and it goes with
+ * the run's terminal event, which is the card's `status` and nothing else. A card
+ * drawn with no `onStop` (a transcript read back, a surface that cannot stop) has
+ * none, and no button at all.
  */
 export function RunCard({
   entry,
   prose,
   focusOnMount = false,
-  onFocused
+  onFocused,
+  onStop
 }: {
   entry: RunCardEntry
   prose: ProseStore
   focusOnMount?: boolean
   onFocused?: () => void
+  /** The stop control was pressed, with the run's id; without it the card draws no stop control. */
+  onStop?: ((runId: string) => void) | undefined
 }): JSX.Element {
   const { runId } = entry
   const [focusFirst] = useState(focusOnMount)
@@ -102,6 +113,7 @@ export function RunCard({
         <span className="run-card-path">{path}</span>
         <RunStatus entry={entry} sections={sections} progress={progress} hasText={hasText} />
         <RunElapsed entry={entry} />
+        {running && onStop !== undefined && <RunStop runId={runId} label={path === '' ? undefined : path} onStop={onStop} />}
       </div>
       <div className="run-card-body">
         <div className="run-card-flow">

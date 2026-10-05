@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSyn
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import type { RunCardSnapshot } from '../../shared/conversation'
 import type { PersonaSaid } from '../../shared/events'
 import { transcriptFilePath, writeTranscript } from '../sources/persistence/transcript-file'
 import { createTranscriptRegistry } from './transcript'
@@ -486,5 +487,228 @@ describe('a file that cannot be used whole', () => {
 
     expect(transcript.entries()).toEqual([])
     expect(logs).toEqual([])
+  })
+})
+
+describe('run cards kept with the transcript (Story 3.7)', () => {
+  const card = (runId: string, over: Partial<RunCardSnapshot> = {}): RunCardSnapshot => ({
+    runId,
+    sessionId: 's1',
+    agentId: 'bmad-agent-pm',
+    code: 'CP',
+    startedAt: 10,
+    status: 'running',
+    notes: [],
+    documents: [],
+    ...over
+  })
+
+  it('writes each card with the moment of the last event of its run, at the next write, with the entries', () => {
+    const transcripts = registry()
+    const transcript = transcripts.forProject(project)
+    transcript.recordUserTurn('hi', 1)
+    transcript.recordRun(card('r1'), 11)
+    transcript.recordRun(card('r1', { notes: [{ text: '- (decision) x', at: 14 }] }), 14)
+    transcript.recordRun(card('r2'), 15)
+    tick()
+
+    expect(onDisk()).toEqual({
+      version: 1,
+      projectPath: project,
+      entries: [{ kind: 'user', id: 'm-0', at: 1, text: 'hi' }],
+      runs: [
+        { card: card('r1', { notes: [{ text: '- (decision) x', at: 14 }] }), lastAt: 14 },
+        { card: card('r2'), lastAt: 15 }
+      ]
+    })
+  })
+
+  it('schedules the one debounced write for a run event alone, and a write already scheduled covers the events after it', () => {
+    const transcript = registry().forProject(project)
+
+    transcript.recordRun(card('r1'), 11)
+    transcript.recordRun(card('r1'), 12)
+    transcript.recordRun(card('r1'), 13)
+
+    expect(timers.filter((timer) => !timer.cancelled)).toHaveLength(1)
+    expect(readdirSync(userData)).toEqual([])
+    tick()
+    expect(onDisk().runs).toHaveLength(1)
+  })
+
+  it('is written by a flush, which a window going and the app quitting call, with no timer to wait for', () => {
+    const transcripts = registry()
+    transcripts.forProject(project).recordRun(card('r1'), 11)
+
+    transcripts.flush(project)
+
+    expect(onDisk().runs).toEqual([{ card: card('r1'), lastAt: 11 }])
+  })
+
+  it('holds the cards this launch recorded too, after those the file held, each as it ended: a run still running reads as the run its session ended', () => {
+    const first = registry()
+    first.forProject(project).recordRun(card('r1', { status: 'finished', endedAt: 5 }), 5)
+    first.flushAll()
+    const transcript = registry().forProject(project)
+    transcript.recordRun(card('r2'), 11)
+    transcript.recordRun(card('r3', { status: 'stopped', endedAt: 13 }), 13)
+    transcript.recordRun(card('r2', { notes: [{ text: '- (note) a', at: 12 }] }), 12)
+
+    expect(transcript.storedRuns().map((run) => [run.runId, run.status, run.endedAt])).toEqual([
+      ['r1', 'finished', 5],
+      ['r2', 'failed', 12],
+      ['r3', 'stopped', 13]
+    ])
+    expect(transcript.storedRuns()[1].error).toEqual({ code: 'run/session-ended', message: 'run · the session ended' })
+    // What is kept is the card as it stands, not as it is read: the file holds r2 still running.
+    transcript.flush()
+    expect(onDisk().runs.map((run: { card: RunCardSnapshot }) => run.card.status)).toEqual(['finished', 'running', 'stopped'])
+  })
+
+  it('reads a later launch’s earlier runs from the file, in the order they started, each as it ended', () => {
+    const first = registry()
+    first.forProject(project).recordRun(card('r1', { status: 'finished', endedAt: 20 }), 20)
+    first.forProject(project).recordRun(card('r2', { status: 'stopped', endedAt: 30 }), 30)
+    first.flushAll()
+
+    const next = registry().forProject(project)
+
+    expect(next.storedRuns()).toEqual([
+      card('r1', { status: 'finished', endedAt: 20 }),
+      card('r2', { status: 'stopped', endedAt: 30 })
+    ])
+  })
+
+  it('reads a card that was still running as the run its session ended, at the moment it was last heard of', () => {
+    const first = registry()
+    first.forProject(project).recordRun(card('r1', { notes: [{ text: '- (note) a', at: 18 }] }), 18)
+    first.flushAll()
+
+    const [dead] = registry().forProject(project).storedRuns()
+
+    expect(dead).toEqual({
+      ...card('r1', { notes: [{ text: '- (note) a', at: 18 }] }),
+      status: 'failed',
+      endedAt: 18,
+      error: { code: 'run/session-ended', message: 'run · the session ended' }
+    })
+  })
+
+  it('keeps the earlier runs in the file when this launch writes it, as they were read: the dead card, and its last moment', () => {
+    const first = registry()
+    first.forProject(project).recordRun(card('r1'), 18)
+    first.flushAll()
+
+    const second = registry()
+    const transcript = second.forProject(project)
+    transcript.recordRun(card('r2'), 50)
+    second.flushAll()
+
+    expect(onDisk().runs.map((run: { card: RunCardSnapshot; lastAt: number }) => [run.card.runId, run.card.status, run.lastAt])).toEqual([
+      ['r1', 'failed', 18],
+      ['r2', 'running', 50]
+    ])
+    // A third launch sees both, the first dead as before and the second dead now.
+    expect(registry().forProject(project).storedRuns().map((run) => [run.runId, run.status])).toEqual([
+      ['r1', 'failed'],
+      ['r2', 'failed']
+    ])
+  })
+
+  it('loads a file written before the cards were kept with none, and a damaged one with the rest kept and the damage counted', () => {
+    mkdirSync(join(userData, 'conversations'), { recursive: true })
+    writeFileSync(fileOf(), JSON.stringify({ version: 1, projectPath: project, entries: [{ kind: 'user', id: 'm-0', at: 1, text: 'hi' }] }))
+    expect(registry().forProject(project).storedRuns()).toEqual([])
+    expect(logs).toEqual([])
+
+    writeFileSync(
+      fileOf(),
+      JSON.stringify({
+        version: 1,
+        projectPath: project,
+        entries: [{ kind: 'user', id: 'm-0', at: 1, text: 'hi' }],
+        runs: [{ card: card('r1', { status: 'finished', endedAt: 20 }), lastAt: 20 }, { card: 'not a card', lastAt: 1 }]
+      })
+    )
+    const transcript = registry({ now: () => 9 }).forProject(project)
+
+    expect(logs).toEqual(['persist/entries-dropped · 1'])
+    expect(transcript.storedRuns().map((run) => run.runId)).toEqual(['r1'])
+    // The file that was damaged is kept whole beside the one that is written now.
+    expect(readFileSync(`${fileOf()}.aside`, 'utf8')).toContain('not a card')
+  })
+
+  it('is cleared with the entries by clear(): the file written first holds neither, and no stored run is left', () => {
+    const first = registry()
+    first.forProject(project).recordRun(card('r1', { status: 'finished', endedAt: 20 }), 20)
+    first.flushAll()
+    const transcripts = registry()
+    const transcript = transcripts.forProject(project)
+    transcript.recordRun(card('r2'), 30)
+    expect(transcript.storedRuns()).toHaveLength(2)
+
+    expect(transcript.clear()).toEqual({ ok: true })
+
+    expect(onDisk()).toEqual({ version: 1, projectPath: project, entries: [] })
+    expect(transcript.storedRuns()).toEqual([])
+    transcripts.flushAll()
+    expect(onDisk().runs).toBeUndefined()
+    expect(registry().forProject(project).storedRuns()).toEqual([])
+  })
+
+  it('keeps no card of a run of the conversation that ended, even when its last event comes after the clear', () => {
+    const transcripts = registry()
+    const transcript = transcripts.forProject(project)
+    transcript.recordRun(card('r1'), 11)
+    transcripts.flushAll()
+
+    expect(transcript.clear()).toEqual({ ok: true })
+    // Ending the conversation closes the session after the file is cleared, and the run in flight ends with it.
+    transcript.recordRun(card('r1', { status: 'failed', endedAt: 12 }), 12)
+    transcripts.flushAll()
+    tick()
+
+    expect(timers.filter((timer) => !timer.cancelled)).toEqual([])
+    expect(onDisk()).toEqual({ version: 1, projectPath: project, entries: [] })
+    // A run begun in the new conversation is kept as any other.
+    transcript.recordRun(card('r2'), 20)
+    transcripts.flushAll()
+    expect(onDisk().runs.map((run: { card: RunCardSnapshot }) => run.card.runId)).toEqual(['r2'])
+  })
+
+  it('does not clear when the write of the empty file fails: every card is still held', () => {
+    let failing = false
+    const first = registry()
+    first.forProject(project).recordRun(card('r1', { status: 'finished', endedAt: 20 }), 20)
+    first.flushAll()
+    const transcript = registry({
+      write: (file, path, entries, runs) => (failing ? { ok: false, errno: 'EACCES' } : writeTranscript(file, path, entries, runs))
+    }).forProject(project)
+    failing = true
+
+    expect(transcript.clear()).toEqual({ ok: false, errno: 'EACCES' })
+
+    expect(transcript.storedRuns()).toHaveLength(1)
+  })
+
+  it('keeps one project’s cards out of another’s file', () => {
+    const other = join(root, 'other')
+    const transcripts = registry()
+    transcripts.forProject(project).recordRun(card('r1'), 11)
+    transcripts.forProject(other).recordRun(card('r2'), 12)
+    transcripts.flushAll()
+
+    expect(onDisk(project).runs.map((run: { card: RunCardSnapshot }) => run.card.runId)).toEqual(['r1'])
+    expect(onDisk(other).runs.map((run: { card: RunCardSnapshot }) => run.card.runId)).toEqual(['r2'])
+  })
+
+  it('does not write a file it was told it must not: a conversation that could not be set aside stores no cards either', () => {
+    mkdirSync(join(userData, 'conversations'), { recursive: true })
+    writeFileSync(fileOf(), '{not json')
+    const transcripts = registry({ setAside: () => ({ ok: false, errno: 'EPERM' }) })
+    transcripts.forProject(project).recordRun(card('r1'), 11)
+    transcripts.flushAll()
+
+    expect(readFileSync(fileOf(), 'utf8')).toBe('{not json')
   })
 })

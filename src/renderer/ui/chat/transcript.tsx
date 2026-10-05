@@ -97,7 +97,8 @@ export function Turns({
   onChoose,
   prose,
   pinnedRunId,
-  collapse
+  collapse,
+  onStop
 }: {
   entries: readonly TranscriptEntry[]
   /** Take a queued message back, by its entry id. */
@@ -112,6 +113,8 @@ export function Turns({
   pinnedRunId?: string
   /** A card in flight for a persona not viewed draws as one line (Story 3.5); without this every card is full. */
   collapse?: RunCollapse
+  /** Handed to each run card and line as it is, for the control it draws while its run is in flight. */
+  onStop?: (runId: string) => void
 }): JSX.Element {
   const ordered = orderEntries(entries)
   const last = ordered.length - 1
@@ -133,6 +136,7 @@ export function Turns({
                 name={collapse.nameOf(entry.agentId)}
                 prose={prose}
                 onExpand={collapse.onExpand}
+                onStop={onStop}
               />
             )
           }
@@ -144,6 +148,7 @@ export function Turns({
               prose={prose}
               focusOnMount={focusing}
               onFocused={focusing ? collapse?.onFocused : undefined}
+              onStop={onStop}
             />
           )
         }

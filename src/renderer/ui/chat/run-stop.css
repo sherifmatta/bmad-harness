@@ -1,0 +1,28 @@
+/*
+ * The stop control (Story 3.7) — `.stop` in document-card-dead-air.html
+ * (:72-78): a plain mono button in the card's own ground, dim, with a hairline
+ * border that lifts on hover. It reads `stop` and nothing else: no icon, no
+ * cost, no spinner, no tooltip, no state of its own.
+ *
+ * It is a native button and its own tab stop. It draws no focus treatment: the
+ * shared ring (`design/focus.css`) is the one for every control, so no rule here
+ * restates it. Every value reaches the design system through `var()`.
+ */
+
+.run-stop {
+  flex: none;
+  padding: var(--run-stop-padding);
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--radius-chip);
+  background: var(--panel);
+  color: var(--dim);
+  font-family: var(--mono);
+  font-size: var(--fs-meta);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.run-stop:hover {
+  color: var(--text-strong);
+  border-color: var(--ghost-border-hover);
+}

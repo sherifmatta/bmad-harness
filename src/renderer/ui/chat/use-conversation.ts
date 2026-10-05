@@ -27,12 +27,13 @@ import type { ProseStore } from './prose-store'
 import { runLifecycleLine, subjectSections } from './run-status'
 import type { TranscriptEntry } from './transcript-entry'
 
-/** The seven bridge methods the conversation needs, and nothing else of the bridge. */
+/** The eight bridge methods the conversation needs, and nothing else of the bridge. */
 export type ConversationBridge = {
   openSession(agentId: string): Promise<OpenedSession>
   closeSession(sessionId: string): Promise<void>
   sendTurn(sessionId: string, text: string): Promise<void>
   dispatchMenu(sessionId: string, code: string): Promise<string>
+  stopRun(runId: string): Promise<void>
   getConversation(): Promise<ConversationSnapshot>
   endConversation(projectId: string): Promise<void>
   onSessionEvent(listener: (event: ContractEvent) => void): () => void
@@ -60,6 +61,14 @@ export type Conversation = {
    * failure line.
    */
   runSkill(agentId: string, code: string): void
+  /**
+   * The user pressed stop on a run, by its id: main finds the run's session and
+   * asks its turn to end. Nothing is changed here: the card ends on the run's own
+   * terminal event. A run that is no longer in flight (`run/not-found`) is said
+   * nothing of, since the control it was pressed on is already gone; any other
+   * refusal is the failure line. Never rejects.
+   */
+  stopRun(runId: string): Promise<void>
   /**
    * The user closes a persona's session: main ends that one session, and its
    * `session:closed` is what removes it here. Resolves true when it was closed;
@@ -329,6 +338,16 @@ export function createConversation(deps: ConversationDeps): Conversation {
       })
     },
 
+    async stopRun(runId) {
+      try {
+        await bridge.stopRun(runId)
+      } catch (reason) {
+        if (asHarnessError(reason).code !== 'run/not-found') {
+          fail(reason)
+        }
+      }
+    },
+
     async close(agentId) {
       onFailure(null)
       const sessionId = sessionOf(state, agentId)
@@ -402,6 +421,8 @@ export function useConversation(
   sessionOf: (agentId: string) => string | undefined
   /** Run one of a persona's menu entries, by its code, in its live session. */
   runSkill: (agentId: string, code: string) => void
+  /** Stop a run by its id; one that is no longer in flight is left alone, without a word. */
+  stopRun: (runId: string) => Promise<void>
   /** Each run's document text, which the run cards write from. */
   prose: ProseStore
 } {
@@ -463,6 +484,7 @@ export function useConversation(
     (agentId: string, code: string) => conversation.current?.runSkill(agentId, code),
     []
   )
+  const stopRun = useCallback(async (runId: string) => void (await conversation.current?.stopRun(runId)), [])
   const end = useCallback(
     async (projectId: string) => (await conversation.current?.end(projectId)) ?? false,
     []
@@ -504,6 +526,7 @@ export function useConversation(
     canAnswer: answerable,
     sessionOf: liveSessionOf,
     runSkill,
+    stopRun,
     prose
   }
 }

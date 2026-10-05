@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,6 +7,8 @@ import type { ContractEvent, EventName, EventPayload } from '../shared/events'
 import type { ArtifactObservation, RailAnnotation } from '../shared/rail'
 import type { TemplatePlan } from '../shared/section-plan'
 import { createTranscriptRegistry } from './projections/transcript'
+import type { TranscriptRegistry } from './projections/transcript'
+import { transcriptFilePath } from './sources/persistence/transcript-file'
 import { railAnnotatorFor } from './rail-annotations'
 import type { SessionBridge } from './session-bridge'
 import type { ResolvedMenuEntry } from './sources/install/schema'
@@ -28,7 +30,7 @@ vi.mock('electron', () => ({
   app: { getPath: () => '/unused' }
 }))
 
-const { CONVERSATION_END_CHANNEL, CONVERSATION_GET_CHANNEL, MENU_DISPATCH_CHANNEL, SESSION_CLOSE_CHANNEL, SESSION_OPEN_CHANNEL, TURN_SEND_CHANNEL, registerSessionBridge } =
+const { CONVERSATION_END_CHANNEL, CONVERSATION_GET_CHANNEL, MENU_DISPATCH_CHANNEL, RUN_STOP_CHANNEL, SESSION_CLOSE_CHANNEL, SESSION_OPEN_CHANNEL, TURN_SEND_CHANNEL, registerSessionBridge } =
   await import('./session-bridge')
 
 const ROOT = '/work/project'
@@ -73,6 +75,8 @@ let timers: { at: number; run: () => void; cancelled: boolean }[]
 let files: Map<string, string>
 let bridge: SessionBridge
 let transcriptEntries: () => unknown[]
+/** The project's transcript registry, so a test can flush it and read what was kept of the run cards. */
+let transcriptRegistry: TranscriptRegistry
 /** What the plan read answers, by skill: a plan, nothing, or a failure. */
 let plans: Map<string, TemplatePlan | 'fails'>
 /** The skills whose plan was read, in order, and the project each was read for. */
@@ -95,6 +99,7 @@ beforeEach(() => {
   planReads = []
   writesWhenPlanRead = []
   const transcripts = createTranscriptRegistry({ userDataPath: () => userData, schedule: () => () => {}, log: () => {} })
+  transcriptRegistry = transcripts
   transcriptEntries = () => [...transcripts.forProject(ROOT).entries()]
   bridge = registerSessionBridge({
     transcripts,
@@ -126,6 +131,7 @@ beforeEach(() => {
           writes.push(text)
           return Promise.resolve(writeOk)
         },
+        interrupt: () => Promise.resolve(true),
         kill: () => {}
       }
       return Promise.resolve<SpawnOutcome>({ ok: true, session })
@@ -499,7 +505,7 @@ describe('the section plan, read at dispatch', () => {
         schedule: () => () => {},
         spawn: (options: SpawnSessionOptions) => {
           feed = options.onFrame
-          return Promise.resolve<SpawnOutcome>({ ok: true, session: { write: () => Promise.resolve(true), kill: () => {} } })
+          return Promise.resolve<SpawnOutcome>({ ok: true, session: { write: () => Promise.resolve(true), interrupt: () => Promise.resolve(true), kill: () => {} } })
         }
       })
       const sender = await idle()
@@ -805,5 +811,84 @@ describe('what the run says of the rail’s rows (Story 3.6)', () => {
     for (const frame of write('t1', '_bmad/prd.md', DOC)) feed(frame)
 
     expect(told).toEqual([])
+  })
+})
+
+describe('the run cards kept with the transcript (Story 3.7)', () => {
+  /** What the transcript file holds of the run cards once it is flushed, as the quit flushes it. */
+  const kept = (): { card: { runId: string; status: string; notes: unknown[] }; lastAt: number }[] => {
+    transcriptRegistry.flushAll()
+    return JSON.parse(readFileSync(transcriptFilePath(userData, ROOT), 'utf8')).runs ?? []
+  }
+
+  it('keeps the card after every run event, with the moment of that event', async () => {
+    const sender = await idle()
+    clock = 2_000
+    await dispatch(sender, 'CP')
+    expect(kept().map((run) => [run.card.runId, run.card.status, run.lastAt])).toEqual([['r1', 'running', 2_000]])
+
+    clock = 2_500
+    files.set(`${ROOT}/_bmad/prds/x/.memlog.md`, '- (decision) Fast path\n')
+    await bridge.observeArtifact(sender, ROOT, memlog('artifact:found'))
+    files.set(`${ROOT}/_bmad/prds/x/.memlog.md`, '- (decision) Fast path\n- (assumption) Two readers\n')
+    clock = 3_000
+    await bridge.observeArtifact(sender, ROOT, memlog('artifact:written'))
+    expect(kept()).toMatchObject([{ lastAt: 3_000, card: { runId: 'r1', status: 'running', notes: [{ text: '- (assumption) Two readers' }] } }])
+
+    clock = 4_000
+    for (const frame of [messageStart('m1'), ...writeFrames('Write', 't1', { file_path: `${ROOT}/_bmad/prd.md`, content: DOC })]) feed(frame)
+    clock = 4_500
+    feed(toolResult('t1'))
+    expect(kept()[0]).toMatchObject({ lastAt: 4_500 })
+
+    clock = 5_000
+    feed(result())
+    expect(kept()).toMatchObject([{ lastAt: 5_000, card: { runId: 'r1', status: 'finished' } }])
+    // What is kept is the card the window is handed.
+    expect(kept()[0].card).toEqual(snapshot(sender).runs[0])
+  })
+
+  it('keeps one card per run, replaced as the run goes on, in the order the runs started', async () => {
+    const sender = await idle()
+    await dispatch(sender, 'CP')
+    feed(result())
+    await dispatch(sender, 'VP')
+    feed(result(undefined, true))
+
+    expect(kept().map((run) => [run.card.runId, run.card.status])).toEqual([
+      ['r1', 'finished'],
+      ['r2', 'failed']
+    ])
+  })
+
+  it('keeps a stopped run as stopped, and the moment of the result it ended on', async () => {
+    const sender = await idle()
+    clock = 2_000
+    await dispatch(sender, 'CP')
+    const reply = await call<Promise<unknown>>(RUN_STOP_CHANNEL, sender, 'r1')
+    expect(reply).toEqual({ ok: true })
+    clock = 2_600
+    feed(result('error_during_execution', true))
+
+    expect(kept()).toMatchObject([{ lastAt: 2_600, card: { runId: 'r1', status: 'stopped', endedAt: 2_600 } }])
+  })
+
+  it('keeps no card for a plain chat turn, and none of what a persona said among the cards', async () => {
+    const sender = await idle()
+    await call<Promise<unknown>>(TURN_SEND_CHANNEL, sender, 's1', 'write it')
+    feed(messageStart('m1'))
+    feed(result())
+
+    expect(kept()).toEqual([])
+  })
+
+  it('keeps the cards of the runs of every session of the window, under the one project', async () => {
+    const sender = await idle()
+    await dispatch(sender, 'CP')
+    await call<Promise<unknown>>(SESSION_OPEN_CHANNEL, sender, B)
+    feeds.get(B)?.(result())
+    await dispatch(sender, 'CP', 's2')
+
+    expect(kept().map((run) => run.card.runId)).toEqual(['r1', 'r2'])
   })
 })

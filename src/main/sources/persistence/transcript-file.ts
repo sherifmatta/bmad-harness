@@ -9,21 +9,25 @@ import {
   writeFileSync
 } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import type { TranscriptFile, TranscriptRecord } from '../../../shared/conversation'
+import type { StoredRun, TranscriptFile, TranscriptRecord } from '../../../shared/conversation'
 import { errnoOf } from '../errno'
 
 /**
  * Where a project's transcript lives and how it is read and written. The one
- * thing persisted (FR16, FR100, NFR2): `{version, projectPath, entries}` JSON at
- * `<userData>/conversations/<sha256(projectPath) hex>.json`, and nothing else.
+ * thing persisted (FR16, FR100, NFR2): `{version, projectPath, entries, runs?}`
+ * JSON at `<userData>/conversations/<sha256(projectPath) hex>.json`, and nothing
+ * else. `runs` are the run cards that stand beside the entries, each with the
+ * moment of its last event (`StoredRun`); a file from before they were kept has
+ * none, and loads as having none, at the same version.
  *
  * Reading never throws, and it says what it found: no file at all is `missing`,
  * and everything else that is not a whole transcript is told apart, as
  * `unreadable` (with the errno), `corrupt` (not JSON, not this project's, not a
- * transcript's shape) or `unknown-version`. A file with some records that are
- * not records is `loaded` with those left out and counted. Nothing here repairs
- * or deletes a file: a file that cannot be used whole is moved aside by
- * `setAsideTranscript` before anything writes, so no later write replaces it.
+ * transcript's shape) or `unknown-version`. A file with some records, or some
+ * run cards, that are not what they should be is `loaded` with those left out
+ * and counted. Nothing here repairs or deletes a file: a file that cannot be
+ * used whole is moved aside by `setAsideTranscript` before anything writes, so no
+ * later write replaces it.
  *
  * Writing is synchronous and atomic — a temporary file beside the target, then a
  * rename — so a reader never meets half a file, and it reports instead of
@@ -91,12 +95,36 @@ function isRecord(value: unknown): value is TranscriptRecord {
   )
 }
 
+const RUN_STATUSES: ReadonlySet<unknown> = new Set(['running', 'finished', 'stopped', 'failed'])
+
+/** Whether a stored run is a run card with the moment of its last event: the fields a card is drawn from. */
+function isStoredRun(value: unknown): value is StoredRun {
+  if (typeof value !== 'object' || value === null) return false
+  const { card, lastAt } = value as Record<string, unknown>
+  if (typeof lastAt !== 'number' || !Number.isFinite(lastAt)) return false
+  if (typeof card !== 'object' || card === null) return false
+  const held = card as Record<string, unknown>
+  return (
+    typeof held.runId === 'string' &&
+    typeof held.sessionId === 'string' &&
+    typeof held.code === 'string' &&
+    typeof held.startedAt === 'number' &&
+    Number.isFinite(held.startedAt) &&
+    RUN_STATUSES.has(held.status) &&
+    Array.isArray(held.notes) &&
+    Array.isArray(held.documents)
+  )
+}
+
 /** What reading a project's file found. */
 export type LoadOutcome =
   /** There is no file: nothing was ever stored, which is not a problem. */
   | { kind: 'missing' }
-  /** A transcript. `dropped` counts the records in it that were not records and are left out. */
-  | { kind: 'loaded'; entries: TranscriptRecord[]; dropped: number }
+  /**
+   * A transcript. `dropped` counts the records and run cards in it that were not
+   * what they should be and are left out.
+   */
+  | { kind: 'loaded'; entries: TranscriptRecord[]; runs: StoredRun[]; dropped: number }
   /** The file could not be read: the errno code. */
   | { kind: 'unreadable'; errno: string }
   /** Not JSON, not an object, not this project's, or without its entries. */
@@ -136,7 +164,16 @@ export function loadTranscript(filePath: string, projectPath: string): LoadOutco
     return { kind: 'corrupt' }
   }
   const entries = file.entries.filter(isRecord)
-  return { kind: 'loaded', entries, dropped: file.entries.length - entries.length }
+  // No `runs` is a file from before they were kept; a `runs` that is not a list is damage.
+  const held: unknown[] = Array.isArray(file.runs) ? file.runs : []
+  const runs = held.filter(isStoredRun)
+  const damaged = file.runs === undefined || Array.isArray(file.runs) ? 0 : 1
+  return {
+    kind: 'loaded',
+    entries,
+    runs,
+    dropped: file.entries.length - entries.length + held.length - runs.length + damaged
+  }
 }
 
 export type AsideOutcome = { ok: true; to: string } | { ok: false; errno: string }
@@ -165,11 +202,12 @@ export function setAsideTranscript(filePath: string, projectPath: string): Aside
 
 export type WriteOutcome = { ok: true } | { ok: false; errno: string }
 
-/** Replace a project's file with `entries`: the errno code when it could not, never a throw. */
+/** Replace a project's file with `entries` and `runs`: the errno code when it could not, never a throw. */
 export function writeTranscript(
   filePath: string,
   projectPath: string,
-  entries: readonly TranscriptRecord[]
+  entries: readonly TranscriptRecord[],
+  runs: readonly StoredRun[] = []
 ): WriteOutcome {
   if (isInsideProject(projectPath, filePath)) {
     return { ok: false, errno: 'inside-project' }
@@ -180,7 +218,9 @@ export function writeTranscript(
     const file: TranscriptFile = {
       version: TRANSCRIPT_VERSION,
       projectPath,
-      entries: [...entries]
+      entries: [...entries],
+      // A file with no run cards is the file it always was.
+      ...(runs.length === 0 ? {} : { runs: [...runs] })
     }
     writeFileSync(temporary, JSON.stringify(file))
     renameSync(temporary, filePath)

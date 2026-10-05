@@ -11,7 +11,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import type { TranscriptRecord } from '../../../shared/conversation'
+import type { RunCardSnapshot, StoredRun, TranscriptRecord } from '../../../shared/conversation'
 import {
   TRANSCRIPT_VERSION,
   isInsideProject,
@@ -64,7 +64,7 @@ describe('writeTranscript and loadTranscript', () => {
       projectPath: project,
       entries
     })
-    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', entries, dropped: 0 })
+    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', entries, runs: [], dropped: 0 })
   })
 
   it('leaves no temporary file behind, and replaces what was there', () => {
@@ -73,7 +73,7 @@ describe('writeTranscript and loadTranscript', () => {
     writeTranscript(file, project, entries.slice(0, 1))
 
     expect(readdirSync(join(userData, 'conversations'))).toEqual([`${file.split('/').pop()}`])
-    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', entries: entries.slice(0, 1), dropped: 0 })
+    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', entries: entries.slice(0, 1), runs: [], dropped: 0 })
   })
 
   it('keeps every earlier record when a sysline sits among them, at version 1', () => {
@@ -197,15 +197,93 @@ describe('writeTranscript and loadTranscript', () => {
       expect(loadTranscript(file, project)).toEqual({
         kind: 'loaded',
         entries: [good, { kind: 'user', id: 'm-2', at: 3, text: 'also kept' }],
+        runs: [],
         dropped: 1
       })
       expect(readFileSync(file, 'utf8')).toBe(before)
     })
 
     it('is loaded with nothing left out when every record is one, and when there are none', () => {
-      expect(loadTranscript(write([good]), project)).toEqual({ kind: 'loaded', entries: [good], dropped: 0 })
-      expect(loadTranscript(write([]), project)).toEqual({ kind: 'loaded', entries: [], dropped: 0 })
+      expect(loadTranscript(write([good]), project)).toEqual({ kind: 'loaded', entries: [good], runs: [], dropped: 0 })
+      expect(loadTranscript(write([]), project)).toEqual({ kind: 'loaded', entries: [], runs: [], dropped: 0 })
     })
+  })
+})
+
+/** A run card as the transcript keeps it: only the fields a stored card is checked by are spelled out. */
+const card = (runId: string, status = 'finished'): RunCardSnapshot => ({
+  runId,
+  sessionId: 's1',
+  code: 'CP',
+  startedAt: 10,
+  status: status as RunCardSnapshot['status'],
+  notes: [],
+  documents: []
+})
+
+describe('the run cards stored beside the entries', () => {
+  const stored = (runId: string, status?: string): StoredRun => ({ card: card(runId, status), lastAt: 40 })
+
+  it('are written under `runs` at version 1, and read back as they were written', () => {
+    const file = transcriptFilePath(userData, project)
+    const runs = [stored('r1'), stored('r2', 'running')]
+
+    expect(writeTranscript(file, project, entries, runs)).toEqual({ ok: true })
+    const written = JSON.parse(readFileSync(file, 'utf8'))
+    expect(written).toEqual({ version: 1, projectPath: project, entries, runs })
+    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', entries, runs, dropped: 0 })
+  })
+
+  it('leave a file with no run cards the file it always was, and a file without them loads with none', () => {
+    const file = transcriptFilePath(userData, project)
+    writeTranscript(file, project, entries, [])
+
+    expect(Object.keys(JSON.parse(readFileSync(file, 'utf8')))).toEqual(['version', 'projectPath', 'entries'])
+    expect(loadTranscript(file, project)).toMatchObject({ kind: 'loaded', runs: [], dropped: 0 })
+  })
+
+  const filed = (runs: unknown): string => {
+    const file = join(userData, 'runs.json')
+    writeFileSync(file, JSON.stringify({ version: 1, projectPath: project, entries, runs }))
+    return file
+  }
+
+  it.each([
+    ['null', null],
+    ['a string', 'r1'],
+    ['a stored run with no card', { lastAt: 1 }],
+    ['a card that is a string', { card: 'r1', lastAt: 1 }],
+    ['a card with no run id', { card: { ...card('r1'), runId: undefined }, lastAt: 1 }],
+    ['a card with no session id', { card: { ...card('r1'), sessionId: 7 }, lastAt: 1 }],
+    ['a card with no code', { card: { ...card('r1'), code: undefined }, lastAt: 1 }],
+    ['a card with a start that is not a number', { card: { ...card('r1'), startedAt: 'now' }, lastAt: 1 }],
+    ['a card of a status nobody knows', { card: card('r1', 'paused'), lastAt: 1 }],
+    ['a card with no notes', { card: { ...card('r1'), notes: undefined }, lastAt: 1 }],
+    ['a card with no documents', { card: { ...card('r1'), documents: 'none' }, lastAt: 1 }],
+    ['a time that is not a number', { card: card('r1'), lastAt: 'then' }],
+    ['a time that is not finite', { card: card('r1'), lastAt: null }]
+  ])('keep the others and count %s as left out', (_name, bad) => {
+    const file = filed([stored('keep-1'), bad, stored('keep-2', 'running')])
+    const before = readFileSync(file, 'utf8')
+
+    expect(loadTranscript(file, project)).toEqual({
+      kind: 'loaded',
+      entries,
+      runs: [stored('keep-1'), stored('keep-2', 'running')],
+      dropped: 1
+    })
+    expect(readFileSync(file, 'utf8')).toBe(before)
+  })
+
+  it('count a `runs` that is not a list as one thing left out, with the entries kept', () => {
+    expect(loadTranscript(filed({ r1: 1 }), project)).toEqual({ kind: 'loaded', entries, runs: [], dropped: 1 })
+  })
+
+  it('add to the entries left out when both are damaged', () => {
+    const file = join(userData, 'both.json')
+    writeFileSync(file, JSON.stringify({ version: 1, projectPath: project, entries: [...entries, null], runs: [null, stored('r1')] }))
+
+    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', entries, runs: [stored('r1')], dropped: 2 })
   })
 })
 

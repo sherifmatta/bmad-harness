@@ -11,6 +11,7 @@ import {
   PROJECT_PATH_CHANNEL,
   RAIL_CHANGED_CHANNEL,
   RAIL_GET_CHANNEL,
+  RUN_STOP_CHANNEL,
   SESSION_CLOSE_CHANNEL,
   SESSION_EVENT_CHANNEL,
   SESSION_OPEN_CHANNEL,
@@ -46,6 +47,7 @@ export {
   PROJECT_PATH_CHANNEL,
   RAIL_CHANGED_CHANNEL,
   RAIL_GET_CHANNEL,
+  RUN_STOP_CHANNEL,
   SESSION_CLOSE_CHANNEL,
   SESSION_EVENT_CHANNEL,
   SESSION_OPEN_CHANNEL,
@@ -159,6 +161,15 @@ const harness: HarnessApi = {
       throw reply.error
     }
     return reply.runId
+  },
+
+  // A command (AD-13): the run's id goes to main, which finds the run's session
+  // by it and asks the turn to stop. Nothing comes back but whether it did.
+  stopRun: async (runId) => {
+    const reply = (await ipcRenderer.invoke(RUN_STOP_CHANNEL, runId)) as ContractCommands['run.stop']['reply']
+    if (!reply.ok) {
+      throw reply.error
+    }
   },
 
   // A read beside `getRail`: the transcript, which sessions are live and busy and

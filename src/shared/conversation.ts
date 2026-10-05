@@ -9,9 +9,10 @@ import type { AgentId, CallId, EpochMs, MessageId, RunId, SessionId } from './id
  * rest of `shared/`.
  *
  * It is a read beside `rail:get`, not an event and not a command: the contract's
- * seven commands are as they were. Only the transcript is
- * ever stored; the sessions, the busy set and the persona states are main's own
- * memory of this launch and are never written (FR100, NFR2).
+ * seven commands are as they were. Only the transcript, and the run cards that
+ * stand beside it, are ever stored; the sessions, the busy set and the persona
+ * states are main's own memory of this launch and are never written (FR100,
+ * NFR2).
  */
 
 /** What a persona said: one message, its pieces joined in the order they came. */
@@ -57,11 +58,22 @@ export type SessionOpenReply = CommandReply<{ sessionId: SessionId; handoff?: Sy
 /** What opening a session resolves with in the renderer, once the envelope is unwrapped. */
 export type OpenedSession = { sessionId: SessionId; handoff?: SyslineRecord }
 
-/** The transcript as it lies on disk, one file per project. */
+/**
+ * One run card as the transcript file keeps it, with the moment main last
+ * heard of the run: a card whose status is still `running` when it is read
+ * back is a run that was cut off, and it ends at that moment.
+ */
+export type StoredRun = { card: RunCardSnapshot; lastAt: EpochMs }
+
+/**
+ * The transcript as it lies on disk, one file per project. `runs` is additive:
+ * a file written before it was there loads with none.
+ */
 export type TranscriptFile = {
   version: 1
   projectPath: string
   entries: TranscriptRecord[]
+  runs?: StoredRun[]
 }
 
 /** Where a run stands: in flight, or the terminal event it ended on. */
@@ -95,7 +107,8 @@ export type RunCardDocument = {
 /**
  * One run's card as main holds it, folded from the run's own events, so a
  * window that reloads mid-run is handed the card whole and no part of it
- * depends on having seen an earlier event. Memory only: never stored.
+ * depends on having seen an earlier event. Held in memory; the transcript file
+ * keeps a copy of each (`StoredRun`) for a window after a relaunch to draw.
  */
 export type RunCardSnapshot = {
   runId: RunId
@@ -129,7 +142,11 @@ export type ConversationSnapshot = {
   busy: SessionId[]
   /** The personas that are anything but `idle`, with when that state began. */
   personas: PersonaStateChanged[]
-  /** This launch's runs, in the order they started, each as its card stands. */
+  /**
+   * The runs of the stored conversation, each as it ended or as it stood when
+   * it was cut off, then this launch's, in the order they started, each as its
+   * card stands.
+   */
   runs: RunCardSnapshot[]
 }
 

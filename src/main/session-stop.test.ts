@@ -1,0 +1,681 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ConversationReply, ConversationSnapshot } from '../shared/conversation'
+import type { ContractEvent, EventName, EventPayload } from '../shared/events'
+import { createTranscriptRegistry } from './projections/transcript'
+import type { TranscriptRegistry } from './projections/transcript'
+import { STOP_ACK_MS } from './session-stop'
+import { LINES } from './session-voice'
+import type { ResolvedMenuEntry } from './sources/install/schema'
+import type { SessionProcess, SpawnOutcome, SpawnSessionOptions } from './sources/session/session-process'
+
+/**
+ * Story 3.7's stop, through the real session bridge and registry: `run.stop`
+ * finds the run's session by its id, marks the run stopping and asks the
+ * session to interrupt; the turn's own `result` ends it as `run:stopped`; an
+ * interrupt nobody answers ends the session and says so. The process is a fake
+ * whose interrupt is held until the test answers it; time is hand-cranked.
+ */
+
+const handlers = new Map<string, (...args: never[]) => unknown>()
+
+vi.mock('electron', () => ({
+  ipcMain: {
+    handle: (channel: string, handler: (...args: never[]) => unknown) => handlers.set(channel, handler)
+  },
+  BrowserWindow: { fromWebContents: () => null },
+  app: { getPath: () => '/unused' }
+}))
+
+const {
+  CONVERSATION_END_CHANNEL,
+  CONVERSATION_GET_CHANNEL,
+  MENU_DISPATCH_CHANNEL,
+  RUN_STOP_CHANNEL,
+  SESSION_CLOSE_CHANNEL,
+  SESSION_OPEN_CHANNEL,
+  TURN_SEND_CHANNEL,
+  registerSessionBridge
+} = await import('./session-bridge')
+
+const ROOT = '/work/project'
+const A = 'bmad-agent-pm'
+const B = 'bmad-agent-analyst'
+
+class FakeSender {
+  sent: ContractEvent[] = []
+  constructor(readonly id = 1) {}
+  send(_channel: string, event: ContractEvent): void {
+    this.sent.push(event)
+  }
+  isDestroyed(): boolean {
+    return false
+  }
+  once(): void {}
+  /** The events by name, apart from the persona's state, which these tests do not read in order. */
+  get names(): string[] {
+    return this.sent.map((event) => event.name).filter((name) => name !== 'persona:state')
+  }
+  of<N extends EventName>(name: N): EventPayload<N>[] {
+    return this.sent.flatMap((event) => (event.name === name ? [event.payload as EventPayload<N>] : []))
+  }
+}
+
+/** What a spawned session looks like from outside: its frames in, and what main asked of it. */
+type FakeSession = {
+  feed: (frame: unknown) => void
+  exit: () => void
+  /** Each interrupt asked for, held until answered. */
+  interrupts: ((acknowledged: boolean) => void)[]
+  writes: string[]
+  kills: number
+  /** Called inside `interrupt()`, before it returns: the CLI answering at once. */
+  duringInterrupt: (() => void) | undefined
+  interruptThrows: boolean
+}
+
+const MENU: Record<string, ResolvedMenuEntry> = {
+  CP: { code: 'CP', description: 'Create the PRD', action: { kind: 'skill', skill: 'bmad-prd' } }
+}
+
+let userData: string
+let clock: number
+let runs: number
+let sessions: number
+let timers: { at: number; run: () => void; cancelled: boolean }[]
+let fakes: Map<string, FakeSession>
+let transcripts: TranscriptRegistry
+/** Whether the install still lists the agents: left false, every session's persona is an orphan. */
+let roster: boolean
+
+beforeEach(() => {
+  handlers.clear()
+  userData = mkdtempSync(join(tmpdir(), 'harness-session-stop-'))
+  clock = 1_000
+  runs = 0
+  sessions = 0
+  timers = []
+  fakes = new Map()
+  roster = true
+  transcripts = createTranscriptRegistry({ userDataPath: () => userData, schedule: () => () => {}, log: () => {} })
+  registerSessionBridge({
+    transcripts,
+    projectPathFor: () => ROOT,
+    now: () => clock,
+    newSessionId: () => `s${(sessions += 1)}`,
+    newRunId: () => `r${(runs += 1)}`,
+    agentName: () => (roster ? 'John' : undefined),
+    writeDiagnostic: () => {},
+    menuEntryFor: (_window, _agentId, code) => (roster ? MENU[code] : undefined),
+    readPlan: () => Promise.resolve(undefined),
+    readText: () => Promise.resolve(undefined),
+    schedule: (run, ms) => {
+      const timer = { at: clock + ms, run, cancelled: false }
+      timers.push(timer)
+      return () => void (timer.cancelled = true)
+    },
+    spawn: (options: SpawnSessionOptions) => {
+      const fake: FakeSession = {
+        feed: options.onFrame,
+        exit: options.onExit,
+        interrupts: [],
+        writes: [],
+        kills: 0,
+        duringInterrupt: undefined,
+        interruptThrows: false
+      }
+      fakes.set(options.agentId, fake)
+      const session: SessionProcess = {
+        write: (text) => {
+          fake.writes.push(text)
+          return Promise.resolve(true)
+        },
+        interrupt: () => {
+          if (fake.interruptThrows) throw new Error('the pipe is gone')
+          const asked = new Promise<boolean>((resolve) => fake.interrupts.push(resolve))
+          fake.duringInterrupt?.()
+          return asked
+        },
+        kill: () => void (fake.kills += 1)
+      }
+      return Promise.resolve<SpawnOutcome>({ ok: true, session })
+    }
+  })
+})
+
+afterEach(() => {
+  rmSync(userData, { recursive: true, force: true })
+})
+
+/** Let time pass: run every timer due by then, in order. */
+function advance(ms: number): void {
+  clock += ms
+  for (const timer of [...timers].sort((a, b) => a.at - b.at)) {
+    if (!timer.cancelled && timer.at <= clock) {
+      timer.cancelled = true
+      timer.run()
+    }
+  }
+}
+
+const call = <T>(channel: string, sender: FakeSender, ...args: unknown[]): T =>
+  (handlers.get(channel) as unknown as (...a: unknown[]) => T)({ sender }, ...args)
+
+const snapshot = (sender: FakeSender): ConversationSnapshot => {
+  const reply = call<ConversationReply>(CONVERSATION_GET_CHANNEL, sender)
+  if (!reply.ok) throw new Error('no snapshot')
+  return reply.snapshot
+}
+
+const result = (isError = false, subtype = isError ? 'error_during_execution' : 'success') => ({ type: 'result', subtype, is_error: isError })
+const stopRun = (sender: FakeSender, runId: unknown) => call<Promise<unknown>>(RUN_STOP_CHANNEL, sender, runId)
+const NOT_FOUND = { ok: false, error: { code: 'run/not-found', message: 'run · no such run is in flight' } }
+
+/** One window, one persona's session open and its activation over, and a run dispatched into it. */
+async function running(agent = A, sender = new FakeSender(1)) {
+  await call<Promise<unknown>>(SESSION_OPEN_CHANNEL, sender, agent)
+  const fake = fakes.get(agent)!
+  fake.feed(result())
+  const sessionId = `s${sessions}`
+  const reply = (await call<Promise<{ ok: true; runId: string }>>(MENU_DISPATCH_CHANNEL, sender, sessionId, 'CP')) as { ok: true; runId: string }
+  expect(reply.ok).toBe(true)
+  sender.sent = []
+  return { sender, fake, sessionId, runId: reply.runId }
+}
+
+/** Let the continuation of an awaited stop run. */
+const flush = async (): Promise<void> => {
+  for (let at = 0; at < 5; at += 1) await Promise.resolve()
+}
+
+describe('a stop the CLI acknowledged', () => {
+  it('asks the run’s session for one interrupt, writes nothing as a turn, and tells the window nothing yet', async () => {
+    const { sender, fake, runId } = await running()
+    const written = fake.writes.length
+
+    const reply = stopRun(sender, runId)
+    await flush()
+
+    expect(fake.interrupts).toHaveLength(1)
+    expect(fake.writes).toHaveLength(written)
+    expect(sender.sent).toEqual([])
+    expect(fake.kills).toBe(0)
+    fake.interrupts[0](true)
+    await expect(reply).resolves.toEqual({ ok: true })
+    // Still nothing: the card ends on the turn's `result` row and on nothing else.
+    expect(sender.sent).toEqual([])
+    expect(snapshot(sender).runs[0].status).toBe('running')
+  })
+
+  it('ends the card as run:stopped on the turn’s own failed result, with no run:failed, no failed line and the session open', async () => {
+    const { sender, fake, runId, sessionId } = await running()
+    const reply = stopRun(sender, runId)
+    await flush()
+    fake.interrupts[0](true)
+    await reply
+
+    fake.feed(result(true))
+
+    expect(sender.names).toEqual(['run:stopped', 'session:awaiting-turn'])
+    expect(sender.of('run:stopped')).toEqual([{ runId, sessionId, at: clock }])
+    expect(sender.of('harness:said')).toEqual([])
+    expect(fake.kills).toBe(0)
+    expect(snapshot(sender)).toMatchObject({ sessions: [{ agentId: A, sessionId }], busy: [], runs: [{ runId, status: 'stopped', endedAt: clock }] })
+    expect(snapshot(sender).entries).toEqual([])
+  })
+
+  it('leaves a persona that reads `error` as for any stopped run, from the stop and not from a failed turn', async () => {
+    const { sender, fake, runId } = await running()
+    const reply = stopRun(sender, runId)
+    await flush()
+    fake.interrupts[0](true)
+    await reply
+    fake.feed(result(true))
+
+    expect(sender.of('persona:state').map((event) => event.state)).toEqual(['error'])
+  })
+
+  it('accepts a next turn into the same process after the stop', async () => {
+    const { sender, fake, runId, sessionId } = await running()
+    const reply = stopRun(sender, runId)
+    await flush()
+    fake.interrupts[0](true)
+    await reply
+    fake.feed(result(true))
+    const written = fake.writes.length
+
+    await expect(call<Promise<unknown>>(TURN_SEND_CHANNEL, sender, sessionId, 'pick that back up')).resolves.toEqual({ ok: true })
+
+    expect(fake.writes).toHaveLength(written + 1)
+    expect(fake.writes.at(-1)).toBe('pick that back up')
+    expect(fakes.size).toBe(1)
+  })
+
+  it('accepts the next run too: a stopped run frees the session for a menu entry', async () => {
+    const { sender, fake, runId, sessionId } = await running()
+    const reply = stopRun(sender, runId)
+    await flush()
+    fake.interrupts[0](true)
+    await reply
+    fake.feed(result(true))
+
+    await expect(call<Promise<unknown>>(MENU_DISPATCH_CHANNEL, sender, sessionId, 'CP')).resolves.toEqual({ ok: true, runId: 'r2' })
+  })
+
+  it('is stopped even when the acknowledgement and the result arrive in the one chunk: the mark is set before the interrupt is asked', async () => {
+    const { sender, fake, runId } = await running()
+    // The CLI answers before `interrupt()` has returned, and its result follows in the same tick.
+    fake.duringInterrupt = () => fake.feed(result(true))
+
+    const reply = stopRun(sender, runId)
+    await flush()
+    fake.interrupts[0](true)
+    await reply
+
+    expect(sender.names).toEqual(['run:stopped', 'session:awaiting-turn'])
+    expect(sender.of('run:failed')).toEqual([])
+    expect(sender.of('harness:said')).toEqual([])
+  })
+
+  it('takes the turn’s end for what it was when the turn ended first: a result that is no error is run:finished', async () => {
+    const { sender, fake, runId } = await running()
+    const reply = stopRun(sender, runId)
+    await flush()
+
+    fake.feed(result(false))
+    fake.interrupts[0](true)
+    await reply
+
+    expect(sender.names).toEqual(['run:finished', 'session:awaiting-turn'])
+    expect(sender.of('run:stopped')).toEqual([])
+    expect(fake.kills).toBe(0)
+  })
+
+  it('does not end the run at the acknowledgement alone, and holds no timer past it', async () => {
+    const { sender, fake, runId } = await running()
+    const reply = stopRun(sender, runId)
+    await flush()
+    const pending = timers.filter((timer) => !timer.cancelled && timer.at === clock + STOP_ACK_MS)
+    expect(pending).toHaveLength(1)
+
+    fake.interrupts[0](true)
+    await reply
+
+    expect(pending[0].cancelled).toBe(true)
+    advance(60_000)
+    expect(sender.sent.filter((event) => event.name !== 'harness:said')).toEqual([])
+    expect(snapshot(sender).runs[0].status).toBe('running')
+  })
+
+  it('leaves a run whose result never comes running: there is no result timeout, and close session is the way out', async () => {
+    const { sender, fake, runId, sessionId } = await running()
+    const reply = stopRun(sender, runId)
+    await flush()
+    fake.interrupts[0](true)
+    await reply
+
+    advance(10 * 60_000)
+
+    expect(snapshot(sender).runs[0].status).toBe('running')
+    expect(fake.kills).toBe(0)
+    call(SESSION_CLOSE_CHANNEL, sender, sessionId)
+    expect(sender.names.slice(-2)).toEqual(['run:stopped', 'session:closed'])
+  })
+})
+
+describe('a stop the CLI did not acknowledge', () => {
+  /** The whole fallback, as the window hears it, for a stop that ends the way `refuse` makes it end. */
+  async function unanswered(refuse: (fake: FakeSession) => void | Promise<void>) {
+    const scene = await running()
+    const reply = stopRun(scene.sender, scene.runId)
+    await flush()
+    await refuse(scene.fake)
+    return { ...scene, reply }
+  }
+
+  const FALLBACKS: [string, (fake: FakeSession) => void | Promise<void>][] = [
+    ['a refusal (another subtype)', (fake) => fake.interrupts[0](false)],
+    ['silence for STOP_ACK_MS', () => advance(STOP_ACK_MS)]
+  ]
+
+  it.each(FALLBACKS)('on %s: kills the process group, ends the card once as run:stopped, says so in the harness’s voice and closes the session', async (_name, refuse) => {
+    const { sender, fake, runId, sessionId, reply } = await unanswered(refuse)
+
+    await expect(reply).resolves.toEqual({ ok: true })
+
+    expect(fake.kills).toBe(1)
+    expect(sender.names).toEqual(['run:stopped', 'harness:said', 'session:closed'])
+    expect(sender.of('run:stopped')).toEqual([{ runId, sessionId, at: clock }])
+    expect(sender.of('harness:said')).toEqual([{ sessionId, id: expect.any(String), text: LINES.stopEnded, at: clock }])
+    expect(sender.of('session:closed')).toEqual([{ sessionId, agentId: A, reason: 'closed', at: clock }])
+    expect(sender.of('run:failed')).toEqual([])
+    expect(snapshot(sender)).toMatchObject({ sessions: [], busy: [], runs: [{ runId, status: 'stopped' }] })
+  })
+
+  it('says it in lower case, mono-register, `·`-separated and without terminal punctuation, as a line of the harness’s own', async () => {
+    const { sender } = await unanswered((fake) => fake.interrupts[0](false))
+
+    expect(LINES.stopEnded).toBe('stop not acknowledged · the session ended with the run')
+    expect(LINES.stopEnded).toBe(LINES.stopEnded.toLowerCase())
+    expect(LINES.stopEnded).not.toMatch(/[.!?]$/)
+    expect(snapshot(sender).entries).toEqual([expect.objectContaining({ kind: 'sysline', text: LINES.stopEnded })])
+  })
+
+  it('does not wait for STOP_ACK_MS before it has passed: a stop still unanswered a moment short of it ends nothing', async () => {
+    const { sender, fake } = await unanswered(() => advance(STOP_ACK_MS - 1))
+
+    expect(sender.sent).toEqual([])
+    expect(fake.kills).toBe(0)
+  })
+
+  it('falls back when the interrupt cannot be asked: a throw is a stop that was not acknowledged', async () => {
+    const scene = await running()
+    scene.fake.interruptThrows = true
+
+    await expect(stopRun(scene.sender, scene.runId)).resolves.toEqual({ ok: true })
+
+    expect(scene.sender.names).toEqual(['run:stopped', 'harness:said', 'session:closed'])
+    expect(scene.fake.kills).toBe(1)
+  })
+
+  it('ends the run exactly once, and ignores an acknowledgement that comes late', async () => {
+    const { sender, fake, reply } = await unanswered(() => advance(STOP_ACK_MS))
+    await reply
+    const told = sender.sent.length
+
+    fake.interrupts[0](true)
+    await flush()
+    fake.feed(result(true))
+    advance(60_000)
+
+    expect(sender.sent).toHaveLength(told)
+    expect(fake.kills).toBe(1)
+    expect(sender.of('run:stopped')).toHaveLength(1)
+  })
+
+  it('leaves the session closed: a send to it is refused as no such session, and the card and transcript stay', async () => {
+    const { sender, sessionId, reply } = await unanswered((fake) => fake.interrupts[0](false))
+    await reply
+
+    await expect(call<Promise<unknown>>(TURN_SEND_CHANNEL, sender, sessionId, 'hello')).resolves.toMatchObject({ ok: false, error: { code: 'session/not-found' } })
+    expect(snapshot(sender).runs).toHaveLength(1)
+    expect(snapshot(sender).entries).toHaveLength(1)
+  })
+
+  it('does not end the run twice when the process then exits on its own: the exit finds the session closed', async () => {
+    const { sender, fake, reply } = await unanswered((answering) => answering.interrupts[0](false))
+    await reply
+    const told = sender.sent.length
+
+    fake.exit()
+
+    expect(sender.sent).toHaveLength(told)
+  })
+
+  it('ends as the stop it was, once, when the process exits before the answer: the exit says its own line and the group is not killed again', async () => {
+    const scene = await running()
+    const reply = stopRun(scene.sender, scene.runId)
+    await flush()
+
+    scene.fake.exit()
+    scene.fake.interrupts[0](false)
+    await reply
+
+    expect(scene.sender.names).toEqual(['harness:said', 'run:stopped', 'session:closed'])
+    expect(scene.sender.of('harness:said')[0].text).toBe(LINES.exited)
+    expect(scene.sender.of('run:failed')).toEqual([])
+    expect(scene.fake.kills).toBe(0)
+  })
+
+  it('ends as the stop it was when the session is closed while its stop is waiting', async () => {
+    const { sender, fake, runId, sessionId } = await running()
+    const reply = stopRun(sender, runId)
+    await flush()
+
+    expect(call(SESSION_CLOSE_CHANNEL, sender, sessionId)).toEqual({ ok: true })
+    fake.interrupts[0](false)
+    await reply
+
+    expect(sender.names).toEqual(['run:stopped', 'session:closed'])
+  })
+
+  it('still ends as failed when the session is closed under a run nobody asked to stop', async () => {
+    const { sender, sessionId } = await running()
+
+    expect(call(SESSION_CLOSE_CHANNEL, sender, sessionId)).toEqual({ ok: true })
+
+    expect(sender.names).toEqual(['run:failed', 'session:closed'])
+  })
+
+  it('leaves a session whose turn ended first alone: no kill, no line, the session open, and only the run’s own end told', async () => {
+    const { sender, fake, sessionId, runId } = await running()
+    const reply = stopRun(sender, runId)
+    await flush()
+
+    fake.feed(result(false))
+    fake.interrupts[0](false)
+    await expect(reply).resolves.toEqual({ ok: true })
+
+    expect(fake.kills).toBe(0)
+    expect(sender.of('harness:said')).toEqual([])
+    expect(sender.names).toEqual(['run:finished', 'session:awaiting-turn'])
+    expect(snapshot(sender).sessions).toEqual([{ agentId: A, sessionId }])
+    expect(snapshot(sender).entries).toEqual([])
+  })
+
+  it('leaves the next run alone when the silence runs out after another run began in the session: it is still running', async () => {
+    const { sender, fake, sessionId, runId } = await running()
+    const reply = stopRun(sender, runId)
+    await flush()
+    fake.feed(result(false))
+    await expect(call<Promise<unknown>>(MENU_DISPATCH_CHANNEL, sender, sessionId, 'CP')).resolves.toEqual({ ok: true, runId: 'r2' })
+
+    advance(STOP_ACK_MS)
+    await expect(reply).resolves.toEqual({ ok: true })
+
+    expect(fake.kills).toBe(0)
+    expect(sender.of('harness:said')).toEqual([])
+    expect(sender.names).toEqual(['run:finished', 'session:awaiting-turn', 'run:started'])
+    expect(sender.of('run:stopped')).toEqual([])
+    expect(snapshot(sender).sessions).toEqual([{ agentId: A, sessionId }])
+    expect(snapshot(sender).runs.map((run) => [run.runId, run.status])).toEqual([
+      [runId, 'finished'],
+      ['r2', 'running']
+    ])
+  })
+})
+
+describe('stopping twice', () => {
+  it('resolves ok for a run already stopping and writes no second interrupt', async () => {
+    const { sender, fake, runId } = await running()
+    const first = stopRun(sender, runId)
+    await flush()
+
+    await expect(stopRun(sender, runId)).resolves.toEqual({ ok: true })
+    await expect(stopRun(sender, runId)).resolves.toEqual({ ok: true })
+
+    expect(fake.interrupts).toHaveLength(1)
+    fake.interrupts[0](true)
+    await first
+    expect(fake.interrupts).toHaveLength(1)
+  })
+})
+
+describe('a stop with nothing to stop', () => {
+  it('is run/not-found for a run that already ended, however it ended', async () => {
+    const { sender, fake, runId } = await running()
+    fake.feed(result(false))
+    await expect(stopRun(sender, runId)).resolves.toEqual(NOT_FOUND)
+    expect(fake.interrupts).toHaveLength(0)
+  })
+
+  it('is run/not-found for a run that was stopped and has since ended', async () => {
+    const { sender, fake, runId } = await running()
+    const reply = stopRun(sender, runId)
+    await flush()
+    fake.interrupts[0](true)
+    await reply
+    fake.feed(result(true))
+
+    await expect(stopRun(sender, runId)).resolves.toEqual(NOT_FOUND)
+  })
+
+  it.each([['an id nobody has', 'r-unknown'], ['no id', undefined], ['null', null], ['a number', 1], ['an object', { runId: 'r1' }], ['a session id', 's1']])(
+    'is run/not-found for %s, and writes nothing',
+    async (_name, id) => {
+      const { sender, fake } = await running()
+      const written = fake.writes.length
+
+      await expect(stopRun(sender, id)).resolves.toEqual(NOT_FOUND)
+
+      expect(fake.interrupts).toHaveLength(0)
+      expect(fake.writes).toHaveLength(written)
+    }
+  )
+
+  it('is run/not-found for a window with no sessions at all', async () => {
+    await expect(stopRun(new FakeSender(9), 'r1')).resolves.toEqual(NOT_FOUND)
+  })
+
+  it('is run/not-found for another window’s run, and stops nothing of that window’s', async () => {
+    const mine = await running()
+    const stranger = new FakeSender(2)
+    await call<Promise<unknown>>(SESSION_OPEN_CHANNEL, stranger, B)
+    fakes.get(B)!.feed(result())
+
+    await expect(stopRun(stranger, mine.runId)).resolves.toEqual(NOT_FOUND)
+
+    expect(mine.fake.interrupts).toHaveLength(0)
+    expect(mine.fake.kills).toBe(0)
+  })
+
+  it('is run/not-found once the session was closed under the run', async () => {
+    const { sender, runId, sessionId } = await running()
+    call(SESSION_CLOSE_CHANNEL, sender, sessionId)
+
+    await expect(stopRun(sender, runId)).resolves.toEqual(NOT_FOUND)
+  })
+
+  it('is run/not-found for a run that was started in this window and ended by `conversation.end`', async () => {
+    const { sender, runId } = await running()
+    call(CONVERSATION_END_CHANNEL, sender, ROOT)
+
+    await expect(stopRun(sender, runId)).resolves.toEqual(NOT_FOUND)
+  })
+})
+
+describe('a stop is found by run id, never through the roster', () => {
+  it('stops the run of the one session whose run it is, and leaves another session’s run in flight', async () => {
+    const sender = new FakeSender(1)
+    const john = await running(A, sender)
+    await call<Promise<unknown>>(SESSION_OPEN_CHANNEL, sender, B)
+    const mary = fakes.get(B)!
+    mary.feed(result())
+    const second = (await call<Promise<{ ok: true; runId: string }>>(MENU_DISPATCH_CHANNEL, sender, 's2', 'CP')) as { ok: true; runId: string }
+    expect(second.runId).not.toBe(john.runId)
+
+    const reply = stopRun(sender, second.runId)
+    await flush()
+
+    expect(mary.interrupts).toHaveLength(1)
+    expect(john.fake.interrupts).toHaveLength(0)
+    mary.interrupts[0](true)
+    await reply
+    mary.feed(result(true))
+    expect(snapshot(sender).runs.map((run) => [run.runId, run.status])).toEqual([
+      [john.runId, 'running'],
+      [second.runId, 'stopped']
+    ])
+  })
+
+  it('halts an orphan’s run exactly as it halts a rostered persona’s, and never closes the session, whatever the install says now', async () => {
+    const { sender, fake, runId, sessionId } = await running()
+    roster = false
+
+    const reply = stopRun(sender, runId)
+    await flush()
+    fake.interrupts[0](true)
+    await reply
+    fake.feed(result(true))
+
+    expect(sender.names).toEqual(['run:stopped', 'session:awaiting-turn'])
+    expect(sender.of('session:closed')).toEqual([])
+    expect(fake.kills).toBe(0)
+    expect(snapshot(sender).sessions).toEqual([{ agentId: A, sessionId }])
+    // The session is still the persona’s, and takes a turn once the agent returns.
+    roster = true
+    await expect(call<Promise<unknown>>(TURN_SEND_CHANNEL, sender, sessionId, 'welcome back')).resolves.toEqual({ ok: true })
+  })
+
+  it('changes no run, card or stop when the roster changes mid-run: the same run, card and stop afterwards', async () => {
+    const { sender, fake, runId } = await running()
+    const before = snapshot(sender).runs
+
+    roster = false
+    expect(snapshot(sender).runs).toEqual(before)
+    roster = true
+    expect(snapshot(sender).runs).toEqual(before)
+
+    const reply = stopRun(sender, runId)
+    await flush()
+    expect(fake.interrupts).toHaveLength(1)
+    fake.interrupts[0](true)
+    await reply
+  })
+
+  it('ends an orphan’s run through the existing path when its session is closed: failed, before the session closes, card and transcript kept', async () => {
+    const { sender, fake, runId, sessionId } = await running()
+    roster = false
+    const entries = snapshot(sender).entries.length
+
+    expect(call(SESSION_CLOSE_CHANNEL, sender, sessionId)).toEqual({ ok: true })
+
+    expect(sender.names).toEqual(['run:failed', 'session:closed'])
+    expect(sender.of('run:failed')[0]).toMatchObject({ runId, error: { code: 'run/session-ended', message: 'run · the session ended' } })
+    expect(fake.kills).toBe(1)
+    expect(snapshot(sender).runs).toMatchObject([{ runId, status: 'failed', error: { code: 'run/session-ended' } }])
+    expect(snapshot(sender).entries).toHaveLength(entries)
+  })
+})
+
+describe('what a stop never does', () => {
+  it('asks the process nothing but the interrupt: no turn is written, no second line, and the kill is the fallback’s alone', async () => {
+    const { sender, fake, runId } = await running()
+    const written = fake.writes.length
+    const reply = stopRun(sender, runId)
+    await flush()
+    fake.interrupts[0](true)
+    await reply
+    fake.feed(result(true))
+
+    expect(fake.writes).toHaveLength(written)
+    expect(fake.interrupts).toHaveLength(1)
+    expect(fake.kills).toBe(0)
+  })
+
+  it('keeps a document the run was writing as it was streamed: the stop commits nothing and discards nothing', async () => {
+    const { sender, fake, runId } = await running()
+    const delta = (partial: string) => ({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: { type: 'content_block_delta', index: 1, delta: { type: 'input_json_delta', partial_json: partial } }
+    })
+    fake.feed({ type: 'stream_event', parent_tool_use_id: null, event: { type: 'message_start', message: { id: 'm1' } } })
+    fake.feed({ type: 'stream_event', parent_tool_use_id: null, event: { type: 'content_block_start', index: 1, content_block: { type: 'tool_use', id: 't1', name: 'Write', input: {} } } })
+    fake.feed(delta(`{"file_path":"${ROOT}/prd.md","content":"# Vision\\nWor`))
+    advance(1_000)
+    const held = snapshot(sender).runs[0].documents
+
+    const reply = stopRun(sender, runId)
+    await flush()
+    fake.interrupts[0](true)
+    await reply
+    fake.feed(result(true))
+
+    expect(sender.of('doc:committed')).toEqual([])
+    expect(snapshot(sender).runs[0].documents).toEqual(held)
+    expect(snapshot(sender).runs[0].documents[0]).toMatchObject({ path: 'prd.md', text: '# Vision\nWor' })
+  })
+})

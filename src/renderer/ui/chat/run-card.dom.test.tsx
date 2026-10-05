@@ -39,10 +39,10 @@ afterEach(() => {
   mounted = null
 })
 
-function draw(store: ProseStore, entry: RunCardEntry = card()) {
+function draw(store: ProseStore, entry: RunCardEntry = card(), onStop?: (runId: string) => void) {
   let commits = 0
   const element = (next: RunCardEntry) =>
-    createElement(Profiler, { id: 'card', onRender: () => void (commits += 1) }, createElement(RunCard, { entry: next, prose: store }))
+    createElement(Profiler, { id: 'card', onRender: () => void (commits += 1) }, createElement(RunCard, { entry: next, prose: store, onStop }))
   const root = mount(element(entry))
   mounted = root
   const text = (): string => root.container.querySelector('.run-card-text')?.textContent ?? ''
@@ -53,7 +53,7 @@ function draw(store: ProseStore, entry: RunCardEntry = card()) {
     rerender: (next: RunCardEntry) => {
       // A fresh mount stands in for React's own re-render with new props.
       root.unmount()
-      return draw(store, next)
+      return draw(store, next, onStop)
     }
   }
 }
@@ -145,6 +145,62 @@ describe('the run card’s prose', () => {
     expect(finished.root.container.querySelector('.run-card-caret')).toBeNull()
     expect(finished.root.container.querySelector('section')?.hasAttribute('aria-busy')).toBe(false)
     expect(finished.root.container.querySelector('.run-card-status')?.textContent).toBe('saved · just now · 1 section')
+  })
+})
+
+describe('the run card’s stop control (Story 3.7)', () => {
+  const head = (view: ReturnType<typeof draw>): Element => view.root.container.querySelector('.run-card-head')!
+
+  it('is the last thing in the head, after the elapsed time, one native button reading stop', () => {
+    const view = draw(createProseStore(crank()), card(), () => {})
+    const stop = head(view).querySelector('.run-stop')
+    expect(stop?.tagName).toBe('BUTTON')
+    expect(stop?.getAttribute('type')).toBe('button')
+    expect(stop?.textContent).toBe('stop')
+    expect(head(view).lastElementChild).toBe(stop)
+    expect(stop?.previousElementSibling?.className).toBe('run-card-elapsed')
+    expect(view.root.container.querySelectorAll('button')).toHaveLength(1)
+    expect((stop as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('is drawn only while the run is in flight and an onStop was handed down', () => {
+    expect(draw(createProseStore(crank()), card()).root.container.querySelector('button')).toBeNull()
+    mounted?.unmount()
+    const running = draw(createProseStore(crank()), card(), () => {})
+    expect(running.root.container.querySelector('.run-stop')).not.toBeNull()
+    for (const status of ['finished', 'stopped', 'failed'] as const) {
+      const ended = running.rerender(card({ status, endedAt: Date.now() }))
+      expect(ended.root.container.querySelector('button'), status).toBeNull()
+    }
+  })
+
+  it('calls onStop with the run’s id on a press, and a press changes nothing in the card', () => {
+    const stops: string[] = []
+    const store = createProseStore(crank())
+    store.seed('r1', [{ callId: 'c1', path: 'a.md', text: 'text', written: 4, sections: ['A'] }])
+    const view = draw(store, card({ runId: 'r5', id: 'r5' }), (runId) => void stops.push(runId))
+    const before = view.root.container.innerHTML
+    act(() => view.root.container.querySelector<HTMLButtonElement>('.run-stop')?.click())
+    expect(stops).toEqual(['r5'])
+    expect(view.root.container.innerHTML).toBe(before)
+  })
+
+  it('is named for the document it holds, and plain `stop` before it holds one', () => {
+    const frames = crank()
+    const store = createProseStore(frames)
+    const bare = draw(store, card(), () => {})
+    expect(bare.root.container.querySelector('.run-stop')?.getAttribute('aria-label')).toBeNull()
+    mounted?.unmount()
+    store.seed('r1', [{ callId: 'c1', path: '_bmad/prd.md', text: 'text', written: 4, sections: [] }])
+    const named = draw(store, card(), () => {})
+    expect(named.root.container.querySelector('.run-stop')?.getAttribute('aria-label')).toBe('stop · _bmad/prd.md')
+  })
+
+  it('takes no focus as it is drawn, and none when it goes with the run’s end', () => {
+    const view = draw(createProseStore(crank()), card(), () => {})
+    expect(document.activeElement).toBe(document.body)
+    view.rerender(card({ status: 'stopped', endedAt: Date.now() }))
+    expect(document.activeElement).toBe(document.body)
   })
 })
 

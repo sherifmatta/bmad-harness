@@ -39,6 +39,9 @@ let mounted: Mounted | null
 let opened: string[]
 let sent: [string, string][]
 let ended: string[]
+/** The runs the window asked main to stop, and what main answers a stop with (nothing: it took it). */
+let stopped: string[]
+let stopReply: (() => Promise<void>) | undefined
 /** The sessions the window asked main to close. */
 let closedSessions: string[]
 /** Who `onInstallChanged` subscribed, to be pushed a new install snapshot. */
@@ -73,6 +76,10 @@ function installBridge(): void {
     sendTurn: async (sessionId: string, text: string) => {
       sent.push([sessionId, text])
     },
+    stopRun: async (runId: string) => {
+      stopped.push(runId)
+      await stopReply?.()
+    },
     getConversation: async () => ({ entries: [], sessions: [], busy: [], personas: [], runs: [] }),
     endConversation: async (projectId: string) => {
       ended.push(projectId)
@@ -90,6 +97,8 @@ beforeEach(() => {
   opened = []
   sent = []
   ended = []
+  stopped = []
+  stopReply = undefined
   closedSessions = []
   installListeners = []
   listeners = []
@@ -1262,7 +1271,8 @@ describe('App, the running card stays in view (Story 3.14)', () => {
     started('r1', 's-Mary', mary, 20)
     const around = `${slot()?.outerHTML ?? ''}${slot()?.parentElement?.className ?? ''}`
     expect(around).not.toMatch(/jump|badge|toast/i)
-    expect(slot()?.querySelectorAll('button')).toHaveLength(0)
+    // The one button in the slot is the card's stop (Story 3.7).
+    expect([...(slot()?.querySelectorAll('button') ?? [])].map((button) => button.className)).toEqual(['run-stop'])
   })
 })
 
@@ -1308,11 +1318,13 @@ describe('App, the run you are not looking at (Story 3.5)', () => {
     expect(line.querySelector('.status-dot--work')).not.toBeNull()
     expect(line.querySelector('.run-card-line-name')?.textContent).toBe('John')
     expect(line.querySelector('.run-card-elapsed')?.textContent).toMatch(/^1m 0[5-9]s$/)
-    // One button, expanded=false, and no stop beside it (Story 3.7's).
-    expect(line.querySelectorAll('button')).toHaveLength(1)
+    // The expanding button, expanded=false, and the stop beside it, outside the button: its own tab stop.
+    expect([...line.querySelectorAll('button')].map((button) => button.className)).toEqual(['run-card-line-button', 'run-stop'])
     expect(lineButton().getAttribute('aria-expanded')).toBe('false')
     expect(lineButton().type).toBe('button')
-    expect(line.textContent).not.toMatch(/stop/i)
+    expect(lineButton().textContent).not.toMatch(/stop/i)
+    expect(lineButton().querySelector('button')).toBeNull()
+    expect(line.querySelector<HTMLButtonElement>('.run-stop')?.parentElement).toBe(line)
     // No reason yet: the field is absent, and nothing stands in for it.
     expect(line.querySelector('.run-card-line-reason')).toBeNull()
   })
@@ -1534,9 +1546,189 @@ describe('App, the run you are not looking at (Story 3.5)', () => {
     const line = lines()[0]
     expect(line.getAttributeNames().sort()).toEqual(['aria-busy', 'class'])
     const names = new Set([...line.querySelectorAll('*')].flatMap((element) => element.getAttributeNames()))
-    expect([...names].sort()).toEqual(['aria-expanded', 'aria-hidden', 'class', 'type'])
+    expect([...names].sort()).toEqual(['aria-expanded', 'aria-hidden', 'aria-label', 'class', 'type'])
 
     act(() => lineButton().click())
     expect(cards()[0].querySelector('[role], [title]')).toBeNull()
+  })
+})
+
+describe('App, stopping a run (Story 3.7)', () => {
+  const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
+  const root = (): HTMLElement => mounted!.container
+  const slot = (): HTMLElement | null => root().querySelector<HTMLElement>('.chat > .pinned')
+  const stops = (within: ParentNode = root()): HTMLButtonElement[] => [...within.querySelectorAll<HTMLButtonElement>('.run-stop')]
+  const started = (runId: string, sessionId: string, agent: AgentView, at: number): void =>
+    push({ name: 'run:started', payload: { runId, sessionId, agentId: agent.id, code: 'CP', at } })
+
+  async function open(): Promise<void> {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    push({ name: 'session:opened', payload: { sessionId: 's-Mary', agentId: mary.id, at: 1 } })
+    push({ name: 'session:opened', payload: { sessionId: 's-John', agentId: john.id, at: 1 } })
+  }
+
+  it('draws one `stop` in the pinned card’s head and one on another persona’s line, each its own button named for what it stops', async () => {
+    await open()
+    started('r1', 's-Mary', mary, Date.now())
+    started('r2', 's-John', john, Date.now())
+
+    const pinned = stops(slot()!)
+    expect(pinned).toHaveLength(1)
+    expect(pinned[0].textContent).toBe('stop')
+    expect(pinned[0].closest('.run-card-head')).not.toBeNull()
+    expect(pinned[0].type).toBe('button')
+    expect(pinned[0].disabled).toBe(false)
+    const line = root().querySelector<HTMLElement>('.run-card-line')!
+    expect(stops(line)).toHaveLength(1)
+    expect(stops(line)[0].getAttribute('aria-label')).toBe('stop · John')
+    // The line's stop is beside its expanding button, never inside it.
+    expect(line.querySelector('.run-card-line-button .run-stop')).toBeNull()
+    expect(stops()).toHaveLength(2)
+  })
+
+  it('names the card’s stop for its document once the card holds a path, and plain `stop` before', async () => {
+    await open()
+    started('r1', 's-Mary', mary, Date.now())
+    expect(stops(slot()!)[0].getAttribute('aria-label')).toBeNull()
+
+    push({
+      name: 'doc:prose',
+      payload: { runId: 'r1', sessionId: 's-Mary', callId: 'c1', path: '_bmad/prd.md', text: '## Vision\n', at: Date.now() }
+    })
+    await act(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())))
+    expect(stops(slot()!)[0].getAttribute('aria-label')).toBe('stop · _bmad/prd.md')
+  })
+
+  it('asks main to stop the run by its id from either control, and changes nothing on the screen', async () => {
+    await open()
+    started('r1', 's-Mary', mary, Date.now())
+    started('r2', 's-John', john, Date.now())
+    const before = root().innerHTML
+
+    await act(async () => stops(slot()!)[0].click())
+    await act(async () => stops(root().querySelector<HTMLElement>('.run-card-line')!)[0].click())
+
+    expect(stopped).toEqual(['r1', 'r2'])
+    // Nothing between the press and the run's own terminal event: no state, no line, no card change.
+    expect(root().innerHTML).toBe(before)
+    // The line's stop did not expand the line.
+    expect(root().querySelectorAll('.run-card-line')).toHaveLength(1)
+    expect(sent).toEqual([])
+  })
+
+  it('takes no focus when drawn, and leaves it where it was when the run ends and the control goes', async () => {
+    await open()
+    const input = field()
+    input.focus()
+    started('r1', 's-Mary', mary, Date.now())
+    expect(document.activeElement).toBe(field())
+
+    push({ name: 'run:stopped', payload: { runId: 'r1', sessionId: 's-Mary', at: Date.now() } })
+    expect(document.activeElement).toBe(field())
+    expect(stops()).toHaveLength(0)
+  })
+
+  it('removes the control with the run’s terminal event, whichever it is, and draws none on an ended card', async () => {
+    await open()
+    started('r1', 's-Mary', mary, Date.now())
+    started('r2', 's-John', john, Date.now())
+    started('r3', 's-Mary', mary, Date.now() + 1)
+    expect(stops()).toHaveLength(3)
+
+    push({ name: 'run:stopped', payload: { runId: 'r2', sessionId: 's-John', at: Date.now() } })
+    push({ name: 'run:failed', payload: { runId: 'r1', sessionId: 's-Mary', error: { code: 'run/failed', message: 'failed' }, at: Date.now() } })
+    expect(stops()).toHaveLength(1)
+    push({ name: 'run:finished', payload: { runId: 'r3', sessionId: 's-Mary', at: Date.now() } })
+    expect(stops()).toHaveLength(0)
+    expect(root().querySelectorAll('.run-card')).toHaveLength(3)
+  })
+
+  it('says nothing when main says the run is not in flight, and shows any other refusal as the failure line', async () => {
+    await open()
+    started('r1', 's-Mary', mary, Date.now())
+
+    stopReply = () => Promise.reject({ code: 'run/not-found', message: 'run · no such run is in flight' })
+    await act(async () => stops(slot()!)[0].click())
+    await settle()
+    expect(root().querySelector('.error-line')).toBeNull()
+
+    stopReply = () => Promise.reject({ code: 'bridge/unexpected', message: 'bridge · something went wrong' })
+    await act(async () => stops(slot()!)[0].click())
+    await settle()
+    expect(root().querySelector('.error-line')?.textContent).toContain('something went wrong')
+  })
+
+  it('offers the stop on an orphan’s collapsed line and on its expanded card, found by run id, and leaves its header and close control in place', async () => {
+    await open()
+    push({
+      name: 'persona:said',
+      payload: { sessionId: 's-Mary', agentId: mary.id, messageId: 'm1', text: 'Hello from Mary', at: 2 }
+    })
+    started('r1', 's-Mary', mary, Date.now())
+    // The install loses Mary: her session and her run go on, and John is the viewed persona.
+    act(() => installListeners.forEach((listener) => listener({ ...snapshot, revision: 2, agents: [john] })))
+    const line = root().querySelector<HTMLElement>('.run-card-line')!
+    expect(line.querySelector('.run-card-line-name')?.textContent).toBe('Mary')
+    expect(stops(line)).toHaveLength(1)
+    expect(stops(line)[0].getAttribute('aria-label')).toBe('stop · Mary')
+
+    await act(async () => stops(line)[0].click())
+    expect(stopped).toEqual(['r1'])
+    // A stop closes nothing: the header and its close control stay, and the line is still a line.
+    expect(root().querySelectorAll('.orphan-head')).toHaveLength(1)
+    expect(root().querySelectorAll('button.orphan-close')).toHaveLength(1)
+    expect(closedSessions).toEqual([])
+    expect(root().querySelectorAll('.run-card-line')).toHaveLength(1)
+
+    // Expanded, the card carries it too, in its head, and it stops the same run.
+    act(() => root().querySelector<HTMLButtonElement>('.run-card-line-button')?.click())
+    expect(root().querySelectorAll('.run-card-line')).toHaveLength(0)
+    const card = root().querySelector<HTMLElement>('.thread .run-card')!
+    expect(stops(card)).toHaveLength(1)
+    expect(stops(card)[0].closest('.run-card-head')).not.toBeNull()
+    await act(async () => stops(card)[0].click())
+    expect(stopped).toEqual(['r1', 'r1'])
+    expect(root().querySelectorAll('.orphan-head')).toHaveLength(1)
+
+    // The agent returns: the same session and card, the same control, and nothing else changed.
+    act(() => installListeners.forEach((listener) => listener({ ...snapshot, revision: 3, agents: [mary, john] })))
+    expect(root().querySelectorAll('.orphan-head')).toHaveLength(0)
+    expect(root().querySelectorAll('.run-card')).toHaveLength(1)
+    expect(stops()).toHaveLength(1)
+    expect(closedSessions).toEqual([])
+  })
+
+  it('draws a conversation read back after a relaunch dead: no stop, no ticking elapsed, whatever the card ended as', async () => {
+    const harness = window.harness as unknown as Record<string, unknown>
+    const dead = (runId: string, status: 'finished' | 'stopped' | 'failed', agent: AgentView) => ({
+      runId,
+      sessionId: `gone-${runId}`,
+      agentId: agent.id,
+      code: 'CP',
+      startedAt: 1_000,
+      status,
+      endedAt: 66_000,
+      ...(status === 'failed' ? { error: { code: 'run/session-ended', message: 'run · the session ended' } } : {}),
+      notes: [],
+      documents: [{ path: '_bmad/prd.md', callId: 'c', text: 'kept', written: 4, sections: [] }]
+    })
+    harness.getConversation = async () => ({
+      entries: [],
+      sessions: [],
+      busy: [],
+      personas: [],
+      runs: [dead('d1', 'failed', mary), dead('d2', 'stopped', john), dead('d3', 'finished', mary)]
+    })
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+
+    expect(root().querySelectorAll('.run-card')).toHaveLength(3)
+    expect(stops()).toHaveLength(0)
+    expect(root().querySelectorAll('.run-card-line')).toHaveLength(0)
+    expect(root().querySelector('.chat > .pinned')).toBeNull()
+    expect([...root().querySelectorAll('.run-card-elapsed')].map((element) => element.textContent)).toEqual(['1m 05s', '1m 05s', '1m 05s'])
   })
 })

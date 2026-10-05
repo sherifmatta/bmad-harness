@@ -45,6 +45,10 @@ const NO_RUNS: ReadonlySet<string> = new Set()
  * 3.5). The window holds the ids of the runs the user expanded, and the one run whose
  * card, drawn just now in place of its line, takes focus as it mounts: that request
  * is made by the activation alone and is spent by the card taking it.
+ *
+ * Every card and line in flight carries the stop control (Story 3.7), the pinned
+ * card too; they are all handed the conversation's one `stopRun`, which asks main
+ * to stop the run by its id and says nothing of how that went.
  */
 export function App(): JSX.Element | null {
   const [projectPath, setProjectPath] = useState<string | null>(null)
@@ -226,7 +230,9 @@ export function App(): JSX.Element | null {
         liveSessions={conversation.live}
         onCloseSession={closeSession}
         pinned={() =>
-          pinnedEntry === null ? null : <RunCard key={pinnedEntry.id} entry={pinnedEntry} prose={conversation.prose} />
+          pinnedEntry === null ? null : (
+            <RunCard key={pinnedEntry.id} entry={pinnedEntry} prose={conversation.prose} onStop={conversation.stopRun} />
+          )
         }
         composer={(agent, items) => (
           // Keyed apart from the chat header, which carries the same agent id in the same list.
@@ -270,7 +276,7 @@ export function App(): JSX.Element | null {
           <ErrorLine key={`${error.code}-${index}`} error={error} />
         ))}
         {conversation.failure !== null && <ErrorLine error={conversation.failure} />}
-        <Turns entries={conversation.entries} onCancel={conversation.cancel} canAnswer={conversation.canAnswer} onChoose={answer} prose={conversation.prose} pinnedRunId={pinnedEntry?.id} collapse={collapse} />
+        <Turns entries={conversation.entries} onCancel={conversation.cancel} canAnswer={conversation.canAnswer} onChoose={answer} prose={conversation.prose} pinnedRunId={pinnedEntry?.id} collapse={collapse} onStop={conversation.stopRun} />
       </Shell>
       <LiveRegion key="live-region" announcer={announcer} />
     </>

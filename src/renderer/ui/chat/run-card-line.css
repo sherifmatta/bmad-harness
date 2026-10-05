@@ -6,8 +6,9 @@
  * label size, mono, `dim` with the name at `text`.
  *
  * The line is one button that fills it, and carries the line's padding so the
- * whole visible line is its target; the section stays a flex row so that Story
- * 3.7's stop control can sit beside that button as its own tab stop. The reason
+ * whole visible line is its target; the section stays a flex row so that the
+ * stop control (Story 3.7, `run-stop.css`) sits beside that button as its own
+ * tab stop, keeping the line's right edge itself. The reason
  * and the name give way: each truncates to a single line with an ellipsis, and
  * the full entry is in the expanded card's feed. The elapsed keeps the card
  * head's own rule (`.run-card-elapsed`, right-aligned in the faint tier).
@@ -45,6 +46,12 @@
   font-size: var(--fs-label);
   text-align: left;
   cursor: pointer;
+}
+
+/* The stop control follows the button, which carries the line's own padding: it
+   keeps the right edge, and sits on the line's centre. */
+.run-card-line > .run-stop {
+  margin-right: var(--run-stop-inset);
 }
 
 .run-card-line-name {

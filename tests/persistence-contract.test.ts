@@ -199,11 +199,16 @@ describe('what is stored, and where', () => {
     }
   })
 
-  it('stores no session, persona state, queue or install model: the file holds the transcript alone', () => {
+  it('stores no session, persona state, queue or install model: the file holds the transcript and its run cards', () => {
     const file = code(join(SRC, 'main/sources/persistence/transcript-file.ts'))
+    const runs = code(join(SRC, 'main/fold/stored-runs.ts'))
 
     expect(file).not.toMatch(/sessions|busy|personas|queue|install/i)
+    expect(runs).not.toMatch(/sessions|busy|personas|queue|install/i)
     expect(code(join(SRC, 'shared/conversation.ts'))).toMatch(/version: 1/)
+    // The cards ride beside the entries, additively: the file is still version 1 and `runs` is optional.
+    expect(code(join(SRC, 'shared/conversation.ts'))).toMatch(/runs\?: StoredRun\[\]/)
+    expect(file).toMatch(/TRANSCRIPT_VERSION = 1/)
   })
 
   it('stores the sysline and nothing of what made it: not the last persona, the written files or a name', () => {
@@ -311,7 +316,7 @@ describe('a transcript is cleared only by ending the conversation', () => {
       spawn: (options: SpawnSessionOptions): Promise<SpawnOutcome> => {
         feed = options.onFrame
         exit = options.onExit
-        return Promise.resolve({ ok: true, session: { write: () => Promise.resolve(true), kill: () => {} } })
+        return Promise.resolve({ ok: true, session: { write: () => Promise.resolve(true), interrupt: () => Promise.resolve(true), kill: () => {} } })
       }
     })
     const sender = new Sender()

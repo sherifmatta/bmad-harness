@@ -108,7 +108,7 @@ async function replay(): Promise<Replay> {
       schedule: () => () => {},
       spawn: (options) => {
         feed = options.onFrame
-        return Promise.resolve({ ok: true, session: { write: () => Promise.resolve(true), kill: () => {} } })
+        return Promise.resolve({ ok: true, session: { write: () => Promise.resolve(true), interrupt: () => Promise.resolve(true), kill: () => {} } })
       }
     })
     const call = <T>(channel: string, ...args: unknown[]): T =>

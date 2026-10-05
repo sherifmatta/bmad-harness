@@ -18,8 +18,14 @@ import { errnoOf } from '../errno'
  * `decide` that throws is a deny, and any other subtype is answered with an
  * error, so no turn is left waiting on an answer. The one exception is a
  * request with no `request_id`, which cannot be answered and is dropped; the
- * CLI always sends an id. A cancel, and a control response the CLI might send,
- * are dropped too.
+ * CLI always sends an id. A cancel is dropped too.
+ *
+ * The other direction is the interrupt: `interrupt()` writes one `control_request`
+ * with a `request_id` of its own and resolves true only for the `control_response`
+ * that carries that id with `subtype: 'success'`. Any other subtype, a write that
+ * failed and the process closing first resolve false. A `control_response` that
+ * no interrupt is waiting for is dropped. The interrupt says the CLI accepted it;
+ * it is the turn's `result` that says the turn is over.
  *
  * Stderr is ignored outright, never read: it names files the harness must
  * never show. The exit code is not reported either, because a turn ends on a
@@ -88,6 +94,12 @@ export type PermissionAnswer =
 /** The answer to one permission request, as a stdin line. */
 export function permissionAnswerLine(requestId: string | number, answer: PermissionAnswer): string {
   const frame = { type: 'control_response', response: { subtype: 'success', request_id: requestId, response: answer } }
+  return `${JSON.stringify(frame)}\n`
+}
+
+/** One interrupt, which asks the CLI to end the turn in flight, as a stdin line. */
+export function interruptLine(requestId: string): string {
+  const frame = { type: 'control_request', request_id: requestId, request: { subtype: 'interrupt' } }
   return `${JSON.stringify(frame)}\n`
 }
 
@@ -173,6 +185,12 @@ export function killGroup(pid: number | undefined): void {
 export type SessionProcess = {
   /** Write one user turn. Resolves false when the process is gone or the write failed. */
   write(text: string): Promise<boolean>
+  /**
+   * Ask the CLI to end the turn in flight, in-band, and keep the session. Resolves
+   * true once the CLI has accepted it, false when it refused, the write failed
+   * or the process closed first. It never times out: whoever waits sets the limit.
+   */
+  interrupt(): Promise<boolean>
   /** Kill the process group. */
   kill(): void
 }
@@ -246,6 +264,21 @@ export function spawnSession(options: SpawnSessionOptions): Promise<SpawnOutcome
       })
     }
 
+    /** The interrupts written and not yet answered, by their request ids. */
+    const interrupts = new Map<string, (acknowledged: boolean) => void>()
+    let interruptCount = 0
+
+    /** A control response is an interrupt's answer when its id is one waiting; any other is dropped. */
+    const answerInterrupt = (frame: { response?: unknown }): void => {
+      const response =
+        typeof frame.response === 'object' && frame.response !== null
+          ? (frame.response as { request_id?: unknown; subtype?: unknown })
+          : undefined
+      if (typeof response?.request_id === 'string') {
+        interrupts.get(response.request_id)?.(response.subtype === 'success')
+      }
+    }
+
     /** Answer one control request; anything that cannot be answered by an id is dropped. */
     const answerControl = (frame: { request_id?: unknown; request?: unknown }): void => {
       const requestId = frame.request_id
@@ -271,6 +304,19 @@ export function spawnSession(options: SpawnSessionOptions): Promise<SpawnOutcome
 
     const session: SessionProcess = {
       write: (text) => writeLine(userTurnLine(text)),
+      interrupt: () =>
+        new Promise<boolean>((resolveAcknowledged) => {
+          interruptCount += 1
+          const requestId = `interrupt-${interruptCount}`
+          const settle = (acknowledged: boolean): void => {
+            interrupts.delete(requestId)
+            resolveAcknowledged(acknowledged)
+          }
+          interrupts.set(requestId, settle)
+          void writeLine(interruptLine(requestId)).then((written) => {
+            if (!written) settle(false)
+          })
+        }),
       kill() {
         kill(child.pid)
       }
@@ -294,6 +340,7 @@ export function spawnSession(options: SpawnSessionOptions): Promise<SpawnOutcome
       const type = typeof frame === 'object' && frame !== null ? (frame as { type?: unknown }).type : undefined
       if (typeof type === 'string' && CONTROL_TYPES.has(type)) {
         if (type === 'control_request') answerControl(frame as { request_id?: unknown; request?: unknown })
+        if (type === 'control_response') answerInterrupt(frame as { response?: unknown })
         return
       }
       options.onFrame(frame)
@@ -314,6 +361,7 @@ export function spawnSession(options: SpawnSessionOptions): Promise<SpawnOutcome
 
     child.on('close', () => {
       settleAll(false)
+      for (const settle of [...interrupts.values()]) settle(false)
       if (spawned && !exited) {
         exited = true
         options.onExit()

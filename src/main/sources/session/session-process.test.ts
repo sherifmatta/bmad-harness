@@ -5,6 +5,7 @@ import {
   SESSION_COMMAND,
   activationTurn,
   createLineSplitter,
+  interruptLine,
   isAgentId,
   spawnSession,
   userTurnLine
@@ -472,5 +473,134 @@ describe('spawnSession', () => {
 
     outcome.session.kill()
     expect(killed).toEqual([4242])
+  })
+})
+
+describe('interruptLine', () => {
+  it('is exactly one control_request line asking for an interrupt, with the id it was given', () => {
+    const line = interruptLine('interrupt-1')
+
+    expect(line).toBe('{"type":"control_request","request_id":"interrupt-1","request":{"subtype":"interrupt"}}\n')
+    expect(line.slice(0, -1)).not.toContain('\n')
+  })
+})
+
+describe('an interrupt of the turn in flight', () => {
+  async function live() {
+    const parts = harness()
+    const pending = parts.start()
+    parts.child.spawn()
+    const outcome = await pending
+    if (!outcome.ok) throw new Error('expected a session')
+    const interrupts = (): { type: string; request_id: string; request: { subtype: string } }[] =>
+      parts.child.writes
+        .slice(1)
+        .map((line) => JSON.parse(line))
+        .filter((line) => line.type === 'control_request')
+    const answer = (requestId: string, subtype = 'success'): void =>
+      parts.child.out(`${JSON.stringify({ type: 'control_response', response: { subtype, request_id: requestId, response: { still_queued: [] } } })}\n`)
+    return { ...parts, session: outcome.session, interrupts, answer }
+  }
+
+  /** Whether a promise has settled, without waiting on it. */
+  const settled = async (promise: Promise<unknown>): Promise<boolean> => {
+    let done = false
+    void promise.then(() => (done = true))
+    await Promise.resolve()
+    await Promise.resolve()
+    return done
+  }
+
+  it('writes one interrupt line, in-band, and never signals the process group', async () => {
+    const { child, killed, session, interrupts } = await live()
+
+    void session.interrupt()
+
+    expect(child.writes).toHaveLength(2)
+    expect(interrupts()).toEqual([{ type: 'control_request', request_id: expect.any(String), request: { subtype: 'interrupt' } }])
+    expect(killed).toEqual([])
+  })
+
+  it('resolves true only for the control_response that carries its id with subtype success, and holds until then', async () => {
+    const { session, interrupts, answer } = await live()
+    const asked = session.interrupt()
+    expect(await settled(asked)).toBe(false)
+
+    answer('somebody-elses')
+    expect(await settled(asked)).toBe(false)
+    answer(interrupts()[0].request_id)
+
+    await expect(asked).resolves.toBe(true)
+  })
+
+  it.each(['error', 'cancelled', 'anything-else'])('resolves false for an answer of subtype %s', async (subtype) => {
+    const { session, interrupts, answer } = await live()
+    const asked = session.interrupt()
+
+    answer(interrupts()[0].request_id, subtype)
+
+    await expect(asked).resolves.toBe(false)
+  })
+
+  it('resolves false when the write failed, and when the process or its pipe has already gone', async () => {
+    const throwing = await live()
+    throwing.child.failWrites = true
+    await expect(throwing.session.interrupt()).resolves.toBe(false)
+
+    const closed = await live()
+    closed.child.emit('close')
+    await expect(closed.session.interrupt()).resolves.toBe(false)
+
+    const broken = await live()
+    broken.child.stdinErrors.forEach((listener) => listener())
+    await expect(broken.session.interrupt()).resolves.toBe(false)
+  })
+
+  it('resolves false when the process closes before it was answered', async () => {
+    const { child, session } = await live()
+    const asked = session.interrupt()
+
+    child.emit('close')
+
+    await expect(asked).resolves.toBe(false)
+  })
+
+  it('gives each interrupt an id of its own, and each is answered by its own response', async () => {
+    const { session, interrupts, answer } = await live()
+    const first = session.interrupt()
+    const second = session.interrupt()
+    const [one, two] = interrupts().map((line) => line.request_id)
+    expect(one).not.toBe(two)
+
+    answer(two, 'error')
+    answer(one)
+
+    await expect(first).resolves.toBe(true)
+    await expect(second).resolves.toBe(false)
+  })
+
+  it('drops an answer nobody is waiting for, and one that comes twice, without a throw or a frame', async () => {
+    const { frames, session, interrupts, answer, child } = await live()
+    answer('never-asked')
+    const asked = session.interrupt()
+    const id = interrupts()[0].request_id
+    answer(id)
+    answer(id)
+    child.out(`${JSON.stringify({ type: 'control_response', response: 'garbage' })}\n`)
+    child.out(`${JSON.stringify({ type: 'control_response' })}\n`)
+    child.out(`${JSON.stringify({ type: 'control_response', response: { subtype: 'success', request_id: 7 } })}\n`)
+
+    await expect(asked).resolves.toBe(true)
+    expect(frames).toEqual([])
+  })
+
+  it('says nothing of the turn: the CLI’s result is the turn’s end and reaches onFrame as it always does', async () => {
+    const { frames, session, interrupts, answer, child } = await live()
+    const asked = session.interrupt()
+    answer(interrupts()[0].request_id)
+    child.out(`${JSON.stringify({ type: 'result', subtype: 'error_during_execution', is_error: true })}\n`)
+
+    await expect(asked).resolves.toBe(true)
+    expect(frames).toEqual([{ type: 'result', subtype: 'error_during_execution', is_error: true }])
   })
 })

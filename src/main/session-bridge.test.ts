@@ -136,6 +136,7 @@ function launch(
               writes.push(text)
               return Promise.resolve(true)
             },
+            interrupt: () => Promise.resolve(true),
             kill: () => void (fake.killed = true)
           },
           up: async () => {

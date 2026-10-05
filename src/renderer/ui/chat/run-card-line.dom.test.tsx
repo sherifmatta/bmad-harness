@@ -39,13 +39,19 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-function draw(store: ProseStore, entry: RunCardEntry = card(), name = 'John', onExpand: (runId: string) => void = () => {}) {
+function draw(
+  store: ProseStore,
+  entry: RunCardEntry = card(),
+  name = 'John',
+  onExpand: (runId: string) => void = () => {},
+  onStop?: (runId: string) => void
+) {
   let commits = 0
   mounted = mount(
     createElement(
       Profiler,
       { id: 'line', onRender: () => void (commits += 1) },
-      createElement(RunCardLine, { entry, name, prose: store, onExpand })
+      createElement(RunCardLine, { entry, name, prose: store, onExpand, onStop })
     )
   )
   const root = mounted.container
@@ -71,7 +77,7 @@ describe('the collapsed run card’s line', () => {
     expect(view.text('.run-card-elapsed')).toMatch(/^\d+s$/)
   })
 
-  it('hides the dot and the separators from a reader, and draws no stop control, spinner, bar or denominator', () => {
+  it('hides the dot and the separators from a reader, and draws no stop control without an `onStop`, spinner, bar or denominator', () => {
     const view = draw(createProseStore(crank()), card({ notes: [{ text: '- (decision) Fast path', at: 1 }] }))
     expect(view.root.querySelector('.status-dot')?.getAttribute('aria-hidden')).toBe('true')
     for (const sep of view.root.querySelectorAll('.run-card-line-sep')) {
@@ -79,6 +85,44 @@ describe('the collapsed run card’s line', () => {
     }
     expect(view.root.textContent).not.toMatch(/stop| of |\/|%|…|\.\.\./i)
     expect(view.root.querySelector('progress, meter, [role], [title], svg')).toBeNull()
+  })
+
+  it('draws the stop after the expanding button as a sibling, its own button named for the persona, when it is handed an onStop', () => {
+    const view = draw(createProseStore(crank()), card(), 'John', () => {}, () => {})
+    const section = view.root.querySelector('section.run-card-line')
+    const buttons = [...view.root.querySelectorAll('button')]
+    expect(buttons.map((button) => button.className)).toEqual(['run-card-line-button', 'run-stop'])
+    // Never inside the expanding button (a button in a button is invalid), and after it.
+    expect(buttons[1].parentElement).toBe(section)
+    expect(buttons[0].contains(buttons[1])).toBe(false)
+    expect(buttons[0].nextElementSibling).toBe(buttons[1])
+    expect(buttons[1].type).toBe('button')
+    expect(buttons[1].textContent).toBe('stop')
+    expect(buttons[1].getAttribute('aria-label')).toBe('stop · John')
+    expect(buttons[1].disabled).toBe(false)
+    expect(buttons[1].hasAttribute('tabindex')).toBe(false)
+    // The line's own button keeps its four fields and none says stop.
+    expect(buttons[0].textContent).not.toMatch(/stop/i)
+  })
+
+  it('calls onStop with the run’s id on a press, once, and does not expand the line', () => {
+    const expanded: string[] = []
+    const stops: string[] = []
+    const view = draw(createProseStore(crank()), card({ runId: 'r7', id: 'r7' }), 'John', (runId) => expanded.push(runId), (runId) => stops.push(runId))
+    act(() => view.root.querySelector<HTMLButtonElement>('.run-stop')?.click())
+    expect(stops).toEqual(['r7'])
+    expect(expanded).toEqual([])
+  })
+
+  it('is plain `stop` for a line with no persona name, and draws none for a run that is no longer in flight', () => {
+    const nameless = draw(createProseStore(crank()), card(), '', () => {}, () => {})
+    expect(nameless.root.querySelector('.run-stop')?.getAttribute('aria-label')).toBeNull()
+    mounted?.unmount()
+    for (const status of ['finished', 'stopped', 'failed'] as const) {
+      const ended = draw(createProseStore(crank()), card({ status, endedAt: Date.now() }), 'John', () => {}, () => {})
+      expect(ended.root.querySelector('.run-stop'), status).toBeNull()
+      mounted?.unmount()
+    }
   })
 
   it('hands the run’s id to onExpand on a click, once', () => {

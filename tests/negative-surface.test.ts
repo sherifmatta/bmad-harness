@@ -824,9 +824,9 @@ describe("the handoff says only what is true and parses no skill (Story 2.9)", (
   it("adds no event, command or bridge method for it: the open's reply carries the line", () => {
     const preload = code.get("src/preload/index.ts") ?? "";
 
-    // Thirteen before Story 2.11, whose one new method is closeSession, and Story 3.1's
-    // dispatchMenu; none is the handoff's.
-    expect([...preload.matchAll(/^ {2}([a-zA-Z]+): (?:async )?\(/gm)]).toHaveLength(15);
+    // Thirteen before Story 2.11, whose one new method is closeSession, Story 3.1's
+    // dispatchMenu and Story 3.7's stopRun; none is the handoff's.
+    expect([...preload.matchAll(/^ {2}([a-zA-Z]+): (?:async )?\(/gm)]).toHaveLength(16);
     expect(code.get("src/shared/commands.ts") ?? "").not.toMatch(/handoff|sysline/i);
     expect(code.get("src/shared/events.ts") ?? "").not.toMatch(/handoff|sysline/i);
   });
@@ -949,7 +949,7 @@ describe("an orphaned session has one header and one control, and nothing else (
     expect(offenders(sources("src/preload/"), /orphan/i)).toEqual([]);
   });
 
-  it("closes through the declared session.close and builds no stop control or document card (both are Epic 3's)", () => {
+  it("closes through the declared session.close, and the orphan's header builds no stop control or document card (the stop is the run card's, Story 3.7)", () => {
     for (const path of HEADER) {
       expect(code.get(path) ?? "", path).not.toMatch(
         /\bstop\b|run\.stop|runId|document-card|doc-card|run:started/i,
@@ -1091,12 +1091,13 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
         "src/renderer/ui/chat/use-conversation.ts: runSkill: (agentId: string, code: string) => void",
         "src/renderer/ui/chat/use-conversation.ts: (agentId: string, code: string) => conversation.current?.runSkill(agentId, code),",
       ]);
-      // The `.code` in chat/ outside the row is the error code of a refused send or dispatch, never a menu's.
+      // The `.code` in chat/ outside the row is the error code of a refused send, dispatch or stop, never a menu's.
       expect(
         rest.flatMap((path) =>
           [...(code.get(path) ?? "").matchAll(/\w[\w.()]*\.code\b/g)].map(([hit]) => `${path}: ${hit}`),
         ),
       ).toEqual([
+        "src/renderer/ui/chat/use-conversation.ts: asHarnessError(reason).code",
         "src/renderer/ui/chat/use-conversation.ts: asHarnessError(reason).code",
         "src/renderer/ui/chat/use-conversation.ts: asHarnessError(reason).code",
       ]);
@@ -1571,7 +1572,7 @@ describe("the card is never empty, and says nothing in place of what has not hap
   });
 });
 
-describe("the collapsed run card is one line and one button, and offers nothing it cannot do (Story 3.5)", () => {
+describe("the collapsed run card is one line, one expanding button and the stop beside it, and offers nothing it cannot do (Stories 3.5 and 3.7)", () => {
   const LINE = "src/renderer/ui/chat/run-card-line.tsx";
   const LINE_CSS = "src/renderer/ui/chat/run-card-line.css";
   const CARD = "src/renderer/ui/chat/run-card.tsx";
@@ -1587,16 +1588,33 @@ describe("the collapsed run card is one line and one button, and offers nothing 
     }
   });
 
-  it("has no stop control, `run.stop` or `Stop` copy: the in-band interrupt is Story 3.7's", () => {
-    expect(offenders([LINE, LINE_CSS, TRANSCRIPT], /stop/i)).toEqual([]);
-    expect(offenders([APP], /\brun\.stop\b|\bstopRun\b|\bonStop\b/)).toEqual([]);
-    expect(offenders(sources("src/main/", [".ts"]), /["']run\.stop["']/)).toEqual([]);
+  it("keeps the stop in run-stop.tsx: the transcript draws no button and says nothing of a stop but the prop it hands on", () => {
+    const STOP = "src/renderer/ui/chat/run-stop.tsx";
+    // The line's stylesheet, the transcript and the window hold no stop copy, no `run.stop` and no `stopRun`
+    // of their own: the transcript only passes `onStop` on, and the window hands the conversation's one `stopRun` down.
+    expect(offenders([TRANSCRIPT], /<button\b|\brun\.stop\b|\bstopRun\b/)).toEqual([]);
+    const stopLines = (path: string): string[] =>
+      (code.get(path) ?? "").split("\n").filter((line) => /stop/i.test(line)).map((line) => line.trim());
+    // The line's stylesheet gives the control its right inset, and that is all it says of it.
+    expect(stopLines(LINE_CSS).filter((line) => !/\.run-stop\b|--run-stop-inset/.test(line))).toEqual([]);
+    expect(stopLines(TRANSCRIPT).filter((line) => !/\bonStop\b/.test(line))).toEqual([]);
+    expect(stopLines(TRANSCRIPT)).toHaveLength(4);
+    expect(offenders([APP], /\brun\.stop\b/)).toEqual([]);
+    expect(stopLines(APP).filter((line) => !line.includes("onStop={conversation.stopRun}"))).toEqual([]);
+    expect(stopLines(APP).length).toBeGreaterThanOrEqual(2);
+    // The one place the control is drawn is `run-stop.tsx`, as one native button; main names the declared
+    // command once, to type the handler's reply, and answers it on its channel.
+    expect((code.get(STOP) ?? "").match(/<button\b/g)).toHaveLength(1);
+    expect(offenders(sources("src/main/", [".ts"]), /["']run\.stop["']/)).toEqual(["src/main/session-bridge.ts: 'run.stop'"]);
   });
 
-  it("is one native button and one handler: a click, `Enter` and `Space` expand it, and nothing else does", () => {
+  it("is one expanding button and one stop beside it: a click, `Enter` and `Space` expand it, and nothing else does", () => {
     const line = code.get(LINE) ?? "";
+    // One native button, and the stop is a component of its own after it: a button inside a button is invalid.
     expect(line.match(/<button\b/g)).toHaveLength(1);
-    expect(line.match(/\bon[A-Z]\w*=/g)).toEqual(["onClick="]);
+    expect(line.match(/<RunStop\b/g)).toHaveLength(1);
+    expect(line.indexOf("<RunStop")).toBeGreaterThan(line.indexOf("</button>"));
+    expect(line.match(/\bon[A-Z]\w*=/g)).toEqual(["onClick=", "onStop="]);
     expect(line).toContain('type="button"');
     expect(line).toContain("aria-expanded={false}");
     expect(line).not.toMatch(/role=|tabIndex|onKey|\.key\b|\.focus\(|autoFocus|aria-live/);
@@ -1608,7 +1626,10 @@ describe("the collapsed run card is one line and one button, and offers nothing 
   it("is never a spinner: no bar, meter, percentage, denominator, tooltip or motion on the line", () => {
     expect(offenders([LINE], /<progress\b|<meter\b|role=["']progressbar|aria-valuenow|spinner|skeleton|shimmer|(?<![\w-])title\s*=|tooltip|\bpopover\b/i)).toEqual([]);
     expect(offenders([LINE_CSS], /animation|transition|@keyframes|progress|meter|spinner|skeleton|%/i)).toEqual([]);
-    const spoken = [LINE, STATUS].flatMap((path) => [...(code.get(path) ?? "").matchAll(WORDS)].map(([text]) => `${path}: ${text}`));
+    // An import's path is not words the line speaks; the stop control's own word is `run-stop.tsx`'s alone.
+    const spoken = [LINE, STATUS].flatMap((path) =>
+      [...(code.get(path) ?? "").replace(/^import .*$/gm, "").matchAll(WORDS)].map(([text]) => `${path}: ${text}`),
+    );
     expect(spoken.filter((text) => /\bof\b|\/\s*\$\{|\/\s*\d|\btotal\b|\bdenominator\b|\bstop\b/i.test(text))).toEqual([]);
     expect(offenders([LINE], /\bsetTimeout\b|\bsetInterval\b|\brequestAnimationFrame\b|\.animate\(|\.scroll(?:Top|To|By)\b|\bscrollIntoView\b/)).toEqual([]);
   });

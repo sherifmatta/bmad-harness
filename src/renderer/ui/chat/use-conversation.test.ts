@@ -87,6 +87,13 @@ class FakeBridge implements ConversationBridge {
     this.dispatches.push([sessionId, code])
     return this.dispatchResults.shift() ?? Promise.resolve('r1')
   }
+  stops: string[] = []
+  /** What the next stop answers; one entry is consumed per stop. */
+  stopResults: (Promise<void> | undefined)[] = []
+  stopRun(runId: string): Promise<void> {
+    this.stops.push(runId)
+    return this.stopResults.shift() ?? Promise.resolve()
+  }
   getConversation(): Promise<ConversationSnapshot> {
     this.reads += 1
     return this.conversation
@@ -1291,5 +1298,60 @@ describe('a run, through the conversation (Story 3.1)', () => {
     ])
     expect(store.get('r9')).toEqual({ callId: 'c9', path: 'prd.md', text: 'so far' })
     expect(store.paths('r9')).toEqual(['addendum.md', 'prd.md'])
+  })
+})
+
+describe('stopping a run (Story 3.7)', () => {
+  const build7 = async () => {
+    const published: { entries: readonly unknown[] }[] = []
+    const failures: unknown[] = []
+    const conversation = createConversation({
+      bridge,
+      agentOf: (id) => agents.find((agent) => agent.id === id),
+      now: () => (clock += 1),
+      publish: (state) => void published.push(state),
+      onFailure: (error) => void failures.push(error)
+    })
+    await connected(conversation)
+    return { conversation, published, failures }
+  }
+
+  it('asks main to stop the run by its id, and changes nothing the window holds', async () => {
+    const { conversation, published, failures } = await build7()
+    bridge.push({ name: 'run:started', payload: { runId: 'r1', sessionId: 's1', agentId: mary.id, code: 'CP', at: 50 } })
+    const before = published.length
+
+    await conversation.stopRun('r1')
+
+    expect(bridge.stops).toEqual(['r1'])
+    expect(published).toHaveLength(before)
+    expect(failures).toEqual([])
+  })
+
+  it('says nothing when main answers that the run is not in flight: the control it was pressed on is already gone', async () => {
+    const { conversation, failures } = await build7()
+    bridge.stopResults = [Promise.reject({ code: 'run/not-found', message: 'run · no such run is in flight' })]
+
+    await expect(conversation.stopRun('r1')).resolves.toBeUndefined()
+
+    expect(failures).toEqual([])
+  })
+
+  it('shows any other refusal as the failure line, and never rejects', async () => {
+    const { conversation, failures } = await build7()
+    const refusal = { code: 'bridge/unexpected', message: 'bridge · something went wrong' }
+    bridge.stopResults = [Promise.reject(refusal)]
+
+    await expect(conversation.stopRun('r1')).resolves.toBeUndefined()
+
+    expect(failures).toEqual([refusal])
+  })
+
+  it('does not stop a run by a persona or a session: only the run’s id crosses', async () => {
+    const { conversation } = await build7()
+    await conversation.stopRun('r-orphan')
+    await conversation.stopRun('r2')
+
+    expect(bridge.stops).toEqual(['r-orphan', 'r2'])
   })
 })

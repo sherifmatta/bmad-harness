@@ -19,6 +19,8 @@ export const LINES = {
   failed: (subtype: string | undefined): string =>
     subtype !== undefined && SUBTYPE.test(subtype) ? `turn failed · ${subtype}` : 'turn failed',
   exited: 'session ended · the process exited',
+  // Placeholder copy until `bmad-ux` writes it: said when an interrupt was not acknowledged and the session ended with the run.
+  stopEnded: 'stop not acknowledged · the session ended with the run',
   quiet: (ms: number): string =>
     `no output for ${Math.round(ms / 1000)}s · the session may be stuck · close it to start over`
 }

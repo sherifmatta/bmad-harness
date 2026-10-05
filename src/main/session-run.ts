@@ -1,4 +1,5 @@
 import { join, posix } from 'node:path'
+import type { RunCardSnapshot } from '../shared/conversation'
 import type { ContractEvent } from '../shared/events'
 import type { RunId } from '../shared/ids'
 import type { ArtifactObservation } from '../shared/rail'
@@ -32,11 +33,16 @@ import type { Entry, Service } from './session-registry'
  *   wrong card is worse than a missing note. The initial scan only counts. A
  *   note that is a concern scan naming Adapt-In sections of the skill's
  *   template carries them as `pulled`.
+ * - **Kept.** After each run event the run's card, as the cards now hold it, is
+ *   kept with the project's transcript, with the event's `at` (`recordRun`), so a
+ *   window after a relaunch has every card to draw.
  * - **End.** The buffer is released, the writes still pending are dropped
- *   (none commits), and the terminal event is raised: `run:failed` for a
- *   result the CLI marked `is_error` or a session that ended mid-run,
- *   `run:finished` otherwise, after which the session is attached so the
- *   persona reads `live` once its turn is over.
+ *   (none commits), and the terminal event is raised: `run:stopped` for a turn
+ *   the user asked to stop that ended on a failed `result`, or for a stop the CLI
+ *   did not acknowledge (`session-stop`); `run:failed` for any other result the
+ *   CLI marked `is_error` or a session that ended mid-run; `run:finished`
+ *   otherwise, after which the session is attached so the persona reads `live`
+ *   once its turn is over.
  */
 
 /**
@@ -63,6 +69,12 @@ export type ActiveRun = {
   prose: ProseBuffer
   /** Cancels the timer that will release `prose`, while one is set. */
   cancelFlush: (() => void) | undefined
+  /**
+   * The user asked to stop the run (`session-stop`). Set before the interrupt is
+   * written, because the CLI's answer and the turn's `result` can arrive in one
+   * chunk; it turns a failed `result` into the stop it was.
+   */
+  stopping: boolean
 }
 
 /** What main knows of a window's memlogs: each one's entry count, and the read of it in flight. */
@@ -83,18 +95,24 @@ export type RunKit = {
   /** What the persona said is kept in the transcript as well as told. */
   recordSaid: (entry: Entry, event: Extract<ContractEvent, { name: 'persona:said' }>) => void
   readText: (absolutePath: string) => Promise<string | undefined>
+  /** A run's card as it stands after an event of the run, kept in the transcript. */
+  recordRun: (entry: Entry, card: RunCardSnapshot, at: number) => void
 }
 
-/** The kit, from what the registry holds: what the persona says is kept in the project's transcript. */
-export function createRunKit(deps: Omit<RunKit, 'recordSaid'> & { transcripts: TranscriptRegistry }): RunKit {
+/** The kit, from what the registry holds: what the persona says, and each run's card, are kept in the project's transcript. */
+export function createRunKit(
+  deps: Omit<RunKit, 'recordSaid' | 'recordRun'> & { transcripts: TranscriptRegistry }
+): RunKit {
   const { transcripts, ...rest } = deps
   return {
     ...rest,
-    recordSaid: (entry, event) => transcripts.forProject(entry.projectRoot).recordPersonaSaid(event.payload)
+    recordSaid: (entry, event) => transcripts.forProject(entry.projectRoot).recordPersonaSaid(event.payload),
+    recordRun: (entry, card, at) => transcripts.forProject(entry.projectRoot).recordRun(card, at)
   }
 }
 
-type Ending = { failed: boolean; subtype: string | undefined } | 'session-ended'
+/** How a run ends: by its turn's `result`, by the session going, or by a stop the CLI did not answer. */
+type Ending = { failed: boolean; subtype: string | undefined } | 'session-ended' | 'stopped'
 
 /**
  * Tell the window, and let the cards, the rail's annotations and the persona
@@ -107,7 +125,10 @@ function tell(kit: RunKit, sender: Sender, service: Service, entry: Entry, event
       kit.recordSaid(entry, event)
     } else {
       service.runs.apply(event)
-      service.annotations.apply(event, 'runId' in event.payload ? service.runs.card(event.payload.runId) : undefined)
+      const { payload } = event
+      const card = 'runId' in payload ? service.runs.card(payload.runId) : undefined
+      service.annotations.apply(event, card)
+      if ('runId' in payload && card !== undefined) kit.recordRun(entry, card, payload.at)
     }
     kit.emit(sender, event)
     service.personas.apply(event)
@@ -164,7 +185,7 @@ export function startRun(
 ): void {
   service.personas.detach(entry.sessionId)
   const plan = template?.spine ?? []
-  entry.run = { runId, code, menu: template?.menu ?? [], plan, prose: undefined, cancelFlush: undefined }
+  entry.run = { runId, code, menu: template?.menu ?? [], plan, prose: undefined, cancelFlush: undefined, stopping: false }
   tell(kit, sender, service, entry, [
     {
       name: 'run:started',
@@ -194,6 +215,8 @@ export function endRun(kit: RunKit, sender: Sender, service: Service, entry: Ent
       name: 'run:failed',
       payload: { ...base, error: { code: 'run/session-ended', message: 'run · the session ended' } }
     }
+  } else if (ending === 'stopped') {
+    event = { name: 'run:stopped', payload: base }
   } else if (ending.failed) {
     const detail = ending.subtype !== undefined && SUBTYPE.test(ending.subtype) ? { detail: ending.subtype } : {}
     event = { name: 'run:failed', payload: { ...base, error: { code: 'run/failed', message: 'run · the run failed', ...detail } } }

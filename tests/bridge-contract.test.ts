@@ -134,7 +134,7 @@ it('answers the document channels on the same literals from both sides', () => {
   }
 })
 
-it('exposes exactly fifteen named methods, and no channel passthrough', () => {
+it('exposes exactly sixteen named methods, and no channel passthrough', () => {
   const harness = exposedApis.get('harness')
 
   expect(harness).toBeDefined()
@@ -151,6 +151,7 @@ it('exposes exactly fifteen named methods, and no channel passthrough', () => {
     'closeSession',
     'sendTurn',
     'dispatchMenu',
+    'stopRun',
     'getConversation',
     'endConversation',
     'onSessionEvent'
@@ -524,6 +525,26 @@ it('turns a refused menu:dispatch into a rejection carrying the envelope', async
   const dispatchMenu = exposedApis.get('harness')?.dispatchMenu as (id: string, code: string) => Promise<unknown>
 
   await expect(dispatchMenu('s1', 'ZZ')).rejects.toEqual(error)
+})
+
+it('sends stopRun down the stop channel with the run id, on the literal main answers, and resolves with nothing', async () => {
+  invoke.mockClear()
+  invoke.mockResolvedValue({ ok: true })
+  const stopRun = exposedApis.get('harness')?.stopRun as (id: string) => Promise<unknown>
+
+  await expect(stopRun('r1')).resolves.toBeUndefined()
+  expect(preload.RUN_STOP_CHANNEL).toBe(sessionBridge.RUN_STOP_CHANNEL)
+  expect(preload.RUN_STOP_CHANNEL).toBe('run:stop')
+  expect(registeredHandlers.has(sessionBridge.RUN_STOP_CHANNEL)).toBe(true)
+  expect(invoke).toHaveBeenCalledWith(sessionBridge.RUN_STOP_CHANNEL, 'r1')
+})
+
+it('turns a refused run:stop into a rejection carrying the envelope', async () => {
+  const error = { code: 'run/not-found', message: 'run · no such run is in flight' }
+  invoke.mockResolvedValue({ ok: false, error })
+  const stopRun = exposedApis.get('harness')?.stopRun as (id: string) => Promise<unknown>
+
+  await expect(stopRun('r9')).rejects.toEqual(error)
 })
 
 it('hands a session subscriber the contract event and never the IPC event, and unsubscribes that very listener', () => {

@@ -37,6 +37,8 @@ export const SESSION_CLOSE_CHANNEL = 'session:close'
 export const TURN_SEND_CHANNEL = 'turn:send'
 /** A menu entry activated: a session and a code go to main, which decides what to write. */
 export const MENU_DISPATCH_CHANNEL = 'menu:dispatch'
+/** A run's stop pressed: its id goes to main, which finds the run's session by it. */
+export const RUN_STOP_CHANNEL = 'run:stop'
 export const SESSION_EVENT_CHANNEL = 'session:event'
 export const CONVERSATION_GET_CHANNEL = 'conversation:get'
 export const CONVERSATION_END_CHANNEL = 'conversation:end'

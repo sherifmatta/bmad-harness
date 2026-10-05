@@ -218,7 +218,7 @@ describe('the renderer', () => {
   })
 
   it('reaches the session through its preload methods and nothing else', () => {
-    const users = renderer.filter((path) => /window\.harness\??\.(?:openSession|closeSession|sendTurn|getConversation|endConversation|onSessionEvent)/.test(code(path)))
+    const users = renderer.filter((path) => /window\.harness\??\.(?:openSession|closeSession|sendTurn|stopRun|getConversation|endConversation|onSessionEvent)/.test(code(path)))
 
     expect(users.map(rel)).toEqual(['src/renderer/ui/chat/use-conversation.ts'])
   })
@@ -251,16 +251,22 @@ describe('a session outlives the install changing under it (Story 2.11)', () => 
     }
   })
 
-  it('lets a session end by exactly four causes in main: the command, conversation.end, the process and the window', () => {
+  it('lets a session end by exactly five causes in main: the command, conversation.end, the process, the window and a stop the CLI did not acknowledge', () => {
     const bridge =
-      code(join(SRC, 'main/session-bridge.ts')) + code(join(SRC, 'main/session-registry.ts'))
+      code(join(SRC, 'main/session-bridge.ts')) +
+      code(join(SRC, 'main/session-registry.ts')) +
+      code(join(SRC, 'main/session-stop.ts'))
     const finishes = [...bridge.matchAll(/\bfinish\(/g)].length
     const kills = [...bridge.matchAll(/\.kill\(\)/g)].map(([text]) => text)
 
-    // The registry's type and definition of it, closeSessions (conversation.end and the window), the process's exit, and session.close in the bridge.
-    expect(finishes).toBe(5)
-    expect(kills.length).toBe(3)
+    // The registry's type and definition of it, closeSessions (conversation.end and the window), the process's exit,
+    // session.close in the bridge, and the one call in `session-stop.ts` that ends the session of a stop nobody answered.
+    expect(finishes).toBe(6)
+    expect(kills.length).toBe(4)
     expect(bridge).toMatch(/SESSION_CLOSE_CHANNEL,/)
+    // An acknowledged stop closes and kills nothing: the one kill sits after the acknowledgement check.
+    const stop = code(join(SRC, 'main/session-stop.ts'))
+    expect(stop.indexOf('.kill()')).toBeGreaterThan(stop.indexOf('if (accepted'))
   })
 
   it('reads install in one direction: the session bridge asks for a name, the install modules never ask the session', () => {

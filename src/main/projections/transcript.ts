@@ -1,5 +1,6 @@
 import type { PersonaSaid } from '../../shared/events'
-import type { SyslineRecord, TranscriptRecord } from '../../shared/conversation'
+import type { RunCardSnapshot, StoredRun, SyslineRecord, TranscriptRecord } from '../../shared/conversation'
+import type { EpochMs } from '../../shared/ids'
 import {
   EMPTY_TRANSCRIPT,
   foldNoticeAtTop,
@@ -9,6 +10,7 @@ import {
   transcriptFrom
 } from '../fold/transcript'
 import type { TranscriptState } from '../fold/transcript'
+import { deadOf, withRun } from '../fold/stored-runs'
 import {
   loadTranscript,
   setAsideTranscript,
@@ -25,7 +27,8 @@ import type {
  * The transcript read model: one per project path, shared by every window and
  * session that speaks into it, and kept in step with its file.
  *
- * It changes only by recording what was said or sent, or a line the harness wrote. Each change schedules a
+ * It changes only by recording what was said or sent, a line the harness wrote, or
+ * a run's card as it stands after an event of the run. Each change schedules a
  * write through the injected scheduler; a write already scheduled covers the
  * changes that follow it, so the file is at most one interval behind. `flush`
  * writes at once and is what a window's destruction and the app's quitting call.
@@ -39,6 +42,13 @@ import type {
  * are kept), and the conversation opens with a line of the harness's own at the
  * top saying so. If it cannot be moved, the conversation of this launch is not
  * stored at all (`persist/quarantine-failed`) and the line says that instead.
+ *
+ * The run cards ride beside the entries, in the same file and under the same
+ * write: the card of every run, as it stood at its last event, each with the
+ * moment of that event. `storedRuns` hands back every card kept, those the file
+ * held when it was loaded and those recorded since, each as it ended: a run that
+ * was still running is read as the run its session ended (`fold/stored-runs`).
+ * Ending the conversation clears them with the entries.
  *
  * The data directory is asked for on the first project, not at construction,
  * because Electron's `userData` is not to be read before the app is ready.
@@ -58,11 +68,23 @@ export type ProjectTranscript = {
   /** Write the harness's own line into the transcript and return the record it became. */
   recordSysline(text: string, at: number): SyslineRecord
   /**
+   * A run's card as it stands after the event at `at`, kept with the transcript:
+   * replaces the run's earlier copy, if any. A run of a conversation that has
+   * since ended (`clear`) is not kept.
+   */
+  recordRun(card: RunCardSnapshot, at: EpochMs): void
+  /**
+   * Every run card the transcript keeps, those loaded from the file and then
+   * those recorded since, in the order they were kept, each as it ended: one
+   * that was still running is `failed`, with `endedAt` at its last event.
+   */
+  storedRuns(): readonly RunCardSnapshot[]
+  /**
    * Empty the transcript, the file first: it is written as `entries: []` at
-   * once, and only when that succeeds is the in-memory transcript reset, the
-   * pending write cancelled and the ids begun again. On a failure the errno is
-   * logged and returned, and nothing has changed. Only a deliberate end of the
-   * conversation calls it.
+   * once, with no run cards, and only when that succeeds is the in-memory
+   * transcript reset, the pending write cancelled and the ids begun again. On a
+   * failure the errno is logged and returned, and nothing has changed. Only a
+   * deliberate end of the conversation calls it.
    */
   clear(): WriteOutcome
   flush(): void
@@ -92,7 +114,8 @@ export type TranscriptRegistryDeps = {
   write?: (
     filePath: string,
     projectPath: string,
-    entries: readonly TranscriptRecord[]
+    entries: readonly TranscriptRecord[],
+    runs: readonly StoredRun[]
   ) => WriteOutcome
 }
 
@@ -132,6 +155,14 @@ export function createTranscriptRegistry(deps: TranscriptRegistryDeps): Transcri
     const filePath = transcriptFilePath(deps.userDataPath(), projectPath)
     const outcome = load(filePath, projectPath)
     let state: TranscriptState = transcriptFrom(outcome.kind === 'loaded' ? outcome.entries : [])
+    // What the file held, as this launch reads it, and then every run this launch kept.
+    let runs: StoredRun[] = outcome.kind === 'loaded' ? outcome.runs.map(deadOf) : []
+    /**
+     * The runs of a conversation that has ended. Ending it closes its sessions after the
+     * file is cleared, and a run in flight ends with its session: that last event is of a
+     * run the conversation no longer holds, and is not kept.
+     */
+    const ended = new Set<string>()
     let dirty = false
     let cancel: (() => void) | undefined
     /** The stored file is one that must not be written over and could not be moved: nothing is written. */
@@ -143,7 +174,7 @@ export function createTranscriptRegistry(deps: TranscriptRegistryDeps): Transcri
       if (!dirty || blocked) {
         return
       }
-      const stored = write(filePath, projectPath, state.entries)
+      const stored = write(filePath, projectPath, state.entries, runs)
       if (stored.ok) {
         dirty = false
       } else {
@@ -151,16 +182,21 @@ export function createTranscriptRegistry(deps: TranscriptRegistryDeps): Transcri
       }
     }
 
-    function changed(next: TranscriptState): void {
-      if (next === state) {
-        return
-      }
-      state = next
+    /** Something changed that the file does not hold: it is written once the interval is up. */
+    function touched(): void {
       dirty = true
       cancel ??= schedule(() => {
         cancel = undefined
         flush()
       }, debounceMs)
+    }
+
+    function changed(next: TranscriptState): void {
+      if (next === state) {
+        return
+      }
+      state = next
+      touched()
     }
 
     // A file that cannot be used whole is moved aside before anything is written, so no write
@@ -182,7 +218,7 @@ export function createTranscriptRegistry(deps: TranscriptRegistryDeps): Transcri
     function clear(): WriteOutcome {
       // A file that could not be moved aside is left as it is, even by this: the
       // conversation of this launch is all there is to end.
-      const outcome: WriteOutcome = blocked ? { ok: true } : write(filePath, projectPath, [])
+      const outcome: WriteOutcome = blocked ? { ok: true } : write(filePath, projectPath, [], [])
       if (!outcome.ok) {
         log(`persist/write-failed · ${outcome.errno}`)
         return outcome
@@ -190,6 +226,8 @@ export function createTranscriptRegistry(deps: TranscriptRegistryDeps): Transcri
       cancel?.()
       cancel = undefined
       state = EMPTY_TRANSCRIPT
+      for (const { card } of runs) ended.add(card.runId)
+      runs = []
       dirty = false
       return outcome
     }
@@ -204,6 +242,14 @@ export function createTranscriptRegistry(deps: TranscriptRegistryDeps): Transcri
       recordPersonaSaid: (said) => changed(foldPersonaSaid(state, said)),
       recordUserTurn: (text, at) => changed(foldUserTurn(state, text, at)),
       recordSysline,
+      recordRun(card, at) {
+        if (ended.has(card.runId)) {
+          return
+        }
+        runs = withRun(runs, card, at)
+        touched()
+      },
+      storedRuns: () => runs.map((stored) => deadOf(stored).card),
       clear,
       flush
     }

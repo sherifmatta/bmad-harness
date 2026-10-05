@@ -6,6 +6,7 @@ import {
   CONVERSATION_END_CHANNEL,
   CONVERSATION_GET_CHANNEL,
   MENU_DISPATCH_CHANNEL,
+  RUN_STOP_CHANNEL,
   SESSION_CLOSE_CHANNEL,
   SESSION_EVENT_CHANNEL,
   SESSION_OPEN_CHANNEL,
@@ -51,6 +52,7 @@ export {
   CONVERSATION_END_CHANNEL,
   CONVERSATION_GET_CHANNEL,
   MENU_DISPATCH_CHANNEL,
+  RUN_STOP_CHANNEL,
   SESSION_CLOSE_CHANNEL,
   SESSION_EVENT_CHANNEL,
   SESSION_OPEN_CHANNEL,
@@ -59,6 +61,7 @@ export {
 
 type CloseReply = ContractCommands['session.close']['reply']
 type SendReply = ContractCommands['turn.send']['reply']
+type StopReply = ContractCommands['run.stop']['reply']
 type EndReply = ContractCommands['conversation.end']['reply']
 
 export type SessionBridgeDeps = {
@@ -115,7 +118,7 @@ export type SessionBridge = {
   observeArtifact(sender: Sender, projectRoot: string, observation: ArtifactObservation): Promise<void>
 }
 
-/** What the six handlers share. */
+/** What the handlers share. */
 type Context = {
   projectPathFor: (webContentsId: number) => string | undefined
   now: () => number
@@ -303,6 +306,30 @@ function closeSession(ctx: Context) {
   }
 }
 
+/** What a stop is told for a run that is not in flight: ended, never started, or another window's. */
+const RUN_NOT_FOUND = failure({ code: 'run/not-found', message: 'run · no such run is in flight' })
+
+// Stops one run of this window. The run is found by its id among the window's
+// sessions, never through the roster, so an orphan's run stops as any other
+// does. The reply is sent once the stop has settled: when the CLI accepted the
+// interrupt (the card ends on the turn's own `result`, later) or when the
+// session was ended instead (`session-stop`). A run that is not in flight, or is
+// not this window's, is `run/not-found`; a stop for one already stopping is ok.
+function stopRun(ctx: Context) {
+  return async (event: IpcMainInvokeEvent, runId: unknown): Promise<StopReply> => {
+    const sender = senderOf(event)
+    const service = ctx.registry.serviceOf(sender.id)
+    const entry =
+      typeof runId === 'string'
+        ? [...(service?.bySession.values() ?? [])].find((held) => !held.closed && held.run?.runId === runId)
+        : undefined
+    if (service === undefined || entry === undefined) {
+      return RUN_NOT_FOUND
+    }
+    return (await ctx.registry.stop(sender, service, entry)) === 'ok' ? { ok: true } : RUN_NOT_FOUND
+  }
+}
+
 // The one way a transcript is cleared (FR15). The file is cleared first: if
 // that fails nothing else happens and the window keeps everything it has.
 // Only then are the window's sessions killed and closed, so the reply, sent
@@ -359,14 +386,19 @@ function getConversation(ctx: Context) {
     const live = [...(service?.bySession.values() ?? [])].filter(
       (entry) => !entry.closed && entry.session !== undefined
     )
+    const transcript = ctx.transcripts.forProject(projectRoot)
+    const own = service?.runs.snapshot() ?? []
+    const held = new Set(own.map((card) => card.runId))
     return {
       ok: true,
       snapshot: {
-        entries: [...ctx.transcripts.forProject(projectRoot).entries()],
+        entries: [...transcript.entries()],
         sessions: live.map(({ agentId, sessionId }) => ({ agentId, sessionId })),
         busy: live.filter((entry) => entry.turn.busy).map((entry) => entry.sessionId),
         personas: personaProjectionFor(sender, ctx.now).snapshot(),
-        runs: service?.runs.snapshot() ?? []
+        // The cards the transcript keeps that this window does not hold (the stored conversation's,
+        // and those of an earlier window of this launch), each as it ended, then this window's own.
+        runs: [...transcript.storedRuns().filter((card) => !held.has(card.runId)), ...own]
       }
     }
   }
@@ -380,7 +412,7 @@ function getConversation(ctx: Context) {
  * background task live (`fold/turn-end`), and a send in that window is refused,
  * never queued. A menu dispatch is a turn too, and the run it starts lives as
  * long as that turn (`session-run`). The registry holds the sessions and folds
- * their frames; this registers the six handlers that speak for them, and hands
+ * their frames; this registers the seven handlers that speak for them, and hands
  * the composition root the way the rail's watcher reports a memlog changing.
  *
  * Nothing crosses the bridge from stderr, and a failed start carries the
@@ -420,6 +452,7 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): SessionBrid
   ipcMain.handle(SESSION_OPEN_CHANNEL, openSession(ctx))
   ipcMain.handle(TURN_SEND_CHANNEL, sendTurn(ctx))
   ipcMain.handle(MENU_DISPATCH_CHANNEL, dispatchMenu(ctx))
+  ipcMain.handle(RUN_STOP_CHANNEL, stopRun(ctx))
   ipcMain.handle(SESSION_CLOSE_CHANNEL, closeSession(ctx))
   ipcMain.handle(CONVERSATION_END_CHANNEL, endConversation(ctx))
   ipcMain.handle(CONVERSATION_GET_CHANNEL, getConversation(ctx))

@@ -520,6 +520,15 @@
      --panel, --line, --dim, --faint and --text as they are. */
   --card-line-padding:7px 11px;
 
+  /* The stop control (Story 3.7), `.stop` in document-card-dead-air.html
+     (:72-78): padded `1px 6px`. On the collapsed line it is a sibling of the
+     button that carries the line's padding, so it keeps the line's right
+     edge itself, 11px, the right of --card-line-padding. Its size, ground,
+     border, radius, colours and hover border are --fs-meta, --panel, --line,
+     --radius-chip, --dim, --text-strong and --ghost-border-hover as they are. */
+  --run-stop-padding:1px 6px;
+  --run-stop-inset:11px;
+
   /* The pinned slot (Story 3.14): the running card's place at the top of the
      chat column, outside the scrolling thread. Padded like `.thread` (16px
      sides, 16px top) with no bottom: the card's own margin is the gap. A

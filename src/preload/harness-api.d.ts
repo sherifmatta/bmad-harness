@@ -5,7 +5,7 @@ import type { InstallSnapshot } from '../shared/install'
 import type { RailSnapshot } from '../shared/rail'
 
 /**
- * The whole bridge surface. Explicitly enumerated: fifteen named methods, no
+ * The whole bridge surface. Explicitly enumerated: sixteen named methods, no
  * generic `invoke(channel, …)` passthrough, and no `ipcRenderer` in the
  * renderer's reach.
  */
@@ -63,6 +63,14 @@ export interface HarnessApi {
    * the entry is a skill or a prompt never crosses the bridge.
    */
   dispatchMenu(sessionId: SessionId, code: string): Promise<RunId>
+  /**
+   * Ask main to stop a run: it finds the run's session by `runId` and writes
+   * the one interrupt that ends the turn. Resolves when main has acted, with
+   * no word on how the turn ended (its terminal event says that); rejects with
+   * the `HarnessError` envelope (`run/not-found` for a run that is not in
+   * flight, which the window ignores).
+   */
+  stopRun(runId: RunId): Promise<void>
   /**
    * The conversation as main holds it for this window's project: the
    * transcript, the live and busy sessions and the personas that are not idle.
