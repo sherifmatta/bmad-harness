@@ -27,6 +27,18 @@ describe('the run projection', () => {
     expect(runs.snapshot()[0].notes).toHaveLength(1)
   })
 
+  it('hands one run’s card as it stands, by run id, and nothing for a run it never saw start', () => {
+    const runs = createRunProjection()
+    runs.apply({ name: 'run:started', payload: { runId: 'r1', sessionId: 's1', code: 'A', at: 1 } })
+    runs.apply({ name: 'doc:prose', payload: { runId: 'r1', sessionId: 's1', callId: 'c1', path: 'a.md', text: 'Words.', at: 2 } })
+
+    expect(runs.card('r1')?.documents).toEqual([{ path: 'a.md', callId: 'c1', text: 'Words.', written: 6, sections: [] }])
+    expect(runs.card('r1')).toBe(runs.snapshot()[0])
+    expect(runs.card('ghost')).toBeUndefined()
+    runs.clear()
+    expect(runs.card('r1')).toBeUndefined()
+  })
+
   it('forgets every card when cleared', () => {
     const runs = createRunProjection()
     runs.apply({ name: 'run:started', payload: { runId: 'r1', sessionId: 's1', code: 'A', at: 1 } })

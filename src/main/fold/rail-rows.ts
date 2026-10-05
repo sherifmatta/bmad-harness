@@ -38,6 +38,11 @@ function withDisk(table: RailTable, path: string, disk: Disk): RailTable {
   return next
 }
 
+/** An annotation as the table holds it and the rows carry it: its words and its owner, copied, and nothing else. */
+function carried({ text, owner }: RailAnnotation): RailAnnotation {
+  return owner === undefined ? { text } : { text, owner: { agentId: owner.agentId } }
+}
+
 /** Fold one observation into the table. A row exists because the watcher saw the file. */
 export function observe(table: RailTable, observation: ArtifactObservation, now: number): RailTable {
   const { type, path, size, mtimeMs } = observation
@@ -105,7 +110,7 @@ export function annotate(
     return next
   }
   const next = new Map(table)
-  next.set(path, { disk: entry.disk, annotation: { text: annotation.text } })
+  next.set(path, { disk: entry.disk, annotation: carried(annotation) })
   return next
 }
 
@@ -137,6 +142,6 @@ export function toRows(table: RailTable): RailRow[] {
       disk.state === 'saved'
         ? { path, state: 'saved', savedAt: disk.savedAt }
         : { path, state: disk.state }
-    return annotation === undefined ? field : { ...field, annotation: { text: annotation.text } }
+    return annotation === undefined ? field : { ...field, annotation: carried(annotation) }
   })
 }

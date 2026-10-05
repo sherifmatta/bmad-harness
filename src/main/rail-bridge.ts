@@ -11,6 +11,7 @@ import {
   unexpected
 } from './bridge-kit'
 import { personaProjectionFor } from './persona-states'
+import { railAnnotatorFor } from './rail-annotations'
 import { createRailProjection } from './projections/rail'
 import type { RailProjection } from './projections/rail'
 import type { Sender } from './bridge-kit'
@@ -74,10 +75,15 @@ export function registerRailBridge(deps: RailBridgeDeps = {}): void {
       ...(deps.now !== undefined ? { now: deps.now } : {}),
       ...(deps.quietMs !== undefined ? { quietMs: deps.quietMs } : {})
     })
+    // The stream's side of the rows: what the window's runs say is handed to this
+    // projection, again after each observation of the path it is about.
+    const annotator = railAnnotatorFor(sender)
+    annotator.bind(projection)
     const watcher = watch({
       projectRoot,
       onObservation: (observation) => {
         projection.observe(observation)
+        annotator.observed(observation.path)
         deps.observeArtifact?.(sender, projectRoot, observation)
       },
       onError: (error) =>

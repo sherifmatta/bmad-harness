@@ -93,6 +93,39 @@ describe('Outputs', () => {
     expect(render({ snapshot, agents: [] })).not.toContain('output-row-owner')
   })
 
+  it('names the annotation’s owner first, then the class’s, and an agent the roster lacks as nobody', () => {
+    const ANALYST: AgentView = { ...JOHN, id: 'bmad-agent-analyst', name: 'Mary', title: 'Analyst' }
+    const annotation = (agentId: string, text = 'writing · §2 Goals'): RailRow['annotation'] => ({ text, owner: { agentId } })
+    const prd = (extra: Partial<RailRow>): RailSnapshot =>
+      rail({ path: '_bmad/planning-artifacts/prd.md', state: 'changing', owner: { agentId: 'bmad-agent-pm' }, ...extra } as RailRow)
+    const owners = (markup: string): string[] => [...markup.matchAll(/output-row-owner">([^<]*)</g)].map(([, name]) => name)
+
+    // The session's owner wins over the class's.
+    expect(owners(render({ agents: [JOHN, ANALYST], snapshot: prd({ annotation: annotation('bmad-agent-analyst') }) }))).toEqual(['Mary'])
+    // An annotation with no owner leaves the class's.
+    expect(owners(render({ agents: [JOHN, ANALYST], snapshot: prd({ annotation: { text: 'writing' } }) }))).toEqual(['John'])
+    // A row with no class owner takes the annotation's.
+    expect(
+      owners(render({ agents: [JOHN], snapshot: rail({ path: '_bmad/notes.md', state: 'changing', annotation: annotation('bmad-agent-pm') }) }))
+    ).toEqual(['John'])
+    // An annotation's owner the roster lacks reads as nobody: the class's owner does not stand in for it.
+    const absent = render({ agents: [JOHN], snapshot: prd({ annotation: annotation('bmad-agent-gone') }) })
+    expect(owners(absent)).toEqual([])
+    expect(absent).toContain('output-row-annotation')
+    expect(absent).not.toContain('John')
+  })
+
+  it('draws the annotation tag and the watcher’s state in two registers, neither moving the other', () => {
+    const row: RailRow = { path: '_bmad/prd.md', state: 'saved', savedAt: NOW - 2 * DAY, annotation: { text: 'writing · §1 Context' } }
+    const markup = render({ snapshot: rail(row) })
+
+    expect(markup).toContain('<span class="output-row-annotation">writing · §1 Context</span>')
+    expect(markup).toContain('saved · 2d')
+    // An annotation raises no `changing` and draws no dot: that is the watcher's word, and it said `saved`.
+    expect(markup).not.toContain('changing')
+    expect(markup).not.toContain('status-dot')
+  })
+
   it('draws no recency, relevance, pin, badge or count', () => {
     const markup = render({ snapshot: rail(saved('_bmad/a.md'), saved('_bmad/b.md')) })
 

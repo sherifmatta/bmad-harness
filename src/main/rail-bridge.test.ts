@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { RunCardSnapshot } from '../shared/conversation'
 import type { ContractEvent } from '../shared/events'
 import type { ArtifactObservation, RailSnapshot } from '../shared/rail'
+import { foldRunCard, startCard } from './fold/run-card'
 
 type Handler = (event: { sender: FakeSender }) => Promise<unknown>
 
@@ -12,6 +14,7 @@ vi.mock('electron', () => ({
 
 const { RAIL_CHANGED_CHANNEL, RAIL_GET_CHANNEL, registerRailBridge } = await import('./rail-bridge')
 const { SESSION_EVENT_CHANNEL } = await import('./persona-states')
+const { railAnnotatorFor } = await import('./rail-annotations')
 
 class FakeSender {
   sent: [string, RailSnapshot | ContractEvent][] = []
@@ -288,5 +291,168 @@ describe('the session side’s view of the watcher (Story 3.1)', () => {
       [3, '/project-3', found('_bmad/prds/x/.memlog.md')],
       [3, '/project-3', written]
     ])
+  })
+})
+
+describe('the stream’s annotations in the rows (Story 3.6)', () => {
+  const PRD = '_bmad/planning-artifacts/prd.md'
+  const JOHN = 'bmad-agent-pm'
+
+  /** A run's events, handed to the window's annotator as the session side hands them: with the run's card. */
+  function stream(sender: FakeSender): { say: (event: ContractEvent) => void } {
+    let card: RunCardSnapshot | undefined
+    return {
+      say(event) {
+        if (event.name === 'run:started') card = startCard(event.payload)
+        else if (card !== undefined && 'runId' in event.payload) card = foldRunCard(card, event)
+        railAnnotatorFor(sender).apply(event, card)
+      }
+    }
+  }
+  const started: ContractEvent = { name: 'run:started', payload: { runId: 'r1', sessionId: 's1', agentId: JOHN, code: 'CP', at: 1 } }
+  const piece = (text: string, path = PRD): ContractEvent => ({
+    name: 'doc:prose',
+    payload: { runId: 'r1', sessionId: 's1', callId: 'c1', path, text, at: 2 }
+  })
+  const finished: ContractEvent = { name: 'run:finished', payload: { runId: 'r1', sessionId: 's1', at: 9 } }
+
+  async function open(rows: string[] = []): Promise<FakeSender> {
+    scanRows = rows.map(found)
+    const sender = new FakeSender(1)
+    const first = ask(sender)
+    watchers[0].finishScan()
+    await first
+    return sender
+  }
+  const lastRow = (sender: FakeSender) => sender.railPushes.at(-1)?.rows[0]
+
+  it('makes no row for a path the stream names first, and the row the watcher then makes carries the annotation', async () => {
+    const sender = await open()
+    const { say } = stream(sender)
+    say(started)
+    say(piece('## 1. Vision\nA.\n## 2. Goals\nB.\n'))
+
+    expect(sender.railPushes).toEqual([])
+
+    watchers[0].emit({ type: 'artifact:written', path: PRD, size: 9, mtimeMs: 1_000_000 })
+
+    expect(lastRow(sender)).toEqual({
+      path: PRD,
+      owner: { agentId: JOHN },
+      state: 'changing',
+      annotation: { text: 'writing · §2 Goals', owner: { agentId: JOHN } }
+    })
+  })
+
+  it('decorates an existing saved row as the stream speaks, leaving the watcher’s state and age alone', async () => {
+    const sender = await open([PRD])
+    const { say } = stream(sender)
+    say(started)
+    say(piece('## Context\nA.\n'))
+
+    expect(sender.railPushes).toHaveLength(1)
+    expect(lastRow(sender)).toEqual({
+      path: PRD,
+      owner: { agentId: JOHN },
+      state: 'saved',
+      savedAt: 100,
+      annotation: { text: 'writing · §1 Context', owner: { agentId: JOHN } }
+    })
+  })
+
+  it('drops the annotation when the run ends, leaving the row exactly what the watcher says', async () => {
+    const sender = await open()
+    watchers[0].emit({ type: 'artifact:written', path: PRD, size: 9, mtimeMs: 1_000_000 })
+    const { say } = stream(sender)
+    say(started)
+    say(piece('## Vision\nA.\n'))
+    expect(lastRow(sender)?.annotation?.text).toBe('writing · §1 Vision')
+
+    say(finished)
+
+    expect(lastRow(sender)).toEqual({ path: PRD, owner: { agentId: JOHN }, state: 'changing' })
+    expect(Object.keys(lastRow(sender) ?? {})).not.toContain('annotation')
+    // The stream could not say saved: only the settle timer does.
+    await vi.advanceTimersByTimeAsync(400)
+    expect(lastRow(sender)).toEqual({ path: PRD, owner: { agentId: JOHN }, state: 'saved', savedAt: 1_000_000 })
+  })
+
+  it('gives a reloaded window the rows with their annotations, the stream having spoken since', async () => {
+    const sender = await open([PRD])
+    const { say } = stream(sender)
+    say(started)
+    say(piece('## Vision\nA.\n## Goals\nB.\n'))
+
+    const reply = (await ask(sender)) as { ok: true; snapshot: RailSnapshot }
+
+    expect(reply.snapshot.rows[0].annotation).toEqual({ text: 'writing · §2 Goals', owner: { agentId: JOHN } })
+    expect(reply.snapshot).toEqual(sender.railPushes.at(-1))
+  })
+
+  it('tells what the session side held before the rail was asked for, once the rail is', async () => {
+    const sender = new FakeSender(1)
+    const { say } = stream(sender)
+    say(started)
+    say(piece('## Vision\nA.\n'))
+    scanRows = [found(PRD)]
+    const first = ask(sender)
+    watchers[0].finishScan()
+    const reply = (await first) as { ok: true; snapshot: RailSnapshot }
+
+    expect(reply.snapshot.rows[0].annotation?.text).toBe('writing · §1 Vision')
+  })
+
+  it('says a path again after the watcher removes it and makes it again', async () => {
+    const sender = await open([PRD])
+    const { say } = stream(sender)
+    say(started)
+    say(piece('## Vision\nA.\n'))
+
+    watchers[0].emit({ type: 'artifact:removed', path: PRD, size: 0, mtimeMs: 1_000_000 })
+    expect(sender.railPushes.at(-1)?.rows).toEqual([])
+    say(piece('## Goals\nB.\n'))
+    expect(sender.railPushes.at(-1)?.rows).toEqual([])
+
+    watchers[0].emit({ type: 'artifact:written', path: PRD, size: 9, mtimeMs: 1_000_000 })
+    expect(lastRow(sender)?.annotation?.text).toBe('writing · §2 Goals')
+  })
+
+  it('gives a file nobody in the harness is writing no annotation, and reads it as saved after the settle', async () => {
+    const sender = await open()
+    const { say } = stream(sender)
+    say(started)
+    say(piece('## Vision\nA.\n'))
+
+    watchers[0].emit({ type: 'artifact:written', path: '_bmad/planning-artifacts/architecture.md', size: 9, mtimeMs: 1_000_000 })
+    expect(lastRow(sender)).toMatchObject({ state: 'changing' })
+    expect(Object.keys(lastRow(sender) ?? {})).not.toContain('annotation')
+
+    await vi.advanceTimersByTimeAsync(400)
+    expect(lastRow(sender)).toMatchObject({ state: 'saved' })
+    expect(Object.keys(lastRow(sender) ?? {})).not.toContain('annotation')
+  })
+
+  it('raises no note for the persona whose own run is annotating: an annotation is no change to the file', async () => {
+    const sender = await open([PRD])
+    const { say } = stream(sender)
+    say(started)
+    say(piece('## Vision\nA.\n'))
+    say(finished)
+
+    expect(sender.personaStates).toEqual([])
+  })
+
+  it('keeps each window’s annotations apart', async () => {
+    const one = await open([PRD])
+    const two = new FakeSender(2)
+    const second = ask(two)
+    watchers[1].finishScan()
+    await second
+    const { say } = stream(one)
+    say(started)
+    say(piece('## Vision\nA.\n'))
+
+    expect(one.railPushes).toHaveLength(1)
+    expect(two.railPushes).toEqual([])
   })
 })

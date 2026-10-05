@@ -201,6 +201,16 @@ describe('what the layer rule deliberately permits', () => {
       code: ["import '../fold/persona-state'", "import '../../shared/events'"].join('\n')
     },
     {
+      what: 'the rail annotator reaching its fold and the contract, and the per-window holder reaching the annotator',
+      filePath: 'src/main/projections/probe.ts',
+      code: ["import '../fold/rail-annotations'", "import '../../shared/rail'", "import '../../shared/conversation'"].join('\n')
+    },
+    {
+      what: 'the session registry and the rail bridge reaching the one per-window annotation holder',
+      filePath: 'src/main/probe.ts',
+      code: ["import './rail-annotations'", "import './projections/rail-annotator'"].join('\n')
+    },
+    {
       what: 'the transcript projection reaching its fold and the persistence source, and the fold reaching only the contract',
       filePath: 'src/main/projections/probe.ts',
       code: [

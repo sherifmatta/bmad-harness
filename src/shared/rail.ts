@@ -16,11 +16,20 @@ export type DiskField =
   | { state: 'not-yet-written' | 'changing' }
   | { state: 'saved'; savedAt: number }
 
-/** The agent a file belongs to, by its class. The renderer resolves the name. */
+/**
+ * An agent a row names, by id: the one its class gives a row's own `owner`, and the
+ * persona writing it that the stream gives an annotation's. The renderer resolves
+ * the name.
+ */
 export type RailOwner = { agentId: string }
 
-/** The stream's note on a row. The minimum the stub needs; Epic 3 extends it. */
-export type RailAnnotation = { text: string }
+/**
+ * The stream's note on a row: the words for what is being written (`text`), and
+ * the persona writing it (`owner`), absent when the run has none. The owner
+ * rides here and not on the row, whose own `owner` is the class's and stays what
+ * the watcher side reads; the owner slot prefers this one.
+ */
+export type RailAnnotation = { text: string; owner?: RailOwner }
 
 /** One file under `_bmad/`. `path` is project-relative, POSIX. */
 export type RailRow = {

@@ -9,6 +9,8 @@ import { LINES, QUIET_MS, createQuietClock, createVoice, defaultSchedule } from 
 import { SESSION_EVENT_CHANNEL } from '../shared/channels'
 import { personaProjectionFor } from './persona-states'
 import type { PersonaProjection } from './projections/personas'
+import { railAnnotatorFor } from './rail-annotations'
+import type { RailAnnotator } from './projections/rail-annotator'
 import { createRunProjection } from './projections/runs'
 import type { RunProjection } from './projections/runs'
 import { createMemlogCounts, createRunKit, deliver, endRun, observeMemlog, startRun } from './session-run'
@@ -86,6 +88,8 @@ export type Service = {
   written: Map<AgentId, readonly string[]>
   /** The window's run cards, as main holds them for a reload. */
   runs: RunProjection
+  /** What the window's runs say of the rail's rows, shared with the rail bridge, which hands it the projection to tell. */
+  annotations: RailAnnotator
   /** Every memlog's entry count as last read, so a run's notes are only what was appended after. */
   memlogs: MemlogCounts
 }
@@ -322,6 +326,7 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
       lastOpened: undefined,
       written: new Map(),
       runs: createRunProjection(),
+      annotations: railAnnotatorFor(sender),
       memlogs: createMemlogCounts()
     }
     services.set(sender.id, service)

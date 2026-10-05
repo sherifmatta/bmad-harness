@@ -1,6 +1,6 @@
 import type { RunCardDocument, RunCardProse } from '../../../shared/conversation'
-import { scanHeadings } from '../../../shared/section-headings'
-import { nameKey, sectionName } from '../../../shared/section-plan'
+import { commonPrefix, sectionProgress } from '../../../shared/section-progress'
+import type { SectionPlace } from '../../../shared/section-progress'
 
 /** One document of a run as the store holds it: its text and its weight, without the sections. */
 export type HeldDocument = Omit<RunCardDocument, 'sections'>
@@ -11,7 +11,7 @@ export type HeldDocument = Omit<RunCardDocument, 'sections'>
  * section's 1-based place in the subject's `seen` list. No section until the
  * subject's text has a heading.
  */
-export type RunProgress = { revising: boolean; section?: { name: string; n: number } }
+export type RunProgress = { revising: boolean; section?: SectionPlace }
 
 /** Before any heading, and for a run with no subject. */
 export const NO_PROGRESS: RunProgress = { revising: false }
@@ -107,14 +107,6 @@ function subjectOf(run: RunDocuments): HeldDocument | undefined {
   return subject
 }
 
-/** How many characters two texts share from their starts: where an `Edit` first changed the document. */
-function commonPrefix(a: string, b: string): number {
-  const limit = Math.min(a.length, b.length)
-  let at = 0
-  while (at < limit && a.charCodeAt(at) === b.charCodeAt(at)) at += 1
-  return at
-}
-
 /** Read the subject's text again, if the run changed since: grow its `seen`, and say where it is. */
 function settle(run: RunDocuments): void {
   if (run.settled === run.version) return
@@ -125,39 +117,13 @@ function settle(run: RunDocuments): void {
     run.subjectSeen = NO_SEEN
     return
   }
-  // A heading on the text's last line, unterminated, may be half streamed (`## 3. Glo`): it is not yet seen.
-  const unterminated = !subject.text.endsWith('\n')
-  const headings = scanHeadings(subject.text).filter(
-    ({ offset }) => !unterminated || subject.text.indexOf('\n', offset) !== -1
-  )
+  // The section and the names seen are read by the one function the rail's annotation reads them by.
   const held = run.seenByPath.get(subject.path) ?? NO_SEEN
-  const keys = new Set(held.map(nameKey))
-  const added: string[] = []
-  for (const heading of headings) {
-    const name = sectionName(heading.name)
-    const key = nameKey(name)
-    if (keys.has(key)) continue
-    keys.add(key)
-    added.push(name)
-  }
-  const seen = added.length === 0 ? held : [...held, ...added]
+  const revision = run.revision?.path === subject.path ? run.revision : undefined
+  const { seen, section } = sectionProgress(subject.text, held, revision?.offset)
   if (seen !== held) run.seenByPath.set(subject.path, seen)
   run.subjectSeen = seen
 
-  const revision = run.revision?.path === subject.path ? run.revision : undefined
-  let at: string | undefined
-  if (revision === undefined) {
-    const last = headings.at(-1)
-    at = last === undefined ? undefined : sectionName(last.name)
-  } else {
-    for (const heading of headings) {
-      if (heading.offset > revision.offset) break
-      at = sectionName(heading.name)
-    }
-  }
-  const key = at === undefined ? undefined : nameKey(at)
-  const n = key === undefined ? 0 : seen.findIndex((name) => nameKey(name) === key) + 1
-  const section = at === undefined || n === 0 ? undefined : { name: at, n }
   const revising = revision !== undefined
   const before = run.progress
   if (before.revising === revising && before.section?.name === section?.name && before.section?.n === section?.n) return

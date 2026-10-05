@@ -9,6 +9,8 @@ import { foldRunCard, startCard } from '../fold/run-card'
  */
 export type RunProjection = {
   apply(event: ContractEvent): void
+  /** One run's card as it stands, or `undefined` for a run this projection has not seen start. */
+  card(runId: string): RunCardSnapshot | undefined
   /** Every card of this launch, in the order its run started. */
   snapshot(): RunCardSnapshot[]
   /** The conversation ended: its cards go with it. */
@@ -28,6 +30,8 @@ export function createRunProjection(): RunProjection {
       const card = cards.get(event.payload.runId)
       if (card !== undefined) cards.set(card.runId, foldRunCard(card, event))
     },
+
+    card: (runId) => cards.get(runId),
 
     snapshot: () => [...cards.values()],
 

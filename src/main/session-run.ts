@@ -96,13 +96,18 @@ export function createRunKit(deps: Omit<RunKit, 'recordSaid'> & { transcripts: T
 
 type Ending = { failed: boolean; subtype: string | undefined } | 'session-ended'
 
-/** Tell the window, and let the cards and the persona states hear it, from the one event. */
+/**
+ * Tell the window, and let the cards, the rail's annotations and the persona
+ * states hear it, from the one event. The annotations read the event's run card
+ * once the card has folded the event, and hear it before the window does.
+ */
 function tell(kit: RunKit, sender: Sender, service: Service, entry: Entry, events: ContractEvent[]): void {
   for (const event of events) {
     if (event.name === 'persona:said') {
       kit.recordSaid(entry, event)
     } else {
       service.runs.apply(event)
+      service.annotations.apply(event, 'runId' in event.payload ? service.runs.card(event.payload.runId) : undefined)
     }
     kit.emit(sender, event)
     service.personas.apply(event)

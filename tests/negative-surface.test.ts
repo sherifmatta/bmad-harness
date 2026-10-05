@@ -1663,3 +1663,77 @@ describe("the collapsed run card is one line and one button, and offers nothing 
     }
   });
 });
+
+describe("the rail's annotation says who is writing and where, with no total, bar, tooltip or invented state (Story 3.6)", () => {
+  const PROGRESS = "src/shared/section-progress.ts";
+  const FOLD = "src/main/fold/rail-annotations.ts";
+  const ANNOTATOR = "src/main/projections/rail-annotator.ts";
+  const HOLDER = "src/main/rail-annotations.ts";
+  const OUTPUTS = "src/renderer/ui/outputs/outputs.tsx";
+  const ROW = "src/renderer/ui/outputs/output-row.tsx";
+  const OUTPUTS_STYLES = "src/renderer/ui/outputs/outputs.css";
+  const PROSE_STORE = "src/renderer/ui/chat/prose-store.ts";
+  const STATUS = "src/renderer/ui/chat/run-status.ts";
+  const WORDS = /(["'`])(?:(?!\1)[^\n\\]|\\.)*\1|>[^<>{}\n]+</g;
+  const WORDS_OF = [PROGRESS, FOLD, ANNOTATOR, HOLDER, OUTPUTS, ROW];
+
+  it("reads the sources it claims to sweep", () => {
+    for (const path of [...WORDS_OF, OUTPUTS_STYLES, PROSE_STORE, STATUS]) {
+      expect(code.get(path)?.length ?? 0, path).toBeGreaterThan(200);
+    }
+  });
+
+  it("names no denominator in any word it is made of: no `of M`, `/ M`, total or count", () => {
+    const spoken = WORDS_OF.flatMap((path) =>
+      [...(code.get(path) ?? "").matchAll(WORDS)].map(([text]) => `${path}: ${text}`),
+    );
+
+    expect(spoken.length).toBeGreaterThan(0);
+    expect(spoken.filter((text) => /\bof\b|\/\s*\$\{|\/\s*\d|\btotal\b|\bdenominator\b|\bcount\b/i.test(text))).toEqual([]);
+    expect(offenders([PROGRESS, FOLD], /\.length\s*\}?\s*(?:sections|\/)|\/\s*(?:plan|total|seen)\b|\bseen\.length\b/)).toEqual([]);
+  });
+
+  it("says `writing`, `revising` and `§` in one place, which the card's head and the rail both call", () => {
+    expect(offenders(ALL_CODE, /["'`](?:writing|revising)\b/).map((hit) => hit.split(":")[0])).toEqual([PROGRESS]);
+    expect(offenders(ALL_CODE, /§/).map((hit) => hit.split(":")[0]).filter((path) => path !== PROGRESS && path !== "src/renderer/ui/chat/run-status.ts")).toEqual([]);
+    expect(code.get(FOLD)).toMatch(/\bprogressLabel\(/);
+    expect(code.get(STATUS)).toMatch(/\bprogressLabel\(/);
+    // The section is read in one function, called by the card's prose store and by the rail's fold, and by nothing else.
+    expect(
+      offenders(ALL_CODE, /\bsectionProgress\(/)
+        .map((hit) => hit.split(":")[0])
+        .sort(),
+    ).toEqual([FOLD, PROSE_STORE, PROGRESS].sort());
+  });
+
+  it("makes a rail annotation of nothing but the stream's words: no stopped, contention, notification, denominator or stand-in", () => {
+    // `stopped` on the row, contention and notifications are Stories 3.8, 3.9 and 3.10.
+    expect(offenders([FOLD, ANNOTATOR, HOLDER, PROGRESS], /(?<!run:)\bstopped\b|contention|contend|Notification|\bconflict\b|\bboth owners\b/i)).toEqual([]);
+    expect(offenders([FOLD, ANNOTATOR, HOLDER], /\bsetTimeout\b|\bsetInterval\b|\bDate\.now\b|new Date\b|performance\.now/)).toEqual([]);
+  });
+
+  it("draws the tag with no bar, spinner, badge, tooltip, title or motion, and a width from a token", () => {
+    expect(offenders([OUTPUTS, ROW], /<progress\b|<meter\b|role=["']progressbar|aria-valuenow|(?<![\w-])title\s*=|tooltip|\bpopover\b|\bspinner\b|\bbadge\b|\.animate\(/i)).toEqual([]);
+    const css = code.get(OUTPUTS_STYLES) ?? "";
+    const rule = css.match(/\.output-row-annotation\s*\{[^}]*\}/)?.[0] ?? "";
+
+    expect(rule).toContain("max-width: var(--rail-annotation-max)");
+    expect(rule).not.toMatch(/animation|transition|%|progress|meter|spinner|width:\s*\d/i);
+    // Nothing new moves in the rail: the rail's stylesheet has no animation at all.
+    expect(css).not.toMatch(/animation|transition|@keyframes/);
+  });
+
+  it("is told to the window by the rail's own push and by no new event, command, channel or bridge method", () => {
+    for (const path of ["src/shared/events.ts", "src/shared/commands.ts", "src/shared/channels.ts", "src/preload/index.ts"]) {
+      expect(code.get(path) ?? "", path).not.toMatch(/annotat/i);
+    }
+    expect(offenders(MAIN_CODE, /ipcMain\.handle\(\s*["'`][^"'`]*annotat/i)).toEqual([]);
+  });
+
+  it("makes, removes and settles no row: nothing the stream folds reaches the rail's disk fields", () => {
+    expect(offenders([FOLD, ANNOTATOR, HOLDER], /\bobserve\(|\bsettle\(|\bsavedAt\b|\bobservedAt\b|\bmtimeMs\b|artifact:(?:found|written|removed)/)).toEqual([]);
+    // The persona fold, the rail's push rule and the row component read no annotation from the stream.
+    expect(offenders(["src/main/fold/persona-state.ts", "src/main/fold/artifact-owner.ts"], /annotation/)).toEqual([]);
+    expect(offenders([ROW], /annotation\??\.owner|agentId/)).toEqual([]);
+  });
+});

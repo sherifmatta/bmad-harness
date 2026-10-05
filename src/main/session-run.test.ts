@@ -4,9 +4,10 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConversationReply, ConversationSnapshot } from '../shared/conversation'
 import type { ContractEvent, EventName, EventPayload } from '../shared/events'
-import type { ArtifactObservation } from '../shared/rail'
+import type { ArtifactObservation, RailAnnotation } from '../shared/rail'
 import type { TemplatePlan } from '../shared/section-plan'
 import { createTranscriptRegistry } from './projections/transcript'
+import { railAnnotatorFor } from './rail-annotations'
 import type { SessionBridge } from './session-bridge'
 import type { ResolvedMenuEntry } from './sources/install/schema'
 import type { SessionProcess, SpawnOutcome, SpawnSessionOptions } from './sources/session/session-process'
@@ -701,5 +702,108 @@ describe('a window that reloads mid-run', () => {
     feed(result())
     call(CONVERSATION_END_CHANNEL, sender, ROOT)
     expect(snapshot(sender).runs).toEqual([])
+  })
+})
+
+describe('what the run says of the rail’s rows (Story 3.6)', () => {
+  /** What a window's rail projection is told, in order: a path and its annotation, or `null` when it is dropped. */
+  function railOf(sender: FakeSender): [string, RailAnnotation | null][] {
+    const told: [string, RailAnnotation | null][] = []
+    railAnnotatorFor(sender).bind({ annotate: (path, annotation) => void told.push([path, annotation]) })
+    return told
+  }
+  const write = (id: string, path: string, content: string): unknown[] => [
+    messageStart(`m-${id}`),
+    ...writeFrames('Write', id, { file_path: `${ROOT}/${path}`, content }),
+    toolResult(id)
+  ]
+  const owner = { agentId: A }
+
+  it('tells the persona and the section in flight for each file a `Write` streams, and nothing before one does', async () => {
+    const sender = await idle()
+    const told = railOf(sender)
+    await dispatch(sender, 'CP')
+    expect(told).toEqual([])
+
+    for (const frame of write('t1', '_bmad/addendum.md', '## Notes\nA.\n')) feed(frame)
+    for (const frame of write('t2', '_bmad/prd.md', DOC)) feed(frame)
+
+    expect(told).toEqual([
+      ['_bmad/addendum.md', { text: 'writing · §1 Notes', owner }],
+      ['_bmad/prd.md', { text: 'writing · §2 Scope', owner }]
+    ])
+  })
+
+  it('says `revising` for an applied `Edit`, with the section of its first changed character, and `writing` again on the file’s next `Write`', async () => {
+    const sender = await idle()
+    const told = railOf(sender)
+    await dispatch(sender, 'CP')
+    for (const frame of write('t1', '_bmad/prd.md', DOC)) feed(frame)
+    for (const frame of [messageStart('m2'), ...writeFrames('Edit', 't2', { file_path: `${ROOT}/_bmad/prd.md`, old_string: 'Words.', new_string: 'Changed.' }), toolResult('t2')]) feed(frame)
+    expect(told.at(-1)).toEqual(['_bmad/prd.md', { text: 'revising · §1 Vision', owner }])
+
+    for (const frame of write('t3', '_bmad/prd.md', '## Vision\nAgain.\n')) feed(frame)
+    expect(told.at(-1)).toEqual(['_bmad/prd.md', { text: 'writing · §1 Vision', owner }])
+  })
+
+  it('drops a path’s annotation when its `Write` is rejected, and leaves another file’s', async () => {
+    const sender = await idle()
+    const told = railOf(sender)
+    await dispatch(sender, 'CP')
+    for (const frame of write('t1', '_bmad/addendum.md', '## Notes\nA.\n')) feed(frame)
+    for (const frame of [messageStart('m2'), ...writeFrames('Write', 't2', { file_path: `${ROOT}/_bmad/prd.md`, content: DOC }), toolResult('t2', true)]) feed(frame)
+    advance(100)
+
+    expect(told.map(([path, annotation]) => [path, annotation?.text ?? null])).toEqual([
+      ['_bmad/addendum.md', 'writing · §1 Notes'],
+      ['_bmad/prd.md', 'writing · §2 Scope'],
+      ['_bmad/prd.md', null]
+    ])
+  })
+
+  it('says nothing for an `Edit` of a file no `Write` of the run started, a memlog, or a chat turn’s write', async () => {
+    const sender = await idle()
+    const told = railOf(sender)
+    await dispatch(sender, 'CP')
+    for (const frame of [messageStart('m1'), ...writeFrames('Edit', 't1', { file_path: `${ROOT}/_bmad/x.md`, old_string: 'a', new_string: 'b' }), toolResult('t1')]) feed(frame)
+    for (const frame of [messageStart('m2'), ...writeFrames('Write', 't2', { file_path: `${ROOT}/_bmad/y/.memlog.md`, content: '- (event) x' }), toolResult('t2')]) feed(frame)
+    advance(100)
+    expect(told).toEqual([])
+    feed(result())
+
+    await call<Promise<unknown>>(TURN_SEND_CHANNEL, sender, 's1', 'write it')
+    for (const frame of write('t3', '_bmad/chat.md', DOC)) feed(frame)
+    advance(100)
+    expect(told).toEqual([])
+  })
+
+  it.each([
+    ['finished', () => feed(result())],
+    ['failed', () => feed(result('error_max_budget_usd', true))],
+    ['ended with its session', () => exit()]
+  ] as const)('drops every annotation of the run when it %s', async (_ending, end) => {
+    const sender = await idle()
+    const told = railOf(sender)
+    await dispatch(sender, 'CP')
+    for (const frame of write('t1', '_bmad/prd.md', DOC)) feed(frame)
+    for (const frame of write('t2', '_bmad/addendum.md', '## Notes\nA.\n')) feed(frame)
+    expect(told).toHaveLength(2)
+
+    end()
+
+    expect(told.slice(2)).toEqual([
+      ['_bmad/prd.md', null],
+      ['_bmad/addendum.md', null]
+    ])
+  })
+
+  it('keeps a run’s annotations to its own window', async () => {
+    const sender = await idle()
+    const other = new FakeSender(2)
+    const told = railOf(other)
+    await dispatch(sender, 'CP')
+    for (const frame of write('t1', '_bmad/prd.md', DOC)) feed(frame)
+
+    expect(told).toEqual([])
   })
 })

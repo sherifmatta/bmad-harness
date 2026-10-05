@@ -20,9 +20,10 @@ import { useNow } from './use-now'
  * path being watched — and no next step, skill name, persona or button. A rail
  * failure with no snapshot renders the envelope through the shared error line.
  *
- * A row's owner is the roster's name for the agent its class names, or nothing
- * when the roster lacks that agent. `now` is data, passed in so the markup can
- * be rendered at a fixed moment.
+ * A row's owner is the roster's name for the agent the stream's annotation names
+ * (the persona writing it), else the agent its class names, or nothing when the
+ * roster lacks that agent: an unlisted agent is never replaced by another. `now`
+ * is data, passed in so the markup can be rendered at a fixed moment.
  *
  * The rows are one roving-tabindex list (NFR20, UX-DR18): one tab stop — the
  * row last moved to or opened, else the first in visual order — with vertical,
@@ -120,11 +121,13 @@ export function Outputs({
           <ul className="outputs-list">
             {group.rows.map((row) => {
               const index = order.indexOf(row.path)
+              // The session's owner, else the class's, else nobody: an agent the roster lacks reads as nobody.
+              const ownerId = row.annotation?.owner?.agentId ?? row.owner?.agentId
               return (
                 <OutputRow
                   key={row.path}
                   row={row}
-                  ownerName={row.owner === undefined ? undefined : nameOf.get(row.owner.agentId)}
+                  ownerName={ownerId === undefined ? undefined : nameOf.get(ownerId)}
                   now={now}
                   tabStop={row.path === tabStop}
                   onOpen={activate}

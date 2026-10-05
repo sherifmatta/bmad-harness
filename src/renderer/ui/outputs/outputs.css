@@ -62,7 +62,7 @@
 
 .output-row-name {
   flex: 1 1 auto;
-  min-width: 0;
+  min-width: var(--rail-name-min);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -74,13 +74,19 @@
 .output-row-meta {
   display: flex;
   align-items: center;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 0;
   gap: var(--space-sm);
   white-space: nowrap;
 }
 
-/* The stream's note: a neutral tag, present only when there is one. */
+/* The stream's note: a neutral tag, present only when there is one. When the row
+   is narrow it is the tag that gives way, with an ellipsis, past its own cap: the
+   file name keeps a floor (--rail-name-min), and the owner and the state stay whole. */
 .output-row-annotation {
+  max-width: var(--rail-annotation-max);
+  overflow: hidden;
+  text-overflow: ellipsis;
   padding: var(--code-tag-padding);
   border: var(--rule-width) solid var(--line);
   border-radius: var(--radius-chip);

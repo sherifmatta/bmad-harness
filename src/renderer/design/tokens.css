@@ -455,6 +455,12 @@
   --file-icon-width:12px;
   --file-icon-height:14px;
 
+  /* The widest the stream's annotation tag grows (Story 3.6), past which it
+     ellipsizes; and the least a row's file name keeps beside it, so that when a
+     row is narrow the tag gives way before the name does. */
+  --rail-annotation-max:170px;
+  --rail-name-min:56px;
+
   /* ── The document window (Story 1.12), promoted so no stylesheet restates a
      literal (NFR23). Every line cited is harness-mockup.html's; the component
      is DESIGN.md `components.document-window`. The window's own size, titlebar

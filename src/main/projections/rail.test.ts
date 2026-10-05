@@ -154,6 +154,61 @@ describe('the rail projection', () => {
     })
   })
 
+  describe('the stream’s annotation with an owner', () => {
+    const ANALYST = { agentId: 'bmad-agent-analyst' }
+
+    beforeEach(() => {
+      projection.observe(obs('artifact:found', PRD, 10, 500))
+      projection.ready()
+    })
+
+    it('rides in the annotation beside the class’s owner, which stays what the class says', () => {
+      projection.annotate(PRD, { text: 'writing · §1 Context', owner: ANALYST })
+
+      expect(projection.snapshot().rows[0]).toEqual({
+        path: PRD,
+        owner: { agentId: 'bmad-agent-pm' },
+        state: 'saved',
+        savedAt: 500,
+        annotation: { text: 'writing · §1 Context', owner: ANALYST }
+      })
+      expect(pushes).toHaveLength(1)
+      expect(pushes[0].rows[0].annotation?.owner).toEqual(ANALYST)
+    })
+
+    it('pushes nothing when the same annotation is handed again, and one push when only its owner moves', () => {
+      projection.annotate(PRD, { text: 'writing', owner: ANALYST })
+      projection.annotate(PRD, { text: 'writing', owner: { ...ANALYST } })
+      expect(pushes).toHaveLength(1)
+
+      projection.annotate(PRD, { text: 'writing', owner: { agentId: 'bmad-agent-pm' } })
+      expect(pushes).toHaveLength(2)
+    })
+
+    it('keeps the annotation across the watcher making the row again, only by being told again', () => {
+      projection.annotate(PRD, { text: 'writing', owner: ANALYST })
+      projection.observe(obs('artifact:removed', PRD, 0, 0))
+      projection.observe(obs('artifact:written', PRD, 11, 600))
+
+      expect(projection.snapshot().rows[0].state).toBe('changing')
+      expect(projection.snapshot().rows[0].annotation).toBeUndefined()
+
+      projection.annotate(PRD, { text: 'writing', owner: ANALYST })
+      expect(projection.snapshot().rows[0].annotation).toEqual({ text: 'writing', owner: ANALYST })
+    })
+
+    it('leaves a changing row to the settle timer, whatever the annotation says', () => {
+      projection.observe(obs('artifact:written', PRD, 11, 600))
+      projection.annotate(PRD, { text: 'writing', owner: ANALYST })
+      projection.annotate(PRD, null)
+      projection.annotate(PRD, { text: 'revising', owner: ANALYST })
+
+      expect(projection.snapshot().rows[0].state).toBe('changing')
+      vi.advanceTimersByTime(SETTLE_MS)
+      expect(projection.snapshot().rows[0]).toMatchObject({ state: 'saved', savedAt: 600, annotation: { text: 'revising' } })
+    })
+  })
+
   it('clears its timer on dispose and pushes no more', () => {
     projection.ready()
     projection.observe(obs('artifact:written', PRD))

@@ -210,6 +210,50 @@ describe('annotate', () => {
   })
 })
 
+describe('an annotation’s owner', () => {
+  it('crosses whole: annotate keeps the owner the stream named, and toRows carries it', () => {
+    const table = annotate(fold([[written(PRD), 0]]), PRD, { text: 'writing · §2 Goals', owner: { agentId: 'bmad-agent-pm' } })
+
+    expect(toRows(table)).toEqual([
+      { path: PRD, state: 'changing', annotation: { text: 'writing · §2 Goals', owner: { agentId: 'bmad-agent-pm' } } }
+    ])
+  })
+
+  it('carries no owner key when the annotation has none, and copies rather than shares what it was handed', () => {
+    const bare = toRows(annotate(fold([[written(PRD), 0]]), PRD, { text: 'writing' }))[0]
+    expect(Object.keys(bare.annotation ?? {})).toEqual(['text'])
+
+    const owner = { agentId: 'bmad-agent-pm' }
+    const row = toRows(annotate(fold([[written(PRD), 0]]), PRD, { text: 'writing', owner }))[0]
+    expect(row.annotation?.owner).toEqual(owner)
+    expect(row.annotation?.owner).not.toBe(owner)
+  })
+
+  it('survives a disk observation and a settle untouched, and the row’s class owner is not the annotation’s', () => {
+    let table = annotate(fold([[written(PRD), 0]]), PRD, { text: 'writing', owner: { agentId: 'bmad-agent-analyst' } })
+    table = observe(table, written(PRD), 100)
+    table = settle(table, 100 + SETTLE_MS)
+
+    const [row] = toRows(table)
+    expect(row.state).toBe('saved')
+    expect(row.annotation?.owner).toEqual({ agentId: 'bmad-agent-analyst' })
+    // The rows' own `owner` is attached by the projection from the class, never here.
+    expect(Object.keys(row)).not.toContain('owner')
+  })
+
+  it('moves nothing about the row but the annotation when the owner changes', () => {
+    const base = annotate(fold([[found(PRD), 0]]), PRD, { text: 'writing', owner: { agentId: 'bmad-agent-pm' } })
+    const next = annotate(base, PRD, { text: 'writing', owner: { agentId: 'bmad-agent-analyst' } })
+
+    expect(toRows(next)[0]).toEqual({
+      path: PRD,
+      state: 'saved',
+      savedAt: 1000,
+      annotation: { text: 'writing', owner: { agentId: 'bmad-agent-analyst' } }
+    })
+  })
+})
+
 describe('nextSettleAt', () => {
   it('is null with nothing changing', () => {
     expect(nextSettleAt(EMPTY_TABLE)).toBeNull()

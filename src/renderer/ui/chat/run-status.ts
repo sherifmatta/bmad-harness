@@ -1,4 +1,5 @@
 import { sectionName } from '../../../shared/section-plan'
+import { progressLabel } from '../../../shared/section-progress'
 import type { PersonaState } from '../../../shared/events'
 import { formatAge } from '../outputs/format-age'
 import { emphasisSpans } from '../feed/emphasis'
@@ -44,9 +45,7 @@ export function subjectSections(entry: RunCardEntry, path: string | undefined): 
  * nothing drives. It returns with the first piece of prose.
  */
 export function progressWords(progress: RunProgress, hasText: boolean = true): string {
-  if (!hasText) return ''
-  const verb = progress.revising ? 'revising' : 'writing'
-  return progress.section === undefined ? verb : `${verb} · §${progress.section.n} ${progress.section.name}`
+  return hasText ? progressLabel(progress.revising, progress.section) : ''
 }
 
 /**

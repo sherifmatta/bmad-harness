@@ -40,7 +40,14 @@ const RAIL_MAIN = [
   'src/main/sources/project/watch-artifacts.ts',
   'src/main/rail-bridge.ts'
 ]
-const RAIL_ALL = [...RAIL_MAIN, 'src/shared/rail.ts', ...outputsSources]
+/** The stream's side of the rail (Story 3.6): what the runs say of the rows, and the holder that hands it to the projection. */
+const RAIL_STREAM = [
+  'src/main/fold/rail-annotations.ts',
+  'src/main/projections/rail-annotator.ts',
+  'src/main/rail-annotations.ts',
+  'src/shared/section-progress.ts'
+]
+const RAIL_ALL = [...RAIL_MAIN, ...RAIL_STREAM, 'src/shared/rail.ts', ...outputsSources]
 
 const declared = new Set(
   [...withoutComments(read(TOKENS_CSS)).matchAll(/(--[\w-]+)\s*:/g)].map(([, name]) => name)
@@ -64,6 +71,8 @@ describe('the outputs stylesheet', () => {
   it('spends the tokens the contract names', () => {
     for (const name of [
       '--rail-row-padding',
+      '--rail-annotation-max',
+      '--rail-name-min',
       '--file-icon-width',
       '--file-icon-height',
       '--opacity-mark',
@@ -86,6 +95,24 @@ describe('the outputs stylesheet', () => {
     // ground are allowed here and nowhere the rail's rows are not.
     expect(css).not.toMatch(/z-index|outline|@keyframes|transition|animation|:focus/)
     expect(css).not.toMatch(/(^|[\s;{])font\s*:/)
+  })
+
+  it('keeps the annotation tag to one line that gives way with an ellipsis, at a width from tokens.css alone', () => {
+    const rule = css.match(/\.output-row-annotation\s*\{[^}]*\}/)?.[0] ?? ''
+
+    expect(rule).toMatch(/max-width:\s*var\(--rail-annotation-max\)/)
+    expect(rule).toMatch(/overflow:\s*hidden/)
+    expect(rule).toMatch(/text-overflow:\s*ellipsis/)
+    // The row's meta cluster is nowrap, so the tag is one line; the file name keeps its own ellipsis.
+    expect(css).toMatch(/\.output-row-meta\s*\{[^}]*white-space:\s*nowrap/)
+    expect(css).toMatch(/\.output-row-name\s*\{[^}]*text-overflow:\s*ellipsis/)
+    // The tag is what gives way: the meta cluster shrinks and the file name keeps a floor from a token.
+    expect(css).toMatch(/\.output-row-meta\s*\{[^}]*flex:\s*0 1 auto;[^}]*min-width:\s*0;/)
+    expect(css).toMatch(/\.output-row-name\s*\{[^}]*min-width:\s*var\(--rail-name-min\)/)
+    expect(css).not.toMatch(/\.output-row-name\s*\{[^}]*min-width:\s*0/)
+    const tokens = withoutComments(read(TOKENS_CSS))
+    expect(tokens).toMatch(/--rail-annotation-max:\s*170px;/)
+    expect(tokens).toMatch(/--rail-name-min:\s*56px;/)
   })
 
   it('gives the row button the pointer and the hover ground a persona tile has, and nothing more', () => {
@@ -202,6 +229,57 @@ describe('the rail modules in main', () => {
 
     expect(contract).not.toMatch(/\bstatus\b/)
     expect(contract).toContain('annotation?: RailAnnotation')
+  })
+
+  it('keeps the stream’s side to the one seam: it tells `annotate` and names no disk field, observation, settle or row', () => {
+    const fold = code('src/main/fold/rail-annotations.ts')
+    const annotator = code('src/main/projections/rail-annotator.ts')
+    const holder = code('src/main/rail-annotations.ts')
+
+    for (const [path, text] of [
+      ['src/main/fold/rail-annotations.ts', fold],
+      ['src/main/projections/rail-annotator.ts', annotator],
+      ['src/main/rail-annotations.ts', holder]
+    ]) {
+      // No disk word, no way to make, remove or settle a row.
+      expect(text, path).not.toMatch(/\b(?:savedAt|observedAt|mtimeMs|nextSettleAt|settle|observe|toRows|RailRow|RailSnapshot|RailTable|createRailProjection|artifact:\w+)\b|\bstate\s*:/)
+    }
+    // The producer reaches the projection through `annotate` alone.
+    const methods = [...annotator.matchAll(/\btarget\??\.(\w+)\(/g)].map(([, method]) => method)
+    expect(methods.length).toBeGreaterThan(0)
+    expect(new Set(methods)).toEqual(new Set(['annotate']))
+    expect(annotator).toMatch(/annotate\(path: string, annotation: RailAnnotation \| null\): void/)
+    // The projection's own surface is as it was: `annotate` stays the stream's one way in.
+    const projection = code('src/main/projections/rail.ts')
+    expect(projection).toMatch(/annotate\(path: string, annotation: RailAnnotation \| null\): void/)
+    expect(projection).not.toMatch(/owner:\s*annotation|annotation\??\.owner/)
+  })
+
+  it('carries the stream’s owner in the annotation and leaves the row’s own owner the class’s', () => {
+    const contract = code('src/shared/rail.ts')
+
+    expect(contract).toContain('export type RailAnnotation = { text: string; owner?: RailOwner }')
+    expect(contract).toMatch(/owner\?: RailOwner\n\s*annotation\?: RailAnnotation/)
+    // The watcher side and the persona fold read the row's `owner` and disk fields, never the annotation.
+    expect(code('src/main/fold/persona-state.ts')).not.toMatch(/annotation/)
+    expect(code('src/main/fold/artifact-owner.ts')).not.toMatch(/annotation/)
+    // The projection attaches the class's owner from the path alone.
+    expect(code('src/main/projections/rail.ts')).toContain('ownerAgentIdFor(row.path)')
+  })
+
+  it('computes no annotation in the renderer: the outputs draw what the row carries and name no event, fold or section reader', () => {
+    for (const path of outputsSources) {
+      expect(code(path), path).not.toMatch(/sectionProgress|progressLabel|section-progress|rail-annotat|doc:prose|doc:committed|run:|ContractEvent/)
+    }
+    // The one row component is untouched by it: it draws `annotation.text` and is handed the owner's name.
+    expect(code(`${OUTPUTS_DIR}/output-row.tsx`)).not.toMatch(/annotation\??\.owner|agentId/)
+    expect(code(`${OUTPUTS_DIR}/outputs.tsx`)).toContain('row.annotation?.owner?.agentId ?? row.owner?.agentId')
+  })
+
+  it('adds no channel, command, event or preload method for it', () => {
+    for (const path of ['src/preload/index.ts', 'src/shared/events.ts', 'src/shared/commands.ts', 'src/shared/channels.ts']) {
+      expect(code(path), path).not.toMatch(/annotat/i)
+    }
   })
 
   it('writes the disk state and the annotation from separate functions, neither naming the other’s field', () => {
