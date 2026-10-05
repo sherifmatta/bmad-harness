@@ -508,6 +508,12 @@
   --card-head-padding:7px 11px;
   --card-body-padding:11px 13px;
 
+  /* The collapsed card's line (Story 3.5), padded `7px 11px` (`.collapsed`,
+     document-card-dead-air.html:140-148; DESIGN.md's collapsed form). Its
+     radius, gap, size and colours are --radius-card, --space-md, --fs-label,
+     --panel, --line, --dim, --faint and --text as they are. */
+  --card-line-padding:7px 11px;
+
   /* The pinned slot (Story 3.14): the running card's place at the top of the
      chat column, outside the scrolling thread. Padded like `.thread` (16px
      sides, 16px top) with no bottom: the card's own margin is the gap. A

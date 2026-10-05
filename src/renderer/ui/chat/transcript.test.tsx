@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 
 import { createProseStore } from './prose-store'
 import { pinnedRun, Turns } from './transcript'
+import type { RunCollapse } from './transcript'
 import type { RunCardEntry, TranscriptEntry } from './transcript-entry'
 
 const PM = 'bmad-agent-pm'
@@ -90,5 +91,84 @@ describe('Turns with a pinned run (Story 3.14)', () => {
 
   it('draws no card when the only one is the pinned one', () => {
     expect(cards(draw([card('r1')], 'r1'))).toBe(0)
+  })
+})
+
+describe('Turns with collapsed cards (Story 3.5)', () => {
+  const ARCH = 'bmad-agent-architect'
+  const collapse = (over: Partial<RunCollapse> = {}): RunCollapse => ({
+    viewedId: ARCH,
+    expanded: new Set(),
+    nameOf: (agentId) => (agentId === PM ? 'John' : (agentId ?? '')),
+    onExpand: () => {},
+    ...over
+  })
+  const draw = (entries: readonly TranscriptEntry[], toCollapse: RunCollapse | undefined, pinnedRunId?: string): string => {
+    const prose = createProseStore({ raf: (run) => run() })
+    return renderToStaticMarkup(<Turns entries={entries} prose={prose} pinnedRunId={pinnedRunId} collapse={toCollapse} />)
+  }
+  const count = (markup: string, className: string): number => (markup.match(new RegExp(`class="${className}[ "]`, 'g')) ?? []).length
+
+  it('draws a running card of a persona that is not viewed as one line, and no card', () => {
+    const markup = draw([card('r1')], collapse())
+    expect(count(markup, 'run-card-line')).toBe(1)
+    expect(count(markup, 'run-card')).toBe(0)
+    expect(markup).toContain('John')
+  })
+
+  it('draws every card full without `collapse`, as before', () => {
+    const markup = draw([card('r1')], undefined)
+    expect(count(markup, 'run-card-line')).toBe(0)
+    expect(count(markup, 'run-card')).toBe(1)
+  })
+
+  it('draws the viewed persona’s running card full, in the thread when it is not the pinned one', () => {
+    const markup = draw([card('r1')], collapse({ viewedId: PM }))
+    expect(count(markup, 'run-card-line')).toBe(0)
+    expect(count(markup, 'run-card')).toBe(1)
+  })
+
+  it('draws the pinned entry in neither form: the slot has it', () => {
+    const markup = draw([card('r1')], collapse(), 'r1')
+    expect(count(markup, 'run-card-line')).toBe(0)
+    expect(count(markup, 'run-card')).toBe(0)
+  })
+
+  it('draws a card with no agent id, or an orphan’s, as a line, named by what the window says', () => {
+    const markup = draw([card('r1', { agentId: undefined }), card('r2', { agentId: 'bmad-agent-ghost', at: 200 })], collapse({ viewedId: undefined }))
+    expect(count(markup, 'run-card-line')).toBe(2)
+    expect(markup).toContain('bmad-agent-ghost')
+    expect(markup.match(/class="run-card-line-name"/g)).toHaveLength(1)
+  })
+
+  it('draws a terminal card full, however the run ended, and an expanded one full', () => {
+    for (const status of ['finished', 'failed', 'stopped'] as const) {
+      const markup = draw([card('r1', { status, endedAt: 200 })], collapse())
+      expect(count(markup, 'run-card-line'), status).toBe(0)
+      expect(count(markup, 'run-card'), status).toBe(1)
+    }
+    const expanded = draw([card('r1')], collapse({ expanded: new Set(['r1']) }))
+    expect(count(expanded, 'run-card-line')).toBe(0)
+    expect(count(expanded, 'run-card')).toBe(1)
+  })
+
+  it('keeps the line at its time position among the turns', () => {
+    const markup = draw([user('u1', 50), card('r1', { at: 100 }), user('u2', 150)], collapse())
+    expect(markup.indexOf('said u1')).toBeLessThan(markup.indexOf('run-card-line'))
+    expect(markup.indexOf('run-card-line')).toBeLessThan(markup.indexOf('said u2'))
+  })
+
+  it('asks the card to take focus for the run named by `focusRunId` alone, and for no line', () => {
+    const entries = [card('r1', { at: 100 }), card('r2', { at: 200 }), card('r3', { at: 300, agentId: ARCH })]
+    const markup = draw(entries, collapse({ expanded: new Set(['r1', 'r2']), focusRunId: 'r1' }))
+    expect(markup.match(/tabindex="-1"/g)).toHaveLength(1)
+    // The card of r1 comes first, and the one tabindex is on it and not on r2's.
+    const sections = markup.split('<section').slice(1)
+    expect(sections).toHaveLength(3)
+    expect(sections[0]).toContain('tabindex="-1"')
+    expect(sections[1]).not.toContain('tabindex')
+    expect(draw(entries, collapse({ expanded: new Set(['r1', 'r2']) })).match(/tabindex/g)).toBeNull()
+    // A line is never a focus target.
+    expect(draw([card('r1')], collapse({ focusRunId: 'r1' })).match(/tabindex/g)).toBeNull()
   })
 })

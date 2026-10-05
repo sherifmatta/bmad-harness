@@ -1040,6 +1040,7 @@ describe('App, the running card stays in view (Story 3.14)', () => {
   const cards = (): HTMLElement[] => [...root().querySelectorAll<HTMLElement>('.run-card')]
   const slot = (): HTMLElement | null => root().querySelector<HTMLElement>('.chat > .pinned')
   const inThread = (): HTMLElement[] => cards().filter((card) => card.closest('.thread') !== null)
+  const lines = (): HTMLElement[] => [...root().querySelectorAll<HTMLElement>('.run-card-line')]
   const started = (runId: string, sessionId: string, agent: AgentView, at: number): void =>
     push({ name: 'run:started', payload: { runId, sessionId, agentId: agent.id, code: 'CP', at } })
   const finished = (runId: string, sessionId: string, at: number): void =>
@@ -1138,10 +1139,14 @@ describe('App, the running card stays in view (Story 3.14)', () => {
     }
     expect(held).toEqual({ path: '_bmad/prd.md', text: '## Vision\nwords', busy: 'true', notes: 2 })
 
-    // John viewed: Mary's card, still running, is drawn in the thread.
+    // John viewed: Mary's card, still running, is a line in the thread (Story 3.5); once the
+    // user expands it, it is the same card drawn full in the thread.
     act(() => tile('John').click())
     await settle()
     expect(slot()).toBeNull()
+    expect(cards()).toHaveLength(0)
+    expect(root().querySelectorAll('.thread .run-card-line')).toHaveLength(1)
+    act(() => root().querySelector<HTMLButtonElement>('.run-card-line-button')?.click())
     expect(cards()).toHaveLength(1)
     const threaded = inThread()[0]
     expect({
@@ -1192,22 +1197,23 @@ describe('App, the running card stays in view (Story 3.14)', () => {
   it('draws no slot for another persona’s run, and moves the card with the switch, drawing it once either way', async () => {
     await open()
     started('r1', 's-John', john, 20)
-    // Mary is viewed: John's card stays in the thread.
+    // Mary is viewed: John's run is one line in the thread, and no card.
     expect(slot()).toBeNull()
-    expect(cards()).toHaveLength(1)
-    expect(inThread()).toHaveLength(1)
+    expect(cards()).toHaveLength(0)
+    expect(lines()).toHaveLength(1)
 
     act(() => tile('John').click())
     await settle()
     expect(slot()?.querySelector('.run-card')).not.toBeNull()
     expect(cards()).toHaveLength(1)
+    expect(lines()).toHaveLength(0)
     expect(inThread()).toHaveLength(0)
 
     act(() => tile('Mary').click())
     await settle()
     expect(slot()).toBeNull()
-    expect(cards()).toHaveLength(1)
-    expect(inThread()).toHaveLength(1)
+    expect(cards()).toHaveLength(0)
+    expect(lines()).toHaveLength(1)
   })
 
   it('pins the newest of two runs of the viewed persona and leaves the other in the thread', async () => {
@@ -1231,9 +1237,10 @@ describe('App, the running card stays in view (Story 3.14)', () => {
     await open()
     push({ name: 'run:started', payload: { runId: 'r1', sessionId: 's-Mary', code: 'CP', at: 20 } })
 
+    // Never a viewed persona's, so never pinned: a line in the thread (Story 3.5).
     expect(slot()).toBeNull()
-    expect(cards()).toHaveLength(1)
-    expect(inThread()).toHaveLength(1)
+    expect(cards()).toHaveLength(0)
+    expect(lines()).toHaveLength(1)
   })
 
   it('takes no focus when it pins or unpins, and is no live region', async () => {
@@ -1256,5 +1263,280 @@ describe('App, the running card stays in view (Story 3.14)', () => {
     const around = `${slot()?.outerHTML ?? ''}${slot()?.parentElement?.className ?? ''}`
     expect(around).not.toMatch(/jump|badge|toast/i)
     expect(slot()?.querySelectorAll('button')).toHaveLength(0)
+  })
+})
+
+describe('App, the run you are not looking at (Story 3.5)', () => {
+  const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
+  const root = (): HTMLElement => mounted!.container
+  const cards = (): HTMLElement[] => [...root().querySelectorAll<HTMLElement>('.run-card')]
+  const lines = (): HTMLElement[] => [...root().querySelectorAll<HTMLElement>('.run-card-line')]
+  const slot = (): HTMLElement | null => root().querySelector<HTMLElement>('.chat > .pinned')
+  const lineButton = (): HTMLButtonElement => root().querySelector('.run-card-line-button') as HTMLButtonElement
+  const frame = (): Promise<void> => new Promise((resolve) => requestAnimationFrame(() => resolve()))
+  const started = (runId: string, sessionId: string, agent: AgentView | undefined, at: number, agentId?: string): void =>
+    push({ name: 'run:started', payload: { runId, sessionId, ...(agent === undefined && agentId === undefined ? {} : { agentId: agent?.id ?? agentId }), code: 'CP', at } })
+  const note = (runId: string, sessionId: string, text: string, at: number): void =>
+    push({ name: 'run:note', payload: { runId, sessionId, text, at } })
+  const prose = (runId: string, sessionId: string, text: string, at: number): void =>
+    push({ name: 'doc:prose', payload: { runId, sessionId, callId: `c-${runId}`, path: '_bmad/prd.md', text, at } })
+  const ended = (name: 'run:finished' | 'run:stopped' | 'run:failed', runId: string, sessionId: string, at: number): void =>
+    push(
+      name === 'run:failed'
+        ? { name, payload: { runId, sessionId, error: { code: 'run/failed', message: 'failed' }, at } }
+        : { name, payload: { runId, sessionId, at } }
+    )
+
+  async function open(): Promise<void> {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    push({ name: 'session:opened', payload: { sessionId: 's-Mary', agentId: mary.id, at: 1 } })
+    push({ name: 'session:opened', payload: { sessionId: 's-John', agentId: john.id, at: 1 } })
+  }
+
+  it('draws another persona’s run as one line: the persona, the dot, the elapsed time, a button, and no card, slot or stop', async () => {
+    await open()
+    started('r1', 's-John', john, Date.now() - 65_000)
+
+    expect(lines()).toHaveLength(1)
+    expect(cards()).toHaveLength(0)
+    expect(slot()).toBeNull()
+    const line = lines()[0]
+    expect(line.closest('.thread')).not.toBeNull()
+    expect(line.getAttribute('aria-busy')).toBe('true')
+    expect(line.querySelector('.status-dot--work')).not.toBeNull()
+    expect(line.querySelector('.run-card-line-name')?.textContent).toBe('John')
+    expect(line.querySelector('.run-card-elapsed')?.textContent).toMatch(/^1m 0[5-9]s$/)
+    // One button, expanded=false, and no stop beside it (Story 3.7's).
+    expect(line.querySelectorAll('button')).toHaveLength(1)
+    expect(lineButton().getAttribute('aria-expanded')).toBe('false')
+    expect(lineButton().type).toBe('button')
+    expect(line.textContent).not.toMatch(/stop/i)
+    // No reason yet: the field is absent, and nothing stands in for it.
+    expect(line.querySelector('.run-card-line-reason')).toBeNull()
+  })
+
+  it('reads the reason of the last note, and not the section name beside it', async () => {
+    await open()
+    started('r1', 's-John', john, Date.now())
+    prose('r1', 's-John', '## 1. Vision\n## 2. Context\n', Date.now())
+    await act(frame)
+    note('r1', 's-John', '- (decision) Fast path', Date.now())
+    expect(lines()[0].querySelector('.run-card-line-reason')?.textContent).toBe('Fast path')
+    note('r1', 's-John', '- (assumption) Two readers only', Date.now())
+    expect(lines()[0].querySelector('.run-card-line-reason')?.textContent).toBe('Two readers only')
+    expect(lines()[0].textContent).not.toContain('Context')
+    expect(lines()).toHaveLength(1)
+  })
+
+  it('reads the section the text has shown before any note, and nothing before either', async () => {
+    await open()
+    started('r1', 's-John', john, Date.now())
+    expect(lines()[0].querySelector('.run-card-line-reason')).toBeNull()
+
+    prose('r1', 's-John', '## 1. Vision\n## 2. Context\n', Date.now())
+    await act(frame)
+    expect(lines()[0].querySelector('.run-card-line-reason')?.textContent).toBe('§2 Context')
+
+    note('r1', 's-John', '- (decision) Fast path', Date.now())
+    expect(lines()[0].querySelector('.run-card-line-reason')?.textContent).toBe('Fast path')
+  })
+
+  it('expands on a click into the full card, with focus on its container and not on a control, and spends the request', async () => {
+    await open()
+    started('r1', 's-John', john, Date.now())
+    note('r1', 's-John', '- (decision) A long reason that the line cut off but the card keeps whole', Date.now())
+
+    act(() => lineButton().click())
+    expect(lines()).toHaveLength(0)
+    expect(cards()).toHaveLength(1)
+    const card = cards()[0]
+    expect(card.closest('.thread')).not.toBeNull()
+    expect(document.activeElement).toBe(card)
+    expect(card.getAttribute('tabindex')).toBe('-1')
+    expect(card.contains(document.activeElement) && document.activeElement?.tagName).toBe('SECTION')
+    expect(card.querySelectorAll('.run-note-reason')[1]?.textContent).toContain('A long reason that the line cut off but the card keeps whole')
+    expect(card.getAttribute('aria-busy')).toBe('true')
+
+    // The card stays expanded for its run, and a later event moves no focus off it or onto anything.
+    note('r1', 's-John', '- (note) Another', Date.now())
+    expect(cards()).toHaveLength(1)
+    expect(document.activeElement).toBe(cards()[0])
+  })
+
+  it('is one native button, so `Enter` and `Space` activate it as a click does: focused, it expands the same way', async () => {
+    await open()
+    started('r1', 's-John', john, Date.now())
+    const button = lineButton()
+    expect(button.tagName).toBe('BUTTON')
+    button.focus()
+    expect(document.activeElement).toBe(button)
+
+    // A browser turns `Enter` and `Space` on a focused button into this click; no key code is handled by the line.
+    act(() => button.click())
+    expect(cards()).toHaveLength(1)
+    expect(document.activeElement).toBe(cards()[0])
+  })
+
+  it('pins the card, full, when the persona is switched to, and moves no focus', async () => {
+    await open()
+    started('r1', 's-John', john, Date.now())
+    const johnTile = tile('John')
+    johnTile.focus()
+    act(() => johnTile.click())
+    await settle()
+
+    expect(slot()?.querySelectorAll('.run-card')).toHaveLength(1)
+    expect(lines()).toHaveLength(0)
+    expect(document.activeElement).toBe(johnTile)
+    expect(slot()?.querySelector('.run-card')?.hasAttribute('tabindex')).toBe(false)
+  })
+
+  it('draws the card as a line again when the persona is switched away from, unless the user expanded it', async () => {
+    await open()
+    started('r1', 's-John', john, Date.now())
+    started('r2', 's-John-2', john, Date.now())
+    const maryTile = tile('Mary')
+    act(() => tile('John').click())
+    await settle()
+    // The newest is pinned; the other is the viewed persona's too, and stays a full card in the thread.
+    expect(slot()?.querySelectorAll('.run-card')).toHaveLength(1)
+    expect(lines()).toHaveLength(0)
+
+    maryTile.focus()
+    act(() => maryTile.click())
+    await settle()
+    expect(slot()).toBeNull()
+    expect(lines()).toHaveLength(2)
+    expect(cards()).toHaveLength(0)
+    expect(document.activeElement).toBe(maryTile)
+  })
+
+  it('keeps a card the user expanded full when the persona is switched to and away from, taking no focus when it returns', async () => {
+    await open()
+    started('r1', 's-John', john, Date.now())
+    act(() => lineButton().click())
+    expect(document.activeElement).toBe(cards()[0])
+
+    act(() => tile('John').click())
+    await settle()
+    expect(slot()?.querySelectorAll('.run-card')).toHaveLength(1)
+    expect(cards()).toHaveLength(1)
+
+    const maryTile = tile('Mary')
+    maryTile.focus()
+    act(() => maryTile.click())
+    await settle()
+    expect(slot()).toBeNull()
+    expect(lines()).toHaveLength(0)
+    expect(cards()).toHaveLength(1)
+    expect(cards()[0].closest('.thread')).not.toBeNull()
+    // The card is drawn anew in the thread, and the request that expanded it is long spent.
+    expect(document.activeElement).toBe(maryTile)
+  })
+
+  it('draws the terminal card in place of the line, with no focus moved, however the run ends', async () => {
+    for (const name of ['run:finished', 'run:stopped', 'run:failed'] as const) {
+      await open()
+      started('r1', 's-John', john, Date.now())
+      prose('r1', 's-John', '## 1. Vision\n', Date.now())
+      expect(lines()).toHaveLength(1)
+      field().focus()
+
+      ended(name, 'r1', 's-John', Date.now())
+      expect(lines()).toHaveLength(0)
+      expect(cards()).toHaveLength(1)
+      expect(cards()[0].closest('.thread')).not.toBeNull()
+      expect(cards()[0].hasAttribute('aria-busy')).toBe(false)
+      expect(cards()[0].querySelector('.run-card-status')?.textContent).toMatch(name === 'run:finished' ? /^saved/ : name === 'run:stopped' ? /^stopped$/ : /^failed$/)
+      expect(document.activeElement).toBe(field())
+      mounted?.unmount()
+      mounted = null
+      listeners = []
+    }
+  })
+
+  it('names an orphan’s run by the id and draws a run with no agent id as a line without a name', async () => {
+    await open()
+    started('r1', 's-ghost', undefined, Date.now(), 'bmad-agent-ghost')
+    started('r2', 's-none', undefined, Date.now())
+    note('r2', 's-none', '- (note) Nobody’s run', Date.now())
+
+    expect(lines()).toHaveLength(2)
+    expect(cards()).toHaveLength(0)
+    expect(lines()[0].querySelector('.run-card-line-name')?.textContent).toBe('bmad-agent-ghost')
+    expect(lines()[1].querySelector('.run-card-line-name')).toBeNull()
+    expect(lines()[1].querySelector('.run-card-line-reason')?.textContent).toBe('Nobody’s run')
+    // Never pinned, since an orphan is never the current persona.
+    expect(slot()).toBeNull()
+  })
+
+  it('names the run of a persona the roster lost by the name the transcript knew, and not by its id', async () => {
+    await open()
+    push({
+      name: 'persona:said',
+      payload: { sessionId: 's-Mary', agentId: mary.id, messageId: 'm1', text: 'Hello from Mary', at: 2 }
+    })
+    started('r1', 's-Mary', mary, Date.now())
+    // Mary is viewed: her card is the pinned one.
+    expect(slot()?.querySelectorAll('.run-card')).toHaveLength(1)
+
+    // The install loses her; her session and her run go on, and John is the viewed persona.
+    act(() => installListeners.forEach((listener) => listener({ ...snapshot, revision: 2, agents: [john] })))
+    expect(slot()).toBeNull()
+    expect(cards()).toHaveLength(0)
+    expect(lines()).toHaveLength(1)
+    expect(lines()[0].querySelector('.run-card-line-name')?.textContent).toBe('Mary')
+    expect(lines()[0].textContent).not.toContain(mary.id)
+  })
+
+  it('draws a run hydrated mid-flight as a line, or pinned, by the same rule', async () => {
+    const harness = window.harness as unknown as Record<string, unknown>
+    harness.getConversation = async () => ({
+      entries: [],
+      sessions: [{ agentId: john.id, sessionId: 's-John' }],
+      busy: ['s-John'],
+      personas: [],
+      runs: [
+        {
+          runId: 'r9',
+          sessionId: 's-John',
+          agentId: john.id,
+          code: 'CP',
+          startedAt: Date.now() - 5_000,
+          status: 'running',
+          notes: [{ text: '- (decision) Hydrated reason', at: Date.now() - 4_000 }],
+          documents: []
+        }
+      ]
+    })
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+
+    expect(lines()).toHaveLength(1)
+    expect(lines()[0].querySelector('.run-card-line-name')?.textContent).toBe('John')
+    expect(lines()[0].querySelector('.run-card-line-reason')?.textContent).toBe('Hydrated reason')
+    expect(cards()).toHaveLength(0)
+    expect(slot()).toBeNull()
+
+    act(() => tile('John').click())
+    await settle()
+    expect(slot()?.querySelectorAll('.run-card')).toHaveLength(1)
+    expect(lines()).toHaveLength(0)
+  })
+
+  it('is no live region and carries no role, no title and no tooltip: its attributes are the section’s, the button’s and the hidden marks’', async () => {
+    await open()
+    started('r1', 's-John', john, Date.now())
+    note('r1', 's-John', '- (decision) Fast path', Date.now())
+    const line = lines()[0]
+    expect(line.getAttributeNames().sort()).toEqual(['aria-busy', 'class'])
+    const names = new Set([...line.querySelectorAll('*')].flatMap((element) => element.getAttributeNames()))
+    expect([...names].sort()).toEqual(['aria-expanded', 'aria-hidden', 'class', 'type'])
+
+    act(() => lineButton().click())
+    expect(cards()[0].querySelector('[role], [title]')).toBeNull()
   })
 })

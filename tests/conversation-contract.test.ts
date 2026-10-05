@@ -198,9 +198,16 @@ describe('the sources', () => {
   })
 
   it('draw no focus rule or ring suppression in a component either', () => {
-    for (const path of chatSources.filter((name) => name.endsWith('.tsx'))) {
+    // Story 3.5: the run card's container is the one programmatic focus target, `tabIndex={-1}`
+    // and never a tab stop, and only on a card drawn in place of the line the user activated.
+    const FOCUS_TARGET = 'src/renderer/ui/chat/run-card.tsx'
+    for (const path of chatSources.filter((name) => name.endsWith('.tsx') && name !== FOCUS_TARGET)) {
       expect(code(path), path).not.toMatch(/outline|autoFocus|tabIndex/)
     }
+    expect(code(FOCUS_TARGET)).not.toMatch(/outline|autoFocus/)
+    expect([...code(FOCUS_TARGET).matchAll(/tabIndex=\{[^}]*\}/g)].map(([hit]) => hit)).toEqual([
+      'tabIndex={focusFirst ? -1 : undefined}'
+    ])
   })
 
   it('take no dependency beyond React and the renderer', () => {
@@ -222,7 +229,7 @@ describe('the sources', () => {
     expect(app).toMatch(/import \{ pinnedRun, Turns \} from '\.\/chat\/transcript'/)
     expect(app).toContain('<Composer')
     expect(app).toMatch(
-      /<Turns entries=\{conversation\.entries\} onCancel=\{conversation\.cancel\} canAnswer=\{conversation\.canAnswer\} onChoose=\{answer\} prose=\{conversation\.prose\} pinnedRunId=\{pinnedEntry\?\.id\} \/>/
+      /<Turns entries=\{conversation\.entries\} onCancel=\{conversation\.cancel\} canAnswer=\{conversation\.canAnswer\} onChoose=\{answer\} prose=\{conversation\.prose\} pinnedRunId=\{pinnedEntry\?\.id\} collapse=\{collapse\} \/>/
     )
     // The shell takes a render prop and a callback; it imports no conversation part.
     expect(shell).not.toMatch(/from '\.\.\/chat\/(?:composer|transcript|turn|use-conversation|conversation-state)'/)

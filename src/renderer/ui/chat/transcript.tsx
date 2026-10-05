@@ -3,6 +3,8 @@ import type { JSX } from 'react'
 import { decisionOf } from './decision'
 import type { ProseStore } from './prose-store'
 import { RunCard } from './run-card'
+import { RunCardLine } from './run-card-line'
+import { isCollapsed } from './run-status'
 import { Sysline } from './sysline'
 import { PersonaTurn, UserTurn } from './turn'
 import type { RunCardEntry, TranscriptEntry } from './transcript-entry'
@@ -65,6 +67,26 @@ export function pinnedRun(entries: readonly TranscriptEntry[], agentId: string |
 }
 
 /**
+ * How the window has the run cards of personas that are not viewed (Story 3.5):
+ * a card in flight for another persona is drawn as one line, unless the user
+ * expanded its run. Without it every card is drawn full.
+ */
+export type RunCollapse = {
+  /** The viewed persona's id: its running card is the pinned one, never a line. */
+  viewedId: string | undefined
+  /** The ids of the runs the user expanded; the window holds them. */
+  expanded: ReadonlySet<string>
+  /** A persona's name as a card says it: the roster's, else an orphan's, else the id. */
+  nameOf: (agentId: string | undefined) => string
+  /** The line was activated: the window records the run as expanded. */
+  onExpand: (runId: string) => void
+  /** The run whose card, drawn now in place of its line, takes focus as it mounts. */
+  focusRunId?: string | undefined
+  /** That card took focus: the request is spent. */
+  onFocused?: () => void
+}
+
+/**
  * The turns alone, with no thread around them: for a surface, like the shell,
  * that already provides the `.thread` they sit in.
  */
@@ -74,7 +96,8 @@ export function Turns({
   canAnswer,
   onChoose,
   prose,
-  pinnedRunId
+  pinnedRunId,
+  collapse
 }: {
   entries: readonly TranscriptEntry[]
   /** Take a queued message back, by its entry id. */
@@ -87,6 +110,8 @@ export function Turns({
   prose?: ProseStore
   /** The run whose card is drawn in the shell's pinned slot instead (Story 3.14): its entry is skipped here. */
   pinnedRunId?: string
+  /** A card in flight for a persona not viewed draws as one line (Story 3.5); without this every card is full. */
+  collapse?: RunCollapse
 }): JSX.Element {
   const ordered = orderEntries(entries)
   const last = ordered.length - 1
@@ -97,7 +122,30 @@ export function Turns({
           return <Sysline key={entry.id} text={entry.text} />
         }
         if (entry.kind === 'run') {
-          return prose === undefined || entry.id === pinnedRunId ? null : <RunCard key={entry.id} entry={entry} prose={prose} />
+          if (prose === undefined || entry.id === pinnedRunId) {
+            return null
+          }
+          if (collapse !== undefined && isCollapsed(entry, collapse.viewedId, collapse.expanded)) {
+            return (
+              <RunCardLine
+                key={entry.id}
+                entry={entry}
+                name={collapse.nameOf(entry.agentId)}
+                prose={prose}
+                onExpand={collapse.onExpand}
+              />
+            )
+          }
+          const focusing = collapse?.focusRunId === entry.runId
+          return (
+            <RunCard
+              key={entry.id}
+              entry={entry}
+              prose={prose}
+              focusOnMount={focusing}
+              onFocused={focusing ? collapse?.onFocused : undefined}
+            />
+          )
         }
         if (entry.kind === 'persona') {
           // A decision is read only from the last entry, and only while its persona can

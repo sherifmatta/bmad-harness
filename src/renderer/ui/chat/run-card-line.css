@@ -1,0 +1,70 @@
+/*
+ * The collapsed run card (Story 3.5) — DESIGN.md's collapsed form, from
+ * document-card-dead-air.html's `.collapsed` rules (:140-148). One line on the
+ * card's own ground, border and radius: the status dot, the persona's name, the
+ * reason of the last run note, and the elapsed time at the right edge, in the
+ * label size, mono, `dim` with the name at `text`.
+ *
+ * The line is one button that fills it, and carries the line's padding so the
+ * whole visible line is its target; the section stays a flex row so that Story
+ * 3.7's stop control can sit beside that button as its own tab stop. The reason
+ * and the name give way: each truncates to a single line with an ellipsis, and
+ * the full entry is in the expanded card's feed. The elapsed keeps the card
+ * head's own rule (`.run-card-elapsed`, right-aligned in the faint tier).
+ *
+ * Nothing here moves: no animation, no transition, no bar. The button takes the
+ * shared focus ring and has no focus rule of its own. Every value reaches the
+ * design system through `var()`.
+ */
+
+.run-card-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--panel);
+  margin: var(--card-margin);
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  color: var(--dim);
+  min-width: 0;
+}
+
+.run-card-line-button {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--space-md);
+  min-width: 0;
+  padding: var(--card-line-padding);
+  border: 0;
+  background: none;
+  color: inherit;
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  text-align: left;
+  cursor: pointer;
+}
+
+.run-card-line-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+/* The mark between fields: a glyph, hidden from a reader, carrying no fact. */
+.run-card-line-sep {
+  flex: none;
+  color: var(--faint);
+}
+
+.run-card-line-reason {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

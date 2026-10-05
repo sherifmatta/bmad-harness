@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useSyncExternalStore } from 'react'
+import { useCallback, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { JSX } from 'react'
 
 import './run-card.css'
@@ -45,9 +45,37 @@ const ELAPSED_TICK_MS = 1000
  *
  * The card is `aria-busy` while its run is in flight. Its lifecycle is
  * announced by the window's one live region, not here, and prose never is.
+ *
+ * **Expanded from a line** (Story 3.5). A card that replaces the collapsed line
+ * the user activated is drawn with `focusOnMount`: its container is then a
+ * programmatic focus target (`tabIndex={-1}`, never a tab stop) and takes focus
+ * once, as it mounts, never a control inside it, and then says so (`onFocused`),
+ * so whoever made the request can spend it. The request is read when the card
+ * first renders and never again, so a card drawn any other way (pinned, or back
+ * in the thread after a switch) takes no focus and has no tabindex.
  */
-export function RunCard({ entry, prose }: { entry: RunCardEntry; prose: ProseStore }): JSX.Element {
+export function RunCard({
+  entry,
+  prose,
+  focusOnMount = false,
+  onFocused
+}: {
+  entry: RunCardEntry
+  prose: ProseStore
+  focusOnMount?: boolean
+  onFocused?: () => void
+}): JSX.Element {
   const { runId } = entry
+  const [focusFirst] = useState(focusOnMount)
+  const container = useRef<HTMLElement>(null)
+  const focused = useRef(false)
+  useLayoutEffect(() => {
+    if (focusFirst && !focused.current) {
+      focused.current = true
+      container.current?.focus()
+      onFocused?.()
+    }
+  }, [focusFirst, onFocused])
   const running = entry.status === 'running'
   const subscribe = useCallback((listener: () => void) => prose.subscribe(runId, listener), [prose, runId])
   const pathOf = (): string => prose.get(runId)?.path ?? ''
@@ -68,7 +96,7 @@ export function RunCard({ entry, prose }: { entry: RunCardEntry; prose: ProseSto
   const deadAir = running && !hasText
 
   return (
-    <section className="run-card" aria-busy={running ? true : undefined}>
+    <section className="run-card" aria-busy={running ? true : undefined} tabIndex={focusFirst ? -1 : undefined} ref={container}>
       <div className="run-card-head">
         <StatusDot state={runDotState(entry)} />
         <span className="run-card-path">{path}</span>
@@ -145,8 +173,8 @@ function SavedStatus({ entry, sections, className }: { entry: RunCardEntry; sect
   return <span className={className}>{runStatusText(entry, now, sections)}</span>
 }
 
-/** Elapsed from `run:started.at`: ticking while the run is in flight, fixed once it ends. */
-function RunElapsed({ entry }: { entry: RunCardEntry }): JSX.Element {
+/** Elapsed from `run:started.at`: ticking while the run is in flight, fixed once it ends. Drawn by the card's head and by its collapsed line. */
+export function RunElapsed({ entry }: { entry: RunCardEntry }): JSX.Element {
   if (entry.status === 'running') {
     return <TickingElapsed since={entry.at} />
   }

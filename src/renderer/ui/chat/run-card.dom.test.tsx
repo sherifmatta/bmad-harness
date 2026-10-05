@@ -148,6 +148,73 @@ describe('the run card’s prose', () => {
   })
 })
 
+describe('the run card’s focus, when it replaces a line (Story 3.5)', () => {
+  const drawFocusing = (props: { focusOnMount?: boolean; onFocused?: () => void }) => {
+    const container = document.createElement('div')
+    document.body.append(container)
+    const root: Root = createRoot(container)
+    const render = (next: { focusOnMount?: boolean; onFocused?: () => void }): void =>
+      act(() => root.render(createElement(RunCard, { entry: card(), prose: createProseStore(crank()), ...next })))
+    render(props)
+    return {
+      container,
+      render,
+      stop: () => {
+        act(() => root.unmount())
+        container.remove()
+      }
+    }
+  }
+  let view: ReturnType<typeof drawFocusing> | null = null
+  afterEach(() => {
+    view?.stop()
+    view = null
+  })
+
+  it('takes focus on its container as it mounts, with a tabindex of -1, and puts none on a control', () => {
+    view = drawFocusing({ focusOnMount: true })
+    const section = view.container.querySelector('section.run-card')
+    expect(section?.getAttribute('tabindex')).toBe('-1')
+    expect(document.activeElement).toBe(section)
+    expect(section?.querySelectorAll('button, a, input, [tabindex]:not(section)')).toHaveLength(0)
+  })
+
+  it('takes no focus, and has no tabindex, when it is drawn any other way', () => {
+    view = drawFocusing({})
+    const section = view.container.querySelector('section.run-card')
+    expect(section?.hasAttribute('tabindex')).toBe(false)
+    expect(document.activeElement).toBe(document.body)
+
+    view.render({ focusOnMount: false })
+    expect(document.activeElement).toBe(document.body)
+  })
+
+  it('says once that it took focus, and not again however it renders after', () => {
+    const calls: number[] = []
+    const onFocused = (): void => void calls.push(calls.length)
+    view = drawFocusing({ focusOnMount: true, onFocused })
+    expect(calls).toHaveLength(1)
+    view.render({ focusOnMount: true, onFocused })
+    view.render({ focusOnMount: false, onFocused: () => void calls.push(-1) })
+    expect(calls).toEqual([0])
+  })
+
+  it('asks for focus on mounting alone: a card already drawn is not moved to by a later request, nor off by a spent one', () => {
+    view = drawFocusing({})
+    view.render({ focusOnMount: true })
+    expect(document.activeElement).toBe(document.body)
+    expect(view.container.querySelector('section.run-card')?.hasAttribute('tabindex')).toBe(false)
+
+    view.stop()
+    view = drawFocusing({ focusOnMount: true })
+    const section = view.container.querySelector('section.run-card')
+    view.render({ focusOnMount: false })
+    // The request is spent, and the card keeps the focus and the tabindex that hold it.
+    expect(section?.getAttribute('tabindex')).toBe('-1')
+    expect(document.activeElement).toBe(section)
+  })
+})
+
 describe('the skill row’s buttons', () => {
   it('hand their code, and nothing else, to the one callback; a disabled one hands nothing', () => {
     const ran: unknown[][] = []

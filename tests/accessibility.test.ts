@@ -575,10 +575,50 @@ describe('a run, heard through the one live region (Story 3.1)', () => {
     expect(bypass).toBeLessThan(conversation.indexOf('announceLifecycle(event)'))
   })
 
-  it('marks the card busy while its run is in flight, and moves no focus', () => {
+  it('marks the card busy while its run is in flight, and moves no focus but once, on a card drawn from a line', () => {
     const card = read(CARD)
     expect(card).toContain('aria-busy={running ? true : undefined}')
-    expect(card).not.toMatch(/\.focus\(|autoFocus|tabIndex/)
+    expect(card).not.toMatch(/autoFocus/)
+    // Story 3.5: the one `.focus(` is the expansion effect's, and the one tabindex is its target's, never a tab stop.
+    expect(card.match(/\.focus\(/g)).toHaveLength(1)
+    expect([...card.matchAll(/tabIndex=\{[^}]*\}/g)].map(([hit]) => hit)).toEqual(['tabIndex={focusFirst ? -1 : undefined}'])
+    const effect = card.slice(card.indexOf('useLayoutEffect(() => {\n    if (focusFirst'))
+    expect(effect.slice(0, effect.indexOf('}, [focusFirst')).match(/\.focus\(/g)).toHaveLength(1)
+  })
+})
+
+describe('the collapsed run card, reached and heard (Story 3.5)', () => {
+  const read = (path: string): string => withoutAnyComments(readFileSync(join(ROOT, path), 'utf8'))
+  const LINE = 'src/renderer/ui/chat/run-card-line.tsx'
+  const CHAT = 'src/renderer/ui/chat/'
+
+  it('is one native button: no key handler, role or tab index of its own, expanded=false, and busy', () => {
+    const line = read(LINE)
+    expect(line.match(/<button\b/g)).toHaveLength(1)
+    expect(line).toContain('<button type="button" className="run-card-line-button" aria-expanded={false} onClick={() => onExpand(runId)}>')
+    expect(line).not.toMatch(/onKey|\.key\b|role=|tabIndex|autoFocus|\.focus\(/)
+    expect(line).toContain('<section className="run-card-line" aria-busy>')
+  })
+
+  it('moves focus in exactly one place of its own: the expansion effect of the card the line becomes', () => {
+    const sources = readdirSync(join(ROOT, CHAT)).filter((name) => /\.tsx?$/.test(name) && !/\.test\./.test(name))
+    const focusing = sources.filter((name) => /\.focus\(/.test(read(`${CHAT}${name}`)))
+    // The composer's own focus is Story 2.3's; the card's is this story's, and nothing else in chat/ takes any.
+    expect(focusing).toEqual(['composer.tsx', 'run-card.tsx'])
+    expect(read(`${CHAT}run-card.tsx`).match(/\.focus\(/g)).toHaveLength(1)
+    expect(read('src/renderer/ui/app.tsx')).not.toMatch(/\.focus\(|autoFocus|tabIndex/)
+  })
+
+  it('adds no live region, announcement or role: the window’s one lifecycle line is unchanged', () => {
+    for (const path of [LINE, 'src/renderer/ui/chat/transcript.tsx']) {
+      expect(read(path), path).not.toMatch(/announce|aria-live|role=/)
+    }
+  })
+
+  it('names the elapsed time through the card’s own ticking counter, which no setting stops', () => {
+    const line = read(LINE)
+    expect(line).toContain('<RunElapsed entry={entry} />')
+    expect(line).not.toMatch(/matchMedia|prefers-reduced-motion/)
   })
 })
 

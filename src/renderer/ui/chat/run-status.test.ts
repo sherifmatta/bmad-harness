@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { bodyNotes, noteOf, progressWords, runDotState, runLifecycleLine, runStatusText, sectionCount, startNote, subjectSections, subjectWritten } from './run-status'
+import { bodyNotes, collapsedReason, isCollapsed, noteOf, progressWords, runDotState, runLifecycleLine, runStatusText, sectionCount, startNote, subjectSections, subjectWritten } from './run-status'
+import { NO_PROGRESS } from './prose-store'
 import type { RunCardEntry } from './transcript-entry'
 
 const card = (over: Partial<RunCardEntry> = {}): RunCardEntry => ({
@@ -123,5 +124,81 @@ describe('dead air (Story 3.4)', () => {
     for (const status of ['finished', 'failed', 'stopped'] as const) {
       expect(bodyNotes(card({ status, endedAt: 9_000 })).length).toBeGreaterThanOrEqual(1)
     }
+  })
+})
+
+describe('the collapsed line’s words (Story 3.5)', () => {
+  const at = (n: number): number => 1_000 * n
+
+  it('reads the reason of the last note, not the first, and not the section beside it', () => {
+    const entry = card({
+      notes: [
+        { text: '- (decision) Fast path', at: at(2) },
+        { text: '- (assumption) Two readers only', at: at(3) }
+      ]
+    })
+    expect(collapsedReason(entry, { revising: false })).toBe('Two readers only')
+    expect(collapsedReason(entry, { revising: false, section: { name: 'Context', n: 2 } })).toBe('Two readers only')
+    // Exactly what the feed draws: the entry's tag taken apart by the same parser.
+    expect(collapsedReason(entry, { revising: false })).toBe(noteOf(entry.notes[1].text, at(3)).reason)
+  })
+
+  it('reads an untagged note whole, and an empty note with no section as empty', () => {
+    expect(collapsedReason(card({ notes: [{ text: 'plain words', at: at(2) }] }), { revising: false })).toBe('plain words')
+    expect(collapsedReason(card({ notes: [{ text: '- (note) ', at: at(2) }] }), { revising: false })).toBe('')
+  })
+
+  it('shows a marked-up reason as plain words: the `**` emphasis markers are dropped, the text kept', () => {
+    const marked = (text: string) => collapsedReason(card({ notes: [{ text, at: at(2) }] }), { revising: false })
+    expect(marked('- (decision) **Fast path** chosen over the coached one')).toBe('Fast path chosen over the coached one')
+    expect(marked('- (note) Two **readers** only, **no admin**')).toBe('Two readers only, no admin')
+    // An unpaired marker is literal text, as the feed has it.
+    expect(marked('- (note) a ** b')).toBe('a ** b')
+  })
+
+  it('falls through to the section when the last note’s reason is empty or only whitespace, and to nothing without one', () => {
+    const section = { revising: false, section: { name: 'Context', n: 2 } }
+    for (const text of ['- (note) ', '- (note)    ', '- (note) ****', '']) {
+      expect(collapsedReason(card({ notes: [{ text: '- (decision) Earlier', at: at(2) }, { text, at: at(3) }] }), section), text).toBe('§2 Context')
+      expect(collapsedReason(card({ notes: [{ text, at: at(3) }] }), { revising: false }), text).toBe('')
+    }
+  })
+
+  it('falls back to the section the text has shown, as the head says it, before any note', () => {
+    expect(collapsedReason(card(), { revising: false, section: { name: 'Context', n: 2 } })).toBe('§2 Context')
+    expect(collapsedReason(card(), { revising: true, section: { name: 'Vision', n: 1 } })).toBe('§1 Vision')
+  })
+
+  it('is empty with neither: nothing stands in for the reason, and the start row is never a note', () => {
+    expect(collapsedReason(card(), { revising: false })).toBe('')
+    expect(collapsedReason(card(), { revising: true })).toBe('')
+    expect(collapsedReason(card(), NO_PROGRESS)).toBe('')
+    expect(collapsedReason(card(), NO_PROGRESS)).not.toBe(startNote(card()).reason)
+  })
+
+  it('collapses a running card whose persona is not the one viewed, and no other', () => {
+    const none = new Set<string>()
+    expect(isCollapsed(card(), 'bmad-agent-architect', none)).toBe(true)
+    expect(isCollapsed(card(), 'bmad-agent-pm', none)).toBe(false)
+  })
+
+  it('collapses an orphan’s card and a card with no agent id, whoever is viewed, or nobody', () => {
+    const none = new Set<string>()
+    expect(isCollapsed(card({ agentId: 'bmad-agent-ghost' }), 'bmad-agent-pm', none)).toBe(true)
+    expect(isCollapsed(card({ agentId: undefined }), 'bmad-agent-pm', none)).toBe(true)
+    expect(isCollapsed(card({ agentId: undefined }), undefined, none)).toBe(true)
+    expect(isCollapsed(card(), undefined, none)).toBe(true)
+  })
+
+  it('never collapses a terminal card: finished, failed or stopped', () => {
+    for (const status of ['finished', 'failed', 'stopped'] as const) {
+      expect(isCollapsed(card({ status, endedAt: 2_000 }), 'bmad-agent-architect', new Set()), status).toBe(false)
+    }
+  })
+
+  it('keeps a card the user expanded drawn full, by its run id and no other', () => {
+    expect(isCollapsed(card(), 'bmad-agent-architect', new Set(['r1']))).toBe(false)
+    expect(isCollapsed(card(), 'bmad-agent-architect', new Set(['r2']))).toBe(true)
+    expect(isCollapsed(card({ agentId: undefined }), undefined, new Set(['r1']))).toBe(false)
   })
 })

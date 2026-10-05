@@ -8,6 +8,7 @@ import { handoffTarget } from './chat/handoff-target'
 import { SkillRow } from './chat/skill-row'
 import { RunCard } from './chat/run-card'
 import { pinnedRun, Turns } from './chat/transcript'
+import type { RunCollapse } from './chat/transcript'
 import { useConversation } from './chat/use-conversation'
 import { ErrorLine } from './install/error-line'
 import { Preflight } from './install/preflight'
@@ -21,6 +22,9 @@ import type { AgentView } from '../../shared/install'
 
 /** No roster yet: the conversation is mounted before the install has answered. */
 const NO_AGENTS: readonly AgentView[] = []
+
+/** No run expanded: every card of a persona not viewed is a line. */
+const NO_RUNS: ReadonlySet<string> = new Set()
 
 /**
  * The renderer's root: it resolves the project this window was opened for, gates
@@ -36,6 +40,11 @@ const NO_AGENTS: readonly AgentView[] = []
  * by the current persona and sends to theirs, except that `@<name>` at the start
  * of a message hands the conversation to that persona instead (Story 2.9). The
  * window holds which persona is current so both ways move it.
+ *
+ * A run in flight for a persona that is not viewed is a line in the thread (Story
+ * 3.5). The window holds the ids of the runs the user expanded, and the one run whose
+ * card, drawn just now in place of its line, takes focus as it mounts: that request
+ * is made by the activation alone and is spent by the card taking it.
  */
 export function App(): JSX.Element | null {
   const [projectPath, setProjectPath] = useState<string | null>(null)
@@ -59,6 +68,16 @@ export function App(): JSX.Element | null {
   )
   const conversation = useConversation(snapshot?.agents ?? NO_AGENTS, announceHandoff, announceLifecycle)
   const announced = useRef<ReadonlySet<string>>(new Set())
+  const [expandedRuns, setExpandedRuns] = useState<ReadonlySet<string>>(NO_RUNS)
+  const [focusRunId, setFocusRunId] = useState<string | undefined>(undefined)
+  // A line was activated: its run stays expanded for good, and its card takes focus once.
+  const expandRun = useCallback((runId: string) => {
+    setExpandedRuns((held) => (held.has(runId) ? held : new Set(held).add(runId)))
+    setFocusRunId(runId)
+  }, [])
+  // The card took focus as it mounted, which spends the request: a later mount of a
+  // card (the pinned slot, the thread again) takes none.
+  const focusSpent = useCallback(() => setFocusRunId(undefined), [])
 
   // The shell reads two maps, so the one main-reported entry per persona is split
   // here; neither is ever written to by the window.
@@ -164,6 +183,20 @@ export function App(): JSX.Element | null {
   // flight: drawn in the shell's pinned slot and skipped in the thread (Story 3.14).
   const viewed = currentAgent(displayOrder(groupAgents(snapshot.agents)), currentId)
   const pinnedEntry = pinnedRun(conversation.entries, viewed?.id)
+  // A card names its persona as the lifecycle line does: the roster's name, an orphan's, else the id.
+  const collapse: RunCollapse = {
+    viewedId: viewed?.id,
+    expanded: expandedRuns,
+    nameOf: (agentId) =>
+      agentId === undefined
+        ? ''
+        : snapshot.agents.find((agent) => agent.id === agentId)?.name ||
+          conversation.orphans.find((agent) => agent.id === agentId)?.name ||
+          agentId,
+    onExpand: expandRun,
+    focusRunId,
+    onFocused: focusSpent
+  }
   return (
     <>
       <Shell
@@ -237,7 +270,7 @@ export function App(): JSX.Element | null {
           <ErrorLine key={`${error.code}-${index}`} error={error} />
         ))}
         {conversation.failure !== null && <ErrorLine error={conversation.failure} />}
-        <Turns entries={conversation.entries} onCancel={conversation.cancel} canAnswer={conversation.canAnswer} onChoose={answer} prose={conversation.prose} pinnedRunId={pinnedEntry?.id} />
+        <Turns entries={conversation.entries} onCancel={conversation.cancel} canAnswer={conversation.canAnswer} onChoose={answer} prose={conversation.prose} pinnedRunId={pinnedEntry?.id} collapse={collapse} />
       </Shell>
       <LiveRegion key="live-region" announcer={announcer} />
     </>

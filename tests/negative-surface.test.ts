@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { allStylesheets, withoutComments } from "./literal-guard";
+import { allStylesheets, literalsIn, withoutComments } from "./literal-guard";
 
 /**
  * The negative surface, asserted (Story 1.14).
@@ -297,13 +297,20 @@ describe("no spinner, skeleton or stand-in sentence", () => {
   it("has no loading-like word in any renderer source or stylesheet", () => {
     expect(offenders(RENDERER_ALL, LOADING)).toEqual([]);
     // Story 3.1: the run card carries `aria-busy` while its run is in flight, as
-    // its spec requires; that is the one, and it is an attribute, not a spinner.
+    // its spec requires; Story 3.5's collapsed line is the same state and carries it
+    // too. Those two are the whole of it, and each is an attribute, not a spinner.
     expect(
-      offenders(RENDERER_CODE, /aria-busy|role=["']progressbar|<progress\b/i),
-    ).toEqual(["src/renderer/ui/chat/run-card.tsx: aria-busy"]);
-    expect(
-      (code.get("src/renderer/ui/chat/run-card.tsx") ?? "").match(/aria-busy/g),
-    ).toHaveLength(1);
+      offenders(RENDERER_CODE, /aria-busy|role=["']progressbar|<progress\b/i).sort(),
+    ).toEqual([
+      "src/renderer/ui/chat/run-card-line.tsx: aria-busy",
+      "src/renderer/ui/chat/run-card.tsx: aria-busy",
+    ]);
+    for (const path of [
+      "src/renderer/ui/chat/run-card.tsx",
+      "src/renderer/ui/chat/run-card-line.tsx",
+    ]) {
+      expect((code.get(path) ?? "").match(/aria-busy/g), path).toHaveLength(1);
+    }
   });
 
   it("defines no rotation and exactly the three keyframes the inventory names", () => {
@@ -638,6 +645,10 @@ describe("the text ramp", () => {
     "ui/chat/run-card.css: .run-card-elapsed": {
       kind: "restated",
       why: "the run's elapsed time; the persona's own state line counts the same turn at --dim, and the status string beside it carries the state",
+    },
+    "ui/chat/run-card-line.css: .run-card-line-sep": {
+      kind: "decoration",
+      why: "the `·` between the collapsed line's fields: aria-hidden, a glyph that carries no fact, since each field names itself",
     },
     "ui/chat/run-card.css: .run-card-foot": {
       kind: "restated",
@@ -1253,9 +1264,12 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
         offenders(
           CHAT_CODE,
           /<progress\b|<meter\b|aria-busy|aria-live|aria-valuenow|role=["'](?:progressbar|status|alert|log|marquee|timer)|<output\b|<svg\b[^>]*\banimate|<animate/i,
-        ),
-        // Story 3.1: the run card's `aria-busy` while its run is in flight is the one.
-      ).toEqual(["src/renderer/ui/chat/run-card.tsx: aria-busy"]);
+        ).sort(),
+        // Story 3.1: the run card's `aria-busy` while its run is in flight is the one; Story 3.5's line is the other.
+      ).toEqual([
+        "src/renderer/ui/chat/run-card-line.tsx: aria-busy",
+        "src/renderer/ui/chat/run-card.tsx: aria-busy",
+      ].sort());
       expect(offenders(RENDERER_ALL.filter((path) => path.endsWith(".css")), /@keyframes\s+(?!blink\b|eq\b|pulse\b)/)).toEqual([]);
     });
 
@@ -1554,5 +1568,98 @@ describe("the card is never empty, and says nothing in place of what has not hap
     expect(card).toContain("0 words on disk");
     expect(card).toContain("autosave on");
     expect(offenders([CARD, STATUS], /aria-live|role=["'](?:status|alert)/)).toEqual([]);
+  });
+});
+
+describe("the collapsed run card is one line and one button, and offers nothing it cannot do (Story 3.5)", () => {
+  const LINE = "src/renderer/ui/chat/run-card-line.tsx";
+  const LINE_CSS = "src/renderer/ui/chat/run-card-line.css";
+  const CARD = "src/renderer/ui/chat/run-card.tsx";
+  const STATUS = "src/renderer/ui/chat/run-status.ts";
+  const TRANSCRIPT = "src/renderer/ui/chat/transcript.tsx";
+  const APP = "src/renderer/ui/app.tsx";
+  const TOKENS = "src/renderer/design/tokens.css";
+  const WORDS = /(["'`])(?:(?!\1)[^\n\\]|\\.)*\1|>[^<>{}\n]+</g;
+
+  it("reads the sources it claims to sweep", () => {
+    for (const path of [LINE, LINE_CSS, CARD, STATUS, TRANSCRIPT, APP]) {
+      expect(code.get(path)?.length ?? 0, path).toBeGreaterThan(200);
+    }
+  });
+
+  it("has no stop control, `run.stop` or `Stop` copy: the in-band interrupt is Story 3.7's", () => {
+    expect(offenders([LINE, LINE_CSS, TRANSCRIPT], /stop/i)).toEqual([]);
+    expect(offenders([APP], /\brun\.stop\b|\bstopRun\b|\bonStop\b/)).toEqual([]);
+    expect(offenders(sources("src/main/", [".ts"]), /["']run\.stop["']/)).toEqual([]);
+  });
+
+  it("is one native button and one handler: a click, `Enter` and `Space` expand it, and nothing else does", () => {
+    const line = code.get(LINE) ?? "";
+    expect(line.match(/<button\b/g)).toHaveLength(1);
+    expect(line.match(/\bon[A-Z]\w*=/g)).toEqual(["onClick="]);
+    expect(line).toContain('type="button"');
+    expect(line).toContain("aria-expanded={false}");
+    expect(line).not.toMatch(/role=|tabIndex|onKey|\.key\b|\.focus\(|autoFocus|aria-live/);
+    // The window draws one line per collapsed card, in `Turns` alone, and draws it nowhere else.
+    expect((code.get(TRANSCRIPT) ?? "").match(/<RunCardLine\b/g)).toHaveLength(1);
+    expect(offenders(RENDERER_CODE.filter((path) => path !== TRANSCRIPT && path !== LINE), /<RunCardLine\b/)).toEqual([]);
+  });
+
+  it("is never a spinner: no bar, meter, percentage, denominator, tooltip or motion on the line", () => {
+    expect(offenders([LINE], /<progress\b|<meter\b|role=["']progressbar|aria-valuenow|spinner|skeleton|shimmer|(?<![\w-])title\s*=|tooltip|\bpopover\b/i)).toEqual([]);
+    expect(offenders([LINE_CSS], /animation|transition|@keyframes|progress|meter|spinner|skeleton|%/i)).toEqual([]);
+    const spoken = [LINE, STATUS].flatMap((path) => [...(code.get(path) ?? "").matchAll(WORDS)].map(([text]) => `${path}: ${text}`));
+    expect(spoken.filter((text) => /\bof\b|\/\s*\$\{|\/\s*\d|\btotal\b|\bdenominator\b|\bstop\b/i.test(text))).toEqual([]);
+    expect(offenders([LINE], /\bsetTimeout\b|\bsetInterval\b|\brequestAnimationFrame\b|\.animate\(|\.scroll(?:Top|To|By)\b|\bscrollIntoView\b/)).toEqual([]);
+  });
+
+  it("makes its reason from a note or a section the text has shown, and stands nothing in for either", () => {
+    const status = code.get(STATUS) ?? "";
+    const reason = status.slice(status.indexOf("export function collapsedReason"), status.indexOf("export function isCollapsed"));
+    expect(reason).toContain("noteOf(last.text, last.at).reason");
+    expect(reason).toContain("`§${progress.section.n} ${progress.section.name}`");
+    // No third source: a string literal is the empty string and the section's own words, and no sentence.
+    expect([...reason.matchAll(WORDS)].map(([text]) => text).filter((text) => /[A-Za-z]{3}/.test(text.replace(/\$\{[^}]*\}/g, "")))).toEqual([]);
+  });
+
+  it("spends only tokens: no literal colour, dimension, radius or font stack, and the card's own padding token", () => {
+    expect(literalsIn(LINE_CSS, readFileSync(join(ROOT, LINE_CSS), "utf8"))).toEqual([]);
+    // The padding is the button's, so the whole visible line is its target; the section keeps the ground, border and flex.
+    const rule = (selector: string): string => {
+      const css = code.get(LINE_CSS) ?? "";
+      const start = css.indexOf(`${selector} {`);
+      return css.slice(start, css.indexOf("}", start));
+    };
+    expect(rule(".run-card-line-button")).toContain("padding: var(--card-line-padding)");
+    expect(rule(".run-card-line")).not.toMatch(/padding/);
+    expect(rule(".run-card-line")).toContain("display: flex");
+    // The name gives way as the reason does: one line, an ellipsis, and no `flex: none`.
+    expect(rule(".run-card-line-name")).toMatch(/flex:\s*0 1 auto/);
+    expect(rule(".run-card-line-name")).toMatch(/min-width:\s*0/);
+    expect(rule(".run-card-line-name")).toMatch(/text-overflow:\s*ellipsis/);
+    expect(readFileSync(join(ROOT, TOKENS), "utf8")).toMatch(/--card-line-padding:7px 11px;/);
+  });
+
+  it("truncates the reason to one line in CSS, and nowhere in script: no ellipsis character or slice in the words", () => {
+    const css = code.get(LINE_CSS) ?? "";
+    const rule = css.slice(css.indexOf(".run-card-line-reason"));
+    expect(rule).toMatch(/overflow:\s*hidden/);
+    expect(rule).toMatch(/text-overflow:\s*ellipsis/);
+    expect(rule).toMatch(/white-space:\s*nowrap/);
+    const status = code.get(STATUS) ?? "";
+    const reason = status.slice(status.indexOf("export function collapsedReason"), status.indexOf("export function isCollapsed"));
+    expect(offenders([LINE], /\.slice\(|\.substring\(|\.substr\(|…|\.\.\./)).toEqual([]);
+    expect(reason).not.toMatch(/\.slice\(|\.substring\(|\.substr\(|…|\.\.\./);
+  });
+
+  it("moves focus in one place only: the card's expansion effect, never a control inside it", () => {
+    const card = code.get(CARD) ?? "";
+    expect(card.match(/\.focus\(/g)).toHaveLength(1);
+    expect(card).toContain("container.current?.focus()");
+    expect(card).toContain("const container = useRef<HTMLElement>(null)");
+    expect(card).toContain("ref={container}");
+    for (const path of [LINE, TRANSCRIPT, APP, STATUS]) {
+      expect(code.get(path) ?? "", path).not.toMatch(/\.focus\(|autoFocus/);
+    }
   });
 });

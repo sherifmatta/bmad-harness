@@ -1,6 +1,7 @@
 import { sectionName } from '../../../shared/section-plan'
 import type { PersonaState } from '../../../shared/events'
 import { formatAge } from '../outputs/format-age'
+import { emphasisSpans } from '../feed/emphasis'
 import type { RunNote } from '../feed/memlog'
 import { parseMemlog } from '../feed/memlog'
 import { formatTurnTime } from './format-turn-time'
@@ -105,6 +106,38 @@ export function runLifecycleLine(entry: RunCardEntry, name: string, sections: nu
 export function noteOf(text: string, at: number): RunNote {
   const parsed = parseMemlog(text)[0] ?? { kind: null, author: null, time: null, reason: text }
   return { ...parsed, time: formatTurnTime(at) }
+}
+
+/**
+ * The one reason a collapsed card's line carries (Story 3.5): the reason of the
+ * card's last `run:note`, as the feed draws it but plain (its `**` emphasis
+ * markers are not shown, the line having no bold); when that is empty, or only
+ * whitespace, the section the text has shown (`§N <Name>`, the same words the
+ * head says); and with neither, the empty string, for the field to be absent.
+ * Nothing stands in for it, and the start row (`run started`) is the feed's own
+ * and is never a note.
+ */
+export function collapsedReason(entry: RunCardEntry, progress: RunProgress): string {
+  const last = entry.notes.at(-1)
+  if (last !== undefined) {
+    const reason = emphasisSpans(noteOf(last.text, last.at).reason)
+      .map((span) => span.text)
+      .join('')
+      .trim()
+    if (reason !== '') {
+      return reason
+    }
+  }
+  return progress.section === undefined ? '' : `§${progress.section.n} ${progress.section.name}`
+}
+
+/**
+ * Whether a card is drawn as a line (Story 3.5): in flight, its persona not the
+ * one viewed, and its run not one the user expanded. A card with no agent id is
+ * never a viewed persona's, so it is collapsed too; a terminal card never is.
+ */
+export function isCollapsed(entry: RunCardEntry, viewedId: string | undefined, expanded: ReadonlySet<string>): boolean {
+  return entry.status === 'running' && (entry.agentId === undefined || entry.agentId !== viewedId) && !expanded.has(entry.runId)
 }
 
 /**

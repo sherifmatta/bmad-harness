@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-25-2026 17:00
-last_updated: 10-04-2026 20:05
+last_updated: 10-04-2026 20:31
 project: bmad-harness
 project_key: NOKEY
 tracking_system: file-system
@@ -76,7 +76,7 @@ development_status:
   3-2-the-whole-menu-and-only-ever-the-menu: done
   3-3-progress-you-can-read-against-a-plan: done
   3-4-the-card-is-never-empty: done
-  3-5-the-run-you-are-not-looking-at: backlog
+  3-5-the-run-you-are-not-looking-at: done
   3-6-the-rail-learns-who-is-writing: backlog
   3-7-stop-a-run-knowing-what-it-costs: backlog
   3-8-understand-a-run-that-ended-early: backlog
