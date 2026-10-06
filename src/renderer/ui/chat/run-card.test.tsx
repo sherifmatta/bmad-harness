@@ -204,3 +204,44 @@ describe('a failed card', () => {
     expect(markup).not.toContain('run · the run failed')
   })
 })
+
+describe('a card that ended early with a confirmed write (Story 3.8)', () => {
+  const PRD = '_bmad/prd.md'
+  const TEXT = '## Vision\nA.\n## Goals\nB.\n## Scope\nC.\n'
+  /** The card as main holds it after a stop: the subject's last `ok` commit named two sections. */
+  const ended = (status: 'stopped' | 'failed', sections: string[]): RunCardEntry => {
+    const at = Date.now()
+    return card({ at, status, endedAt: at + 1000, plan: ['Vision', 'Goals', 'Scope'], documents: [{ path: PRD, sections }] })
+  }
+
+  it.each([
+    ['stopped', 'stopped · §2 Goals'],
+    ['failed', 'failed · §2 Goals']
+  ] as const)('%s names the section its last confirmed write reached, and keeps no foot', (status, head) => {
+    const markup = draw(ended(status, ['Vision', 'Goals']), { callId: 'c1', path: PRD, text: TEXT })
+
+    expect(markup).toContain(`<span class="run-card-status run-card-status--${status}">${head}</span>`)
+    // No foot at all: a terminal card names nothing still to write and no other file.
+    expect(markup).not.toContain('run-card-foot')
+    expect(markup).not.toContain('run-card-caret')
+    expect(markup).not.toContain('aria-busy')
+    expect(markup).toContain('status-dot--error')
+    expect(markup).not.toMatch(STAND_IN)
+  })
+
+  it('names the commit’s last section, never the one the streamed text had reached', () => {
+    // The text held streams as far as §3 Scope; the commit confirmed two names.
+    const markup = draw(ended('stopped', ['Vision', 'Goals']), { callId: 'c1', path: PRD, text: TEXT })
+
+    expect(markup).toContain('stopped · §2 Goals')
+    expect(markup).not.toContain('§3 Scope')
+  })
+
+  it('reads the bare word when the write never came back', () => {
+    const markup = draw(ended('stopped', []), { callId: 'c1', path: PRD, text: TEXT })
+
+    expect(markup).toContain('<span class="run-card-status run-card-status--stopped">stopped</span>')
+    expect(markup).not.toContain('§')
+    expect(markup).not.toContain('run-card-foot')
+  })
+})

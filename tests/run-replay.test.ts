@@ -375,7 +375,7 @@ describe('fast-path-sonnet, replayed through main as a dispatched run', () => {
     const shown = store.get(result.runId)
     expect(card?.status).toBe('finished')
     expect(shown?.text).toBe(prd)
-    // What the head and the live region count (`subjectSections`): the subject's sections alone.
+    // What the head and the live region count (`subjectWritten`): the subject's sections alone.
     expect(card?.documents.find((document) => document.path === shown?.path)?.sections).toEqual(sectionHeadings(prd))
   })
 
@@ -403,7 +403,7 @@ describe('fast-path-sonnet, replayed through main as a dispatched run', () => {
       const card = runCardOf(state, result.runId)
       if (card === undefined) continue
       const hasText = (store.get(result.runId)?.text ?? '') !== ''
-      const head = runStatusText(card, 1_000, 0, store.progress(result.runId), hasText)
+      const head = runStatusText(card, 1_000, [], store.progress(result.runId), hasText)
       if (card.status === 'running' && !hasText) {
         deadAir += 1
         expect(head, `dead air after ${event.name}`).toBe('')

@@ -18,7 +18,7 @@ Press a button belonging to the persona you are talking to and watch the documen
 - Story 3.5: The run you are not looking at (done)
 - Story 3.6: The rail learns who is writing (done)
 - Story 3.7: Stop a run, knowing what it costs (done)
-- Story 3.8: Understand a run that ended early
+- Story 3.8: Understand a run that ended early (done)
 - Story 3.9: Two writers, one file, no arbitration
 - Story 3.10: Told once, quietly, when you are elsewhere
 - Story 3.11: Nothing this epic promised not to do

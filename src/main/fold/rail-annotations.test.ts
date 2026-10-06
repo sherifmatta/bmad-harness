@@ -234,37 +234,130 @@ describe('the annotation fold', () => {
   })
 
   describe('the end of a run', () => {
+    const BRIEF = '_bmad/planning-artifacts/brief.md'
+    /** What each terminal event leaves on the ended run's own paths. */
+    const leaves: Record<'run:finished' | 'run:stopped' | 'run:failed', RailAnnotation | undefined> = {
+      'run:finished': undefined,
+      'run:stopped': { text: 'stopped', owner: { agentId: JOHN } },
+      'run:failed': { text: 'stopped', owner: { agentId: JOHN } }
+    }
+
     for (const name of ['run:finished', 'run:stopped', 'run:failed'] as const) {
-      it(`${name} drops that run’s annotations and no other run’s`, () => {
+      it(`${name} touches that run’s annotations and no other run’s`, () => {
         const w = world().send(
           started('r1'),
           started('r2', 'bmad-agent-analyst'),
           prose('r1', DOC, PRD, 'a'),
-          prose('r2', '## Brief\nX.\n', '_bmad/planning-artifacts/brief.md', 'b')
+          prose('r2', '## Brief\nX.\n', BRIEF, 'b')
         )
-        expect(Object.keys(w.annotations)).toEqual([PRD, '_bmad/planning-artifacts/brief.md'])
+        expect(Object.keys(w.annotations)).toEqual([PRD, BRIEF])
+
+        w.send(ended(name, 'r1'))
+
+        // The other run is still writing, and says so with its own owner.
+        expect(w.annotations[BRIEF]).toEqual({ text: 'writing · §1 Brief', owner: { agentId: 'bmad-agent-analyst' } })
+        expect(w.annotations[PRD]).toEqual(leaves[name])
+      })
+    }
+
+    for (const name of ['run:stopped', 'run:failed'] as const) {
+      it(`${name} leaves one word on every path the run was showing: no section, no count, no denominator`, () => {
+        const w = world().send(started('r1'), prose('r1', DOC, PRD, 'a'), prose('r1', '## Brief\nX.\n', BRIEF, 'b'))
+        expect(w.annotations[PRD].text).toBe('writing · §2 Goals')
 
         w.send(ended(name, 'r1'))
 
         expect(w.annotations).toEqual({
-          '_bmad/planning-artifacts/brief.md': { text: 'writing · §1 Brief', owner: { agentId: 'bmad-agent-analyst' } }
+          [PRD]: { text: 'stopped', owner: { agentId: JOHN } },
+          [BRIEF]: { text: 'stopped', owner: { agentId: JOHN } }
         })
-        w.send(ended(name, 'r2'))
+        for (const { text } of Object.values(w.annotations)) {
+          expect(text).not.toMatch(/§|\bof \d|\/\s*\d|\btotal\b/i)
+        }
+      })
+
+      it(`${name} releases what the run held: a terminal run costs its path names and nothing more`, () => {
+        const w = world().send(started('r1'), prose('r1', DOC), ended(name, 'r1'))
+        const held = [...(w.table.get('r1')?.paths.values() ?? [])]
+
+        expect(held).toEqual([{ text: '', seen: [], revising: false, live: true }])
+      })
+
+      it(`${name} annotates nothing for a path the run was no longer showing`, () => {
+        // A rejected `Write` had set `live: false`; the path is not shown again by the end of the run.
+        const w = world().send(started('r1'), prose('r1', DOC), rejected('r1'))
         expect(w.annotations).toEqual({})
+
+        w.send(ended(name, 'r1'))
+
+        expect(w.annotations).toEqual({})
+        expect(w.table.size).toBe(0)
+      })
+
+      it(`${name} of a run that showed nothing drops it, as a finished one is dropped`, () => {
+        const w = world().send(started('r1'), note('r1'), ended(name, 'r1'))
+
+        expect(w.annotations).toEqual({})
+        expect(w.table.size).toBe(0)
+      })
+
+      it(`${name} keeps a later run’s writing on the same path, and lets the path go to it`, () => {
+        const w = world().send(started('r1'), prose('r1', DOC), started('r2', 'bmad-agent-analyst'), ended(name, 'r1'))
+        expect(w.annotations[PRD]).toEqual({ text: 'stopped', owner: { agentId: JOHN } })
+
+        w.send(prose('r2', '## Beta\nX.\n', PRD, 'b'))
+
+        expect(w.annotations[PRD]).toEqual({ text: 'writing · §1 Beta', owner: { agentId: 'bmad-agent-analyst' } })
+        // The dead run let the path go: it holds nothing, so the path is the later run's alone.
+        expect(w.table.has('r1')).toBe(false)
+
+        // And when the later run finishes, the path annotates nothing: the stopped word does not come back.
+        w.send(ended('run:finished', 'r2'))
+        expect(w.annotations).toEqual({})
+        expect(w.table.size).toBe(0)
+      })
+
+      it(`${name} of a later run never masks an earlier one still writing the same path`, () => {
+        const w = world().send(
+          started('r1'),
+          started('r2', 'bmad-agent-analyst'),
+          prose('r1', '## Alpha\nX.\n', PRD, 'a'),
+          prose('r2', '## Beta\nY.\n', PRD, 'b')
+        )
+        // The later-started run shows while both are writing.
+        expect(w.annotations[PRD]).toEqual({ text: 'writing · §1 Beta', owner: { agentId: 'bmad-agent-analyst' } })
+
+        w.send(ended(name, 'r2'))
+
+        // r1 is still writing it, and a run writing has the last word over one that ended.
+        expect(w.annotations[PRD]).toEqual({ text: 'writing · §1 Alpha', owner: { agentId: JOHN } })
+        // r1's next piece takes the path outright, and the ended run is left holding nothing.
+        w.send(prose('r1', '## Alpha\nX.\n## Gamma\nZ.\n', PRD, 'a'))
+        expect(w.annotations[PRD]).toEqual({ text: 'writing · §2 Gamma', owner: { agentId: JOHN } })
+        expect(w.table.has('r2')).toBe(false)
       })
     }
 
-    it('takes nothing more from an ended run', () => {
-      const w = world().send(started('r1'), prose('r1', DOC), ended('run:finished', 'r1'), prose('r1', DOC))
+    it('takes nothing more from an ended run, however it ended', () => {
+      const finished = world().send(started('r1'), prose('r1', DOC), ended('run:finished', 'r1'), prose('r1', DOC))
+      expect(finished.annotations).toEqual({})
+      expect(finished.table.size).toBe(0)
 
-      expect(w.annotations).toEqual({})
-      expect(w.table.size).toBe(0)
+      for (const name of ['run:stopped', 'run:failed'] as const) {
+        const w = world().send(started('r1'), prose('r1', DOC), ended(name, 'r1'))
+        const table = w.table
+        w.send(prose('r1', `${DOC}## Later\nC.\n`), edited('r1', `${DOC}## Later\nC.\n`), rejected('r1'), ended(name, 'r1'))
+
+        expect(w.table).toBe(table)
+        expect(w.annotations[PRD]).toEqual({ text: 'stopped', owner: { agentId: JOHN } })
+      }
     })
 
     it('an end of a run it never saw changes nothing', () => {
       const w = world()
       w.send(ended('run:finished', 'ghost'))
-
+      expect(w.table).toBe(EMPTY_ANNOTATIONS)
+      w.send(ended('run:stopped', 'ghost'))
       expect(w.table).toBe(EMPTY_ANNOTATIONS)
     })
   })

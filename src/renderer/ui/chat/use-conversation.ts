@@ -24,7 +24,7 @@ import {
 import type { ConversationState, Delivery, PersonaStateEntry } from './conversation-state'
 import { createProseStore } from './prose-store'
 import type { ProseStore } from './prose-store'
-import { runLifecycleLine, subjectSections } from './run-status'
+import { runLifecycleLine, subjectWritten } from './run-status'
 import type { TranscriptEntry } from './transcript-entry'
 
 /** The eight bridge methods the conversation needs, and nothing else of the bridge. */
@@ -237,8 +237,8 @@ export function createConversation(deps: ConversationDeps): Conversation {
       return
     }
     const agentId = card.agentId ?? ''
-    const sections = subjectSections(card, prose.get(card.runId)?.path)
-    onLifecycle(runLifecycleLine(card, agentOf(agentId)?.name || agentId, sections))
+    const written = subjectWritten(card, prose.get(card.runId)?.path)
+    onLifecycle(runLifecycleLine(card, agentOf(agentId)?.name || agentId, written))
   }
 
   return {

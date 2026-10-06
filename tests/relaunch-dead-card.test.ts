@@ -409,7 +409,8 @@ describe('the window, reading what the relaunched main hands it', () => {
     expect(markup).not.toMatch(/run-stop|<button/)
     expect(markup).not.toMatch(/run-card-caret|aria-busy|run-card-line/)
     expect(markup.match(/class="run-card-elapsed">([^<]*)</g)).toEqual(['class="run-card-elapsed">2s<', 'class="run-card-elapsed">1s<'])
-    expect(markup).toContain('class="run-card-status run-card-status--failed">failed<')
+    // The run that was in flight ended failed with its session, and names the section its last confirmed write reached.
+    expect(markup).toContain('class="run-card-status run-card-status--failed">failed · §1 Vision<')
     expect(state.entries.filter((entry) => entry.kind === 'run').map((entry) => entry.kind === 'run' && entry.status)).toEqual(['finished', 'failed'])
   })
 
@@ -436,7 +437,41 @@ describe('the window, reading what the relaunched main hands it', () => {
     }
     const { markup } = drawn({ entries: [], sessions: [], busy: [], personas: [], runs: [stopped] })
 
+    // Nothing was confirmed written, so the head is the bare word.
     expect(markup).toContain('class="run-card-status run-card-status--stopped">stopped<')
     expect(markup).not.toMatch(/run-stop|<button/)
+  })
+
+  it('names the section a stored stopped card’s subject had confirmed, and nothing when it had none', () => {
+    const stopped = (documents: RunCardSnapshot['documents']): RunCardSnapshot => ({
+      runId: 'r9',
+      sessionId: 'gone',
+      agentId: A,
+      code: 'CP',
+      startedAt: 1_000,
+      status: 'stopped',
+      endedAt: 66_000,
+      notes: [],
+      documents
+    })
+    const confirmed = drawn({
+      entries: [],
+      sessions: [],
+      busy: [],
+      personas: [],
+      runs: [stopped([{ path: '_bmad/prd.md', callId: 't1', text: DOC, written: DOC.length, sections: ['Vision', 'Goals'] }])]
+    })
+
+    expect(confirmed.markup).toContain('class="run-card-status run-card-status--stopped">stopped · §2 Goals<')
+    expect(confirmed.markup).not.toMatch(/run-stop|<button/)
+    // A card whose subject streamed but never committed reads the bare word after a relaunch too.
+    const uncommitted = drawn({
+      entries: [],
+      sessions: [],
+      busy: [],
+      personas: [],
+      runs: [stopped([{ path: '_bmad/prd.md', callId: 't1', text: DOC, written: DOC.length, sections: [] }])]
+    })
+    expect(uncommitted.markup).toContain('class="run-card-status run-card-status--stopped">stopped<')
   })
 })

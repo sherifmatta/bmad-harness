@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { commonPrefix, progressLabel, sectionProgress } from './section-progress'
+import { STOPPED, commonPrefix, progressLabel, reachedLabel, sectionProgress, terminalLabel } from './section-progress'
 
 describe('commonPrefix', () => {
   it('is how many characters two texts share from their starts', () => {
@@ -70,5 +70,25 @@ describe('progressLabel', () => {
     expect(progressLabel(true)).toBe('revising')
     expect(progressLabel(false, { name: 'Goals', n: 2 })).toBe('writing · §2 Goals')
     expect(progressLabel(true, { name: 'Goals', n: 2 })).toBe('revising · §2 Goals')
+  })
+})
+
+describe('the words a run that ended early reads (Story 3.8)', () => {
+  it('has one terminal word for the head and the rail, and no second vocabulary', () => {
+    expect(STOPPED).toBe('stopped')
+  })
+
+  it('places the section a confirmed write reached, and says nothing with none', () => {
+    expect(reachedLabel()).toBe('')
+    expect(reachedLabel({ name: 'Scope', n: 4 })).toBe('§4 Scope')
+  })
+
+  it('joins the word to the place, and is the bare word with nothing confirmed', () => {
+    expect(terminalLabel(STOPPED)).toBe('stopped')
+    expect(terminalLabel('failed')).toBe('failed')
+    expect(terminalLabel(STOPPED, { name: 'Scope', n: 4 })).toBe('stopped · §4 Scope')
+    expect(terminalLabel('failed', { name: 'Vision', n: 1 })).toBe('failed · §1 Vision')
+    // No denominator ever enters it, whatever it is given.
+    expect(terminalLabel(STOPPED, { name: 'Out of Scope', n: 2 })).not.toMatch(/\bof \d|\/\s*\d|\btotal\b/i)
   })
 })

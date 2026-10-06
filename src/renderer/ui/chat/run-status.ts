@@ -1,5 +1,6 @@
-import { sectionName } from '../../../shared/section-plan'
-import { progressLabel } from '../../../shared/section-progress'
+import { nameKey, sectionName } from '../../../shared/section-plan'
+import { STOPPED, progressLabel, reachedLabel, terminalLabel } from '../../../shared/section-progress'
+import type { TerminalWord } from '../../../shared/section-progress'
 import type { PersonaState } from '../../../shared/events'
 import { formatAge } from '../outputs/format-age'
 import { emphasisSpans } from '../feed/emphasis'
@@ -29,9 +30,25 @@ export function subjectWritten(entry: RunCardEntry, path: string | undefined): r
   return (entry.documents.find((document) => document.path === path)?.sections ?? []).map(sectionName)
 }
 
-/** How many sections the card's subject at `path` has: none before its first confirmed write, or with no subject. */
-export function subjectSections(entry: RunCardEntry, path: string | undefined): number {
-  return entry.documents.find((document) => document.path === path)?.sections.length ?? 0
+/**
+ * What a terminal head reads: the word the run ended with, and the section it
+ * reached — the last of `written`, by its place among them. The bare word when
+ * nothing was confirmed: a section the prose announced but no `tool_result`
+ * confirmed is not one reached, and the streamed store is never read for this.
+ *
+ * The place is counted among the names deduped by key, as the live head counts
+ * it (`sectionProgress`): a document with two `## Goals` has one Goals, and a
+ * section seen is never renumbered by the run ending.
+ */
+function reached(word: TerminalWord, written: readonly string[]): string {
+  const name = written.at(-1)
+  if (name === undefined) return terminalLabel(word)
+  const keys: string[] = []
+  for (const each of written) {
+    const key = nameKey(each)
+    if (!keys.includes(key)) keys.push(key)
+  }
+  return terminalLabel(word, { name, n: keys.indexOf(nameKey(name)) + 1 })
 }
 
 /**
@@ -51,14 +68,19 @@ export function progressWords(progress: RunProgress, hasText: boolean = true): s
 /**
  * The head's status string: what the run is doing while it is in flight (see
  * `progressWords`), then `saved · <age> · N sections` with N the subject's,
- * `failed` or `stopped`. No denominator, and no word that stands in for
- * progress. A running card that holds no text (dead air) has an empty string:
- * the head then draws no status at all.
+ * or `failed` / `stopped` with the section the subject's last confirmed write
+ * reached (`failed · §N <Name>`), and the bare word when nothing was
+ * confirmed. No denominator, and no word that stands in for progress. A running
+ * card that holds no text (dead air) has an empty string: the head then draws
+ * no status at all.
+ *
+ * `written` is the subject's confirmed names (`subjectWritten`): the whole of
+ * what a terminal head and the saved count are made of.
  */
 export function runStatusText(
   entry: RunCardEntry,
   now: number,
-  sections: number,
+  written: readonly string[],
   progress: RunProgress = NO_PROGRESS,
   hasText: boolean = true
 ): string {
@@ -66,11 +88,11 @@ export function runStatusText(
     case 'running':
       return progressWords(progress, hasText)
     case 'finished':
-      return `saved · ${formatAge(entry.endedAt ?? now, now)} · ${sectionCount(sections)}`
+      return `saved · ${formatAge(entry.endedAt ?? now, now)} · ${sectionCount(written.length)}`
     case 'failed':
-      return 'failed'
+      return reached('failed', written)
     case 'stopped':
-      return 'stopped'
+      return reached(STOPPED, written)
   }
 }
 
@@ -82,19 +104,20 @@ export function runDotState(entry: RunCardEntry): PersonaState {
 
 /**
  * The one polite announcement a lifecycle event earns: the persona and what
- * became of the run, with the subject's section count once saved. Prose and
- * notes are never announced here.
+ * became of the run, with the subject's section count once saved and the
+ * section its last confirmed write reached once it ended early. It follows the
+ * head word for word (`runStatusText`). Prose and notes are never announced here.
  */
-export function runLifecycleLine(entry: RunCardEntry, name: string, sections: number): string {
+export function runLifecycleLine(entry: RunCardEntry, name: string, written: readonly string[]): string {
   switch (entry.status) {
     case 'running':
       return `${name} · writing`
     case 'finished':
-      return `${name} · saved · ${sectionCount(sections)}`
+      return `${name} · saved · ${sectionCount(written.length)}`
     case 'failed':
-      return `${name} · failed`
+      return `${name} · ${reached('failed', written)}`
     case 'stopped':
-      return `${name} · stopped`
+      return `${name} · ${reached(STOPPED, written)}`
   }
 }
 
@@ -127,7 +150,7 @@ export function collapsedReason(entry: RunCardEntry, progress: RunProgress): str
       return reason
     }
   }
-  return progress.section === undefined ? '' : `§${progress.section.n} ${progress.section.name}`
+  return reachedLabel(progress.section)
 }
 
 /**

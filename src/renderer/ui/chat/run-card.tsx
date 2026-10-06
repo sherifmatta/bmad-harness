@@ -9,7 +9,7 @@ import { StatusDot } from '../status/status-dot'
 import { pendingSections } from '../../../shared/section-plan'
 import type { ProseStore, RunProgress } from './prose-store'
 import { RunStop } from './run-stop'
-import { bodyNotes, runDotState, runStatusText, subjectSections, subjectWritten } from './run-status'
+import { bodyNotes, runDotState, runStatusText, subjectWritten } from './run-status'
 import type { RunCardEntry } from './transcript-entry'
 
 /** How often the elapsed counter re-reads the clock: it writes whole seconds. */
@@ -100,9 +100,10 @@ export function RunCard({
   const seenOf = (): readonly string[] => prose.seen(runId)
   const seen = useSyncExternalStore(subscribe, seenOf, seenOf)
   const others = paths.filter((each) => each !== path)
-  const sections = subjectSections(entry, path)
+  // The subject's confirmed names: what the head counts once saved, and what it reads back once the run ended early.
+  const written = subjectWritten(entry, path)
   // Only a card in flight has sections still to write; a finished one has its count in the head.
-  const pending = running ? pendingSections(entry.plan ?? [], subjectWritten(entry, path), seen) : []
+  const pending = running ? pendingSections(entry.plan ?? [], written, seen) : []
   // Dead air: in flight with no document text held. The foot then says what is true of the disk.
   const deadAir = running && !hasText
 
@@ -111,7 +112,7 @@ export function RunCard({
       <div className="run-card-head">
         <StatusDot state={runDotState(entry)} />
         <span className="run-card-path">{path}</span>
-        <RunStatus entry={entry} sections={sections} progress={progress} hasText={hasText} />
+        <RunStatus entry={entry} written={written} progress={progress} hasText={hasText} />
         <RunElapsed entry={entry} />
         {running && onStop !== undefined && <RunStop runId={runId} label={path === '' ? undefined : path} onStop={onStop} />}
       </div>
@@ -163,26 +164,26 @@ export function RunCard({
  */
 function RunStatus({
   entry,
-  sections,
+  written,
   progress,
   hasText
 }: {
   entry: RunCardEntry
-  sections: number
+  written: readonly string[]
   progress: RunProgress
   hasText: boolean
 }): JSX.Element | null {
   const className = `run-card-status run-card-status--${entry.status}`
   if (entry.status !== 'finished') {
-    const words = runStatusText(entry, entry.endedAt ?? entry.at, sections, progress, hasText)
+    const words = runStatusText(entry, entry.endedAt ?? entry.at, written, progress, hasText)
     return words === '' ? null : <span className={className}>{words}</span>
   }
-  return <SavedStatus entry={entry} sections={sections} className={className} />
+  return <SavedStatus entry={entry} written={written} className={className} />
 }
 
-function SavedStatus({ entry, sections, className }: { entry: RunCardEntry; sections: number; className: string }): JSX.Element {
+function SavedStatus({ entry, written, className }: { entry: RunCardEntry; written: readonly string[]; className: string }): JSX.Element {
   const now = useNow()
-  return <span className={className}>{runStatusText(entry, now, sections)}</span>
+  return <span className={className}>{runStatusText(entry, now, written)}</span>
 }
 
 /** Elapsed from `run:started.at`: ticking while the run is in flight, fixed once it ends. Drawn by the card's head and by its collapsed line. */

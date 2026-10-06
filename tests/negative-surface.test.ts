@@ -1638,7 +1638,8 @@ describe("the collapsed run card is one line, one expanding button and the stop 
     const status = code.get(STATUS) ?? "";
     const reason = status.slice(status.indexOf("export function collapsedReason"), status.indexOf("export function isCollapsed"));
     expect(reason).toContain("noteOf(last.text, last.at).reason");
-    expect(reason).toContain("`§${progress.section.n} ${progress.section.name}`");
+    // The section is spelled by the one shared definition, so the line and the head cannot disagree.
+    expect(reason).toContain("reachedLabel(progress.section)");
     // No third source: a string literal is the empty string and the section's own words, and no sentence.
     expect([...reason.matchAll(WORDS)].map(([text]) => text).filter((text) => /[A-Za-z]{3}/.test(text.replace(/\$\{[^}]*\}/g, "")))).toEqual([]);
   });
@@ -1727,9 +1728,19 @@ describe("the rail's annotation says who is writing and where, with no total, ba
     ).toEqual([FOLD, PROSE_STORE, PROGRESS].sort());
   });
 
-  it("makes a rail annotation of nothing but the stream's words: no stopped, contention, notification, denominator or stand-in", () => {
-    // `stopped` on the row, contention and notifications are Stories 3.8, 3.9 and 3.10.
-    expect(offenders([FOLD, ANNOTATOR, HOLDER, PROGRESS], /(?<!run:)\bstopped\b|contention|contend|Notification|\bconflict\b|\bboth owners\b/i)).toEqual([]);
+  it("makes a rail annotation of nothing but the stream's words and the one terminal word: no contention, notification, denominator or stand-in", () => {
+    // Story 3.8 put `stopped` on the row, and it is the whole of the terminal vocabulary: contention is 3.9, notifications 3.10.
+    expect(offenders([FOLD, ANNOTATOR, HOLDER, PROGRESS], /contention|contend|Notification|\bconflict\b|\bboth owners\b/i)).toEqual([]);
+    // The terminal word is spelled where `writing` and `revising` are, and nowhere else the rail can reach:
+    // every word any of these four files is made of is swept, so a template or a concatenation is caught too.
+    const said = [FOLD, ANNOTATOR, HOLDER, PROGRESS].flatMap((path) =>
+      [...(code.get(path) ?? "").matchAll(WORDS)]
+        .map(([text]) => `${path}: ${text}`)
+        // `run:stopped` is the contract event's name, not the word on the row.
+        .filter((hit) => /\bstopped\b/i.test(hit) && !/(["'`])run:stopped\1/.test(hit)),
+    );
+    expect(said).toEqual([`${PROGRESS}: 'stopped'`]);
+    expect(code.get(FOLD)).toMatch(/\bSTOPPED\b/);
     expect(offenders([FOLD, ANNOTATOR, HOLDER], /\bsetTimeout\b|\bsetInterval\b|\bDate\.now\b|new Date\b|performance\.now/)).toEqual([]);
   });
 

@@ -71,6 +71,38 @@ export function sectionProgress(text: string, held: readonly string[], revisionO
  * a total.
  */
 export function progressLabel(revising: boolean, section?: SectionPlace): string {
-  const verb = revising ? 'revising' : 'writing'
-  return section === undefined ? verb : `${verb} · §${section.n} ${section.name}`
+  return placed(revising ? 'revising' : 'writing', section)
+}
+
+/**
+ * The word a stopped run reads, in the card's head and on the rail's row alike.
+ * The row says no more than this for a run that failed either: it is told only
+ * that the stream is no longer writing the file, never why.
+ */
+export const STOPPED = 'stopped'
+
+/** The two words a run can end with: the rail says only the first, the card's head says either. */
+export type TerminalWord = typeof STOPPED | 'failed'
+
+/**
+ * A section's place as every label spells it: `§N <Name>`, and the empty string
+ * with no section. One definition, so the head, the rail, the collapsed line and
+ * a terminal card cannot spell it differently.
+ */
+export function reachedLabel(section?: SectionPlace): string {
+  return section === undefined ? '' : `§${section.n} ${section.name}`
+}
+
+/** A word and the place it is at, joined; the bare word when there is no place. */
+function placed(word: string, section?: SectionPlace): string {
+  const place = reachedLabel(section)
+  return place === '' ? word : `${word} · ${place}`
+}
+
+/**
+ * What a terminal card's head reads: the word a run ended with, and the place
+ * its last confirmed write reached, when it had one.
+ */
+export function terminalLabel(word: TerminalWord, section?: SectionPlace): string {
+  return placed(word, section)
 }

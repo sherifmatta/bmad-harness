@@ -784,10 +784,10 @@ describe('what the run says of the rail’s rows (Story 3.6)', () => {
   })
 
   it.each([
-    ['finished', () => feed(result())],
-    ['failed', () => feed(result('error_max_budget_usd', true))],
-    ['ended with its session', () => exit()]
-  ] as const)('drops every annotation of the run when it %s', async (_ending, end) => {
+    ['finished', () => feed(result()), null],
+    ['failed', () => feed(result('error_max_budget_usd', true)), 'stopped'],
+    ['ended with its session', () => exit(), 'stopped']
+  ] as const)('says what the run’s end left on every path it was showing, when it %s', async (_ending, end, left) => {
     const sender = await idle()
     const told = railOf(sender)
     await dispatch(sender, 'CP')
@@ -797,10 +797,14 @@ describe('what the run says of the rail’s rows (Story 3.6)', () => {
 
     end()
 
-    expect(told.slice(2)).toEqual([
-      ['_bmad/prd.md', null],
-      ['_bmad/addendum.md', null]
+    // A finished run drops its annotations; one that ended early leaves the one word, owner and all.
+    expect(told.slice(2).map(([path, annotation]) => [path, annotation?.text ?? null])).toEqual([
+      ['_bmad/prd.md', left],
+      ['_bmad/addendum.md', left]
     ])
+    for (const [, annotation] of told.slice(2)) {
+      if (annotation !== null) expect(annotation.owner).toEqual({ agentId: A })
+    }
   })
 
   it('keeps a run’s annotations to its own window', async () => {

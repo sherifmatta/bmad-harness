@@ -235,7 +235,8 @@ describe('multi-file-sonnet, replayed through the session and rail bridges', () 
     for (const step of steps.slice(0, firstObservation)) expect(step.rows).toEqual([])
 
     // Once the PRD is observed, its row carries the persona and a `writing`/`revising` section tag.
-    const prdSteps = steps.filter((step) => annotationOf(step.rows, PRD) !== undefined)
+    // Only while the run is in flight: a run that ends early reads the one terminal word (Story 3.8).
+    const prdSteps = steps.filter((step) => !step.ended && annotationOf(step.rows, PRD) !== undefined)
     expect(prdSteps.length).toBeGreaterThan(0)
     for (const step of prdSteps) {
       expect(step.rows.find((row) => row.path === PRD)?.annotation?.owner).toEqual({ agentId: PM })
@@ -256,7 +257,8 @@ describe('multi-file-sonnet, replayed through the session and rail bridges', () 
 
     for (const step of steps) {
       const annotation = annotationOf(step.rows, PRD)
-      if (step.head === undefined || annotation === undefined) continue
+      // While the run is in flight: once it ends, the head and the row each say what became of it.
+      if (step.ended || step.head === undefined || annotation === undefined) continue
       // The head's words are the annotation's: one function, so the rail and the card cannot disagree.
       expect(annotation).toBe(step.head)
       compared += 1
@@ -276,7 +278,7 @@ describe('multi-file-sonnet, replayed through the session and rail bridges', () 
     }
   })
 
-  it('drops every annotation when the run ends, leaves the rows as the watcher says, and reaches saved only by the settle', async () => {
+  it('drops every annotation when the run finishes, leaves the rows as the watcher says, and reaches saved only by the settle', async () => {
     const result = await replay()
 
     expect(result.steps.at(-1)?.ended).toBe(true)

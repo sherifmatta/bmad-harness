@@ -2,7 +2,7 @@ import type { RunCardSnapshot } from '../../shared/conversation'
 import type { ContractEvent } from '../../shared/events'
 import type { AgentId } from '../../shared/ids'
 import type { RailAnnotation } from '../../shared/rail'
-import { commonPrefix, progressLabel, sectionProgress } from '../../shared/section-progress'
+import { STOPPED, commonPrefix, progressLabel, sectionProgress } from '../../shared/section-progress'
 import type { SectionPlace } from '../../shared/section-progress'
 
 /**
@@ -29,8 +29,14 @@ import type { SectionPlace } from '../../shared/section-progress'
  *   names seen) is kept, as the card's head keeps its own, so a retried `Write`
  *   and an applied `Edit` number the sections as the head does; the path's next
  *   `doc:prose` piece and an applied `Edit` show it again.
- * - `run:finished`, `run:stopped` and `run:failed` drop the run and every
- *   annotation of it, and no other run's.
+ * - `run:finished` drops the run and every annotation of it, and no other run's.
+ * - `run:stopped` and `run:failed` keep the run, marked stopped: every path it
+ *   was still showing reads the one word `stopped`, with no section, and the
+ *   owner it already carried. What each path held is released, a terminal run
+ *   costing its path names and nothing more, and a run that was showing nothing
+ *   is dropped like a finished one. A piece of prose or a commit that arrives
+ *   after a terminal event is ignored (`withPath`), and the stopped run lets a
+ *   path go the moment another run writes it.
  *
  * `.memlog.md` never reaches here as prose: the route fold sends it nowhere.
  */
@@ -58,6 +64,8 @@ type HeldPath = {
 type RunHeld = {
   agentId?: AgentId
   paths: ReadonlyMap<string, HeldPath>
+  /** The run ended early: its paths read the one terminal word until another run takes them. */
+  stopped?: true
 }
 
 /** Keyed by run id, in the order the runs started. Never mutated: every function returns a table. */
@@ -76,11 +84,24 @@ function fitted(name: string): string {
 
 function withPath(table: AnnotationTable, runId: string, path: string, held: HeldPath | undefined): AnnotationTable {
   const run = table.get(runId)
-  if (run === undefined) return table
+  // A run that has ended says nothing more: what came after its terminal event is not its writing.
+  if (run === undefined || run.stopped === true) return table
   const paths = new Map(run.paths)
   if (held === undefined) paths.delete(path)
   else paths.set(path, held)
-  return new Map(table).set(runId, { ...run, paths })
+  const next = new Map(table)
+  // A run writing a path takes it from any run that ended early still holding it: a file
+  // someone is writing now is not a stopped run's any more, and the dead hold is let go.
+  if (held?.live === true) {
+    for (const [otherId, other] of table) {
+      if (otherId === runId || other.stopped !== true || !other.paths.has(path)) continue
+      const rest = new Map(other.paths)
+      rest.delete(path)
+      if (rest.size === 0) next.delete(otherId)
+      else next.set(otherId, { ...other, paths: rest })
+    }
+  }
+  return next.set(runId, { ...run, paths })
 }
 
 /**
@@ -130,12 +151,26 @@ export function foldAnnotations(
       return withPath(table, runId, path, { text, seen, revising: true, live: true, ...(section === undefined ? {} : { section }) })
     }
 
-    case 'run:finished':
-    case 'run:stopped':
-    case 'run:failed': {
+    case 'run:finished': {
       if (!table.has(event.payload.runId)) return table
       const next = new Map(table)
       next.delete(event.payload.runId)
+      return next
+    }
+
+    case 'run:stopped':
+    case 'run:failed': {
+      const { runId } = event.payload
+      const run = table.get(runId)
+      if (run === undefined || run.stopped === true) return table
+      // Only the paths it was still showing, each released to the one word: no text, no names, no section.
+      const paths = new Map<string, HeldPath>()
+      for (const [path, held] of run.paths) {
+        if (held.live) paths.set(path, { text: '', seen: [], revising: false, live: true })
+      }
+      const next = new Map(table)
+      if (paths.size === 0) next.delete(runId)
+      else next.set(runId, { ...run, paths, stopped: true })
       return next
     }
 
@@ -145,18 +180,22 @@ export function foldAnnotations(
 }
 
 /**
- * What the stream says of each path now: one annotation for every path a run in
- * flight holds text for and shows. Where two runs hold one path, the later-started run's
- * shows (naming both is contention's, not this fold's).
+ * What the stream says of each path now: one annotation for every path a run
+ * holds text for and shows. Where two runs hold one path, the later-started
+ * run's shows (naming both is contention's, not this fold's) — except that a
+ * run still writing a path always has the last word over one that ended early,
+ * so the runs that ended are written first and overwritten.
  */
 export function annotationsOf(table: AnnotationTable): Map<string, RailAnnotation> {
   const out = new Map<string, RailAnnotation>()
-  for (const { agentId, paths } of table.values()) {
+  const runs = [...table.values()]
+  const ordered = [...runs.filter((run) => run.stopped === true), ...runs.filter((run) => run.stopped !== true)]
+  for (const { agentId, paths, stopped } of ordered) {
     for (const [path, { revising, section, live }] of paths) {
       if (!live) continue
       const place = section === undefined ? undefined : { n: section.n, name: fitted(section.name) }
       out.set(path, {
-        text: progressLabel(revising, place),
+        text: stopped === true ? STOPPED : progressLabel(revising, place),
         ...(agentId === undefined ? {} : { owner: { agentId } })
       })
     }

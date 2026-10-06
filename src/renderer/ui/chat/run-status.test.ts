@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bodyNotes, collapsedReason, isCollapsed, noteOf, progressWords, runDotState, runLifecycleLine, runStatusText, sectionCount, startNote, subjectSections, subjectWritten } from './run-status'
+import { bodyNotes, collapsedReason, isCollapsed, noteOf, progressWords, runDotState, runLifecycleLine, runStatusText, sectionCount, startNote, subjectWritten } from './run-status'
 import { NO_PROGRESS } from './prose-store'
 import type { RunCardEntry } from './transcript-entry'
 
@@ -18,11 +18,11 @@ const card = (over: Partial<RunCardEntry> = {}): RunCardEntry => ({
 
 describe('the run card’s words', () => {
   it('read writing, then saved with its age and the count of sections, or failed or stopped', () => {
-    expect(runStatusText(card(), 5_000, 0)).toBe('writing')
-    expect(runStatusText(card({ status: 'finished', endedAt: 2_000 }), 2_500, 2)).toBe('saved · just now · 2 sections')
-    expect(runStatusText(card({ status: 'finished', endedAt: 2_000 }), 2_000 + 5 * 60_000, 1)).toBe('saved · 5m · 1 section')
-    expect(runStatusText(card({ status: 'failed', endedAt: 2_000 }), 3_000, 1)).toBe('failed')
-    expect(runStatusText(card({ status: 'stopped', endedAt: 2_000 }), 3_000, 1)).toBe('stopped')
+    expect(runStatusText(card(), 5_000, [])).toBe('writing')
+    expect(runStatusText(card({ status: 'finished', endedAt: 2_000 }), 2_500, ['Vision', 'Scope'])).toBe('saved · just now · 2 sections')
+    expect(runStatusText(card({ status: 'finished', endedAt: 2_000 }), 2_000 + 5 * 60_000, ['Vision'])).toBe('saved · 5m · 1 section')
+    expect(runStatusText(card({ status: 'failed', endedAt: 2_000 }), 3_000, [])).toBe('failed')
+    expect(runStatusText(card({ status: 'stopped', endedAt: 2_000 }), 3_000, [])).toBe('stopped')
   })
 
   it('say what a run in flight is doing: writing or revising, with the section by its place among those seen', () => {
@@ -31,12 +31,12 @@ describe('the run card’s words', () => {
     expect(progressWords({ revising: true, section: { name: 'Vision', n: 2 } })).toBe('revising · §2 Vision')
     expect(progressWords({ revising: true })).toBe('revising')
     const running = card()
-    expect(runStatusText(running, 5_000, 0, { revising: false, section: { name: 'Vision', n: 2 } }, true)).toBe('writing · §2 Vision')
+    expect(runStatusText(running, 5_000, [], { revising: false, section: { name: 'Vision', n: 2 } }, true)).toBe('writing · §2 Vision')
     // A card that has ended says what became of it, whatever progress it had.
     const progress = { revising: true, section: { name: 'Vision', n: 2 } }
-    expect(runStatusText(card({ status: 'finished', endedAt: 2_000 }), 2_500, 2, progress)).toBe('saved · just now · 2 sections')
-    expect(runStatusText(card({ status: 'stopped', endedAt: 2_000 }), 3_000, 1, progress)).toBe('stopped')
-    expect(runStatusText(card({ status: 'failed', endedAt: 2_000 }), 3_000, 1, progress)).toBe('failed')
+    expect(runStatusText(card({ status: 'finished', endedAt: 2_000 }), 2_500, ['A', 'B'], progress)).toBe('saved · just now · 2 sections')
+    expect(runStatusText(card({ status: 'stopped', endedAt: 2_000 }), 3_000, [], progress)).toBe('stopped')
+    expect(runStatusText(card({ status: 'failed', endedAt: 2_000 }), 3_000, [], progress)).toBe('failed')
   })
 
   it('name the sections a subject has had confirmed written, as the plan names them', () => {
@@ -53,14 +53,20 @@ describe('the run card’s words', () => {
         { path: 'prd.md', sections: ['Vision', 'Scope'] }
       ]
     })
-    expect(subjectSections(entry, 'prd.md')).toBe(2)
-    expect(subjectSections(entry, 'unknown.md')).toBe(0)
-    expect(subjectSections(entry, undefined)).toBe(0)
+    expect(subjectWritten(entry, 'prd.md')).toHaveLength(2)
+    expect(subjectWritten(entry, 'unknown.md')).toHaveLength(0)
+    expect(subjectWritten(entry, undefined)).toHaveLength(0)
+    expect(runStatusText(card({ ...entry, status: 'finished', endedAt: 2_000 }), 2_500, subjectWritten(entry, 'prd.md'))).toBe(
+      'saved · just now · 2 sections'
+    )
   })
 
   it('never carry a denominator', () => {
     for (const status of ['running', 'finished', 'failed', 'stopped'] as const) {
-      expect(runStatusText(card({ status, endedAt: 2_000 }), 3_000, 1)).not.toMatch(/\bof\b|\//)
+      for (const written of [[], ['Vision'], ['Vision', 'Scope']]) {
+        expect(runStatusText(card({ status, endedAt: 2_000 }), 3_000, written)).not.toMatch(/\bof\b|\//)
+        expect(runLifecycleLine(card({ status, endedAt: 2_000 }), 'John', written)).not.toMatch(/\bof\b|\//)
+      }
     }
     expect(sectionCount(0)).toBe('0 sections')
   })
@@ -73,9 +79,9 @@ describe('the run card’s words', () => {
   })
 
   it('announce the persona and what became of the run', () => {
-    expect(runLifecycleLine(card(), 'John', 0)).toBe('John · writing')
-    expect(runLifecycleLine(card({ status: 'finished' }), 'John', 3)).toBe('John · saved · 3 sections')
-    expect(runLifecycleLine(card({ status: 'failed' }), 'John', 3)).toBe('John · failed')
+    expect(runLifecycleLine(card(), 'John', [])).toBe('John · writing')
+    expect(runLifecycleLine(card({ status: 'finished' }), 'John', ['A', 'B', 'C'])).toBe('John · saved · 3 sections')
+    expect(runLifecycleLine(card({ status: 'failed' }), 'John', [])).toBe('John · failed')
   })
 
   it('take a memlog line apart for the feed, with the time it was observed', () => {
@@ -89,8 +95,8 @@ describe('the run card’s words', () => {
 
 describe('dead air (Story 3.4)', () => {
   it('gives a running card that holds no text no status words, and a word again with the first text', () => {
-    expect(runStatusText(card(), 5_000, 0, undefined, false)).toBe('')
-    expect(runStatusText(card(), 5_000, 0, { revising: false }, false)).toBe('')
+    expect(runStatusText(card(), 5_000, [], undefined, false)).toBe('')
+    expect(runStatusText(card(), 5_000, [], { revising: false }, false)).toBe('')
     expect(progressWords({ revising: false }, false)).toBe('')
     expect(progressWords({ revising: true, section: { name: 'Vision', n: 2 } }, false)).toBe('')
     expect(progressWords({ revising: false }, true)).toBe('writing')
@@ -98,9 +104,9 @@ describe('dead air (Story 3.4)', () => {
 
   it('leaves every terminal head as it was, whether or not text is held', () => {
     for (const hasText of [false, true]) {
-      expect(runStatusText(card({ status: 'finished', endedAt: 2_000 }), 2_500, 2, undefined, hasText)).toBe('saved · just now · 2 sections')
-      expect(runStatusText(card({ status: 'failed', endedAt: 2_000 }), 3_000, 1, undefined, hasText)).toBe('failed')
-      expect(runStatusText(card({ status: 'stopped', endedAt: 2_000 }), 3_000, 1, undefined, hasText)).toBe('stopped')
+      expect(runStatusText(card({ status: 'finished', endedAt: 2_000 }), 2_500, ['A', 'B'], undefined, hasText)).toBe('saved · just now · 2 sections')
+      expect(runStatusText(card({ status: 'failed', endedAt: 2_000 }), 3_000, [], undefined, hasText)).toBe('failed')
+      expect(runStatusText(card({ status: 'stopped', endedAt: 2_000 }), 3_000, [], undefined, hasText)).toBe('stopped')
     }
   })
 
@@ -200,5 +206,76 @@ describe('the collapsed line’s words (Story 3.5)', () => {
     expect(isCollapsed(card(), 'bmad-agent-architect', new Set(['r1']))).toBe(false)
     expect(isCollapsed(card(), 'bmad-agent-architect', new Set(['r2']))).toBe(true)
     expect(isCollapsed(card({ agentId: undefined }), undefined, new Set(['r1']))).toBe(false)
+  })
+})
+
+describe('a run that ended early (Story 3.8)', () => {
+  /** A card whose subject has had `sections` confirmed written, as a commit names them. */
+  const written = (status: 'stopped' | 'failed', sections: readonly string[]): RunCardEntry =>
+    card({ status, endedAt: 2_000, documents: [{ path: 'prd.md', sections: [...sections] }] })
+
+  const NAMES = ['0. Document Purpose', '1. Vision', '2. Goals', '3. Scope']
+
+  it('names the section the last confirmed write reached, by its place in that write’s names', () => {
+    const stopped = written('stopped', NAMES)
+    expect(runStatusText(stopped, 3_000, subjectWritten(stopped, 'prd.md'))).toBe('stopped · §4 Scope')
+    const failed = written('failed', NAMES)
+    expect(runStatusText(failed, 3_000, subjectWritten(failed, 'prd.md'))).toBe('failed · §4 Scope')
+    // One name confirmed is §1, and the place is the array's length, never a share of a plan.
+    expect(runStatusText(written('stopped', ['Vision']), 3_000, ['Vision'])).toBe('stopped · §1 Vision')
+  })
+
+  it('reads the bare word when nothing was confirmed: interrupted mid-Write, the subject has no commit', () => {
+    const entry = card({ status: 'stopped', endedAt: 2_000, documents: [] })
+    expect(subjectWritten(entry, 'prd.md')).toEqual([])
+    expect(runStatusText(entry, 3_000, subjectWritten(entry, 'prd.md'))).toBe('stopped')
+    expect(runStatusText(entry, 3_000, subjectWritten(entry, 'prd.md'))).not.toMatch(/§/)
+    expect(runStatusText(card({ status: 'failed', endedAt: 2_000 }), 3_000, [])).toBe('failed')
+  })
+
+  it('never reads the streamed text: prose past the last commit names the commit’s last section', () => {
+    const entry = written('stopped', NAMES)
+    // The prose store had streamed as far as §7; the head names §4, which is what a `tool_result` confirmed.
+    const prose = { revising: false, section: { name: 'Open Questions', n: 7 } }
+    expect(runStatusText(entry, 3_000, subjectWritten(entry, 'prd.md'), prose, true)).toBe('stopped · §4 Scope')
+    expect(runStatusText(entry, 3_000, subjectWritten(entry, 'prd.md'), prose, false)).toBe('stopped · §4 Scope')
+  })
+
+  it('names what was last confirmed when a rejected write came after it: a rejection commits no sections', () => {
+    // The card's subject still holds the names of its last `ok` commit; the rejected call added none.
+    const entry = written('stopped', ['Vision', 'Goals'])
+    expect(runStatusText(entry, 3_000, subjectWritten(entry, 'prd.md'))).toBe('stopped · §2 Goals')
+  })
+
+  it('never renumbers a repeated heading: the place counts the names a key apart, as the live head does', () => {
+    // `sectionHeadings` keeps repeats; the live head places `Goals` at §1, and so does the terminal one.
+    const repeated = ['Vision', 'Goals', 'Goals']
+    expect(runStatusText(written('stopped', repeated), 3_000, repeated)).toBe('stopped · §2 Goals')
+    expect(runStatusText(written('failed', ['Goals', 'Goals']), 3_000, ['Goals', 'Goals'])).toBe('failed · §1 Goals')
+    // Numbering in the plan's own names is stripped before the comparison, as the plan strips it.
+    expect(runStatusText(written('stopped', ['1. Goals', 'Goals']), 3_000, subjectWritten(written('stopped', ['1. Goals', 'Goals']), 'prd.md'))).toBe(
+      'stopped · §1 Goals'
+    )
+    // The saved head still counts every confirmed heading, repeats and all.
+    expect(runStatusText(card({ status: 'finished', endedAt: 2_000 }), 2_500, repeated)).toBe('saved · just now · 3 sections')
+  })
+
+  it('announces the run the same way the head reads it, the bare word included', () => {
+    const stopped = written('stopped', NAMES)
+    expect(runLifecycleLine(stopped, 'John', subjectWritten(stopped, 'prd.md'))).toBe('John · stopped · §4 Scope')
+    const failed = written('failed', NAMES)
+    expect(runLifecycleLine(failed, 'John', subjectWritten(failed, 'prd.md'))).toBe('John · failed · §4 Scope')
+    expect(runLifecycleLine(card({ status: 'stopped' }), 'John', [])).toBe('John · stopped')
+    expect(runLifecycleLine(card({ status: 'failed' }), 'John', [])).toBe('John · failed')
+    // Word for word the head's, with the persona's name before it.
+    for (const entry of [stopped, failed, card({ status: 'stopped' })]) {
+      const names = subjectWritten(entry, 'prd.md')
+      expect(runLifecycleLine(entry, 'John', names)).toBe(`John · ${runStatusText(entry, 3_000, names)}`)
+    }
+  })
+
+  it('tells stopped and failed apart in words only: the dot is the one error dot for both', () => {
+    expect(runDotState(written('stopped', NAMES))).toBe('error')
+    expect(runDotState(written('failed', NAMES))).toBe('error')
   })
 })

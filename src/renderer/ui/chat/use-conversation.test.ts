@@ -1239,6 +1239,41 @@ describe('a run, through the conversation (Story 3.1)', () => {
     expect(lines).toEqual(['Mary · writing', 'Mary · saved · 2 sections'])
   })
 
+  it.each([
+    ['run:stopped', 'Mary · stopped · §2 B'],
+    ['run:failed', 'Mary · failed · §2 B']
+  ] as const)('announces %s with the section the last confirmed write reached', async (name, line) => {
+    const { lines } = await live()
+    bridge.push(started())
+    bridge.push(prose('## A\n## B\n## C\n'))
+    bridge.push({
+      name: 'doc:committed',
+      payload: { ok: true, runId: 'r1', sessionId: 's1', callId: 'c1', path: 'prd.md', sections: ['A', 'B'], at: 53 }
+    })
+    bridge.push(
+      name === 'run:failed'
+        ? { name, payload: { runId: 'r1', sessionId: 's1', error: { code: 'run/failed', message: 'x' }, at: 54 } }
+        : { name, payload: { runId: 'r1', sessionId: 's1', at: 54 } }
+    )
+
+    // The streamed text had shown three headings; the announcement names the two a `tool_result` confirmed.
+    expect(lines).toEqual(['Mary · writing', line])
+  })
+
+  it.each(['run:stopped', 'run:failed'] as const)('announces %s as the bare word when nothing was confirmed', async (name) => {
+    const { lines } = await live()
+    bridge.push(started())
+    bridge.push(prose('## A\n## B\n## C\n'))
+    bridge.push(
+      name === 'run:failed'
+        ? { name, payload: { runId: 'r1', sessionId: 's1', error: { code: 'run/failed', message: 'x' }, at: 54 } }
+        : { name, payload: { runId: 'r1', sessionId: 's1', at: 54 } }
+    )
+
+    expect(lines.at(-1)).toBe(name === 'run:failed' ? 'Mary · failed' : 'Mary · stopped')
+    expect(lines.at(-1)).not.toMatch(/§/)
+  })
+
   it('hands a confirmed write’s text to the prose store, and announces the subject’s sections alone', async () => {
     const { lines, store } = await live()
     bridge.push(started())

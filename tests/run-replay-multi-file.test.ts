@@ -12,7 +12,7 @@ import { nameKey, pendingSections } from '../src/shared/section-plan'
 import { foldEvent, initialConversation, runCardOf } from '../src/renderer/ui/chat/conversation-state'
 import type { ConversationState } from '../src/renderer/ui/chat/conversation-state'
 import { createProseStore } from '../src/renderer/ui/chat/prose-store'
-import { progressWords, runStatusText, subjectSections, subjectWritten } from '../src/renderer/ui/chat/run-status'
+import { progressWords, runStatusText, subjectWritten } from '../src/renderer/ui/chat/run-status'
 
 /**
  * Story 3.12's beat, replayed: `multi-file-sonnet`, a real session that writes
@@ -188,7 +188,7 @@ describe('multi-file-sonnet, replayed at full rate as a dispatched run', () => {
     expect(shown?.path).toBe(paths.at(-1))
     expect(shown?.text).toBe(prd)
     expect(store.paths(result.runId).filter((path) => path !== shown?.path)).toEqual(paths.slice(0, 2))
-    // What the head and the live region count (`subjectSections`): the subject's sections alone.
+    // What the head and the live region count (`subjectWritten`): the subject's sections alone.
     expect(card?.status).toBe('finished')
     expect(card?.documents.find((document) => document.path === shown?.path)?.sections).toEqual(sectionHeadings(prd))
     expect(card?.documents).toHaveLength(3)
@@ -256,7 +256,7 @@ describe('multi-file-sonnet, replayed at full rate as a dispatched run', () => {
       const path = store.get(result.runId)?.path
       steps.push({
         name: event.name,
-        head: runStatusText(card, 1_000, subjectSections(card, path), store.progress(result.runId), (store.get(result.runId)?.text ?? '') !== ''),
+        head: runStatusText(card, 1_000, subjectWritten(card, path), store.progress(result.runId), (store.get(result.runId)?.text ?? '') !== ''),
         foot: pendingSections(card.plan ?? [], subjectWritten(card, path), store.seen(result.runId))
       })
     }
