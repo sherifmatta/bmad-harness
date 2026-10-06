@@ -11,6 +11,7 @@ import type { ProseStore, RunProgress } from './prose-store'
 import { RunStop } from './run-stop'
 import { bodyNotes, runDotState, runStatusText, subjectWritten } from './run-status'
 import type { RunCardEntry } from './transcript-entry'
+import { useReveal } from './use-reveal'
 
 /** How often the elapsed counter re-reads the clock: it writes whole seconds. */
 const ELAPSED_TICK_MS = 1000
@@ -61,13 +62,21 @@ const ELAPSED_TICK_MS = 1000
  * the run's terminal event, which is the card's `status` and nothing else. A card
  * drawn with no `onStop` (a transcript read back, a surface that cannot stop) has
  * none, and no button at all.
+ *
+ * **Shown from elsewhere** (Story 3.10). A card drawn with `reveal` is the one
+ * main raised the window for, after its run ended while the user was in another
+ * window: its root scrolls into view once, through the ref the card already
+ * holds, and the request is spent (`onRevealed`). Nothing in the markup changes,
+ * no focus moves, and a card drawn without it scrolls nowhere.
  */
 export function RunCard({
   entry,
   prose,
   focusOnMount = false,
   onFocused,
-  onStop
+  onStop,
+  reveal = false,
+  onRevealed
 }: {
   entry: RunCardEntry
   prose: ProseStore
@@ -75,6 +84,10 @@ export function RunCard({
   onFocused?: () => void
   /** The stop control was pressed, with the run's id; without it the card draws no stop control. */
   onStop?: ((runId: string) => void) | undefined
+  /** The window was raised for this run: the card scrolls its root into view once. */
+  reveal?: boolean
+  /** The card scrolled into view: the request is spent. */
+  onRevealed?: () => void
 }): JSX.Element {
   const { runId } = entry
   const [focusFirst] = useState(focusOnMount)
@@ -87,6 +100,7 @@ export function RunCard({
       onFocused?.()
     }
   }, [focusFirst, onFocused])
+  useReveal(container, reveal === true, onRevealed)
   const running = entry.status === 'running'
   const subscribe = useCallback((listener: () => void) => prose.subscribe(runId, listener), [prose, runId])
   const pathOf = (): string => prose.get(runId)?.path ?? ''

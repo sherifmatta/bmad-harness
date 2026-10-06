@@ -134,7 +134,7 @@ it('answers the document channels on the same literals from both sides', () => {
   }
 })
 
-it('exposes exactly sixteen named methods, and no channel passthrough', () => {
+it('exposes exactly seventeen named methods, and no channel passthrough', () => {
   const harness = exposedApis.get('harness')
 
   expect(harness).toBeDefined()
@@ -154,7 +154,8 @@ it('exposes exactly sixteen named methods, and no channel passthrough', () => {
     'stopRun',
     'getConversation',
     'endConversation',
-    'onSessionEvent'
+    'onSessionEvent',
+    'onRunRevealed'
   ])
   expect(harness?.invoke).toBeUndefined()
   expect(harness?.send).toBeUndefined()
@@ -333,6 +334,26 @@ it('hands an onDocClosed subscriber the path and never the event, and unsubscrib
   unsubscribe()
   expect(removed).toEqual([[docBridge.DOC_CLOSED_CHANNEL, added[0]]])
   expect(listeners.get(docBridge.DOC_CLOSED_CHANNEL)?.size).toBe(0)
+})
+
+it('hands an onRunRevealed subscriber the run id and never the event, on the channel spelled once, and unsubscribes that very listener', () => {
+  const onRunRevealed = exposedApis.get('harness')?.onRunRevealed as (
+    listener: (runId: string) => void
+  ) => () => void
+  const received: unknown[] = []
+
+  const unsubscribe = onRunRevealed((runId) => received.push(runId))
+  expect(preload.RUN_REVEALED_CHANNEL).toBe('run:revealed')
+  const added = [...(listeners.get(preload.RUN_REVEALED_CHANNEL) ?? [])]
+  expect(added).toHaveLength(1)
+
+  ;(added[0] as (event: unknown, runId: unknown) => void)({ sender: 'raw event' }, 'run-1')
+  expect(received).toEqual(['run-1'])
+
+  removed.length = 0
+  unsubscribe()
+  expect(removed).toEqual([[preload.RUN_REVEALED_CHANNEL, added[0]]])
+  expect(listeners.get(preload.RUN_REVEALED_CHANNEL)?.size).toBe(0)
 })
 
 it('turns a refused doc:get into a rejection carrying the envelope, and resolves the snapshot itself', async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bodyNotes, collapsedReason, isCollapsed, noteOf, progressWords, runDotState, runLifecycleLine, runStatusText, sectionCount, startNote, subjectWritten } from './run-status'
+import { bodyNotes, collapsedReason, isCollapsed, noteOf, progressWords, runDotState, runLifecycleLine, runStatusText, startNote, subjectWritten } from './run-status'
 import { NO_PROGRESS } from './prose-store'
 import type { RunCardEntry } from './transcript-entry'
 
@@ -68,7 +68,8 @@ describe('the run card’s words', () => {
         expect(runLifecycleLine(card({ status, endedAt: 2_000 }), 'John', written)).not.toMatch(/\bof\b|\//)
       }
     }
-    expect(sectionCount(0)).toBe('0 sections')
+    // Zero, stated plainly, through the shared spelling (`section-progress.test.ts` pins the word itself).
+    expect(runLifecycleLine(card({ status: 'finished' }), 'John', [])).toBe('John · saved · 0 sections')
   })
 
   it('give the dot work while writing, live once saved, and error otherwise', () => {

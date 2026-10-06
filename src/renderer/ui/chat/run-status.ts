@@ -1,5 +1,5 @@
 import { nameKey, sectionName } from '../../../shared/section-plan'
-import { STOPPED, progressLabel, reachedLabel, terminalLabel } from '../../../shared/section-progress'
+import { STOPPED, progressLabel, reachedLabel, sectionCount, terminalLabel } from '../../../shared/section-progress'
 import type { TerminalWord } from '../../../shared/section-progress'
 import type { PersonaState } from '../../../shared/events'
 import { formatAge } from '../outputs/format-age'
@@ -14,13 +14,10 @@ import type { RunCardEntry } from './transcript-entry'
 /**
  * The words a run card and its announcements are made of, as pure functions of
  * the card, so they read the same in the head, in the live region and in node.
- * Every state is a word: the dot beside it is never the only carrier.
+ * Every state is a word: the dot beside it is never the only carrier. The
+ * section count is spelled in `shared/section-progress` (`sectionCount`), so
+ * the head, the live region and main's own line of a run that ended agree.
  */
-
-/** `1 section`, `15 sections`: the count of a document's committed headings. */
-export function sectionCount(count: number): string {
-  return `${count} ${count === 1 ? 'section' : 'sections'}`
-}
 
 /**
  * The names a card's subject has had confirmed written: those of its last

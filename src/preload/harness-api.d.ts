@@ -5,7 +5,7 @@ import type { InstallSnapshot } from '../shared/install'
 import type { RailSnapshot } from '../shared/rail'
 
 /**
- * The whole bridge surface. Explicitly enumerated: sixteen named methods, no
+ * The whole bridge surface. Explicitly enumerated: seventeen named methods, no
  * generic `invoke(channel, …)` passthrough, and no `ipcRenderer` in the
  * renderer's reach.
  */
@@ -91,6 +91,11 @@ export interface HarnessApi {
    * sessions, as `{name, payload}`; returns the way to stop listening.
    */
   onSessionEvent(listener: (event: ContractEvent) => void): () => void
+  /**
+   * Calls back with the id of the run whose card this window is to show, when
+   * main has raised the window for it; returns the way to stop listening.
+   */
+  onRunRevealed(listener: (runId: RunId) => void): () => void
 }
 
 declare global {

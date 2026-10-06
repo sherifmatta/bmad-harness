@@ -97,6 +97,12 @@ export type RunKit = {
   readText: (absolutePath: string) => Promise<string | undefined>
   /** A run's card as it stands after an event of the run, kept in the transcript. */
   recordRun: (entry: Entry, card: RunCardSnapshot, at: number) => void
+  /**
+   * Each event the window has just been told, with the run's card as main holds
+   * it after that event folded (`undefined` for an event of no run). The one
+   * seam outside the window for what became of a run; nothing here reads it.
+   */
+  told?: (sender: Sender, event: ContractEvent, card: RunCardSnapshot | undefined) => void
 }
 
 /** The kit, from what the registry holds: what the persona says, and each run's card, are kept in the project's transcript. */
@@ -121,16 +127,18 @@ type Ending = { failed: boolean; subtype: string | undefined } | 'session-ended'
  */
 function tell(kit: RunKit, sender: Sender, service: Service, entry: Entry, events: ContractEvent[]): void {
   for (const event of events) {
+    let card: RunCardSnapshot | undefined
     if (event.name === 'persona:said') {
       kit.recordSaid(entry, event)
     } else {
       service.runs.apply(event)
       const { payload } = event
-      const card = 'runId' in payload ? service.runs.card(payload.runId) : undefined
+      card = 'runId' in payload ? service.runs.card(payload.runId) : undefined
       service.annotations.apply(event, card)
       if ('runId' in payload && card !== undefined) kit.recordRun(entry, card, payload.at)
     }
     kit.emit(sender, event)
+    kit.told?.(sender, event, card)
     service.personas.apply(event)
   }
 }

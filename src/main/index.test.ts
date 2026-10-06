@@ -22,6 +22,10 @@ const registerSessionBridge = vi.hoisted(() =>
   vi.fn<(deps: unknown) => { observeArtifact: () => void }>(() => ({ observeArtifact: vi.fn() }))
 )
 vi.mock('./projections/transcript', () => ({ createTranscriptRegistry: () => registry }))
+// The notifier is built once at the root, over the roster's name and the default diagnostic line.
+const notifier = vi.hoisted(() => ({ told: vi.fn() }))
+const createRunNotifier = vi.hoisted(() => vi.fn<(deps: unknown) => typeof notifier>(() => notifier))
+vi.mock('./windows/run-notification', () => ({ createRunNotifier }))
 vi.mock('./session-bridge', () => ({ registerSessionBridge }))
 const registerRailBridge = vi.hoisted(() => vi.fn<(deps: { observeArtifact?: (...args: unknown[]) => void }) => void>())
 vi.mock('./rail-bridge', () => ({ registerRailBridge }))
@@ -63,8 +67,12 @@ vi.mock('electron', () => {
 })
 
 await import('./index')
+// Imported after the root, as the electron mock above is only usable once its fakes are defined.
+const { defaultWriteDiagnostic } = await import('./bridge-kit')
+const { agentNameFor } = await import('./install-model')
 // Taken at import: the registration happens once, as the module loads.
 const bridgeDeps = registerSessionBridge.mock.calls[0]?.[0]
+const notifierCalls = [...createRunNotifier.mock.calls]
 const sessionBridge = registerSessionBridge.mock.results[0]?.value as { observeArtifact: ReturnType<typeof vi.fn> }
 const railDeps = [...registerRailBridge.mock.calls]
 
@@ -106,10 +114,11 @@ it('quits when the reopened chooser is cancelled', async () => {
   expect(browserWindowConstructed).not.toHaveBeenCalled()
 })
 
-it('hands the session bridge the registry that quitting flushes', () => {
+it('hands the session bridge the registry that quitting flushes, and the one listener that speaks for a run outside the window', () => {
   const beforeQuit = appHandlers.get('before-quit')
 
-  expect(bridgeDeps).toEqual({ transcripts: registry })
+  expect(bridgeDeps).toEqual({ transcripts: registry, told: notifier.told })
+  expect(notifierCalls).toEqual([[{ agentName: agentNameFor, writeDiagnostic: defaultWriteDiagnostic }]])
   expect(beforeQuit).toBeDefined()
   expect(registry.flushAll).not.toHaveBeenCalled()
 

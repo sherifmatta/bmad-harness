@@ -118,6 +118,8 @@ export type SessionRegistryDeps = {
   canonicalize: (absolutePath: string) => string
   /** A file's text, or `undefined`; the real one reads the disk. */
   readText: (absolutePath: string) => Promise<string | undefined>
+  /** Hears each run event a window is told, with the run's card as it then stands (`session-run`). */
+  told?: RunKit['told']
 }
 
 export type SessionRegistry = {
@@ -312,7 +314,7 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
   })
   const watch = (sender: Sender, _service: Service, entry: Entry): void => clock(sender, entry)
   const schedule = deps.schedule ?? defaultSchedule
-  const runs = createRunKit({ now, schedule, emit, transcripts, readText: deps.readText })
+  const runs = createRunKit({ now, schedule, emit, transcripts, readText: deps.readText, ...(deps.told === undefined ? {} : { told: deps.told }) })
   const decide = (projectRoot: string, ask: PermissionAsk): PermissionAnswer =>
     decidePermission(ask, {
       projectRoot,

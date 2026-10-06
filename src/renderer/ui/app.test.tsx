@@ -47,6 +47,11 @@ let closedSessions: string[]
 /** Who `onInstallChanged` subscribed, to be pushed a new install snapshot. */
 let installListeners: ((next: InstallSnapshot) => void)[]
 let listeners: ((event: ContractEvent) => void)[]
+/** Who `onRunRevealed` subscribed, to be told which run's card main raised the window for. */
+let revealListeners: ((runId: string) => void)[]
+/** The documents the window asked main to open, and the menu entries it dispatched. */
+let docsOpened: string[]
+let dispatchedMenus: [string, string][]
 /** The sysline main answers the next open with, one per open, `undefined` for none. */
 let handoffs: (SyslineRecord | undefined)[]
 
@@ -61,8 +66,14 @@ function installBridge(): void {
     getBranch: async () => 'main',
     getRail: async () => ({ revision: 1, rows: [] }),
     onRailChanged: () => () => {},
-    openDoc: async () => {},
+    openDoc: async (path: string) => {
+      docsOpened.push(path)
+    },
     onDocClosed: () => () => {},
+    dispatchMenu: async (sessionId: string, code: string) => {
+      dispatchedMenus.push([sessionId, code])
+      return 'r-dispatched'
+    },
     openSession: async (agentId: string) => {
       opened.push(agentId)
       const handoff = handoffs.shift()
@@ -87,6 +98,10 @@ function installBridge(): void {
     onSessionEvent: (listener: (event: ContractEvent) => void) => {
       listeners.push(listener)
       return () => {}
+    },
+    onRunRevealed: (listener: (runId: string) => void) => {
+      revealListeners.push(listener)
+      return () => {}
     }
   }
   Object.defineProperty(window, 'harness', { value: bridge, configurable: true, writable: true })
@@ -102,6 +117,9 @@ beforeEach(() => {
   closedSessions = []
   installListeners = []
   listeners = []
+  revealListeners = []
+  docsOpened = []
+  dispatchedMenus = []
   handoffs = []
   installBridge()
 })
@@ -1730,5 +1748,95 @@ describe('App, stopping a run (Story 3.7)', () => {
     expect(root().querySelectorAll('.run-card-line')).toHaveLength(0)
     expect(root().querySelector('.chat > .pinned')).toBeNull()
     expect([...root().querySelectorAll('.run-card-elapsed')].map((element) => element.textContent)).toEqual(['1m 05s', '1m 05s', '1m 05s'])
+  })
+})
+
+describe('App, told once when elsewhere (Story 3.10)', () => {
+  const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
+  const reveal = (runId: string): void => act(() => revealListeners.forEach((listener) => listener(runId)))
+  const root = (): HTMLElement => mounted!.container
+  // jsdom has no scrollIntoView: the stub records the element it was called on and with what.
+  let scrolled: [Element, unknown[]][]
+  beforeEach(() => {
+    scrolled = []
+    Element.prototype.scrollIntoView = function (this: Element, ...args: unknown[]) {
+      scrolled.push([this, args])
+    }
+  })
+  afterEach(() => {
+    delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView
+  })
+
+  /** Mary is current; John's run ran and ended, so its terminal card sits in the thread. */
+  async function afterRun(runId = 'r1'): Promise<void> {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    push({ name: 'session:opened', payload: { sessionId: 's-john', agentId: john.id, at: 1 } })
+    push({ name: 'run:started', payload: { runId, sessionId: 's-john', agentId: john.id, code: 'CP', at: 2 } })
+    push({ name: 'run:finished', payload: { runId, sessionId: 's-john', at: 3 } })
+  }
+
+  it('subscribes once to what main reveals, through the bridge', async () => {
+    await afterRun()
+
+    expect(revealListeners).toHaveLength(1)
+  })
+
+  it('scrolls the revealed run’s card into view once, to its start, and spends the request: a second activation scrolls again', async () => {
+    await afterRun()
+    const card = root().querySelector('.thread .run-card') as Element
+    expect(card).not.toBeNull()
+    expect(scrolled).toEqual([])
+
+    reveal('r1')
+
+    expect(scrolled).toEqual([[card, [{ block: 'start' }]]])
+
+    reveal('r1')
+
+    expect(scrolled).toHaveLength(2)
+    expect(scrolled[1][0]).toBe(card)
+  })
+
+  it('leaves the current persona, the documents, the sessions and the composer as they were: nothing is sent', async () => {
+    await afterRun()
+    tile('Mary').focus()
+    const before = { opened: [...opened], sent: [...sent], docs: [...docsOpened], dispatched: [...dispatchedMenus], closed: [...closedSessions] }
+
+    reveal('r1')
+
+    expect(tile('Mary').getAttribute('aria-current')).toBe('true')
+    expect(tile('John').hasAttribute('aria-current')).toBe(false)
+    expect(field().getAttribute('aria-label')).toBe('Message Mary')
+    expect(document.activeElement).toBe(tile('Mary'))
+    expect({ opened, sent, docs: docsOpened, dispatched: dispatchedMenus, closed: closedSessions }).toEqual(before)
+    expect(stopped).toEqual([])
+    expect(ended).toEqual([])
+  })
+
+  it('drops a reveal for a run the conversation does not hold, and holds nothing for later', async () => {
+    await afterRun()
+
+    reveal('r9')
+    expect(scrolled).toEqual([])
+
+    // The run arrives afterwards: the dropped request does not wake for it.
+    push({ name: 'run:started', payload: { runId: 'r9', sessionId: 's-john', agentId: john.id, code: 'CP', at: 4 } })
+    push({ name: 'run:finished', payload: { runId: 'r9', sessionId: 's-john', at: 5 } })
+    expect(root().querySelectorAll('.thread .run-card')).toHaveLength(2)
+    expect(scrolled).toEqual([])
+  })
+
+  it('scrolls the named card and no other when several have ended', async () => {
+    await afterRun('r1')
+    push({ name: 'run:started', payload: { runId: 'r2', sessionId: 's-john', agentId: john.id, code: 'CP', at: 4 } })
+    push({ name: 'run:finished', payload: { runId: 'r2', sessionId: 's-john', at: 5 } })
+    const cards = [...root().querySelectorAll('.thread .run-card')]
+    expect(cards).toHaveLength(2)
+
+    reveal('r2')
+
+    expect(scrolled.map(([element]) => element)).toEqual([cards[1]])
   })
 })

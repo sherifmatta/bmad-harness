@@ -42,3 +42,8 @@ export const RUN_STOP_CHANNEL = 'run:stop'
 export const SESSION_EVENT_CHANNEL = 'session:event'
 export const CONVERSATION_GET_CHANNEL = 'conversation:get'
 export const CONVERSATION_END_CHANNEL = 'conversation:end'
+/**
+ * Which run's card a window is to show: main pushes the run's id to that one
+ * window after raising it, like `doc:closed`, a push outside the session events.
+ */
+export const RUN_REVEALED_CHANNEL = 'run:revealed'

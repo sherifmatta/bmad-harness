@@ -11,6 +11,7 @@ import {
   PROJECT_PATH_CHANNEL,
   RAIL_CHANGED_CHANNEL,
   RAIL_GET_CHANNEL,
+  RUN_REVEALED_CHANNEL,
   RUN_STOP_CHANNEL,
   SESSION_CLOSE_CHANNEL,
   SESSION_EVENT_CHANNEL,
@@ -26,6 +27,7 @@ import type {
 } from '../shared/conversation'
 import type { DocAck } from '../shared/document'
 import type { ContractEvent } from '../shared/events'
+import type { RunId } from '../shared/ids'
 import type { InstallReply, InstallSnapshot } from '../shared/install'
 import type { RailReply, RailSnapshot } from '../shared/rail'
 import type { HarnessApi } from './harness-api'
@@ -47,6 +49,7 @@ export {
   PROJECT_PATH_CHANNEL,
   RAIL_CHANGED_CHANNEL,
   RAIL_GET_CHANNEL,
+  RUN_REVEALED_CHANNEL,
   RUN_STOP_CHANNEL,
   SESSION_CLOSE_CHANNEL,
   SESSION_EVENT_CHANNEL,
@@ -203,6 +206,16 @@ const harness: HarnessApi = {
     ipcRenderer.on(SESSION_EVENT_CHANNEL, wrapper)
     return () => {
       ipcRenderer.removeListener(SESSION_EVENT_CHANNEL, wrapper)
+    }
+  },
+
+  onRunRevealed: (listener) => {
+    // The run's id and never the event: main has raised this window for the
+    // run, and the window scrolls to its card.
+    const wrapper = (_event: unknown, runId: RunId): void => listener(runId)
+    ipcRenderer.on(RUN_REVEALED_CHANNEL, wrapper)
+    return () => {
+      ipcRenderer.removeListener(RUN_REVEALED_CHANNEL, wrapper)
     }
   }
 }

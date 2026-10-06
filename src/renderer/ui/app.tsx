@@ -10,6 +10,7 @@ import { RunCard } from './chat/run-card'
 import { pinnedRun, Turns } from './chat/transcript'
 import type { RunCollapse } from './chat/transcript'
 import { useConversation } from './chat/use-conversation'
+import { connectRunRevealed } from './chat/use-reveal'
 import { ErrorLine } from './install/error-line'
 import { Preflight } from './install/preflight'
 import { announceable, newAnnouncements, roomState } from './install/install-state'
@@ -49,6 +50,13 @@ const NO_RUNS: ReadonlySet<string> = new Set()
  * Every card and line in flight carries the stop control (Story 3.7), the pinned
  * card too; they are all handed the conversation's one `stopRun`, which asks main
  * to stop the run by its id and says nothing of how that went.
+ *
+ * A run that ended while the user was in another window is told once there, and
+ * activating it raises this window (Story 3.10): main then pushes the run's id, and
+ * the window holds it as it holds a focus request, for the one card named to scroll
+ * into view and spend. A request for a run the conversation does not hold (it
+ * ended) is dropped on arrival. The current persona, the documents and the
+ * sessions are not touched on this path.
  */
 export function App(): JSX.Element | null {
   const [projectPath, setProjectPath] = useState<string | null>(null)
@@ -82,6 +90,25 @@ export function App(): JSX.Element | null {
   // The card took focus as it mounted, which spends the request: a later mount of a
   // card (the pinned slot, the thread again) takes none.
   const focusSpent = useCallback(() => setFocusRunId(undefined), [])
+  const [revealRunId, setRevealRunId] = useState<string | undefined>(undefined)
+  // The entries as they stand when a reveal arrives, so the subscription is made once.
+  const entriesRef = useRef(conversation.entries)
+  useEffect(() => {
+    entriesRef.current = conversation.entries
+  }, [conversation.entries])
+  // Main raised this window for a run: its card scrolls into view, when the thread
+  // holds it. An id no entry holds is dropped here and nothing is held for later.
+  useEffect(
+    () =>
+      connectRunRevealed(window.harness, (runId) => {
+        if (entriesRef.current.some((entry) => entry.kind === 'run' && entry.runId === runId)) {
+          setRevealRunId(runId)
+        }
+      }),
+    []
+  )
+  // The card scrolled into view, which spends the request.
+  const revealed = useCallback(() => setRevealRunId(undefined), [])
 
   // The shell reads two maps, so the one main-reported entry per persona is split
   // here; neither is ever written to by the window.
@@ -199,7 +226,9 @@ export function App(): JSX.Element | null {
           agentId,
     onExpand: expandRun,
     focusRunId,
-    onFocused: focusSpent
+    onFocused: focusSpent,
+    revealRunId,
+    onRevealed: revealed
   }
   return (
     <>

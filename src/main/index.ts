@@ -1,7 +1,9 @@
 import { BrowserWindow, app, ipcMain } from 'electron'
 import { PROJECT_PATH_CHANNEL } from '../shared/channels'
+import { defaultWriteDiagnostic } from './bridge-kit'
 import { registerDocBridge } from './doc-bridge'
 import { registerInstallBridge } from './install-bridge'
+import { agentNameFor } from './install-model'
 import { registerProjectBridge } from './project-bridge'
 import { createTranscriptRegistry } from './projections/transcript'
 import { registerRailBridge } from './rail-bridge'
@@ -9,6 +11,7 @@ import { registerSessionBridge } from './session-bridge'
 import { installApplicationMenu } from './windows/app-menu'
 import { ProjectPathError, resolveProjectPath } from './windows/choose-project'
 import { createProjectWindow, projectPathForWebContents } from './windows/main-window'
+import { createRunNotifier } from './windows/run-notification'
 
 /**
  * The one channel behind the preload's `getProjectPath`. It is spelled in
@@ -72,7 +75,12 @@ registerProjectBridge()
 // The conversations under `userData`, flushed when the app quits so nothing a
 // scheduled write had yet to reach is lost. `userData` is read on first use.
 const transcripts = createTranscriptRegistry({ userDataPath: () => app.getPath('userData') })
-const sessions = registerSessionBridge({ transcripts })
+// A run that ends while its window is unfocused is told once, outside the
+// window, by the one module in `windows/` that may speak to the OS for it.
+const sessions = registerSessionBridge({
+  transcripts,
+  told: createRunNotifier({ agentName: agentNameFor, writeDiagnostic: defaultWriteDiagnostic }).told
+})
 // The rail's watcher is the one that sees a memlog change; the session side
 // reads it for the notes of the run in flight.
 registerRailBridge({

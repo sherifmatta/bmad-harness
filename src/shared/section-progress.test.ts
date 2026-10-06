@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { STOPPED, commonPrefix, progressLabel, reachedLabel, sectionProgress, terminalLabel } from './section-progress'
+import { STOPPED, commonPrefix, progressLabel, reachedLabel, sectionCount, sectionProgress, terminalLabel } from './section-progress'
 
 describe('commonPrefix', () => {
   it('is how many characters two texts share from their starts', () => {
@@ -90,5 +90,19 @@ describe('the words a run that ended early reads (Story 3.8)', () => {
     expect(terminalLabel('failed', { name: 'Vision', n: 1 })).toBe('failed · §1 Vision')
     // No denominator ever enters it, whatever it is given.
     expect(terminalLabel(STOPPED, { name: 'Out of Scope', n: 2 })).not.toMatch(/\bof \d|\/\s*\d|\btotal\b/i)
+  })
+})
+
+describe('the one spelling of a section count (Story 3.10)', () => {
+  it('reads `N sections`, singular at one, and zero stated plainly', () => {
+    expect(sectionCount(0)).toBe('0 sections')
+    expect(sectionCount(1)).toBe('1 section')
+    expect(sectionCount(15)).toBe('15 sections')
+  })
+
+  it('never carries a denominator', () => {
+    for (const n of [0, 1, 2, 15]) {
+      expect(sectionCount(n)).not.toMatch(/\bof\b|\//)
+    }
   })
 })

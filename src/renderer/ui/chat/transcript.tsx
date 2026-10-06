@@ -84,6 +84,10 @@ export type RunCollapse = {
   focusRunId?: string | undefined
   /** That card took focus: the request is spent. */
   onFocused?: () => void
+  /** The run main raised the window for (Story 3.10): its card scrolls into view once. */
+  revealRunId?: string | undefined
+  /** That card scrolled into view: the request is spent. */
+  onRevealed?: () => void
 }
 
 /**
@@ -141,6 +145,7 @@ export function Turns({
             )
           }
           const focusing = collapse?.focusRunId === entry.runId
+          const revealing = collapse?.revealRunId === entry.runId
           return (
             <RunCard
               key={entry.id}
@@ -149,6 +154,8 @@ export function Turns({
               focusOnMount={focusing}
               onFocused={focusing ? collapse?.onFocused : undefined}
               onStop={onStop}
+              reveal={revealing}
+              onRevealed={revealing ? collapse?.onRevealed : undefined}
             />
           )
         }

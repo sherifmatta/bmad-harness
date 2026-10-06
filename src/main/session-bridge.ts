@@ -32,7 +32,7 @@ import { createTranscriptRegistry } from './projections/transcript'
 import type { TranscriptRegistry } from './projections/transcript'
 import { createHandoffComposer } from './session-handoff'
 import { NOT_FOUND, createSessionRegistry } from './session-registry'
-import type { Entry, OpenReply, Service, SessionRegistry } from './session-registry'
+import type { Entry, OpenReply, Service, SessionRegistry, SessionRegistryDeps } from './session-registry'
 import type { TemplatePlan } from '../shared/section-plan'
 import type { ResolvedMenuEntry } from './sources/install/schema'
 import { readText } from './sources/project/read-text'
@@ -110,6 +110,13 @@ export type SessionBridgeDeps = {
    * reads the template under the project's `.claude/skills/<skill>/assets/`.
    */
   readPlan?: (projectRoot: string, skill: string) => Promise<TemplatePlan | undefined>
+  /**
+   * Hears each run event a window is told, with the run's card as main holds it
+   * after the event folded. The composition root hands the one listener that
+   * speaks for a run outside the window (`windows/run-notification`); with none,
+   * nothing outside the window hears a run end.
+   */
+  told?: SessionRegistryDeps['told']
 }
 
 /** What the session side offers the rest of main: the rail's watcher tells it what it saw. */
@@ -437,7 +444,8 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): SessionBrid
       canonicalize: deps.canonicalize ?? canonicalPath,
       readText: deps.readText ?? readText,
       ...(deps.quietMs !== undefined ? { quietMs: deps.quietMs } : {}),
-      ...(deps.schedule !== undefined ? { schedule: deps.schedule } : {})
+      ...(deps.schedule !== undefined ? { schedule: deps.schedule } : {}),
+      ...(deps.told !== undefined ? { told: deps.told } : {})
     }),
     handoffFor: createHandoffComposer({
       transcripts,

@@ -2,7 +2,7 @@
 import { Profiler, act, createElement } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { Root } from 'react-dom/client'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { mount } from '../testing/render-hook'
 import type { Mounted } from '../testing/render-hook'
@@ -268,6 +268,91 @@ describe('the run card’s focus, when it replaces a line (Story 3.5)', () => {
     // The request is spent, and the card keeps the focus and the tabindex that hold it.
     expect(section?.getAttribute('tabindex')).toBe('-1')
     expect(document.activeElement).toBe(section)
+  })
+})
+
+describe('the run card, shown from elsewhere (Story 3.10)', () => {
+  type Props = { reveal?: boolean; onRevealed?: () => void; focusOnMount?: boolean }
+  // jsdom has no scrollIntoView: the stub records the element it was called on and with what.
+  let scrolled: [Element, unknown[]][]
+  beforeEach(() => {
+    scrolled = []
+    Element.prototype.scrollIntoView = function (this: Element, ...args: unknown[]) {
+      scrolled.push([this, args])
+    }
+  })
+  afterEach(() => {
+    delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView
+  })
+
+  const terminal = (): RunCardEntry => card({ status: 'finished', endedAt: Date.now(), documents: [{ path: 'a.md', sections: ['A'] }] })
+  const drawRevealing = (props: Props) => {
+    const container = document.createElement('div')
+    document.body.append(container)
+    const root: Root = createRoot(container)
+    const render = (next: Props): void =>
+      act(() => root.render(createElement(RunCard, { entry: terminal(), prose: createProseStore(crank()), ...next })))
+    render(props)
+    return {
+      container,
+      render,
+      stop: () => {
+        act(() => root.unmount())
+        container.remove()
+      }
+    }
+  }
+  let view: ReturnType<typeof drawRevealing> | null = null
+  afterEach(() => {
+    view?.stop()
+    view = null
+  })
+
+  it('scrolls its own root into view once, to its start, when reveal turns true, and spends the request', () => {
+    const calls: number[] = []
+    const onRevealed = (): void => void calls.push(calls.length)
+    view = drawRevealing({})
+    expect(scrolled).toEqual([])
+
+    view.render({ reveal: true, onRevealed })
+
+    const section = view.container.querySelector('section.run-card')
+    expect(scrolled).toEqual([[section, [{ block: 'start' }]]])
+    expect(calls).toEqual([0])
+  })
+
+  it('scrolls on mounting with reveal too, and not again however it renders after while the request stands', () => {
+    view = drawRevealing({ reveal: true, onRevealed: () => {} })
+    expect(scrolled).toHaveLength(1)
+
+    view.render({ reveal: true, onRevealed: () => {} })
+    view.render({ reveal: true })
+    expect(scrolled).toHaveLength(1)
+
+    // Spent, then a second request: a second scroll.
+    view.render({ reveal: false })
+    view.render({ reveal: true })
+    expect(scrolled).toHaveLength(2)
+  })
+
+  it('moves no focus and changes no markup: the reveal is a scroll and nothing else', () => {
+    view = drawRevealing({})
+    const before = view.container.innerHTML
+
+    view.render({ reveal: true, onRevealed: () => {} })
+
+    expect(document.activeElement).toBe(document.body)
+    expect(view.container.innerHTML).toBe(before)
+    expect(view.container.querySelector('section.run-card')?.hasAttribute('tabindex')).toBe(false)
+    expect(JSON.stringify(scrolled[0][1])).not.toMatch(/smooth|behavior/)
+  })
+
+  it('scrolls nowhere when drawn without it, as every card is but the one named', () => {
+    view = drawRevealing({})
+    view.render({ reveal: false })
+    view.render({})
+
+    expect(scrolled).toEqual([])
   })
 })
 

@@ -436,13 +436,24 @@ describe("the end-session control is a lifecycle control and nothing more", () =
 });
 
 describe("the product is silent", () => {
+  // Story 3.10's one native banner is silent and lives in this one file; it is the
+  // one place the API may be named, and the one place its name may be imported from.
+  const NOTIFIER = "src/main/windows/run-notification.ts";
+
   it("names no audio element, API or flag in any source", () => {
     expect(
       offenders(
         ALL_CODE,
-        /<audio|<video|\bnew Audio\b|\bAudioContext\b|webkitAudioContext|\.play\(|\bNotification\b|\bshell\.beep\b|\bbeep\b|speechSynthesis|\bappendSwitch\b|\bautoplay\b/i,
+        /<audio|<video|\bnew Audio\b|\bAudioContext\b|webkitAudioContext|\.play\(|\bshell\.beep\b|\bbeep\b|speechSynthesis|\bappendSwitch\b|\bautoplay\b/i,
       ),
     ).toEqual([]);
+    // The banner API, in any case, nowhere but the notifier: an import of the
+    // notifier names its file, so import lines are read apart from the code.
+    const withoutImports = (text: string): string => text.replace(/^import\b[^\n]*$/gm, "");
+    expect(
+      ALL_CODE.filter((path) => path !== NOTIFIER && /\bnotification\b/i.test(withoutImports(code.get(path) ?? ""))),
+    ).toEqual([]);
+    expect(ALL_CODE.filter((path) => /run-notification['"]/.test(code.get(path) ?? ""))).toEqual(["src/main/index.ts"]);
   });
 
   it("carries no audio flag in the build or window configuration", () => {
@@ -568,13 +579,17 @@ describe("motion", () => {
 
   it("scrolls, frames and animates by no script and no smooth-scroll rule", () => {
     // Story 3.1: the prose store paints a run's text at most once a frame, and
-    // the frame is injected in one place. It animates and scrolls nothing.
+    // the frame is injected in one place. It animates and scrolls nothing. Story
+    // 3.10's reveal hook is the renderer's one scroll call, instant, never smooth.
     expect(
       offenders(
         RENDERER_CODE,
         /\brequestAnimationFrame\b|\.animate\(|\bscrollIntoView\b|behavior:\s*['"]smooth/,
-      ),
-    ).toEqual(["src/renderer/ui/chat/use-conversation.ts: requestAnimationFrame"]);
+      ).sort(),
+    ).toEqual([
+      "src/renderer/ui/chat/use-conversation.ts: requestAnimationFrame",
+      "src/renderer/ui/chat/use-reveal.ts: scrollIntoView",
+    ]);
     expect(
       (code.get("src/renderer/ui/chat/use-conversation.ts") ?? "").match(/\brequestAnimationFrame\b/g),
     ).toHaveLength(1);
@@ -825,8 +840,8 @@ describe("the handoff says only what is true and parses no skill (Story 2.9)", (
     const preload = code.get("src/preload/index.ts") ?? "";
 
     // Thirteen before Story 2.11, whose one new method is closeSession, Story 3.1's
-    // dispatchMenu and Story 3.7's stopRun; none is the handoff's.
-    expect([...preload.matchAll(/^ {2}([a-zA-Z]+): (?:async )?\(/gm)]).toHaveLength(16);
+    // dispatchMenu, Story 3.7's stopRun and Story 3.10's onRunRevealed; none is the handoff's.
+    expect([...preload.matchAll(/^ {2}([a-zA-Z]+): (?:async )?\(/gm)]).toHaveLength(17);
     expect(code.get("src/shared/commands.ts") ?? "").not.toMatch(/handoff|sysline/i);
     expect(code.get("src/shared/events.ts") ?? "").not.toMatch(/handoff|sysline/i);
   });
@@ -1309,13 +1324,21 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
   });
 
   describe("the whole epic is silent and badge-free", () => {
-    it("names no sound, Dock, badge, bounce, progress, attention or notification API in any source, preload and shared included", () => {
+    // Story 3.10 added the one native banner, in one file: that file alone may name
+    // the API, and is swept for everything else in the list all the same.
+    const NOTIFIER = "src/main/windows/run-notification.ts";
+    const SILENT =
+      /\bflashFrame\b|\brequestUserAttention\b|\bsetProgressBar\b|\bsetOverlayIcon\b|\bsetBadgeCount\b|\bbadgeCount\b|\bBadgeCount\b|\bapp\.dock\b|\bdock\b|\bbounce\b|\bsetBadge\b|\bsetTrayTitle\b|\bnew Tray\b|\bTray\b|\bshowNotification\b|\bshell\.beep\b|\bbeep\b|\bsystemPreferences\.(?:setUserDefault|postNotification|subscribeNotification)|\bsetWindowButtonVisibility\b|\bsetDocumentEdited\b|\bsetRepresentedFilename\b|\bnew Audio\b|\bAudioContext\b|<audio|<video|\.play\(/;
+
+    it("names no sound, Dock, badge, bounce, progress, attention or notification API in any source but the notifier, preload and shared included", () => {
       expect(
         offenders(
-          ALL_CODE,
-          /\bflashFrame\b|\brequestUserAttention\b|\bsetProgressBar\b|\bsetOverlayIcon\b|\bsetBadgeCount\b|\bbadgeCount\b|\bBadgeCount\b|\bapp\.dock\b|\bdock\b|\bbounce\b|\bsetBadge\b|\bsetTrayTitle\b|\bnew Tray\b|\bTray\b|\bNotification\b|\bshowNotification\b|\bshell\.beep\b|\bbeep\b|\bsystemPreferences\.(?:setUserDefault|postNotification|subscribeNotification)|\bsetWindowButtonVisibility\b|\bsetDocumentEdited\b|\bsetRepresentedFilename\b|\bnew Audio\b|\bAudioContext\b|<audio|<video|\.play\(/,
+          ALL_CODE.filter((path) => path !== NOTIFIER),
+          new RegExp(`${SILENT.source}|\\bNotification\\b`),
         ),
       ).toEqual([]);
+      expect(ALL_CODE).toContain(NOTIFIER);
+      expect(offenders([NOTIFIER], SILENT)).toEqual([]);
     });
 
     it("lets the preload and the shared contract carry no word for any of it", () => {
@@ -1467,7 +1490,10 @@ describe("the pinned running card is a place, not a control (Story 3.14)", () =>
     const start = css.indexOf(".pinned {");
     const rule = css.slice(start, css.indexOf("}", start));
     expect(rule).not.toMatch(/z-index|position|animation|transition|scroll|overflow/);
-    expect(offenders(RENDERER_CODE, /\.scroll(?:Top|To|By)\b|\bscrollIntoView\b|\.animate\(/)).toEqual([]);
+    // The renderer's one scroll call arrived with Story 3.10, in the reveal hook, and is the only one.
+    expect(offenders(RENDERER_CODE, /\.scroll(?:Top|To|By)\b|\bscrollIntoView\b|\.animate\(/)).toEqual([
+      "src/renderer/ui/chat/use-reveal.ts: scrollIntoView",
+    ]);
     expect(offenders(RENDERER_ALL.filter((path) => path.endsWith(".css")), /z-index/)).not.toContain(
       `${SHELL_CSS}: z-index`,
     );
@@ -1842,7 +1868,7 @@ describe("two writers, one file: the rail reports it and nothing arbitrates (Sto
     expect(offenders([OWNER_LABEL], /§|\bof\b|\btotal\b|\bcount\b/)).toEqual([]);
   });
 
-  it("adds no command, event, channel or bridge method: the counts stay seven, fifteen, twenty-one and sixteen", () => {
+  it("adds no command, event, channel or bridge method: the counts stay seven, fifteen, twenty-two and seventeen", () => {
     const commands = [...(code.get(COMMANDS) ?? "").matchAll(/^\s+'([a-z]+\.[a-z]+)':\s*CommandSpec/gm)].map(([, name]) => name);
     const events = [...(code.get(EVENTS) ?? "").matchAll(/^\s+'([a-z]+:[a-z-]+)':\s*EventSpec/gm)].map(([, name]) => name);
     const channels = [...(code.get(CHANNELS) ?? "").matchAll(/^export const (\w+) = '/gm)].map(([, name]) => name);
@@ -1851,10 +1877,12 @@ describe("two writers, one file: the rail reports it and nothing arbitrates (Sto
       ([, name]) => name,
     );
 
+    // Story 3.9 left the counts at seven, fifteen, twenty-one and sixteen; Story 3.10 added
+    // the one channel and the one method a window hears a revealed run on, and no event.
     expect(commands).toHaveLength(7);
     expect(events).toHaveLength(15);
-    expect(channels).toHaveLength(21);
-    expect(methods).toHaveLength(16);
+    expect(channels).toHaveLength(22);
+    expect(methods).toHaveLength(17);
     // And none of them is named for it.
     expect(offenders(CONTRACT, /contend|contention|\bowners\b|arbitrat/i)).toEqual([]);
     expect(offenders(MAIN_CODE, /ipcMain\.handle\(\s*["'`][^"'`]*(?:contend|contention|owners|arbitrat)/i)).toEqual([]);
@@ -1936,5 +1964,154 @@ describe("two writers, one file: the rail reports it and nothing arbitrates (Sto
     expect(store).toContain("inside-project");
     // Contention is a report: nothing in the fold, the row table or the annotator reaches a file or a process.
     expect(offenders([FOLD, ROWS, ANNOTATOR, HOLDER, OWNER_LABEL], /node:fs|node:child_process|\bspawn\b|\bkill\b|\binterrupt\b|\bwriteTurn\b|\.write\(/)).toEqual([]);
+  });
+});
+
+describe("told once, quietly, when you are elsewhere: one silent banner, one scroll, and nothing else (Story 3.10)", () => {
+  const NOTIFIER = "src/main/windows/run-notification.ts";
+  const REVEAL = "src/renderer/ui/chat/use-reveal.ts";
+  const COMMANDS = "src/shared/commands.ts";
+  const EVENTS = "src/shared/events.ts";
+  const CHANNELS = "src/shared/channels.ts";
+  const PRELOAD = "src/preload/index.ts";
+  const notifier = (): string => code.get(NOTIFIER) ?? "";
+  const reveal = (): string => code.get(REVEAL) ?? "";
+  /** The string and template literals of a file's code. */
+  const literalsOf = (text: string): string[] => [...text.matchAll(/(["'`])((?:(?!\1)[^\n\\]|\\.)*)\1/g)].map(([, , body]) => body);
+
+  it("reads the sources it claims to sweep", () => {
+    expect(notifier().length).toBeGreaterThan(500);
+    expect(reveal().length).toBeGreaterThan(200);
+  });
+
+  it("names the banner API in the notifier alone, constructs it silent, and gives it no sound, reply, action, urgency, timeout or icon", () => {
+    expect(offenders(ALL_CODE, /\bNotification\b/).map((hit) => hit.split(":")[0])).toEqual([NOTIFIER]);
+    expect(notifier()).toMatch(/silent:\s*true/);
+    expect(notifier()).toMatch(/new Notification\(/);
+    expect(notifier()).toMatch(/Notification\.isSupported\(\)/);
+    expect(notifier()).not.toMatch(/\bsound\b|\bhasReply\b|\bactions\b|\burgency\b|\btimeoutType\b|\bicon\b|\btitle\b|\bsubtitle\b|\breplyPlaceholder\b|\bcloseButtonText\b|\btoastXml\b/);
+    // Shown once, by the one call, and the OS's refusal is one line to the developer and nothing else.
+    expect(notifier().match(/posted\.show\(\)/g)).toHaveLength(1);
+    expect(notifier().match(/\.show\(\)/g)).toEqual([".show()", ".show()"]);
+    expect(notifier()).toContain("run/completion · ");
+  });
+
+  it("asks no permission anywhere in src: macOS asks once on its own and the harness never asks again", () => {
+    expect(offenders(ALL_CODE, /\brequestPermission\b|\bsystemPreferences\b|\baskFor\w*/)).toEqual([]);
+  });
+
+  it("holds no timer, queue, debounce, digest or batch, touches no `app.` and sets no badge: nothing is held across a quit", () => {
+    expect(
+      offenders(
+        [NOTIFIER],
+        /\bapp\.|\bsetTimeout\b|\bsetInterval\b|\bqueueMicrotask\b|\bqueue\w*\b|\bdebounce\w*\b|\bdigest\w*\b|\bbatch\w*\b|\bcoalesce\w*\b|\bsetBadge\w*\b|\bdock\b|\bflashFrame\b|\brequestUserAttention\b/i,
+      ),
+    ).toEqual([]);
+    // Nothing of a run is kept between events: no map held at module or notifier scope, and the one
+    // `Set` is the three event names.
+    expect(notifier()).not.toMatch(/\bnew (?:Map|WeakMap|WeakSet)\b|\bpending\b|\bheld\b/);
+    expect(notifier().match(/\bnew Set\b/g)).toHaveLength(1);
+    expect(notifier()).toMatch(/new Set\(\['run:finished', 'run:stopped', 'run:failed'\]\)/);
+  });
+
+  it("names exactly the three terminal events, and no other event, command or channel but the one it pushes", () => {
+    // Import specifiers (`node:path`) are read apart from the code.
+    const body = notifier().replace(/^import\b[^\n]*$/gm, "");
+    const names = literalsOf(body).filter((text) => /^[a-z]+:[a-z-]+$/.test(text));
+    expect(names.sort()).toEqual(["run:failed", "run:finished", "run:stopped"]);
+    // The push rides the channel constant, never a literal of its own.
+    expect(notifier()).toContain("RUN_REVEALED_CHANNEL");
+    expect(notifier()).not.toMatch(/ipcMain|ipcRenderer|contextBridge|\.handle\(/);
+  });
+
+  it("states and never guides: the notifier's literals are the three event names, the separator, the diagnostic prefix and the API's own event word", () => {
+    // Import specifiers, the window type's picked keys and the event type's indexed key are read apart
+    // from the code: none is a word anyone sees.
+    const body = notifier()
+      .replace(/^import\b[^\n]*$/gm, "")
+      .replace(/^export type RunWindow = Pick<[^\n]*$/gm, "")
+      .replace(/ContractEvent\['name'\]/g, "ContractEventName")
+      .replace(/RunKit\['told'\]/g, "RunKitTold");
+    // The words themselves, with a template's interpolations taken out.
+    const literals = literalsOf(body).map((text) => text.replace(/\$\{[^}]*\}/g, ""));
+    // `running` is the one status word it names, twice: the type that leaves it out of a line, and the check that does.
+    expect([...literals].sort()).toEqual([" · ", "click", "click", "run/completion · ", "run:failed", "run:finished", "run:stopped", "running", "running"].sort());
+    // `click` is Electron's name for the event the banner raises when activated, the one word of the
+    // API's that is not copy: it is spelled where the posted line's type declares it and where it is heard.
+    expect(notifier()).toMatch(/on\(event: 'click', listener: \(\) => void\): unknown/);
+    expect(notifier()).toMatch(/posted\.on\('click', \(\) => \{/);
+    const copy = literals.filter((text) => text !== "click");
+    expect(copy.filter((text) => /\b(?:ready|review|next|open|click|see|check|please|should|your|done|complete|finish(?:ed)? up|congrat\w*|great|nice)\b/i.test(text))).toEqual([]);
+    expect(copy.filter((text) => /[.!?]$/.test(text))).toEqual([]);
+    expect(copy.filter((text) => /[A-Z]/.test(text))).toEqual([]);
+    // The count is the shared spelling, not a second one here.
+    expect(notifier()).toMatch(/import \{ sectionCount \} from '\.\.\/\.\.\/shared\/section-progress'/);
+    expect(notifier()).not.toMatch(/["'`]sections?["'`]/);
+  });
+
+  it("reads the window's own focus at the moment it is told, and raises it on activation by restore, show and focus alone", () => {
+    expect(notifier()).toMatch(/BrowserWindow\.fromWebContents\(/);
+    expect(notifier()).toMatch(/\.isFocused\(\)/);
+    expect(notifier()).toMatch(/isMinimized\(\)\) window\.restore\(\)/);
+    expect(notifier()).toMatch(/window\.show\(\)\s*\n\s*window\.focus\(\)/);
+    expect(notifier()).not.toMatch(/\bsetAlwaysOnTop\b|\bmoveTop\b|\bopenDocWindow\b|\bcreateProjectWindow\b|\bnew BrowserWindow\b|\bloadURL\b|\bloadFile\b/);
+  });
+
+  it("scrolls in the reveal hook alone, instantly, and moves no focus, switches no persona, opens nothing and sends no command there", () => {
+    expect(offenders(RENDERER_CODE, /\bscrollIntoView\b|\.scroll(?:Top|To|By)\b/).map((hit) => hit.split(":")[0])).toEqual([REVEAL]);
+    expect(reveal()).toMatch(/scrollIntoView\(\{ block: 'start' \}\)/);
+    expect(reveal()).not.toMatch(/smooth|behavior|\.focus\(|\bfocus\(|setCurrentId|openDoc|dispatchMenu|sendTurn|openSession|stopRun|closeSession|ipcRenderer/);
+    // The target is the card's own ref: no attribute, no query.
+    expect(reveal()).not.toMatch(/querySelector|getElementById|data-|dataset|setAttribute|\bdocument\./);
+    // The hook is the card's: it is mounted in `RunCard` and nowhere else.
+    expect(RENDERER_CODE.filter((path) => /\buseReveal\(/.test(code.get(path) ?? "") && path !== REVEAL)).toEqual(["src/renderer/ui/chat/run-card.tsx"]);
+    // The window spends the request as it spends a focus request, by run id, and touches the current persona on no path of it.
+    const app = code.get("src/renderer/ui/app.tsx") ?? "";
+    const revealing = app.slice(app.indexOf("const [revealRunId"), app.indexOf("const revealed = useCallback"));
+    expect(revealing).toContain("connectRunRevealed(window.harness");
+    expect(revealing).not.toMatch(/setCurrentId|setComposerFocus|openDoc|activate\(|send\(|runSkill|stopRun|close\(/);
+  });
+
+  it("gives the preload and the shared contract no word of it, and no new command or event: seven, fifteen, twenty-two channels, seventeen methods", () => {
+    expect(
+      offenders(
+        [...sources("src/preload/"), ...sources("src/shared/")],
+        /\b(?:sound|audio|badge|dock|bounce|progress|attention|notif\w*|chime|ding|alert|banner|toast)\b/i,
+      ),
+    ).toEqual([]);
+    const commands = [...(code.get(COMMANDS) ?? "").matchAll(/^\s+'([a-z]+\.[a-z]+)':\s*CommandSpec/gm)].map(([, name]) => name);
+    const events = [...(code.get(EVENTS) ?? "").matchAll(/^\s+'([a-z]+:[a-z-]+)':\s*EventSpec/gm)].map(([, name]) => name);
+    const channels = [...(code.get(CHANNELS) ?? "").matchAll(/^export const (\w+) = '/gm)].map(([, name]) => name);
+    const preload = code.get(PRELOAD) ?? "";
+    const methods = [...preload.slice(preload.indexOf("const harness: HarnessApi = {"), preload.indexOf("contextBridge.exposeInMainWorld")).matchAll(/^ {2}(\w+):/gm)].map(
+      ([, name]) => name,
+    );
+    expect(commands).toHaveLength(7);
+    expect(events).toHaveLength(15);
+    expect(channels).toHaveLength(22);
+    expect(channels).toContain("RUN_REVEALED_CHANNEL");
+    expect(methods).toHaveLength(17);
+    expect(methods).toContain("onRunRevealed");
+    // The channel is a push to a window and nothing answers on it: no handler, no invoke.
+    expect(offenders(MAIN_CODE, /ipcMain\.handle\(\s*RUN_REVEALED_CHANNEL/)).toEqual([]);
+    expect(preload).not.toMatch(/invoke\(RUN_REVEALED_CHANNEL/);
+  });
+
+  it("changes nothing of the card's markup, the rail, the fold, the projections or the live region", () => {
+    for (const path of [
+      "src/main/fold/run-card.ts",
+      "src/main/projections/runs.ts",
+      "src/main/fold/rail-annotations.ts",
+      "src/main/projections/rail-annotator.ts",
+      "src/renderer/ui/a11y/live-region.tsx",
+      "src/renderer/ui/chat/run-card-line.tsx",
+      "src/renderer/ui/outputs/outputs.tsx",
+    ]) {
+      expect(code.get(path) ?? "", path).not.toMatch(/reveal|RUN_REVEALED|scrollIntoView|RunNotifier|completionLine|run-notification/i);
+    }
+    // The card gained two props and one hook call, and no element, class or attribute.
+    const card = code.get("src/renderer/ui/chat/run-card.tsx") ?? "";
+    expect(card.match(/useReveal\(/g)).toHaveLength(1);
+    expect(card).not.toMatch(/className="[^"]*reveal|\breveal\w*=["{]|aria-\w*reveal|data-reveal/i);
   });
 });

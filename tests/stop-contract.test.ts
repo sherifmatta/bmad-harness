@@ -77,9 +77,17 @@ describe('what a stop never touches', () => {
   })
 
   it('offers no revert, restore or undo anywhere in main or the window, and no control or line in it says resume', () => {
+    // Story 3.10's notifier restores one thing, the minimized project window, by Electron's own word
+    // for the inverse of minimize: `window.restore()`, named once in its window type and once in the call.
+    const NOTIFIER = join(SRC, 'main/windows/run-notification.ts')
     for (const path of [...main, ...renderer]) {
+      if (path === NOTIFIER) continue
       expect(code(path), rel(path)).not.toMatch(/\b(?:revert|restore|undo)\w*/i)
     }
+    const notifier = code(NOTIFIER)
+    expect(notifier.match(/\b(?:revert|restore|undo)\w*/gi)).toEqual(['restore', 'restore'])
+    expect(notifier).toMatch(/if \(window\.isMinimized\(\)\) window\.restore\(\)/)
+    expect(notifier).not.toMatch(/node:fs|unlink|writeFile|rename|\brm\b/)
     for (const path of renderer) {
       expect(code(path), rel(path)).not.toMatch(/(?:['"`>])\s*resume\b/i)
     }

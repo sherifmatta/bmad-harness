@@ -115,3 +115,13 @@ function placed(word: string, section?: SectionPlace): string {
 export function terminalLabel(word: TerminalWord, section?: SectionPlace): string {
   return placed(word, section)
 }
+
+/**
+ * `1 section`, `15 sections`, `0 sections`: how many headings a document's
+ * last confirmed write committed, spelled once for the card's saved head, the
+ * live region's line and whatever else main says of a run that ended. `n` is
+ * that number and nothing is counted against: there is no total.
+ */
+export function sectionCount(n: number): string {
+  return `${n} ${n === 1 ? 'section' : 'sections'}`
+}

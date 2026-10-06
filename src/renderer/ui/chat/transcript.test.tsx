@@ -1,6 +1,9 @@
-import { describe, expect, it } from 'vitest'
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 
+import { mount } from '../testing/render-hook'
+import type { Mounted } from '../testing/render-hook'
 import { createProseStore } from './prose-store'
 import { pinnedRun, Turns } from './transcript'
 import type { RunCollapse } from './transcript'
@@ -170,5 +173,59 @@ describe('Turns with collapsed cards (Story 3.5)', () => {
     expect(draw(entries, collapse({ expanded: new Set(['r1', 'r2']) })).match(/tabindex/g)).toBeNull()
     // A line is never a focus target.
     expect(draw([card('r1')], collapse({ focusRunId: 'r1' })).match(/tabindex/g)).toBeNull()
+  })
+})
+
+describe('Turns with a run revealed from elsewhere (Story 3.10)', () => {
+  // jsdom has no scrollIntoView: the stub records the element it was called on.
+  let scrolled: Element[]
+  beforeEach(() => {
+    scrolled = []
+    Element.prototype.scrollIntoView = function (this: Element) {
+      scrolled.push(this)
+    }
+  })
+  let mounted: Mounted | null = null
+  afterEach(() => {
+    mounted?.unmount()
+    mounted = null
+    delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView
+  })
+
+  const ended = (id: string, at: number): RunCardEntry => card(id, { at, status: 'finished', endedAt: at + 1 })
+  const collapse = (over: Partial<RunCollapse> = {}): RunCollapse => ({
+    viewedId: ARCHITECT,
+    expanded: new Set(),
+    nameOf: () => 'John',
+    onExpand: () => {},
+    ...over
+  })
+  const drawLive = (entries: readonly TranscriptEntry[], toCollapse: RunCollapse): HTMLElement => {
+    const prose = createProseStore({ raf: (run) => run() })
+    mounted = mount(<Turns entries={entries} prose={prose} collapse={toCollapse} />)
+    return mounted.container
+  }
+
+  it('scrolls the one card named by `revealRunId` into view, and no other, and spends the request once', () => {
+    const spent: number[] = []
+    const entries = [ended('r1', 100), ended('r2', 200), ended('r3', 300)]
+
+    const container = drawLive(entries, collapse({ revealRunId: 'r2', onRevealed: () => void spent.push(spent.length) }))
+
+    const sections = [...container.querySelectorAll('section.run-card')]
+    expect(sections).toHaveLength(3)
+    expect(scrolled).toEqual([sections[1]])
+    expect(spent).toEqual([0])
+    expect(document.activeElement).toBe(document.body)
+  })
+
+  it('scrolls nothing with no reveal, and nothing for an id no card in the thread has', () => {
+    const entries = [ended('r1', 100), user('u1', 150)]
+    drawLive(entries, collapse())
+    expect(scrolled).toEqual([])
+
+    mounted?.unmount()
+    drawLive(entries, collapse({ revealRunId: 'r9', onRevealed: () => {} }))
+    expect(scrolled).toEqual([])
   })
 })
