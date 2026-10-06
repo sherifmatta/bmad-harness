@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-25-2026 17:00
-last_updated: 10-06-2026 13:56
+last_updated: 10-06-2026 17:07
 project: bmad-harness
 project_key: NOKEY
 tracking_system: file-system
@@ -83,6 +83,7 @@ development_status:
   3-9-two-writers-one-file-no-arbitration: done
   3-10-told-once-quietly-when-you-are-elsewhere: done
   3-11-nothing-this-epic-promised-not-to-do: done
+  3-15-the-work-that-carries-on-after-a-stop: backlog
   epic-3-retrospective: done
 
   epic-4: backlog
@@ -504,5 +505,16 @@ action_items:
       a deferral of a headline control's failure mode goes into deferred-work.md at
       the time."
     owner: "Sherif"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-48-build-story-3-15-the-work-that-carries-o"
+    epic: 3
+    action: "Build story 3.15, the work that carries on after a stop has a card (epics.md,
+      Epic 3): start a run for a turn nobody sent after a user stop, carrying the
+      stopped run code and plan; no automatic second interrupt; replace the replay
+      in session-stop.test.ts that pins the resumed turns as no run; extend the 3.11
+      audit to the continuation card. Evidence: fixtures/runs/interrupt-inband-tasks-live-mid-write.jsonl,
+      deferred-work.md. Before Epic 4."
+    owner: "dev"
     status: open
     ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"

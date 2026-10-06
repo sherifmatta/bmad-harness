@@ -22,6 +22,7 @@ Make the product's central beat real: press a skill button belonging to the pers
 - Story 3.9: Two writers, one file, no arbitration (done)
 - Story 3.10: Told once, quietly, when you are elsewhere (done)
 - Story 3.11: Nothing this epic promised not to do (done)
+- Story 3.15: The work that carries on after a stop has a card (backlog; added 2026-10-06)
 
 ## Requirements & Constraints
 
@@ -64,5 +65,6 @@ Make the product's central beat real: press a skill button belonging to the pers
 
 - 3.12 → 3.13/3.14 → 3.2 was enforced after the 3.1 live judgement; 3.12's per-path buffers underpin 3.3 and 3.4.
 - Head, dot, caret and foot read one projection across 3.1, 3.3, 3.4, 3.5, 3.7, 3.8; 3.5's collapsed form serves 3.7's orphans and 3.14; 3.6's annotation slot is filled by 3.8 and 3.9; 3.8's commit-on-`tool_result` is the same function that drives 3.3's foot.
+- 3.15 follows 3.7 and 3.8: a turn nobody sent after a user stop starts a run (stopped run's `code` and plan, new run id), so the card, stop control, rail annotation and notification of 3.1–3.10 apply to it; 3.11's audit must cover its card.
 - 3.10 consumes the terminal events of 3.7/3.8 and the card scroll target of 3.1/3.14, touching nothing in the card. 3.11 audits every surface built by 3.1–3.10.
 - Inherited: run-note feed and stub annotation (Epic 1), stop semantics (1.1), replay corpus and turn-queueing item (Epic 2), orphan session (2.11), relaunch dead-card clause (2.7). Epic 4 is independent.

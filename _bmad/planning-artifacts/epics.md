@@ -1954,6 +1954,53 @@ So that the surface where a builder is most tempted to add reassurance stays hon
 **Given** `prefers-reduced-motion: reduce`
 **Then** every animation in this epic is disabled and every fact they carried remains legible — the elapsed counter keeps ticking, the caret renders static-on rather than static-off, and every state string remains present.
 
+### Story 3.15: The work that carries on after a stop has a card
+
+*Sequencing: lands after Story 3.8 and before Story 3.11's audit is re-run, and before Epic 4 (added 2026-10-06 from the Epic 3 retrospective, action item 1; decision by Sherif 2026-10-06: make the resumed turn visible and controllable, no automatic second interrupt).*
+
+As someone who pressed stop on a run,
+I want any work the persona goes on to do after it to be on a card I can see and stop,
+So that I never believe a run has halted while the persona is still writing.
+
+**Implements:** FR83, FR84 · FR31 · FR35
+
+**Evidence:** on a real `claude` 2.1.285, an in-band interrupt sent while background subagents were live stopped them, ended the turn with a failed `result`, and then the CLI ran two turns nobody sent: an empty one (`num_turns: 0`) and one in which the persona resumed the original instruction and `Write`s the document. The recorder sent nothing but the interrupt. Three of three trials interrupted after the main thread had launched its subagents resumed; one interrupted before it had did not. In the harness today the run ends `stopped`, no run starts for the resumed turn, and the write has no card, no stop control and no completion notification (`fixtures/runs/interrupt-inband-tasks-live-mid-write.jsonl` frames 336 to 1432, `README.md` row; `_bmad/implementation-artifacts/deferred-work.md`, *After a stop, the CLI can resume on its own*).
+
+**Acceptance Criteria:**
+
+**Given** a run that ended `stopped` because the user pressed stop, and no turn sent by the user since
+**When** a main-thread message begins that nobody sent (the `resumed` signal of the turn fold)
+**Then** a run starts for it: `run:started` for the same session, carrying the stopped run's `code` and the same section plan, with its own run id, so that a card is born in time order with the persona's turn in flight
+**And** the empty turn the CLI runs first (`num_turns: 0`, no message of its own) starts no run.
+
+**Given** the continuation run
+**Then** it is an ordinary run in every respect of Epics 3.1 to 3.10: pinned atop the chat column while its persona is viewed, the collapsed line otherwise, one subject document, run notes, the stop control on the head and on the collapsed line, the rail annotation, no `note` raised by the persona's own writes, and exactly one silent notification when it ends and the window is unfocused
+**And** it ends on the per-turn `result` row like any run: `run:finished` on success, `run:failed` on `is_error`, `run:stopped` when the user stops it.
+
+**Given** the harness starts a run for work the user did not ask for
+**Then** it says so once in its own register, in the transcript, never in a persona's voice, as a fact and not as guidance (copy for `bmad-ux`; placeholder `carried on after the stop · a new run follows it`)
+**And** the persona's own turns are unchanged.
+
+**Given** the user stops the continuation run
+**Then** `run.stop` interrupts it exactly as Story 3.7 specifies, the card reaches `stopped` on the interrupted `result`, and the session stays open
+**And** if the CLI then resumes again, the same rule applies once more and a further card is born; the harness never writes an interrupt the user did not ask for, and never offers, suggests or performs a resume.
+
+**Given** a turn nobody sent in any other circumstance
+**Then** no run starts for it: not on a session whose last run `finished` or `failed`, not after the user has sent a turn or dispatched a menu entry since the stop, not on a session that has never run, and not while a run is in flight (a background subagent finishing during a run is part of that run)
+**And** the stopped run's `code` and plan are held only until one of those things happens, and are not persisted.
+
+**Given** the application is quit and relaunched, or the window reloaded
+**Then** a continuation card behaves as any card: re-emitted from main on reload, dead with no ticking and no stop after a relaunch, and nothing is started for a turn that has not happened.
+
+**Given** the negative surface and the audit
+**Then** the continuation card adds no control, dialog, badge, toast, sound, denominator, spinner or "resume" word, and the Story 3.11 audit (`epic-3-audit.dom.test.tsx`, `tests/negative-surface.test.ts`) covers a continuation card in each of its states, built by the folds from the recorded events and not by hand.
+
+**Given** the evidence above
+**Then** the three recordings are replayed through the real bridge and registry: `interrupt-inband-tasks-live-mid-write` yields `run:started`, `run:stopped`, `run:started` (same session and code, new run id), the document events for `notes.md` on the second run's card, and `run:finished`; `interrupt-inband-tasks-live` and `interrupt-inband-idle` yield no second run
+**And** the replay in `src/main/session-stop.test.ts` that pins the resumed turns as "no run" is replaced by it.
+
+**Boundaries:** no new event name or command; no change to the stop mechanism, `STOP_ACK_MS` or `STOP_RESULT_MS`; the harness prevents nothing and interrupts nothing on its own.
+
 ---
 
 ## Epic 4: Convene the room — party mode
