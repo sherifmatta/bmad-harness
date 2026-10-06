@@ -6,7 +6,7 @@ import type { ConversationReply, ConversationSnapshot } from '../shared/conversa
 import type { ContractEvent, EventName, EventPayload } from '../shared/events'
 import { createTranscriptRegistry } from './projections/transcript'
 import type { TranscriptRegistry } from './projections/transcript'
-import { STOP_ACK_MS } from './session-stop'
+import { STOP_ACK_MS, STOP_RESULT_MS } from './session-stop'
 import { LINES } from './session-voice'
 import type { ResolvedMenuEntry } from './sources/install/schema'
 import type { SessionProcess, SpawnOutcome, SpawnSessionOptions } from './sources/session/session-process'
@@ -293,7 +293,7 @@ describe('a stop the CLI acknowledged', () => {
     expect(fake.kills).toBe(0)
   })
 
-  it('does not end the run at the acknowledgement alone, and holds no timer past it', async () => {
+  it('does not end the run at the acknowledgement alone: the ack timer is cancelled and the card is as it was', async () => {
     const { sender, fake, runId } = await running()
     const reply = stopRun(sender, runId)
     await flush()
@@ -304,24 +304,143 @@ describe('a stop the CLI acknowledged', () => {
     await reply
 
     expect(pending[0].cancelled).toBe(true)
-    advance(60_000)
+    advance(STOP_RESULT_MS - 1)
     expect(sender.sent.filter((event) => event.name !== 'harness:said')).toEqual([])
     expect(snapshot(sender).runs[0].status).toBe('running')
   })
 
-  it('leaves a run whose result never comes running: there is no result timeout, and close session is the way out', async () => {
+  it('ends the session with the run when an acknowledged interrupt is never followed by a result, STOP_RESULT_MS later', async () => {
     const { sender, fake, runId, sessionId } = await running()
     const reply = stopRun(sender, runId)
     await flush()
     fake.interrupts[0](true)
     await reply
 
-    advance(10 * 60_000)
+    advance(STOP_RESULT_MS)
 
-    expect(snapshot(sender).runs[0].status).toBe('running')
+    expect(fake.kills).toBe(1)
+    expect(sender.names).toEqual(['run:stopped', 'harness:said', 'session:closed'])
+    expect(sender.of('run:stopped')).toEqual([{ runId, sessionId, at: clock }])
+    expect(sender.of('harness:said')).toEqual([{ sessionId, id: expect.any(String), text: LINES.stopUnfinished, at: clock }])
+    expect(sender.of('run:failed')).toEqual([])
+    expect(snapshot(sender).runs[0].status).toBe('stopped')
+  })
+
+  it('says in lower case, mono-register and without terminal punctuation that the stop was sent and the turn did not end', () => {
+    expect(LINES.stopUnfinished).toBe('stop sent · the turn did not end · the session ended with the run')
+    expect(LINES.stopUnfinished).toBe(LINES.stopUnfinished.toLowerCase())
+    expect(LINES.stopUnfinished).not.toMatch(/[.!?]$/)
+  })
+
+  it('leaves the deadline alone when the result comes in time: the run ends once, the session stays open, and the late timer does nothing', async () => {
+    const { sender, fake, runId } = await running()
+    const reply = stopRun(sender, runId)
+    await flush()
+    fake.interrupts[0](true)
+    await reply
+    advance(STOP_RESULT_MS - 1)
+    fake.feed(result(true))
+    const told = sender.sent.length
+
+    advance(60_000)
+
+    expect(sender.sent).toHaveLength(told)
+    expect(sender.of('run:stopped')).toHaveLength(1)
     expect(fake.kills).toBe(0)
-    call(SESSION_CLOSE_CHANNEL, sender, sessionId)
-    expect(sender.names.slice(-2)).toEqual(['run:stopped', 'session:closed'])
+  })
+
+  it('does not close a session whose next run began before the deadline: the timer is for the run that was stopped', async () => {
+    const { sender, fake, runId, sessionId } = await running()
+    const reply = stopRun(sender, runId)
+    await flush()
+    fake.interrupts[0](true)
+    await reply
+    fake.feed(result(true))
+    await call<Promise<unknown>>(MENU_DISPATCH_CHANNEL, sender, sessionId, 'CP')
+
+    advance(STOP_RESULT_MS)
+
+    expect(fake.kills).toBe(0)
+    expect(snapshot(sender).runs.at(-1)).toMatchObject({ status: 'running' })
+  })
+})
+
+/** The CLI's list of what is still running behind the main thread. */
+const tasks = (...ids: string[]) => ({ type: 'system', subtype: 'background_tasks_changed', tasks: ids.map((task_id) => ({ task_id })) })
+
+describe('a stop while background subagents are live', () => {
+  /** A run, a subagent running behind it, and a stop the CLI acknowledged. */
+  async function stoppedWithTasks() {
+    const scene = await running()
+    scene.fake.feed(tasks('sub-1'))
+    const reply = stopRun(scene.sender, scene.runId)
+    await flush()
+    scene.fake.interrupts[0](true)
+    await reply
+    return scene
+  }
+
+  it('ends the card as run:stopped on the interrupted turn’s failed result, which the live task has left the session busy after', async () => {
+    const { sender, fake, runId, sessionId } = await stoppedWithTasks()
+
+    fake.feed(result(true))
+
+    expect(sender.of('run:stopped')).toEqual([{ runId, sessionId, at: clock }])
+    expect(sender.of('run:failed')).toEqual([])
+    expect(sender.of('run:finished')).toEqual([])
+    expect(snapshot(sender).runs[0]).toMatchObject({ runId, status: 'stopped' })
+  })
+
+  it('says no failure for a stop the user asked for, and the persona reads `error` from the stop once the tasks have drained and it is no longer working', async () => {
+    const { sender, fake } = await stoppedWithTasks()
+
+    fake.feed(result(true))
+
+    expect(sender.of('harness:said')).toEqual([])
+    expect(snapshot(sender).entries).toEqual([])
+    // Still working: the session is busy behind the run, and the persona reads what the session does.
+    expect(sender.of('persona:state')).toEqual([])
+    fake.feed(tasks())
+    fake.feed(result(false))
+    expect(sender.of('persona:state').map((event) => event.state)).toEqual(['error'])
+  })
+
+  it('keeps the session busy until its tasks drain, then frees it on the wake’s result without ending the run again', async () => {
+    const { sender, fake, sessionId } = await stoppedWithTasks()
+    fake.feed(result(true))
+    expect(sender.of('session:awaiting-turn')).toEqual([])
+    expect(snapshot(sender).busy).toEqual([sessionId])
+
+    fake.feed(tasks())
+    fake.feed(result(false))
+
+    expect(sender.of('session:awaiting-turn')).toHaveLength(1)
+    expect(sender.of('run:stopped')).toHaveLength(1)
+    expect(sender.of('run:finished')).toEqual([])
+    expect(snapshot(sender).busy).toEqual([])
+    expect(snapshot(sender).runs[0].status).toBe('stopped')
+  })
+
+  it('ends the stopped run once, with no timer left to close the session, when the result comes before the deadline', async () => {
+    const { sender, fake } = await stoppedWithTasks()
+    fake.feed(result(true))
+    const told = sender.sent.length
+
+    advance(STOP_RESULT_MS * 2)
+
+    expect(sender.sent).toHaveLength(told)
+    expect(fake.kills).toBe(0)
+  })
+
+  it('still reports a failure the user did not ask for: a failed result with tasks live and no stop says it and ends nothing', async () => {
+    const scene = await running()
+    scene.fake.feed(tasks('sub-1'))
+
+    scene.fake.feed(result(true))
+
+    expect(scene.sender.of('harness:said').map((said) => said.text)).toEqual([LINES.failed('error_during_execution')])
+    expect(scene.sender.of('run:stopped')).toEqual([])
+    expect(snapshot(scene.sender).runs[0].status).toBe('running')
   })
 })
 

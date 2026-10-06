@@ -21,6 +21,8 @@ export const LINES = {
   exited: 'session ended · the process exited',
   // Placeholder copy until `bmad-ux` writes it: said when an interrupt was not acknowledged and the session ended with the run.
   stopEnded: 'stop not acknowledged · the session ended with the run',
+  // Placeholder copy until `bmad-ux` writes it: said when an interrupt was acknowledged and the turn still did not end.
+  stopUnfinished: 'stop sent · the turn did not end · the session ended with the run',
   quiet: (ms: number): string =>
     `no output for ${Math.round(ms / 1000)}s · the session may be stuck · close it to start over`
 }

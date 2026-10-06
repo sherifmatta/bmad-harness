@@ -181,12 +181,20 @@ function foldFrame(
   entry.turn = step.state
   const signal = step.signal
   // A turn the user asked to stop ends on a failed `result`, which is the stop and not a failure.
-  const stopped = signal?.kind === 'ended' && signal.failed && entry.run?.stopping === true
+  // That holds for a `result` that left the session busy (background tasks live) as much as for
+  // one that freed it: the run is the user's turn, and the user's turn is over.
+  const failedResult =
+    signal?.kind === 'failed-while-pending' || (signal?.kind === 'ended' && signal.failed)
+  const stopped = failedResult && entry.run?.stopping === true
   // A failed result is told whether or not it freed the session: a line in the
   // transcript, and the persona reads `error` once it is no longer working.
-  if (signal?.kind === 'failed-while-pending' || (signal?.kind === 'ended' && signal.failed && !stopped)) {
+  if (failedResult && !stopped) {
     say(sender, entry, LINES.failed(signal.subtype))
     service.personas.apply({ name: 'turn:failed', payload: { sessionId: entry.sessionId, at: now() } })
+  }
+  if (stopped && signal.kind === 'failed-while-pending') {
+    // The session stays busy until its background tasks drain, and the wake that follows frees it.
+    endRun(runs, sender, service, entry, 'stopped')
   }
   if (signal?.kind === 'ended') {
     // A run ends with its turn: the terminal event comes before the session is free.
