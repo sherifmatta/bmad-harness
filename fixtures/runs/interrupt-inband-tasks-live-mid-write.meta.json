@@ -1,0 +1,54 @@
+{
+  "scenario": "interrupt-inband-tasks-live-mid-write",
+  "recordedAt": "2026-10-06T18:00:00.220Z",
+  "claudeVersion": "2.1.285 (Claude Code)",
+  "argv": [
+    "claude",
+    "-p",
+    "--input-format",
+    "stream-json",
+    "--output-format",
+    "stream-json",
+    "--include-partial-messages",
+    "--verbose",
+    "--setting-sources",
+    "project,local",
+    "--permission-mode",
+    "bypassPermissions",
+    "--model",
+    "sonnet"
+  ],
+  "contractVersion": null,
+  "cwd": "/private/tmp/claude-501/-Users-sherifmatta-Learnings-bmad-harness/8f8aa7d6-0b77-4cd8-b6dd-cdb92d1c12cc/scratchpad/live/subject-tasks2",
+  "interrupt": "inband",
+  "notes": [
+    "In-band control_request interrupt while background subagents are live and the main thread is mid-Write; follow-up turn fed by hand"
+  ],
+  "turns": [
+    {
+      "afterLine": 0,
+      "text": "Do these in order, without asking me anything. 1) Launch exactly two subagents with the Agent tool, both with run_in_background set to true. Each subagent's whole job is to run the Bash command `sleep 90` and then reply with the single word DONE. 2) Immediately after launching them, without waiting, use the Write tool to create notes.md containing 40 numbered paragraphs, each at least three sentences, about the history of lighthouse keeping. 3) Then tell me in one line that you are done."
+    },
+    {
+      "afterLine": 325,
+      "control": {
+        "type": "control_request",
+        "request_id": "rec-325",
+        "request": {
+          "subtype": "interrupt"
+        }
+      }
+    }
+  ],
+  "model": "claude-sonnet-5-5",
+  "claudeSessionId": "719b544a-1e5c-4b91-a281-72bdb8acef56",
+  "interruptedAtLine": 325,
+  "exit": {
+    "code": 0,
+    "signal": null
+  },
+  "lines": 1434,
+  "resultRows": 3,
+  "inboxTurns": 0,
+  "finishedAt": "2026-10-06T18:01:38.707Z"
+}

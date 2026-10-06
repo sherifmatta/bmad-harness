@@ -36,6 +36,7 @@ interface Frame {
   model?: string
   is_error?: boolean
   stop_reason?: string | null
+  num_turns?: number
   index?: number
   event?: {
     type: string
@@ -117,6 +118,9 @@ describe('the corpus as a whole', () => {
       'fast-path-opus',
       'fast-path-sonnet',
       'interrupt-inband',
+      'interrupt-inband-idle',
+      'interrupt-inband-tasks-live',
+      'interrupt-inband-tasks-live-mid-write',
       'interrupt-sigint',
       'multi-file-sonnet',
       'reviewer-gate-failure-induced'
@@ -446,9 +450,11 @@ describe('the corpus replayed through the session bridge', () => {
     for (const at of replayed.idleAt) {
       expect(replayed.busyAfter[at], `${scenario} frame ${at}`).toBe(false)
     }
-    // Every result row that did not free the session left a background task live.
+    // Every result row that did not free the session left a background task live, except the
+    // empty turn the CLI runs for a stopped task's notification (`num_turns: 0`, no message
+    // before it): it finds the session already free, and the turn that does the work follows it.
     for (const at of resultIndexes(scenario)) {
-      if (!idle.has(at)) {
+      if (!idle.has(at) && frames(scenario)[at].num_turns !== 0) {
         expect(replayed.busyAfter[at], `${scenario} result ${at}`).toBe(true)
       }
     }

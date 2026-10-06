@@ -9,7 +9,16 @@
 //   node scripts/record-run.mjs --scenario fast-path --subject <dir> \
 //     --turns <turns.json> [--out fixtures/runs] [--interrupt sigint|inband] \
 //     [--interrupt-after-bytes 20000] [--permission-mode bypassPermissions] \
-//     [--end-after-scripted] [--claude-arg <extra flag or value>]...
+//     [--interrupt-when tasks-live|idle] [--interrupt-delay-ms 2000] \
+//     [--end-after-scripted] [--end-delay-ms 0] [--claude-arg <extra flag or value>]...
+//
+// `--interrupt-when tasks-live` interrupts (in-band unless `--interrupt sigint`) a
+// delay after the first `background_tasks_changed` frame that lists a live task, and
+// then polls the inbox whether or not a `result` ever follows.
+// `--interrupt-when idle` interrupts once the first turn has produced its `result`,
+// with no turn in flight, and holds the next scripted turn for the delay. Both need
+// `--interrupt` to say how. `--end-delay-ms` waits that long after the last scripted
+// turn's `result` before closing stdin, so background work can be seen finishing.
 //
 // Turns after the scripted ones can be fed to a live recording by dropping
 // `<n>.txt` files into `<out>/<scenario>.inbox/`; the recorder sends each as the
@@ -40,6 +49,9 @@ const { values } = parseArgs({
     interrupt: { type: 'string' },
     'interrupt-after-bytes': { type: 'string', default: '20000' },
     'interrupt-tool': { type: 'string', default: 'Write' },
+    'interrupt-when': { type: 'string' },
+    'interrupt-delay-ms': { type: 'string', default: '2000' },
+    'end-delay-ms': { type: 'string', default: '0' },
     'permission-mode': { type: 'string', default: 'bypassPermissions' },
     model: { type: 'string' },
     'claude-arg': { type: 'string', multiple: true, default: [] },
@@ -93,6 +105,8 @@ let sentCount = 0
 let inboxCount = 0
 let ended = false
 let interrupted = false
+// Set while a delayed next turn or close is pending: result rows in that window start nothing.
+let holding = false
 const toolAt = new Map()
 const bytesAt = new Map()
 
@@ -117,6 +131,9 @@ function interrupt() {
     meta.turns.push({ afterLine: lineNo, control: request })
     child.stdin.write(`${JSON.stringify(request)}\n`)
   }
+  // The interrupted turn may never produce a `result` (that is a thing to record, not to wait for):
+  // later turns can still be fed by hand through the inbox.
+  if (values['interrupt-when'] === 'tasks-live') pollInbox()
 }
 
 function inspect(line) {
@@ -130,13 +147,32 @@ function inspect(line) {
     meta.model = frame.model
     meta.claudeSessionId = frame.session_id
   }
+  if (
+    values['interrupt-when'] === 'tasks-live' &&
+    !interrupted &&
+    frame.type === 'system' &&
+    frame.subtype === 'background_tasks_changed' &&
+    Array.isArray(frame.tasks) &&
+    frame.tasks.length > 0
+  ) {
+    console.error(`[record] ${frame.tasks.length} background task(s) live at line ${lineNo}; interrupting in ${values['interrupt-delay-ms']} ms`)
+    setTimeout(interrupt, Number(values['interrupt-delay-ms']))
+  }
   if (frame.type === 'result') {
     // A session also takes turns nobody sent (a background subagent finishing
     // wakes the main thread), so result rows cannot be matched to sends 1:1.
     resultCount += 1
-    if (sentCount < scripted.length && resultCount >= sentCount) send(scripted[sentCount])
-    else if (values['end-after-scripted']) end()
-    else pollInbox()
+    if (holding) return
+    if (values['interrupt-when'] === 'idle' && !interrupted) {
+      holding = true
+      interrupt()
+      setTimeout(() => {
+        holding = false
+        afterResult()
+      }, Number(values['interrupt-delay-ms']))
+      return
+    }
+    afterResult()
     return
   }
   if (frame.type !== 'stream_event' || frame.parent_tool_use_id) return
@@ -150,6 +186,14 @@ function inspect(line) {
     const limit = Number(values['interrupt-after-bytes'])
     if (values.interrupt && !interrupted && toolAt.get(ev.index) === values['interrupt-tool'] && total >= limit) interrupt()
   }
+}
+
+function afterResult() {
+  if (sentCount < scripted.length && resultCount >= sentCount) send(scripted[sentCount])
+  else if (values['end-after-scripted']) {
+    holding = true
+    setTimeout(end, Number(values['end-delay-ms']))
+  } else pollInbox()
 }
 
 let polling = false

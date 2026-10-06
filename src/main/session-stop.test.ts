@@ -1,6 +1,6 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConversationReply, ConversationSnapshot } from '../shared/conversation'
 import type { ContractEvent, EventName, EventPayload } from '../shared/events'
@@ -441,6 +441,86 @@ describe('a stop while background subagents are live', () => {
     expect(scene.sender.of('harness:said').map((said) => said.text)).toEqual([LINES.failed('error_during_execution')])
     expect(scene.sender.of('run:stopped')).toEqual([])
     expect(snapshot(scene.sender).runs[0].status).toBe('running')
+  })
+})
+
+/** A recording from the corpus: its frames, parsed, in order, counted from 0 (`meta.interruptedAtLine` is how many frames came before the interrupt). */
+const recording = (scenario: string): unknown[] =>
+  readFileSync(resolve(import.meta.dirname, '..', '..', 'fixtures', 'runs', `${scenario}.jsonl`), 'utf8')
+    .split('\n')
+    .filter((line) => line.length > 0)
+    .map((line) => JSON.parse(line) as unknown)
+
+describe('a stop replayed from the live recordings of 10-06-2026 (claude 2.1.285)', () => {
+  it('interrupt-inband-tasks-live: the CLI stops the tasks before it ends the turn, so the interrupted result finds none live and the run ends stopped', async () => {
+    const frames = recording('interrupt-inband-tasks-live')
+    const { sender, fake, runId, sessionId } = await running()
+    // Frames 0 to 48, before the interrupt: two background subagents launched, both live.
+    for (const frame of frames.slice(0, 49)) fake.feed(frame)
+    const reply = stopRun(sender, runId)
+    await flush()
+    fake.interrupts[0](true)
+    await reply
+    expect(snapshot(sender).runs[0].status).toBe('running')
+
+    // Frames 49 to 59: the tasks `stopped` and the task list emptied (frame 52), the `control_response`, the interrupted user frame, the failed `result` (frame 59).
+    for (const frame of frames.slice(49, 60)) fake.feed(frame)
+
+    expect(sender.of('run:stopped')).toEqual([{ runId, sessionId, at: clock }])
+    expect(sender.of('run:failed')).toEqual([])
+    expect(sender.of('run:finished')).toEqual([])
+    expect(sender.of('harness:said')).toEqual([])
+    expect(fake.kills).toBe(0)
+    expect(sender.of('session:awaiting-turn')).toHaveLength(1)
+    expect(snapshot(sender)).toMatchObject({ busy: [], runs: [{ runId, status: 'stopped' }] })
+  })
+
+  it('interrupt-inband-tasks-live-mid-write: the run ends stopped once, and the turns the CLI then runs on its own are no run: no second card, no failure, no finish', async () => {
+    const frames = recording('interrupt-inband-tasks-live-mid-write')
+    const { sender, fake, runId, sessionId } = await running()
+    for (const frame of frames.slice(0, 325)) fake.feed(frame)
+    const reply = stopRun(sender, runId)
+    await flush()
+    fake.interrupts[0](true)
+    await reply
+
+    // Frames 325 to 335: tasks stopped, the list emptied (frame 330), the `control_response`, the failed `result` (frame 335).
+    for (const frame of frames.slice(325, 336)) fake.feed(frame)
+    expect(sender.of('run:stopped')).toEqual([{ runId, sessionId, at: clock }])
+    expect(sender.of('session:awaiting-turn')).toHaveLength(1)
+
+    // Frame 336 to the end: an empty turn and then a turn in which the persona writes `notes.md`, neither of them sent.
+    for (const frame of frames.slice(336)) fake.feed(frame)
+
+    expect(sender.of('run:stopped')).toHaveLength(1)
+    expect(sender.of('run:started')).toEqual([])
+    expect(sender.of('run:failed')).toEqual([])
+    expect(sender.of('run:finished')).toEqual([])
+    expect(sender.of('harness:said')).toEqual([])
+    expect(snapshot(sender).runs).toHaveLength(1)
+    expect(snapshot(sender).runs[0].status).toBe('stopped')
+    expect(fake.kills).toBe(0)
+    // The session ends the unsent turn as it ended any other: free again.
+    expect(snapshot(sender).busy).toEqual([])
+  })
+
+  it('interrupt-inband-idle: an interrupt on a session with nothing in flight is answered by a `control_response` and no `result`, and the run it would have stopped is not found', async () => {
+    const frames = recording('interrupt-inband-idle') as { type: string; response?: { subtype: string } }[]
+    const answered = frames.findIndex((frame) => frame.type === 'control_response')
+    const results = frames.flatMap((frame, at) => (frame.type === 'result' ? [at] : []))
+
+    // The first `result` ends the only turn; the answer follows it; the next frames are the next turn's.
+    expect(results[0]).toBeLessThan(answered)
+    expect(frames.slice(results[0] + 1, answered + 1).some((frame) => frame.type === 'result')).toBe(false)
+    expect(results[1]).toBeGreaterThan(answered)
+
+    const { sender, fake, runId } = await running()
+    // The registry sees the run over (the persona's turn ended), so a stop for it finds nothing to stop.
+    fake.feed(result())
+    sender.sent = []
+    await expect(stopRun(sender, runId)).resolves.toEqual(NOT_FOUND)
+    expect(fake.interrupts).toHaveLength(0)
+    expect(sender.sent).toEqual([])
   })
 })
 

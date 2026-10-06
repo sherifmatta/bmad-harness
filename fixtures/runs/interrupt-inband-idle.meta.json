@@ -1,0 +1,58 @@
+{
+  "scenario": "interrupt-inband-idle",
+  "recordedAt": "2026-10-06T17:57:48.519Z",
+  "claudeVersion": "2.1.285 (Claude Code)",
+  "argv": [
+    "claude",
+    "-p",
+    "--input-format",
+    "stream-json",
+    "--output-format",
+    "stream-json",
+    "--include-partial-messages",
+    "--verbose",
+    "--setting-sources",
+    "project,local",
+    "--permission-mode",
+    "bypassPermissions",
+    "--model",
+    "sonnet"
+  ],
+  "contractVersion": null,
+  "cwd": "/private/tmp/claude-501/-Users-sherifmatta-Learnings-bmad-harness/8f8aa7d6-0b77-4cd8-b6dd-cdb92d1c12cc/scratchpad/live/subject-idle",
+  "interrupt": "inband",
+  "notes": [
+    "In-band control_request interrupt on an idle session: sent after the first turn's result, with no turn in flight; a second turn follows"
+  ],
+  "turns": [
+    {
+      "afterLine": 0,
+      "text": "Reply with exactly the word READY and nothing else."
+    },
+    {
+      "afterLine": 15,
+      "control": {
+        "type": "control_request",
+        "request_id": "rec-15",
+        "request": {
+          "subtype": "interrupt"
+        }
+      }
+    },
+    {
+      "afterLine": 16,
+      "text": "Reply with exactly the word PONG and nothing else."
+    }
+  ],
+  "model": "claude-sonnet-5-5",
+  "claudeSessionId": "18a77ead-32d2-4ce1-b5a6-19bb14301602",
+  "interruptedAtLine": 15,
+  "exit": {
+    "code": 0,
+    "signal": null
+  },
+  "lines": 27,
+  "resultRows": 2,
+  "inboxTurns": 0,
+  "finishedAt": "2026-10-06T17:57:59.536Z"
+}
