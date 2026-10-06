@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-25-2026 17:00
-last_updated: 10-06-2026 10:00
+last_updated: 10-06-2026 13:43
 project: bmad-harness
 project_key: NOKEY
 tracking_system: file-system
@@ -83,7 +83,7 @@ development_status:
   3-9-two-writers-one-file-no-arbitration: done
   3-10-told-once-quietly-when-you-are-elsewhere: done
   3-11-nothing-this-epic-promised-not-to-do: done
-  epic-3-retrospective: optional
+  epic-3-retrospective: done
 
   epic-4: backlog
   4-1-choose-who-is-in-the-room: backlog
@@ -172,7 +172,7 @@ action_items:
       function (the two copies already diverge) plus shared test fixtures, before
       Epic 2 adds a fourth bridge."
     owner: "dev"
-    status: open
+    status: done
     ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
   - id: "epic-1-retro-item-11-make-roster-handling-tolerant-icon-and-d"
     epic: 1
@@ -358,7 +358,151 @@ action_items:
     ref: "_bmad/implementation-artifacts/epic-2-retro-2026-10-02.md"
   - id: "epic-2-retro-item-32-decide-how-persona-sessions-get-permission-to-run-uv-and-write"
     epic: 2
-    action: "Decide how persona sessions get permission to run uv and write files. Under the product's argv (no permission mode) every activation has its resolver call denied and every Write is denied, so Epic 3 documents cannot be written. Options not yet tried: acceptEdits, allowedTools, a permission prompt tool answered by the harness, a project allow list, bypassPermissions. Changes SESSION_ARGS, tests/session-contract.test.ts and AD-18. Before story 3.1. Decided 10-03-2026 (Sherif): --permission-prompt-tool stdio, main answers each can_use_tool request from a fixed in-project policy (allow inside the project root and userData, deny elsewhere); bypassPermissions rejected. Evidence in the spike. Built 10-03-2026 (spec-session-permission-policy.md), verified on a real claude in spike Finding 5; planning lines to amend are listed in deferred-work.md."
+    action: "Decide how persona sessions get permission to run uv and write files.
+      Under the product's argv (no permission mode) every activation has its resolver
+      call denied and every Write is denied, so Epic 3 documents cannot be written.
+      Options not yet tried: acceptEdits, allowedTools, a permission prompt tool answered
+      by the harness, a project allow list, bypassPermissions. Changes SESSION_ARGS,
+      tests/session-contract.test.ts and AD-18. Before story 3.1. Decided 10-03-2026
+      (Sherif): --permission-prompt-tool stdio, main answers each can_use_tool request
+      from a fixed in-project policy (allow inside the project root and userData,
+      deny elsewhere); bypassPermissions rejected. Evidence in the spike. Built 10-03-2026
+      (spec-session-permission-policy.md), verified on a real claude in spike Finding
+      5; planning lines to amend are listed in deferred-work.md."
     owner: "Sherif + architect"
     status: done
     ref: "_bmad/spikes/spike-product-argv-check.md"
+  - id: "epic-3-retro-item-33-make-stop-work-with-background-subagents"
+    epic: 3
+    action: "Make stop work with background subagents live (F1): gate the 'turn failed'
+      line and turn:failed on run.stopping, end a stopping run on any ended or failed-while-pending
+      result, give an acknowledged interrupt its own deadline that ends the run stopped,
+      add the missing test through background_tasks_changed, record one live in-band
+      interrupt with a subagent running and one on an idle session. Before the build
+      is used on a real skill."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-34-one-live-judgement-of-epic-3-on-a-real-c"
+    epic: 3
+    action: "One live judgement of Epic 3 on a real claude: bmad-prd in a real window;
+      record in judgement-3-1-the-beat.md whether the beat lands, whether the tile
+      reads live after a long run, the pinned card on a short window, a stop with
+      subagents live, the 3.10 banner click after a delay (signed app if needed);
+      confirm the original 3.1 verdict."
+    owner: "Sherif"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-35-make-the-card-honest-for-runs-with-no-st"
+    epic: 3
+    action: "Make the card honest for runs with no streamed Write (F3): seed the buffer
+      at the first Edit via readText or fall back to the latest committed document;
+      never print '0 words on disk' or 'saved · 0 sections' unless true; decide copy
+      for a run that wrote nothing."
+    owner: "dev + UX"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-36-one-ordering-rule-for-the-head-section-n"
+    epic: 3
+    action: "One ordering rule for the head section number live, after reload and
+      at the end (F4): fix seed() and the terminal head; extend run-card-parity to
+      compare head words."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-37-annotation-lifetime-f5-reset-the-annotat"
+    epic: 3
+    action: "Annotation lifetime (F5): reset the annotator on endConversation, release
+      stopped holds when the card is gone or the persona's next run starts, test conversation
+      end with a run in flight."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-38-note-delivery-buffer-rollback-and-small"
+    epic: 3
+    action: "Note delivery, buffer rollback and small defects (F7, F8, F10): advance
+      memlog counts only on delivery, owner-check isMemlog, decide what two concurrent
+      runs show, restore docs[path] on a rejected Write, word-boundary pulledSections,
+      narrow the numbering strip, accept a final heading with no newline, harden memlog-tail,
+      cap the pinned foot height."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-39-fix-the-note-versus-live-gate-f6-base-th"
+    epic: 3
+    action: "Fix the note-versus-live gate (F6): base the grace on the watcher-observed
+      time of the run's last write and gate on who wrote the file; reproduce the single
+      observed 'file changed' after a finished run."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-40-accessibility-floor-f11-roving-tabindex"
+    epic: 3
+    action: "Accessibility floor (F11): roving tabindex on the skill row plus an AC
+      for it, restore focus when a terminal event removes the focused control, name
+      or un-focus finished card bodies, decide whether run notes and doc:committed
+      announce, stop the faint-tier foot being the sole carrier of facts."
+    owner: "dev + UX"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-41-persistence-hardening-f9-validate-each-s"
+    epic: 3
+    action: "Persistence hardening (F9): validate each stored document and note element
+      in isStoredRun, cap stored runs and drop text for terminal cards, record a decision
+      on two windows per project."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-42-spec-reconciliation-s1-s6-s9-proposed-no"
+    epic: 3
+    action: "Spec reconciliation (S1-S6, S9), proposed not applied: correct epic-3-context
+      ordering claim, apply the SCP AD-5 and EXPERIENCE amendments, choose AD-12 trigger
+      vs 3.6 sentence, reword the epic intro cost-on-control line and 3.7 title, stop-notification
+      wording, 3.8 persona-voice AC, write the stopEnded copy."
+    owner: "PM + architect + UX"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-43-test-debt-story-f12-epic-2-item-30-share"
+    epic: 3
+    action: "Test-debt story (F12, Epic 2 item 30): shared run-event builders and
+      replay driver, split negative-surface.test.ts, convert caret/badge/toast/sound/focus/live-region
+      sweeps to behavior, extend the 3.11 audit (jump to card, App-level stopped and
+      contended run, hydrated dead card, session-voice), add rail-annotations and
+      stored-runs to the fold-purity list and a cycle check. Before Epic 4."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-44-consolidate-the-triple-per-path-document"
+    epic: 3
+    action: "Consolidate the triple per-path document fold and repeated helpers (one
+      isTerminal, one nameKey dedupe, delete or use sectionAt, merge SUBTYPE and the
+      run/session-ended literal). Deferred; do with the section-ordering fix."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-45-move-the-behavior-check-harness-stub-cla"
+    epic: 3
+    action: "Move the behavior-check harness (stub claude, CDP drivers, RECIPE) from
+      the scratchpad behavior directory into scripts/ with a documented recipe; add
+      background-tasks-live and no-streamed-Write scenarios."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-46-settle-the-notification-retention-questi"
+    epic: 3
+    action: "Settle the notification-retention question (F13): after the manual banner-click
+      check, if a collected Notification drops its click, amend the negative-surface
+      guard to allow a retained set released on click or close."
+    owner: "dev + Sherif"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-47-process-a-story-with-followup_review_rec"
+    epic: 3
+    action: "Process: a story with followup_review_recommended true or an AC needing
+      a live run or a person does not go to done without a recorded decision; a story
+      that must precede another is blocked in sprint-status, not only ordered in prose;
+      a deferral of a headline control's failure mode goes into deferred-work.md at
+      the time."
+    owner: "Sherif"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
