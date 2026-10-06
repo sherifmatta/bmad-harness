@@ -54,6 +54,7 @@ const {
   RUN_STOP_CHANNEL,
   SESSION_EVENT_CHANNEL,
   SESSION_OPEN_CHANNEL,
+  TURN_SEND_CHANNEL,
   registerSessionBridge
 } = await import('../src/main/session-bridge')
 const { RAIL_CHANGED_CHANNEL, RAIL_GET_CHANNEL, registerRailBridge } = await import('../src/main/rail-bridge')
@@ -193,6 +194,9 @@ async function replay(scenario: string, options: Options = {}): Promise<Scene> {
         observe(path)
       }
       if (line === options.stopAt) await call<Promise<unknown>>(RUN_STOP_CHANNEL, 'run-1')
+      // The recorder's own turns after the run were sent by the recorder, as the user's: here the user sends them.
+      const sent = meta.turns.find((each, index) => index > 1 && each.afterLine === line)
+      if (sent?.text !== undefined && sent.text !== '') await call<Promise<unknown>>(TURN_SEND_CHANNEL, 's1', sent.text)
     }
     if (options.thenExits === true) exit()
 

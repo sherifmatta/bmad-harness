@@ -77,6 +77,17 @@ export type ActiveRun = {
   stopping: boolean
 }
 
+/**
+ * What a run the user stopped carried, held on its session's entry (memory only,
+ * never persisted) until something clears it: a turn nobody sent that begins
+ * while it is held starts a run with the same code and plan (`session-registry`).
+ */
+export type StoppedRun = {
+  code: string
+  menu: readonly string[]
+  plan: readonly string[]
+}
+
 /** What main knows of a window's memlogs: each one's entry count, and the read of it in flight. */
 export type MemlogCounts = {
   counts: Map<string, number>
@@ -193,6 +204,8 @@ export function startRun(
 ): void {
   service.personas.detach(entry.sessionId)
   const plan = template?.spine ?? []
+  // A run starting, the user's or the continuation, spends what a stop held.
+  entry.afterStop = undefined
   entry.run = { runId, code, menu: template?.menu ?? [], plan, prose: undefined, cancelFlush: undefined, stopping: false }
   tell(kit, sender, service, entry, [
     {
@@ -215,6 +228,8 @@ export function endRun(kit: RunKit, sender: Sender, service: Service, entry: Ent
   if (run === undefined) return
   flush(kit, sender, service, entry)
   entry.run = undefined
+  // A stop the user asked for holds what the run carried; any other ending lets it go.
+  entry.afterStop = ending === 'stopped' ? { code: run.code, menu: run.menu, plan: run.plan } : undefined
   entry.route = withoutPendingWrites(entry.route)
   const base = { runId: run.runId, sessionId: entry.sessionId, at: kit.now() }
   let event: ContractEvent

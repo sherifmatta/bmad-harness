@@ -8,6 +8,7 @@ import type { RailRow } from '../../../shared/rail'
 import { CONTENTION, STOPPED, progressLabel } from '../../../shared/section-progress'
 import { OutputRow } from '../outputs/output-row'
 import { ownerLabel } from '../outputs/owner-label'
+import { ARBITRATION, DENOMINATOR, SPINNER_MARKUP, STAND_IN, spoken } from '../testing/audit-patterns'
 import { mount } from '../testing/render-hook'
 import type { Mounted } from '../testing/render-hook'
 import { createProseStore } from './prose-store'
@@ -202,18 +203,6 @@ function drawCase(each: Case): Drawn {
   mounted = mount(element)
   return { root: mounted.container, store, frames }
 }
-
-/** Everything a reader or a reader's tool is given: the visible words, and the labels and titles. */
-function spoken(root: Element): string {
-  const labels = [...root.querySelectorAll('[aria-label], [title]')].map((node) => `${node.getAttribute('aria-label') ?? ''} ${node.getAttribute('title') ?? ''}`)
-  return `${root.textContent ?? ''} ${labels.join(' ')}`
-}
-
-const STAND_IN =
-  /\b(?:loading|resolving|scanning|fetching|connecting|initiali[sz]ing|please wait|spinner|skeleton|shimmer|opening|starting|thinking|typing|waiting|processing|preparing|booting|launching|warming|getting ready|in progress|one moment|just a moment|hold on|stand by|busy)\b|\.\.\.|…/i
-const SPINNER_MARKUP = /<progress\b|<meter\b|role="progressbar"|aria-valuenow|aria-valuemax|spinner|skeleton|shimmer|loader/i
-const DENOMINATOR = /\bof\s+(?:\d+|[mn])\b|\d\s*\/\s*\d|\/\s*\d|\btotal\b|%/i
-const ARBITRATION = /\b(?:undo|revert|restore|merge|lock|resolve)\w*/i
 
 function reducedMotion(): { calls: () => number } {
   let calls = 0

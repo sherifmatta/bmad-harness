@@ -23,6 +23,8 @@ export const LINES = {
   stopEnded: 'stop not acknowledged · the session ended with the run',
   // Placeholder copy until `bmad-ux` writes it: said when an interrupt was acknowledged and the turn still did not end.
   stopUnfinished: 'stop sent · the turn did not end · the session ended with the run',
+  // Placeholder copy until `bmad-ux` writes it: said when a turn nobody sent begins after a stop the user asked for, and a run starts for it.
+  carriedOn: 'carried on after the stop · a new run follows it',
   quiet: (ms: number): string =>
     `no output for ${Math.round(ms / 1000)}s · the session may be stuck · close it to start over`
 }

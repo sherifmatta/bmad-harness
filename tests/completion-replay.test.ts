@@ -226,6 +226,9 @@ async function replay(
         feeds[at](frames[line - 1])
         next[at] = line + 1
         if (line === session.stopAt) await call<Promise<unknown>>(RUN_STOP_CHANNEL, runIds[at])
+        // The recorder's turns after the run were sent by the recorder, as the user's: here the user sends them.
+        const sent = recording(session.scenario).meta.turns.find((each, index) => index > session.runTurn && each.afterLine === line)
+        if (sent?.text !== undefined && sent.text !== '') await call<Promise<unknown>>(TURN_SEND_CHANNEL, `s${at + 1}`, sent.text)
         if (at === 0 && line === options.destroyAt) {
           gone = true
           onDestroyed?.()

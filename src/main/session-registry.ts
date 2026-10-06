@@ -14,7 +14,7 @@ import type { RailAnnotator } from './projections/rail-annotator'
 import { createRunProjection } from './projections/runs'
 import type { RunProjection } from './projections/runs'
 import { createMemlogCounts, createRunKit, deliver, endRun, observeMemlog, startRun } from './session-run'
-import type { ActiveRun, MemlogCounts, RunKit } from './session-run'
+import type { ActiveRun, MemlogCounts, RunKit, StoppedRun } from './session-run'
 import { stopRun } from './session-stop'
 import type { TranscriptRegistry } from './projections/transcript'
 import { initialRouteState, routeFrame } from './fold/route-frame'
@@ -67,6 +67,12 @@ export type Entry = {
   stopQuietClock: (() => void) | undefined
   /** The run in flight, from its dispatch until its turn or the session ends (`session-run`). */
   run: ActiveRun | undefined
+  /**
+   * What the last run carried, while that run ended `stopped` at the user's ask and
+   * nothing has happened since: a turn sent, an entry dispatched, a run started or
+   * a run ending another way each clear it. Memory only, never persisted.
+   */
+  afterStop: StoppedRun | undefined
 }
 
 export type Service = {
@@ -104,6 +110,8 @@ export type SessionRegistryDeps = {
   start: (options: SpawnSessionOptions) => Promise<SpawnOutcome>
   now: () => number
   newSessionId: () => SessionId
+  /** The id of a run main starts itself: the continuation of a stopped run. */
+  newRunId: () => RunId
   transcripts: TranscriptRegistry
   /** Run `run` after `ms`; returns the way to cancel it. Replaceable by a test that holds time still. */
   schedule?: (run: () => void, ms: number) => () => void
@@ -163,6 +171,7 @@ type FrameSinks = {
   /** The harness says a line in its own voice. */
   say: (sender: Sender, entry: Entry, text: string) => void
   runs: RunKit
+  newRunId: () => RunId
 }
 
 /** What one raw frame from a session does: end its turn, or say something, or write a file. */
@@ -173,7 +182,7 @@ function foldFrame(
   entry: Entry,
   frame: unknown
 ): void {
-  const { now, announce, say, runs } = sinks
+  const { now, announce, say, runs, newRunId } = sinks
   if (entry.closed) {
     return
   }
@@ -212,6 +221,13 @@ function foldFrame(
       name: 'turn:started',
       payload: { sessionId: entry.sessionId, at: now() }
     })
+    // The work carries on after a stop the user asked for: it has a run, so a card, a stop and a
+    // notification. The run starts before the frame is routed so the turn's events carry its id.
+    const held = entry.afterStop
+    if (held !== undefined && entry.run === undefined) {
+      say(sender, entry, LINES.carriedOn)
+      startRun(runs, sender, service, entry, newRunId(), held.code, { spine: [...held.plan], menu: [...held.menu] })
+    }
   }
   const routed = routeFrame(entry.route, frame, {
     sessionId: entry.sessionId,
@@ -299,7 +315,7 @@ function startProcess(kit: StartKit, sender: Sender, service: Service, entry: En
 }
 
 export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistry {
-  const { start, now, newSessionId, transcripts } = deps
+  const { start, now, newSessionId, newRunId, transcripts } = deps
   const services = new Map<number, Service>()
 
   function emit(sender: Sender, event: ContractEvent): void {
@@ -404,7 +420,7 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
   }
 
   function onFrame(sender: Sender, service: Service, entry: Entry, frame: unknown): void {
-    foldFrame({ now, announce, say, runs }, sender, service, entry, frame)
+    foldFrame({ now, announce, say, runs, newRunId }, sender, service, entry, frame)
     watch(sender, service, entry)
   }
 
@@ -420,7 +436,8 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
       written: initialWrittenState,
       ready: Promise.resolve(NOT_FOUND),
       stopQuietClock: undefined,
-      run: undefined
+      run: undefined,
+      afterStop: undefined
     }
     service.bySession.set(entry.sessionId, entry)
     service.byAgent.set(agentId, entry)

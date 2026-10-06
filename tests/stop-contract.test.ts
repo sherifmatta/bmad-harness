@@ -27,8 +27,13 @@ const code = (path: string): string =>
     .replace(/\/\*[\s\S]*?\*\//g, (match) => match.replace(/[^\n]/g, ' '))
     .replace(/^\s*\/\/.*$/gm, '')
 
+// The renderer's test support (`ui/testing/`) is never shipped, and holds the patterns the audits look for.
 const shipping = filesUnder(SRC).filter(
-  (path) => /\.(?:ts|tsx)$/.test(path) && !/\.test\.tsx?$/.test(path) && !path.endsWith('.d.ts')
+  (path) =>
+    /\.(?:ts|tsx)$/.test(path) &&
+    !/\.test\.tsx?$/.test(path) &&
+    !path.endsWith('.d.ts') &&
+    !path.startsWith(join(SRC, 'renderer/ui/testing'))
 )
 const main = shipping.filter((path) => path.startsWith(join(SRC, 'main')))
 const renderer = shipping.filter((path) => path.startsWith(join(SRC, 'renderer')))

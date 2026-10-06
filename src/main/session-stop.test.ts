@@ -8,6 +8,7 @@ import { createTranscriptRegistry } from './projections/transcript'
 import type { TranscriptRegistry } from './projections/transcript'
 import { STOP_ACK_MS, STOP_RESULT_MS } from './session-stop'
 import { LINES } from './session-voice'
+import type { TemplatePlan } from '../shared/section-plan'
 import type { ResolvedMenuEntry } from './sources/install/schema'
 import type { SessionProcess, SpawnOutcome, SpawnSessionOptions } from './sources/session/session-process'
 
@@ -89,6 +90,12 @@ let fakes: Map<string, FakeSession>
 let transcripts: TranscriptRegistry
 /** Whether the install still lists the agents: left false, every session's persona is an orphan. */
 let roster: boolean
+/** The project this window holds: `ROOT`, or the one a recording was made in. */
+let projectRoot: string
+/** The plan the skill's template gives at dispatch, and the memlog the watcher's read finds. */
+let templatePlan: TemplatePlan | undefined
+let memlogText: string | undefined
+let observe: (sender: FakeSender, observation: { type: 'artifact:found' | 'artifact:written'; path: string }) => Promise<void>
 
 beforeEach(() => {
   handlers.clear()
@@ -99,18 +106,21 @@ beforeEach(() => {
   timers = []
   fakes = new Map()
   roster = true
+  projectRoot = ROOT
+  templatePlan = undefined
+  memlogText = undefined
   transcripts = createTranscriptRegistry({ userDataPath: () => userData, schedule: () => () => {}, log: () => {} })
-  registerSessionBridge({
+  const bridge = registerSessionBridge({
     transcripts,
-    projectPathFor: () => ROOT,
+    projectPathFor: () => projectRoot,
     now: () => clock,
     newSessionId: () => `s${(sessions += 1)}`,
     newRunId: () => `r${(runs += 1)}`,
     agentName: () => (roster ? 'John' : undefined),
     writeDiagnostic: () => {},
     menuEntryFor: (_window, _agentId, code) => (roster ? MENU[code] : undefined),
-    readPlan: () => Promise.resolve(undefined),
-    readText: () => Promise.resolve(undefined),
+    readPlan: () => Promise.resolve(templatePlan),
+    readText: () => Promise.resolve(memlogText),
     schedule: (run, ms) => {
       const timer = { at: clock + ms, run, cancelled: false }
       timers.push(timer)
@@ -143,6 +153,7 @@ beforeEach(() => {
       return Promise.resolve<SpawnOutcome>({ ok: true, session })
     }
   })
+  observe = (sender, observation) => bridge.observeArtifact(sender, projectRoot, { ...observation, size: 0, mtimeMs: 0 })
 })
 
 afterEach(() => {
@@ -473,10 +484,20 @@ describe('a stop replayed from the live recordings of 10-06-2026 (claude 2.1.285
     expect(fake.kills).toBe(0)
     expect(sender.of('session:awaiting-turn')).toHaveLength(1)
     expect(snapshot(sender)).toMatchObject({ busy: [], runs: [{ runId, status: 'stopped' }] })
+
+    // Frames 60 to 71 are the follow-up turn the recorder sent (`PONG`): here the user sends it, which spends what the stop held, so it is no second run.
+    await expect(call<Promise<unknown>>(TURN_SEND_CHANNEL, sender, sessionId, 'Reply with exactly the word PONG and nothing else.')).resolves.toEqual({ ok: true })
+    for (const frame of frames.slice(60)) fake.feed(frame)
+    expect(sender.of('run:started')).toEqual([])
+    expect(sender.of('harness:said')).toEqual([])
+    expect(snapshot(sender)).toMatchObject({ busy: [], runs: [{ runId, status: 'stopped' }] })
   })
 
-  it('interrupt-inband-tasks-live-mid-write: the run ends stopped once, and the turns the CLI then runs on its own are no run: no second card, no failure, no finish', async () => {
+  it('interrupt-inband-tasks-live-mid-write: the run ends stopped, the empty turn starts nothing, and the turn the CLI then runs on its own is a second run, one line and a new run id after it', async () => {
     const frames = recording('interrupt-inband-tasks-live-mid-write')
+    // The recording's `Write` names a file under the project it was made in, so the window holds that project.
+    projectRoot = (JSON.parse(readFileSync(resolve(import.meta.dirname, '..', '..', 'fixtures', 'runs', 'interrupt-inband-tasks-live-mid-write.meta.json'), 'utf8')) as { cwd: string }).cwd
+    templatePlan = { spine: ['Vision', 'Scope'], menu: [] }
     const { sender, fake, runId, sessionId } = await running()
     for (const frame of frames.slice(0, 325)) fake.feed(frame)
     const reply = stopRun(sender, runId)
@@ -489,18 +510,41 @@ describe('a stop replayed from the live recordings of 10-06-2026 (claude 2.1.285
     expect(sender.of('run:stopped')).toEqual([{ runId, sessionId, at: clock }])
     expect(sender.of('session:awaiting-turn')).toHaveLength(1)
 
-    // Frame 336 to the end: an empty turn and then a turn in which the persona writes `notes.md`, neither of them sent.
-    for (const frame of frames.slice(336)) fake.feed(frame)
-
-    expect(sender.of('run:stopped')).toHaveLength(1)
+    // Frames 336 and 337: an empty turn nobody sent (`init`, then a `result` with `num_turns: 0`). It starts nothing and says nothing.
+    for (const frame of frames.slice(336, 338)) fake.feed(frame)
     expect(sender.of('run:started')).toEqual([])
-    expect(sender.of('run:failed')).toEqual([])
-    expect(sender.of('run:finished')).toEqual([])
     expect(sender.of('harness:said')).toEqual([])
-    expect(snapshot(sender).runs).toHaveLength(1)
-    expect(snapshot(sender).runs[0].status).toBe('stopped')
+
+    // Frame 338 on: the turn in which the persona carries on and `Write`s `notes.md`, ended by the `result` at 1432.
+    for (const frame of frames.slice(338)) fake.feed(frame)
+
+    expect(sender.names.filter((name) => name !== 'doc:prose').slice(0, 4)).toEqual(['run:stopped', 'session:awaiting-turn', 'harness:said', 'run:started'])
+    expect(sender.of('run:started')).toEqual([
+      { runId: 'r2', sessionId, agentId: A, code: 'CP', plan: ['Vision', 'Scope'], at: clock }
+    ])
+    expect(sender.of('harness:said').map((said) => said.text)).toEqual([LINES.carriedOn])
+    expect(sender.of('run:stopped')).toHaveLength(1)
+    expect(sender.of('run:failed')).toEqual([])
+    expect(sender.of('run:finished')).toEqual([{ runId: 'r2', sessionId, at: clock }])
+    expect(sender.names.at(-2)).toBe('run:finished')
+    expect(sender.names.at(-1)).toBe('session:awaiting-turn')
+    // The write is the second card's: every document event after the line carries the new run id and names `notes.md`.
+    // (The first run's own `Write` of `notes.md` was interrupted mid-stream, and is its card's.)
+    const started = sender.sent.findIndex((event) => event.name === 'run:started')
+    const documents = sender.sent.filter((event, at) => at > started && (event.name === 'doc:prose' || event.name === 'doc:committed'))
+    expect(documents.length).toBeGreaterThan(0)
+    expect(documents.map((event) => [(event.payload as { runId: string }).runId, (event.payload as { path: string }).path])).toEqual(
+      documents.map(() => ['r2', 'notes.md'])
+    )
+    expect(sender.of('doc:committed').map((committed) => [committed.runId, committed.path, committed.ok])).toEqual([['r2', 'notes.md', true]])
+    expect(snapshot(sender).runs.map((run) => [run.runId, run.status, run.agentId])).toEqual([
+      [runId, 'stopped', A],
+      ['r2', 'finished', A]
+    ])
+    expect(snapshot(sender).runs[1]).toMatchObject({ code: 'CP', plan: ['Vision', 'Scope'], documents: [expect.objectContaining({ path: 'notes.md' })] })
+    expect(sender.of('run:failed')).toEqual([])
     expect(fake.kills).toBe(0)
-    // The session ends the unsent turn as it ended any other: free again.
+    expect(fake.interrupts).toHaveLength(1)
     expect(snapshot(sender).busy).toEqual([])
   })
 
@@ -521,6 +565,21 @@ describe('a stop replayed from the live recordings of 10-06-2026 (claude 2.1.285
     await expect(stopRun(sender, runId)).resolves.toEqual(NOT_FOUND)
     expect(fake.interrupts).toHaveLength(0)
     expect(sender.sent).toEqual([])
+  })
+
+  it('interrupt-inband-idle, in full: nothing was stopped, so nothing is held, and the next turn the recorder sent is no second run', async () => {
+    const frames = recording('interrupt-inband-idle')
+    const { sender, fake, sessionId } = await running()
+    // Frames 0 to 14: the run's turn, ended by its `result`. Frame 15 is the answer to an interrupt nobody had anything to stop.
+    for (const frame of frames.slice(0, 16)) fake.feed(frame)
+    expect(sender.of('run:finished')).toHaveLength(1)
+    await expect(call<Promise<unknown>>(TURN_SEND_CHANNEL, sender, sessionId, 'the recorder’s next turn')).resolves.toEqual({ ok: true })
+    for (const frame of frames.slice(16)) fake.feed(frame)
+
+    expect(sender.of('run:started')).toEqual([])
+    expect(sender.of('harness:said')).toEqual([])
+    expect(sender.of('run:stopped')).toEqual([])
+    expect(snapshot(sender).runs).toHaveLength(1)
   })
 })
 
@@ -683,6 +742,285 @@ describe('a stop the CLI did not acknowledge', () => {
       [runId, 'finished'],
       ['r2', 'running']
     ])
+  })
+})
+
+/** A message begins on the main thread: a turn nobody sent, when the session is free. */
+const unsent = (id = 'm-unsent') => ({ type: 'stream_event', parent_tool_use_id: null, event: { type: 'message_start', message: { id } } })
+/** The empty turn the CLI runs first after a stop: an `init` and a `result` with no message of its own. */
+const emptyTurn = () => [{ type: 'system', subtype: 'init' }, { ...result(false), num_turns: 0 }]
+const memlog = (...entries: string[]) => `---\nkind: memlog\n---\n${entries.map((entry) => `- ${entry}`).join('\n')}\n`
+
+describe('the work that carries on after a stop', () => {
+  /** A run the user stopped, its failed `result` in, and the session free. */
+  async function stopped() {
+    const scene = await running()
+    const reply = stopRun(scene.sender, scene.runId)
+    await flush()
+    scene.fake.interrupts[0](true)
+    await reply
+    scene.fake.feed(result(true))
+    scene.sender.sent = []
+    return scene
+  }
+  /** Stop the run in flight, whatever it is, and end its turn on the failed `result`. */
+  async function stopAgain(scene: { sender: FakeSender; fake: FakeSession }, runId: string) {
+    const reply = stopRun(scene.sender, runId)
+    await flush()
+    scene.fake.interrupts.at(-1)!(true)
+    await reply
+    scene.fake.feed(result(true))
+  }
+
+  it('starts a run for a turn nobody sent: one harness line, then run:started for the same session, code and plan, under a new run id', async () => {
+    templatePlan = { spine: ['Vision', 'Scope'], menu: ['Risks'] }
+    const { sender, fake, sessionId, runId } = await stopped()
+    expect(runId).toBe('r1')
+
+    fake.feed(unsent())
+
+    expect(sender.names).toEqual(['harness:said', 'run:started'])
+    expect(sender.of('harness:said')).toEqual([{ sessionId, id: expect.any(String), text: LINES.carriedOn, at: clock }])
+    expect(sender.of('run:started')).toEqual([{ runId: 'r2', sessionId, agentId: A, code: 'CP', plan: ['Vision', 'Scope'], at: clock }])
+    expect(snapshot(sender).runs.map((run) => [run.runId, run.status])).toEqual([
+      ['r1', 'stopped'],
+      ['r2', 'running']
+    ])
+    expect(snapshot(sender).entries).toEqual([expect.objectContaining({ kind: 'sysline', text: LINES.carriedOn })])
+    expect(snapshot(sender).busy).toEqual([sessionId])
+  })
+
+  it('says nothing and starts nothing for the empty turn the CLI runs first, and starts the run when the turn that follows it begins', async () => {
+    const { sender, fake } = await stopped()
+
+    for (const frame of emptyTurn()) fake.feed(frame)
+    expect(sender.sent.filter((event) => event.name !== 'persona:state')).toEqual([])
+
+    fake.feed(unsent())
+    expect(sender.names).toEqual(['harness:said', 'run:started'])
+  })
+
+  it('gives the turn’s writes to the new card: the document events carry the new run id, from the first prose', async () => {
+    const { sender, fake } = await stopped()
+    const write = (partial: string) => ({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: { type: 'content_block_delta', index: 1, delta: { type: 'input_json_delta', partial_json: partial } }
+    })
+    fake.feed(unsent())
+    fake.feed({ type: 'stream_event', parent_tool_use_id: null, event: { type: 'content_block_start', index: 1, content_block: { type: 'tool_use', id: 't1', name: 'Write', input: {} } } })
+    fake.feed(write(`{"file_path":"${ROOT}/notes.md","content":"# Notes\\nwords`))
+    advance(1_000)
+
+    expect(sender.of('doc:prose').map((prose) => [prose.runId, prose.path])).toEqual([['r2', 'notes.md']])
+    expect(snapshot(sender).runs[1].documents).toEqual([expect.objectContaining({ path: 'notes.md' })])
+    expect(snapshot(sender).runs[0].documents).toEqual([])
+  })
+
+  it('ends the continuation on its own result: run:finished on its id for a success, with the one line and the hold gone', async () => {
+    const { sender, fake, sessionId } = await stopped()
+    fake.feed(unsent())
+
+    fake.feed(result(false))
+
+    expect(sender.names).toEqual(['harness:said', 'run:started', 'run:finished', 'session:awaiting-turn'])
+    expect(sender.of('run:finished')).toEqual([{ runId: 'r2', sessionId, at: clock }])
+    // Held no longer: the next turn nobody sends is none of the run's.
+    fake.feed(unsent('m2'))
+    fake.feed(result(false))
+    expect(sender.of('run:started')).toHaveLength(1)
+    expect(sender.of('harness:said')).toHaveLength(1)
+  })
+
+  it('ends the continuation as run:failed for an is_error result, says the failure, and holds nothing', async () => {
+    const { sender, fake, sessionId } = await stopped()
+    fake.feed(unsent())
+
+    fake.feed(result(true, 'error_max_turns'))
+
+    expect(sender.of('run:failed')).toEqual([{ runId: 'r2', sessionId, error: { code: 'run/failed', message: 'run · the run failed', detail: 'error_max_turns' }, at: clock }])
+    expect(sender.of('harness:said').map((said) => said.text)).toEqual([LINES.carriedOn, LINES.failed('error_max_turns')])
+    fake.feed(unsent('m2'))
+    expect(sender.of('run:started')).toHaveLength(1)
+  })
+
+  it('is stopped as any run is: one interrupt on the continuation, run:stopped on the interrupted result, the session open, and the hold set again so a further resume starts a further run', async () => {
+    const scene = await stopped()
+    const { sender, fake, sessionId } = scene
+    fake.feed(unsent())
+    const written = fake.writes.length
+
+    await stopAgain(scene, 'r2')
+
+    expect(fake.interrupts).toHaveLength(2)
+    expect(fake.writes).toHaveLength(written)
+    expect(sender.of('run:stopped')).toEqual([{ runId: 'r2', sessionId, at: clock }])
+    expect(sender.of('run:failed')).toEqual([])
+    expect(fake.kills).toBe(0)
+
+    fake.feed(unsent('m3'))
+
+    expect(sender.of('run:started').map((started) => [started.runId, started.code])).toEqual([['r2', 'CP'], ['r3', 'CP']])
+    expect(sender.of('harness:said').map((said) => said.text)).toEqual([LINES.carriedOn, LINES.carriedOn])
+    expect(fake.interrupts).toHaveLength(2)
+  })
+
+  it('writes no interrupt and no turn of its own, and offers nothing: the line is the only thing the harness adds', async () => {
+    const { sender, fake } = await stopped()
+    const written = fake.writes.length
+
+    fake.feed(unsent())
+    fake.feed(result(false))
+
+    expect(fake.writes).toHaveLength(written)
+    expect(fake.interrupts).toHaveLength(1)
+    expect(fake.kills).toBe(0)
+    expect(sender.names.filter((name) => name !== 'persona:state')).toEqual(['harness:said', 'run:started', 'run:finished', 'session:awaiting-turn'])
+  })
+
+  it('starts nothing for an unsent turn after a run that finished, and nothing after one that failed', async () => {
+    const finished = await running()
+    finished.fake.feed(result(false))
+    finished.sender.sent = []
+    finished.fake.feed(unsent())
+    expect(finished.sender.of('run:started')).toEqual([])
+    expect(finished.sender.of('harness:said')).toEqual([])
+
+    const failed = await running(B, new FakeSender(2))
+    failed.fake.feed(result(true))
+    failed.sender.sent = []
+    failed.fake.feed(unsent())
+    expect(failed.sender.of('run:started')).toEqual([])
+    expect(failed.sender.of('harness:said')).toEqual([])
+  })
+
+  it('starts nothing once the user has sent a turn since the stop: the hold is gone', async () => {
+    const { sender, fake, sessionId } = await stopped()
+    await call<Promise<unknown>>(TURN_SEND_CHANNEL, sender, sessionId, 'something else')
+    fake.feed(result(false))
+
+    fake.feed(unsent())
+
+    expect(sender.of('run:started')).toEqual([])
+    expect(sender.of('harness:said')).toEqual([])
+  })
+
+  it('starts nothing once the user has dispatched an entry since the stop, and holds what that run carries instead', async () => {
+    const { sender, fake, sessionId } = await stopped()
+    await call<Promise<unknown>>(MENU_DISPATCH_CHANNEL, sender, sessionId, 'CP')
+    fake.feed(result(false))
+    sender.sent = []
+
+    fake.feed(unsent())
+
+    expect(sender.of('run:started')).toEqual([])
+    expect(sender.of('harness:said')).toEqual([])
+  })
+
+  it('starts nothing for a session that never ran: a fresh session’s unsent turn is no run', async () => {
+    const sender = new FakeSender(1)
+    await call<Promise<unknown>>(SESSION_OPEN_CHANNEL, sender, A)
+    const fake = fakes.get(A)!
+    fake.feed(result())
+
+    fake.feed(unsent())
+
+    expect(sender.of('run:started')).toEqual([])
+    expect(sender.of('harness:said')).toEqual([])
+  })
+
+  it('makes a background subagent finishing during a run part of that run: no second run starts', async () => {
+    const { sender, fake, runId } = await running()
+    fake.feed(tasks('sub-1'))
+    fake.feed(result(false))
+    fake.feed(tasks())
+    fake.feed(unsent())
+    fake.feed(result(false))
+
+    expect(sender.of('run:started')).toEqual([])
+    expect(sender.of('run:finished')).toEqual([expect.objectContaining({ runId })])
+  })
+
+  it('starts the run after a stop that left background tasks live, once they drain and the session is free', async () => {
+    const scene = await running()
+    scene.fake.feed(tasks('sub-1'))
+    const reply = stopRun(scene.sender, scene.runId)
+    await flush()
+    scene.fake.interrupts[0](true)
+    await reply
+    scene.fake.feed(result(true))
+    scene.fake.feed(tasks())
+    scene.fake.feed(result(false))
+    scene.sender.sent = []
+
+    scene.fake.feed(unsent())
+
+    expect(scene.sender.names).toEqual(['harness:said', 'run:started'])
+  })
+
+  it('carries the plan as it then stood, the sections a concern scan pulled included', async () => {
+    templatePlan = { spine: ['Vision'], menu: ['Risks', 'Users'] }
+    const scene = await running()
+    memlogText = memlog('(event) opened')
+    await observe(scene.sender, { type: 'artifact:found', path: '_bmad/work/.memlog.md' })
+    memlogText = memlog('(event) opened', '(event) concern scan surfaced: Risks')
+    await observe(scene.sender, { type: 'artifact:written', path: '_bmad/work/.memlog.md' })
+    expect(scene.sender.of('run:note')[0].pulled).toEqual(['Risks'])
+    const reply = stopRun(scene.sender, scene.runId)
+    await flush()
+    scene.fake.interrupts[0](true)
+    await reply
+    scene.fake.feed(result(true))
+    scene.sender.sent = []
+
+    scene.fake.feed(unsent())
+
+    expect(scene.sender.of('run:started')[0].plan).toEqual(['Vision', 'Risks'])
+    // And the menu goes with it: a note of the continuation can pull what the first did not.
+    memlogText = memlog('(event) opened', '(event) concern scan surfaced: Risks', '(event) concern scan surfaced: Users')
+    await observe(scene.sender, { type: 'artifact:written', path: '_bmad/work/.memlog.md' })
+    expect(scene.sender.of('run:note').at(-1)).toMatchObject({ runId: 'r2', pulled: ['Users'] })
+  })
+
+  it('starts a run with no plan for a stopped run that had none: `run:started` carries no plan', async () => {
+    const { sender, fake } = await stopped()
+
+    fake.feed(unsent())
+
+    expect(sender.of('run:started')[0]).not.toHaveProperty('plan')
+  })
+
+  it('starts nothing after the fallback: the session was ended with the run, and a frame to a closed entry is dropped', async () => {
+    const scene = await running()
+    const reply = stopRun(scene.sender, scene.runId)
+    await flush()
+    scene.fake.interrupts[0](false)
+    await reply
+    scene.sender.sent = []
+
+    scene.fake.feed(unsent())
+
+    expect(scene.sender.sent).toEqual([])
+    expect(snapshot(scene.sender).sessions).toEqual([])
+  })
+
+  it('starts nothing for a turn that has not happened: a window that reloads reads the cards as they are, and a stop alone is no turn', async () => {
+    const { sender } = await stopped()
+
+    snapshot(sender)
+    advance(60_000)
+
+    expect(sender.of('run:started')).toEqual([])
+    expect(sender.of('harness:said')).toEqual([])
+    expect(snapshot(sender).runs.map((run) => run.status)).toEqual(['stopped'])
+  })
+
+  it('says it in lower case, mono-register, `·`-separated and without terminal punctuation', () => {
+    expect(LINES.carriedOn).toBe('carried on after the stop · a new run follows it')
+    expect(LINES.carriedOn).toBe(LINES.carriedOn.toLowerCase())
+    expect(LINES.carriedOn).not.toMatch(/[.!?:;,]$/)
+    expect(LINES.carriedOn.split(' · ')).toHaveLength(2)
+    expect(LINES.carriedOn).not.toMatch(/resum|continu|retry|try again|please|should|you/i)
   })
 })
 

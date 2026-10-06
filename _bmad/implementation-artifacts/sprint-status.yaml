@@ -83,7 +83,7 @@ development_status:
   3-9-two-writers-one-file-no-arbitration: done
   3-10-told-once-quietly-when-you-are-elsewhere: done
   3-11-nothing-this-epic-promised-not-to-do: done
-  3-15-the-work-that-carries-on-after-a-stop: backlog
+  3-15-the-work-that-carries-on-after-a-stop: done
   epic-3-retrospective: done
 
   epic-4: backlog
@@ -516,5 +516,5 @@ action_items:
       audit to the continuation card. Evidence: fixtures/runs/interrupt-inband-tasks-live-mid-write.jsonl,
       deferred-work.md. Before Epic 4."
     owner: "dev"
-    status: open
+    status: done
     ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"

@@ -73,11 +73,20 @@ function filesUnder(dir: string): string[] {
   });
 }
 
-/** Every non-test source under `src/`, repo-relative, comments removed. */
+/**
+ * Every non-test source under `src/`, repo-relative, comments removed. The
+ * renderer's test support (`ui/testing/`) is test code, never shipped, and holds
+ * the very words and patterns the audit looks for in what is drawn.
+ */
 const code = new Map<string, string>(
   filesUnder(SRC)
     .map((path) => relative(ROOT, path))
-    .filter((path) => !/\.test\.tsx?$/.test(path) && !path.endsWith(".d.ts"))
+    .filter(
+      (path) =>
+        !/\.test\.tsx?$/.test(path) &&
+        !path.endsWith(".d.ts") &&
+        !path.startsWith("src/renderer/ui/testing/"),
+    )
     .map((path) => {
       const text = readFileSync(join(ROOT, path), "utf8");
       if (path.endsWith(".css")) {
@@ -2237,5 +2246,31 @@ describe("nothing this epic promised not to do: the audit's static half (Story 3
     const preload = code.get(PRELOAD) ?? "";
     const methods = [...preload.slice(preload.indexOf("const harness: HarnessApi = {"), preload.indexOf("contextBridge.exposeInMainWorld")).matchAll(/^ {2}(\w+):/gm)];
     expect([commands.length, events.length, channels.length, methods.length]).toEqual([7, 15, 22, 17]);
+  });
+
+  it("says what carried on after a stop in lower case, `·`-separated, unpunctuated, and offers nothing: no resume, continue, retry or guidance word", () => {
+    const voice = code.get("src/main/session-voice.ts") ?? "";
+    const line = voice.match(/carriedOn:\s*(['"`])((?:(?!\1).)*)\1/)?.[2];
+
+    expect(line).toBe("carried on after the stop · a new run follows it");
+    expect(line).toBe(line?.toLowerCase());
+    expect(line).not.toMatch(/[.!?:;,]$/);
+    expect(line).not.toMatch(/\b(?:resum\w*|continu\w*|retry|try|again|please|should|can|could|you|your|press|click|restore|undo|revert)\b/i);
+    // One place says it: the registry, once, through the harness's own `say`.
+    expect(offenders(MAIN_CODE, /\bLINES\.carriedOn\b/)).toEqual(["src/main/session-registry.ts: LINES.carriedOn"]);
+    expect(code.get("src/main/session-registry.ts")?.match(/\bLINES\.carriedOn\b/g)).toHaveLength(1);
+  });
+
+  it("writes no interrupt of its own: `stopRun` asks the session for one and nothing else in main does, and a continuation is started, never resumed", () => {
+    expect(offenders(MAIN_CODE, /\.interrupt\(/)).toEqual(["src/main/session-stop.ts: .interrupt("]);
+    expect(code.get("src/main/session-stop.ts")?.match(/\.interrupt\(/g)).toHaveLength(1);
+    expect(offenders(MAIN_CODE, /\binterruptLine\b/).map((hit) => hit.split(":")[0])).toEqual(["src/main/sources/session/session-process.ts"]);
+    // No resume in any sentence main speaks: a stopped run's work is carried on by the CLI, and the harness only gives it a card.
+    // (`'resumed'` alone is the turn fold's signal name, a word of code and no sentence.)
+    const sentences = MAIN_CODE.filter((path) => path.startsWith("src/main/session-")).flatMap((path) =>
+      [...(code.get(path) ?? "").matchAll(/(["'`])((?:(?!\1)[^\n\\])*)\1/g)].map(([, , text]) => `${path}: ${text}`),
+    );
+    expect(sentences.length).toBeGreaterThan(20);
+    expect(sentences.filter((text) => /\bresum\w*\b/i.test(text) && /\s/.test(text.split(": ").slice(1).join(": ")))).toEqual([]);
   });
 });

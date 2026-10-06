@@ -208,6 +208,8 @@ async function writeTurn(entry: Entry, text: string): Promise<{ ok: true } | Ref
       message: 'session · the turn could not be written'
     })
   }
+  // The user acted: whatever a stop held is spent, and a turn nobody sent after this is no continuation.
+  entry.afterStop = undefined
   return { ok: true }
 }
 
@@ -427,6 +429,7 @@ function getConversation(ctx: Context) {
  */
 export function registerSessionBridge(deps: SessionBridgeDeps = {}): SessionBridge {
   const now = deps.now ?? (() => Date.now())
+  const newRunId = deps.newRunId ?? ((): RunId => randomUUID())
   const transcripts =
     deps.transcripts ?? createTranscriptRegistry({ userDataPath: () => app.getPath('userData') })
   const ctx: Context = {
@@ -438,6 +441,7 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): SessionBrid
       start: deps.spawn ?? spawnSession,
       now,
       newSessionId: deps.newSessionId ?? (() => randomUUID()),
+      newRunId,
       transcripts,
       userDataDir: deps.userDataDir ?? (() => app.getPath('userData')),
       homeDir: deps.homeDir ?? homedir(),
@@ -453,7 +457,7 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): SessionBrid
       now
     }),
     menuEntryFor: deps.menuEntryFor ?? menuEntryFor,
-    newRunId: deps.newRunId ?? (() => randomUUID()),
+    newRunId,
     readPlan: deps.readPlan ?? readPlan
   }
 

@@ -22,7 +22,7 @@ Make the product's central beat real: press a skill button belonging to the pers
 - Story 3.9: Two writers, one file, no arbitration (done)
 - Story 3.10: Told once, quietly, when you are elsewhere (done)
 - Story 3.11: Nothing this epic promised not to do (done)
-- Story 3.15: The work that carries on after a stop has a card (backlog; added 2026-10-06)
+- Story 3.15: The work that carries on after a stop has a card (done; added 2026-10-06)
 
 ## Requirements & Constraints
 
