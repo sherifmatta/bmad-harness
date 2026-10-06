@@ -38,9 +38,16 @@ function withDisk(table: RailTable, path: string, disk: Disk): RailTable {
   return next
 }
 
-/** An annotation as the table holds it and the rows carry it: its words and its owner, copied, and nothing else. */
-function carried({ text, owner }: RailAnnotation): RailAnnotation {
-  return owner === undefined ? { text } : { text, owner: { agentId: owner.agentId } }
+/**
+ * An annotation as the table holds it and the rows carry it: its words and its owner or owners,
+ * copied (a fresh array of fresh objects), and nothing else.
+ */
+function carried({ text, owner, owners }: RailAnnotation): RailAnnotation {
+  return {
+    text,
+    ...(owner === undefined ? {} : { owner: { agentId: owner.agentId } }),
+    ...(owners === undefined ? {} : { owners: owners.map(({ agentId }) => ({ agentId })) })
+  }
 }
 
 /** Fold one observation into the table. A row exists because the watcher saw the file. */

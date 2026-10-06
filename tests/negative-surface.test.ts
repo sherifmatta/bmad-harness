@@ -1728,9 +1728,10 @@ describe("the rail's annotation says who is writing and where, with no total, ba
     ).toEqual([FOLD, PROSE_STORE, PROGRESS].sort());
   });
 
-  it("makes a rail annotation of nothing but the stream's words and the one terminal word: no contention, notification, denominator or stand-in", () => {
-    // Story 3.8 put `stopped` on the row, and it is the whole of the terminal vocabulary: contention is 3.9, notifications 3.10.
-    expect(offenders([FOLD, ANNOTATOR, HOLDER, PROGRESS], /contention|contend|Notification|\bconflict\b|\bboth owners\b/i)).toEqual([]);
+  it("makes a rail annotation of nothing but the stream's words, the one terminal word and the one word for two writers: no notification, denominator or stand-in", () => {
+    // Story 3.8 put `stopped` on the row, and it is the whole of the terminal vocabulary; Story 3.9 added `contention`,
+    // which the block below holds to one spelling. Notifications are 3.10, and a conflict is never a word the rail uses.
+    expect(offenders([FOLD, ANNOTATOR, HOLDER, PROGRESS], /contend|Notification|\bconflict\b|\bboth owners\b/i)).toEqual([]);
     // The terminal word is spelled where `writing` and `revising` are, and nowhere else the rail can reach:
     // every word any of these four files is made of is swept, so a template or a concatenation is caught too.
     const said = [FOLD, ANNOTATOR, HOLDER, PROGRESS].flatMap((path) =>
@@ -1767,5 +1768,173 @@ describe("the rail's annotation says who is writing and where, with no total, ba
     // The persona fold, the rail's push rule and the row component read no annotation from the stream.
     expect(offenders(["src/main/fold/persona-state.ts", "src/main/fold/artifact-owner.ts"], /annotation/)).toEqual([]);
     expect(offenders([ROW], /annotation\??\.owner|agentId/)).toEqual([]);
+  });
+});
+
+describe("two writers, one file: the rail reports it and nothing arbitrates (Story 3.9)", () => {
+  const PROGRESS = "src/shared/section-progress.ts";
+  const RAIL_CONTRACT = "src/shared/rail.ts";
+  const FOLD = "src/main/fold/rail-annotations.ts";
+  const ROWS = "src/main/fold/rail-rows.ts";
+  const ANNOTATOR = "src/main/projections/rail-annotator.ts";
+  const HOLDER = "src/main/rail-annotations.ts";
+  const OUTPUTS = "src/renderer/ui/outputs/outputs.tsx";
+  const ROW = "src/renderer/ui/outputs/output-row.tsx";
+  const OWNER_LABEL = "src/renderer/ui/outputs/owner-label.ts";
+  const COMMANDS = "src/shared/commands.ts";
+  const EVENTS = "src/shared/events.ts";
+  const CHANNELS = "src/shared/channels.ts";
+  const PRELOAD = "src/preload/index.ts";
+  const TRANSCRIPT_STORE = "src/main/sources/persistence/transcript-file.ts";
+  const CHOOSER = "src/main/windows/choose-project.ts";
+  const WORDS = /(["'`])(?:(?!\1)[^\n\\]|\\.)*\1|>[^<>{}\n]+</g;
+  const CONTRACT = [COMMANDS, EVENTS, CHANNELS, PRELOAD];
+  const SPOKEN = [PROGRESS, FOLD, ROWS, ANNOTATOR, HOLDER, OUTPUTS, ROW, OWNER_LABEL];
+
+  it("reads the sources it claims to sweep", () => {
+    for (const path of [...SPOKEN, ...CONTRACT, TRANSCRIPT_STORE, CHOOSER, RAIL_CONTRACT]) {
+      expect(code.get(path)?.length ?? 0, path).toBeGreaterThan(100);
+    }
+  });
+
+  it("spells the word once, beside the terminal word, and every other file takes it from there", () => {
+    expect(offenders(ALL_CODE, /["'`]contention["'`]/).map((hit) => hit.split(":")[0])).toEqual([PROGRESS]);
+    const progress = code.get(PROGRESS) ?? "";
+    expect(progress).toMatch(/export const CONTENTION = 'contention'/);
+    expect(progress.indexOf("export const STOPPED")).toBeGreaterThan(-1);
+    expect(progress.indexOf("export const STOPPED")).toBeLessThan(progress.indexOf("export const CONTENTION"));
+    // The fold names it by the constant; nothing else the rail reaches, in main or in the window, names it at all.
+    expect([...new Set((code.get(FOLD) ?? "").match(/contention/gi))]).toEqual(["CONTENTION"]);
+    expect(offenders([ROWS, ANNOTATOR, HOLDER, OUTPUTS, ROW, OWNER_LABEL], /contention/i)).toEqual([]);
+  });
+
+  it("carries the owners on the annotation beside the owner, and on no row field of its own", () => {
+    const contract = code.get(RAIL_CONTRACT) ?? "";
+
+    expect(contract.match(/\bowners\b/g)).toHaveLength(1);
+    expect(contract).toContain("owners?: readonly RailOwner[]");
+    expect(contract).toContain("owner?: RailOwner");
+    // The row has the class's `owner` and the stream's `annotation`, and no field that merges them.
+    expect(contract).toMatch(/owner\?: RailOwner\n\s*annotation\?: RailAnnotation/);
+    expect(contract).not.toMatch(/\bstatus\b|\bcontended\b|\bwinner\b/);
+  });
+
+  it("says who is writing and never who wrote last: no word of recency, victory or loss in anything the rail says", () => {
+    const spoken = SPOKEN.flatMap((path) =>
+      [...(code.get(path) ?? "").matchAll(WORDS)].map(([text]) => `${path}: ${text}`),
+    );
+
+    expect(spoken.length).toBeGreaterThan(0);
+    expect(
+      spoken.filter((text) => /\b(?:last|latest|newest|newer|older|overwr\w*|winner|wins?|won|lost|loses?|losing|clobber\w*|stale|conflict\w*|race|raced)\b/i.test(text)),
+    ).toEqual([]);
+    // The fold reads no clock and holds no time: which run wrote last is not a thing it could know.
+    expect(offenders([FOLD, OWNER_LABEL], /\bsetTimeout\b|\bsetInterval\b|\bDate\.now\b|new Date\b|performance\.now|\bmtimeMs\b|\bat\b\s*[<>]/)).toEqual([]);
+  });
+
+  it("names no section, count or denominator in the report", () => {
+    const fold = code.get(FOLD) ?? "";
+    const report = fold.slice(fold.indexOf("export function annotationsOf"));
+
+    // The report is the one word and the owners: its own text is the constant, never a template.
+    expect(report).toContain("text: CONTENTION");
+    expect(report).not.toMatch(/`[^`]*\$\{[^}]*\}[^`]*`[^;\n]*CONTENTION|CONTENTION\s*\+|CONTENTION\s*,\s*\.\.\./);
+    expect(offenders([OWNER_LABEL], /§|\bof\b|\btotal\b|\bcount\b/)).toEqual([]);
+  });
+
+  it("adds no command, event, channel or bridge method: the counts stay seven, fifteen, twenty-one and sixteen", () => {
+    const commands = [...(code.get(COMMANDS) ?? "").matchAll(/^\s+'([a-z]+\.[a-z]+)':\s*CommandSpec/gm)].map(([, name]) => name);
+    const events = [...(code.get(EVENTS) ?? "").matchAll(/^\s+'([a-z]+:[a-z-]+)':\s*EventSpec/gm)].map(([, name]) => name);
+    const channels = [...(code.get(CHANNELS) ?? "").matchAll(/^export const (\w+) = '/gm)].map(([, name]) => name);
+    const preload = code.get(PRELOAD) ?? "";
+    const methods = [...preload.slice(preload.indexOf("const harness: HarnessApi = {"), preload.indexOf("contextBridge.exposeInMainWorld")).matchAll(/^ {2}(\w+):/gm)].map(
+      ([, name]) => name,
+    );
+
+    expect(commands).toHaveLength(7);
+    expect(events).toHaveLength(15);
+    expect(channels).toHaveLength(21);
+    expect(methods).toHaveLength(16);
+    // And none of them is named for it.
+    expect(offenders(CONTRACT, /contend|contention|\bowners\b|arbitrat/i)).toEqual([]);
+    expect(offenders(MAIN_CODE, /ipcMain\.handle\(\s*["'`][^"'`]*(?:contend|contention|owners|arbitrat)/i)).toEqual([]);
+  });
+
+  describe("offers nothing to resolve it", () => {
+    /** The words a name is made of: split on anything that is not a letter and between a lower-case letter and a capital. */
+    const wordsOf = (name: string): string[] =>
+      name
+        .replace(/([a-z])([A-Z])/g, "$1 $2")
+        .split(/[^A-Za-z]+/)
+        .filter((word) => word !== "")
+        .map((word) => word.toLowerCase());
+    const BANNED = new Set(["resolve", "resolved", "resolving", "resolution", "merge", "merged", "merging", "revert", "reverted", "lock", "locked", "unlock", "restore", "restored", "undo", "undone", "patch", "patched", "edit", "edited", "pipeline", "arbitrate", "arbitration"]);
+    const stringsIn = (path: string): string[] => [...(code.get(path) ?? "").matchAll(/(["'`])([^"'`\n]*)\1/g)].map(([, , text]) => text);
+
+    it("names no command, event, channel or bridge method for resolving, merging, reverting, locking, restoring, undoing, patching, editing or a pipeline", () => {
+      const preload = code.get(PRELOAD) ?? "";
+      const methods = [...preload.slice(preload.indexOf("const harness: HarnessApi = {")).matchAll(/^ {2}(\w+):/gm)].map(([, name]) => name);
+      const handled = MAIN_CODE.flatMap((path) =>
+        [...(code.get(path) ?? "").matchAll(/ipcMain\.handle\(\s*(["'`])([^"'`]+)\1/g)].map(([, , channel]) => channel),
+      );
+      const names = [...stringsIn(COMMANDS), ...stringsIn(EVENTS), ...stringsIn(CHANNELS), ...methods, ...handled];
+
+      // The sweep sees the names it is meant to: the channel that opens a document in the user's own editor is `editor`, not `edit`.
+      expect(names).toContain("doc:open-in-editor");
+      expect(methods).toContain("stopRun");
+      expect(names.length).toBeGreaterThan(60);
+      expect(names.filter((name) => wordsOf(name).some((word) => BANNED.has(word)))).toEqual([]);
+    });
+
+    it("draws no dialog, confirm or alert in the window, and no Electron dialog in main outside the folder chooser", () => {
+      expect(
+        offenders(
+          RENDERER_CODE,
+          /\bwindow\.(?:confirm|alert|prompt)\b|(?<![\w.])(?:confirm|alert|prompt)\(|<dialog\b|role=["'](?:dialog|alertdialog)|aria-modal|\.showModal\(|\bshowMessageBox\b|\bshowErrorBox\b|\bshowOpenDialog\b|\bshowSaveDialog\b/,
+        ),
+      ).toEqual([]);
+      expect(offenders(MAIN_CODE.filter((path) => path !== CHOOSER), /\bdialog\b|\bshowMessageBox|\bshowErrorBox|\bshowOpenDialog|\bshowSaveDialog/)).toEqual([]);
+      // The one dialog main has chooses a folder to open, and says nothing about a file.
+      const chooser = code.get(CHOOSER) ?? "";
+      expect(chooser.match(/\bdialog\./g)).toHaveLength(1);
+      expect(chooser).toContain("dialog.showOpenDialog");
+      expect(chooser).not.toMatch(/showMessageBox|showErrorBox|showSaveDialog/);
+    });
+
+    it("has no control for it in the rail: the rows and the owner label hold no button of their own, no handler beyond the one that opens the file", () => {
+      expect((code.get(ROW) ?? "").match(/<button\b/g)).toHaveLength(1);
+      expect((code.get(ROW) ?? "").match(/\bon[A-Z]\w*=/g)?.sort()).toEqual(["onClick=", "onKeyDown="]);
+      // The label is a function of a row and a roster, not a component: a `.ts` file, with no markup, state, effect or bridge.
+      expect(OWNER_LABEL.endsWith(".ts")).toBe(true);
+      expect(offenders([OWNER_LABEL], /from ["']react|\bon[A-Z]\w*=|\buseState\b|\buseEffect\b|ipcRenderer|\bwindow\b/)).toEqual([]);
+      expect(offenders(RENDERER_CODE.filter((path) => path.startsWith("src/renderer/ui/outputs/")), /\b(?:resolve|merge|revert|restore|undo|patch|arbitrate)\w*\(|\block\w*\(/i)).toEqual([]);
+    });
+  });
+
+  it("writes nothing to the project: no write-capable filesystem call in main outside the harness's own transcript, which refuses the project", () => {
+    const others = MAIN_CODE.filter((path) => path !== TRANSCRIPT_STORE);
+    const WRITES = /^(?:write|append|mkdir|mkdtemp|rename|unlink|rm|rmdir|copy|cp|truncate|ftruncate|symlink|link|chmod|chown|utimes|lutimes|createWriteStream)/;
+
+    // What main takes from the filesystem is read-only: every name imported from `node:fs` outside the store.
+    const imported = others.flatMap((path) =>
+      [...(code.get(path) ?? "").matchAll(/import\s*(?:type\s*)?\{([^}]*)\}\s*from\s*["']node:fs(?:\/promises)?["']/g)].flatMap(([, names]) =>
+        names.split(",").map((name) => name.trim().split(/\s+as\s+/)[0]).filter((name) => name !== ""),
+      ),
+    );
+    expect(imported.length).toBeGreaterThan(5);
+    expect(imported.filter((name) => WRITES.test(name))).toEqual([]);
+    expect(offenders(others, /import\s+(?:\*\s+as\s+\w+|\w+)\s+from\s*["']node:fs|\brequire\(\s*["'](?:node:)?fs/)).toEqual([]);
+    expect(
+      offenders(
+        others,
+        /\b(?:writeFile|appendFile|mkdir|mkdtemp|rename|unlink|rm|rmdir|copyFile|cp|truncate|ftruncate|symlink|link|chmod|chown|utimes|lutimes)(?:Sync)?\s*\(|\bcreateWriteStream\b|\bopen(?:Sync)?\([^)]*,\s*["'`](?:[wa]x?\+?|r\+)["'`]/,
+      ),
+    ).toEqual([]);
+    // What the store writes is its own file, and never inside the project the window was opened for.
+    const store = code.get(TRANSCRIPT_STORE) ?? "";
+    expect(store).toMatch(/isInsideProject\(projectPath, filePath\)/);
+    expect(store).toContain("inside-project");
+    // Contention is a report: nothing in the fold, the row table or the annotator reaches a file or a process.
+    expect(offenders([FOLD, ROWS, ANNOTATOR, HOLDER, OWNER_LABEL], /node:fs|node:child_process|\bspawn\b|\bkill\b|\binterrupt\b|\bwriteTurn\b|\.write\(/)).toEqual([]);
   });
 });

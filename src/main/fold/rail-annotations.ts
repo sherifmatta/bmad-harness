@@ -1,8 +1,8 @@
 import type { RunCardSnapshot } from '../../shared/conversation'
 import type { ContractEvent } from '../../shared/events'
 import type { AgentId } from '../../shared/ids'
-import type { RailAnnotation } from '../../shared/rail'
-import { STOPPED, commonPrefix, progressLabel, sectionProgress } from '../../shared/section-progress'
+import type { RailAnnotation, RailOwner } from '../../shared/rail'
+import { CONTENTION, STOPPED, commonPrefix, progressLabel, sectionProgress } from '../../shared/section-progress'
 import type { SectionPlace } from '../../shared/section-progress'
 
 /**
@@ -36,7 +36,19 @@ import type { SectionPlace } from '../../shared/section-progress'
  *   costing its path names and nothing more, and a run that was showing nothing
  *   is dropped like a finished one. A piece of prose or a commit that arrives
  *   after a terminal event is ignored (`withPath`), and the stopped run lets a
- *   path go the moment another run writes it.
+ *   path go the moment another run writes it, or, when it ends, the moment
+ *   another run that has not ended already holds it.
+ *
+ * Two runs that have not ended, both holding one path live, are one annotation of
+ * the one word `contention` and the owners those runs carry (`annotationsOf`). A
+ * run holds a path from its first piece of it until its own run ends (or a
+ * rejected `Write` stops it showing the path), exactly as a single run's
+ * `writing` / `revising` annotation does, with no test of how recently it wrote:
+ * a run that wrote the path long ago and is still in flight contends with a
+ * second run that writes it now. It is a report and nothing else: no run is held
+ * back, no text is chosen or undone, and which run wrote last is never said,
+ * because this fold does not know. It lasts as long as both hold the path, and
+ * follows the runs: when either ends, the path is the other's again.
  *
  * `.memlog.md` never reaches here as prose: the route fold sends it nowhere.
  */
@@ -80,6 +92,14 @@ const ELLIPSIS = '…'
 function fitted(name: string): string {
   const points = Array.from(name)
   return points.length <= NAME_MAX ? name : `${points.slice(0, NAME_MAX - 1).join('')}${ELLIPSIS}`
+}
+
+/** Whether a run other than `runId`, one that has not ended, is showing `path`. */
+function heldLiveByAnother(table: AnnotationTable, runId: string, path: string): boolean {
+  for (const [otherId, other] of table) {
+    if (otherId !== runId && other.stopped !== true && other.paths.get(path)?.live === true) return true
+  }
+  return false
 }
 
 function withPath(table: AnnotationTable, runId: string, path: string, held: HeldPath | undefined): AnnotationTable {
@@ -164,9 +184,13 @@ export function foldAnnotations(
       const run = table.get(runId)
       if (run === undefined || run.stopped === true) return table
       // Only the paths it was still showing, each released to the one word: no text, no names, no section.
+      // A path another run that has not ended is still showing is let go: that run holds it, and a dead
+      // run's word must not come back beside it once the live run finishes.
       const paths = new Map<string, HeldPath>()
       for (const [path, held] of run.paths) {
-        if (held.live) paths.set(path, { text: '', seen: [], revising: false, live: true })
+        if (held.live && !heldLiveByAnother(table, runId, path)) {
+          paths.set(path, { text: '', seen: [], revising: false, live: true })
+        }
       }
       const next = new Map(table)
       if (paths.size === 0) next.delete(runId)
@@ -181,15 +205,20 @@ export function foldAnnotations(
 
 /**
  * What the stream says of each path now: one annotation for every path a run
- * holds text for and shows. Where two runs hold one path, the later-started
- * run's shows (naming both is contention's, not this fold's) — except that a
- * run still writing a path always has the last word over one that ended early,
- * so the runs that ended are written first and overwritten.
+ * holds text for and shows. A run still writing a path always has the last word
+ * over one that ended early, so the runs that ended are written first and
+ * overwritten. Where two or more runs that have not ended each hold one path live
+ * (from the run's first piece of it, however long ago it last wrote it), the
+ * annotation is the word `contention` and the personas those runs carry, in the
+ * order the runs started and each once (`owners`, in place of an `owner`): a run
+ * with no persona adds no name, and a run whose `Write` was rejected does not hold
+ * its path.
  */
 export function annotationsOf(table: AnnotationTable): Map<string, RailAnnotation> {
   const out = new Map<string, RailAnnotation>()
   const runs = [...table.values()]
-  const ordered = [...runs.filter((run) => run.stopped === true), ...runs.filter((run) => run.stopped !== true)]
+  const writing = runs.filter((run) => run.stopped !== true)
+  const ordered = [...runs.filter((run) => run.stopped === true), ...writing]
   for (const { agentId, paths, stopped } of ordered) {
     for (const [path, { revising, section, live }] of paths) {
       if (!live) continue
@@ -199,6 +228,22 @@ export function annotationsOf(table: AnnotationTable): Map<string, RailAnnotatio
         ...(agentId === undefined ? {} : { owner: { agentId } })
       })
     }
+  }
+
+  // The runs that have not ended holding each path live, in start order.
+  const writers = new Map<string, RunHeld[]>()
+  for (const run of writing) {
+    for (const [path, { live: shown }] of run.paths) {
+      if (shown) writers.set(path, [...(writers.get(path) ?? []), run])
+    }
+  }
+  for (const [path, holders] of writers) {
+    if (holders.length < 2) continue
+    const owners: RailOwner[] = []
+    for (const { agentId } of holders) {
+      if (agentId !== undefined && !owners.some((owner) => owner.agentId === agentId)) owners.push({ agentId })
+    }
+    out.set(path, { text: CONTENTION, owners })
   }
   return out
 }

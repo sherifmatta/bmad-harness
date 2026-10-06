@@ -115,6 +115,44 @@ describe('Outputs', () => {
     expect(absent).not.toContain('John')
   })
 
+  it('names every owner of a contended row from the roster, and never the class’s owner beside them', () => {
+    const ANALYST: AgentView = { ...JOHN, id: 'bmad-agent-analyst', name: 'Mary', title: 'Analyst' }
+    const ARCHITECT: AgentView = { ...JOHN, id: 'bmad-agent-architect', name: 'Winston', title: 'Architect' }
+    const contended = (...agentIds: string[]): RailSnapshot =>
+      rail({
+        path: '_bmad/planning-artifacts/architecture.md',
+        state: 'changing',
+        // The class's owner is Winston, who is not writing it here.
+        owner: { agentId: 'bmad-agent-architect' },
+        annotation: { text: 'contention', owners: agentIds.map((agentId) => ({ agentId })) }
+      } as RailRow)
+    const owners = (markup: string): string[] => [...markup.matchAll(/output-row-owner">([^<]*)</g)].map(([, name]) => name)
+    const agents = [JOHN, ANALYST, ARCHITECT]
+
+    const two = render({ agents, snapshot: contended('bmad-agent-pm', 'bmad-agent-analyst') })
+    expect(owners(two)).toEqual(['John and Mary'])
+    expect(two).toContain('<span class="output-row-annotation">contention</span>')
+    expect(owners(render({ agents, snapshot: contended('bmad-agent-pm', 'bmad-agent-analyst', 'bmad-agent-architect') }))).toEqual([
+      'John, Mary and Winston'
+    ])
+    // A name the roster lacks is not replaced.
+    expect(owners(render({ agents: [JOHN, ARCHITECT], snapshot: contended('bmad-agent-pm', 'bmad-agent-analyst') }))).toEqual(['John'])
+    // With none to name the slot is not drawn, and the class's owner does not stand in.
+    const none = render({ agents, snapshot: contended() })
+    expect(none).not.toContain('output-row-owner')
+    expect(none).not.toContain('Winston')
+    expect(none).toContain('output-row-annotation')
+  })
+
+  it('draws a contended row’s disk state as the watcher said it, beside the contention tag', () => {
+    const row = saved('_bmad/planning-artifacts/prd.md', { annotation: { text: 'contention', owners: [{ agentId: 'bmad-agent-pm' }] } })
+    const markup = render({ snapshot: rail(row) })
+
+    expect(markup).toContain('<span class="output-row-annotation">contention</span>')
+    expect(markup).toContain('saved · 3d')
+    expect(markup).not.toContain('changing')
+  })
+
   it('draws the annotation tag and the watcher’s state in two registers, neither moving the other', () => {
     const row: RailRow = { path: '_bmad/prd.md', state: 'saved', savedAt: NOW - 2 * DAY, annotation: { text: 'writing · §1 Context' } }
     const markup = render({ snapshot: rail(row) })

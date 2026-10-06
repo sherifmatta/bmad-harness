@@ -254,6 +254,49 @@ describe('an annotation’s owner', () => {
   })
 })
 
+describe('an annotation’s owners (contention)', () => {
+  const owners = [{ agentId: 'bmad-agent-pm' }, { agentId: 'bmad-agent-analyst' }]
+
+  it('crosses whole: annotate keeps the owners the stream named in order, and toRows carries them with no `owner`', () => {
+    const table = annotate(fold([[written(PRD), 0]]), PRD, { text: 'contention', owners })
+
+    expect(toRows(table)).toEqual([{ path: PRD, state: 'changing', annotation: { text: 'contention', owners } }])
+    expect(Object.keys(toRows(table)[0].annotation ?? {}).sort()).toEqual(['owners', 'text'])
+  })
+
+  it('copies rather than shares what it was handed: a fresh array of fresh objects, on the table and on the rows', () => {
+    const table = annotate(fold([[written(PRD), 0]]), PRD, { text: 'contention', owners })
+    const [row] = toRows(table)
+
+    expect(row.annotation?.owners).toEqual(owners)
+    expect(row.annotation?.owners).not.toBe(owners)
+    expect(row.annotation?.owners?.[0]).not.toBe(owners[0])
+    // Every read is its own copy too.
+    expect(toRows(table)[0].annotation?.owners).not.toBe(row.annotation?.owners)
+  })
+
+  it('keeps an empty list of owners as an empty list, and no key at all when there is none', () => {
+    const empty = toRows(annotate(fold([[written(PRD), 0]]), PRD, { text: 'contention', owners: [] }))[0]
+    expect(empty.annotation).toEqual({ text: 'contention', owners: [] })
+
+    const single = toRows(annotate(fold([[written(PRD), 0]]), PRD, { text: 'writing', owner: { agentId: 'bmad-agent-pm' } }))[0]
+    expect(Object.keys(single.annotation ?? {})).not.toContain('owners')
+  })
+
+  it('survives a disk observation and a settle untouched, and moves nothing about the row but the annotation', () => {
+    let table = annotate(fold([[found(PRD), 0]]), PRD, { text: 'writing', owner: { agentId: 'bmad-agent-pm' } })
+    const before = toRows(table)[0]
+    table = annotate(table, PRD, { text: 'contention', owners })
+    table = observe(table, written(PRD), 100)
+    table = settle(table, 100 + SETTLE_MS)
+
+    const [row] = toRows(table)
+    expect(row.annotation).toEqual({ text: 'contention', owners })
+    expect(row).toMatchObject({ path: before.path, state: 'saved' })
+    expect(Object.keys(row)).not.toContain('owner')
+  })
+})
+
 describe('nextSettleAt', () => {
   it('is null with nothing changing', () => {
     expect(nextSettleAt(EMPTY_TABLE)).toBeNull()

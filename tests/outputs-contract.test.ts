@@ -258,7 +258,8 @@ describe('the rail modules in main', () => {
   it('carries the stream’s owner in the annotation and leaves the row’s own owner the class’s', () => {
     const contract = code('src/shared/rail.ts')
 
-    expect(contract).toContain('export type RailAnnotation = { text: string; owner?: RailOwner }')
+    // `owner` is the single run's; `owners` is contention's (Story 3.9), present only on that annotation and then in place of `owner`.
+    expect(contract).toContain('export type RailAnnotation = { text: string; owner?: RailOwner; owners?: readonly RailOwner[] }')
     expect(contract).toMatch(/owner\?: RailOwner\n\s*annotation\?: RailAnnotation/)
     // The watcher side and the persona fold read the row's `owner` and disk fields, never the annotation.
     expect(code('src/main/fold/persona-state.ts')).not.toMatch(/annotation/)
@@ -273,7 +274,10 @@ describe('the rail modules in main', () => {
     }
     // The one row component is untouched by it: it draws `annotation.text` and is handed the owner's name.
     expect(code(`${OUTPUTS_DIR}/output-row.tsx`)).not.toMatch(/annotation\??\.owner|agentId/)
-    expect(code(`${OUTPUTS_DIR}/outputs.tsx`)).toContain('row.annotation?.owner?.agentId ?? row.owner?.agentId')
+    // The owner slot's words are chosen in one pure function: the annotation's owner, else the class's, and a contended row's owners.
+    expect(code(`${OUTPUTS_DIR}/outputs.tsx`)).toContain('ownerName={ownerLabel(row, nameOf)}')
+    expect(code(`${OUTPUTS_DIR}/owner-label.ts`)).toContain('row.annotation?.owner?.agentId ?? row.owner?.agentId')
+    expect(code(`${OUTPUTS_DIR}/owner-label.ts`)).toContain('row.annotation?.owners')
   })
 
   it('adds no channel, command, event or preload method for it', () => {

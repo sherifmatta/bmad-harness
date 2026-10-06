@@ -6,6 +6,7 @@ import type { AgentView, HarnessError } from '../../../shared/install'
 import type { RailSnapshot } from '../../../shared/rail'
 import { ErrorLine } from '../install/error-line'
 import { OutputRow } from './output-row'
+import { ownerLabel } from './owner-label'
 import { groupRows } from './row-groups'
 import { rowMove, tabStopPath } from './row-nav'
 import { useDocOpen } from './use-doc-open'
@@ -22,8 +23,10 @@ import { useNow } from './use-now'
  *
  * A row's owner is the roster's name for the agent the stream's annotation names
  * (the persona writing it), else the agent its class names, or nothing when the
- * roster lacks that agent: an unlisted agent is never replaced by another. `now`
- * is data, passed in so the markup can be rendered at a fixed moment.
+ * roster lacks that agent: an unlisted agent is never replaced by another. A
+ * contended row names every persona its annotation lists and never the class's
+ * (`ownerLabel`). `now` is data, passed in so the markup can be rendered at a
+ * fixed moment.
  *
  * The rows are one roving-tabindex list (NFR20, UX-DR18): one tab stop — the
  * row last moved to or opened, else the first in visual order — with vertical,
@@ -121,13 +124,11 @@ export function Outputs({
           <ul className="outputs-list">
             {group.rows.map((row) => {
               const index = order.indexOf(row.path)
-              // The session's owner, else the class's, else nobody: an agent the roster lacks reads as nobody.
-              const ownerId = row.annotation?.owner?.agentId ?? row.owner?.agentId
               return (
                 <OutputRow
                   key={row.path}
                   row={row}
-                  ownerName={ownerId === undefined ? undefined : nameOf.get(ownerId)}
+                  ownerName={ownerLabel(row, nameOf)}
                   now={now}
                   tabStop={row.path === tabStop}
                   onOpen={activate}

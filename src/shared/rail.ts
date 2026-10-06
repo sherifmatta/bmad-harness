@@ -28,8 +28,16 @@ export type RailOwner = { agentId: string }
  * the persona writing it (`owner`), absent when the run has none. The owner
  * rides here and not on the row, whose own `owner` is the class's and stays what
  * the watcher side reads; the owner slot prefers this one.
+ *
+ * `owners` is the contention annotation's: present only when two or more runs
+ * that have not ended each hold the file, then in place of `owner`, listing the
+ * personas those runs carry in the order the runs started (none when none carries
+ * one). A run holds a file from its first piece of it until its own run ends, as
+ * the single run's annotation does, with no test of how recently it wrote. It is
+ * the stream's report of who holds the file and nothing more: it says not who
+ * wrote last, and the class's owner never stands in for it.
  */
-export type RailAnnotation = { text: string; owner?: RailOwner }
+export type RailAnnotation = { text: string; owner?: RailOwner; owners?: readonly RailOwner[] }
 
 /** One file under `_bmad/`. `path` is project-relative, POSIX. */
 export type RailRow = {

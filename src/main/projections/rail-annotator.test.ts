@@ -84,7 +84,7 @@ describe('the rail annotator', () => {
     expect(told).toEqual([])
   })
 
-  it('tells a path again when only its owner moves: two runs of different personas under one label', () => {
+  it('tells a path again when contention begins and when it ends: two runs of different personas on one path', () => {
     const annotator = createRailAnnotator()
     const { target, told } = recorder()
     annotator.bind(target)
@@ -111,14 +111,108 @@ describe('the rail annotator', () => {
     send(start('r2', analyst))
     send(piece('r1'))
     send(piece('r2'))
-    // The later-started run's annotation shows, in the same words but under its own persona.
+    // Both are writing the path: it is one contention annotation, naming both owners.
     send({ name: 'run:finished', payload: { runId: 'r2', sessionId: 's-r2', at: 9 } })
 
     expect(told).toEqual([
       [PRD, { text: 'writing · §1 Vision', owner: { agentId: JOHN } }],
-      [PRD, { text: 'writing · §1 Vision', owner: { agentId: analyst } }],
+      [PRD, { text: 'contention', owners: [{ agentId: JOHN }, { agentId: analyst }] }],
       [PRD, { text: 'writing · §1 Vision', owner: { agentId: JOHN } }]
     ])
+  })
+
+  it('tells a contended path again when only its owners move: a third run joins, then goes', () => {
+    const annotator = createRailAnnotator()
+    const { target, told } = recorder()
+    annotator.bind(target)
+    const cards = new Map<string, RunCardSnapshot>()
+    const send = (event: ContractEvent): void => {
+      if (event.name === 'run:started') cards.set(event.payload.runId, startCard(event.payload))
+      else if ('runId' in event.payload) {
+        const card = cards.get(event.payload.runId)
+        if (card !== undefined) cards.set(card.runId, foldRunCard(card, event))
+      }
+      annotator.apply(event, 'runId' in event.payload ? cards.get(event.payload.runId) : undefined)
+    }
+    const start = (runId: string, agentId: string): ContractEvent => ({
+      name: 'run:started',
+      payload: { runId, sessionId: `s-${runId}`, agentId, code: 'CP', at: 1 }
+    })
+    const piece = (runId: string): ContractEvent => ({
+      name: 'doc:prose',
+      payload: { runId, sessionId: `s-${runId}`, callId: `c-${runId}`, path: PRD, text: '## Vision\nA.\n', at: 2 }
+    })
+    const ids = ['bmad-agent-pm', 'bmad-agent-analyst', 'bmad-agent-architect']
+    ids.forEach((id, at) => send(start(`r${at + 1}`, id)))
+
+    send(piece('r1'))
+    send(piece('r2'))
+    send(piece('r3'))
+    // The same words and an equal list tell nothing more.
+    send(piece('r3'))
+    send({ name: 'run:finished', payload: { runId: 'r3', sessionId: 's-r3', at: 9 } })
+
+    expect(told.map(([, annotation]) => annotation)).toEqual([
+      { text: 'writing · §1 Vision', owner: { agentId: ids[0] } },
+      { text: 'contention', owners: [{ agentId: ids[0] }, { agentId: ids[1] }] },
+      { text: 'contention', owners: [{ agentId: ids[0] }, { agentId: ids[1] }, { agentId: ids[2] }] },
+      { text: 'contention', owners: [{ agentId: ids[0] }, { agentId: ids[1] }] }
+    ])
+  })
+
+  it('tells a contended path again when only the order of its owners moves: the earliest run ends, and the same persona is now last', () => {
+    const annotator = createRailAnnotator()
+    const { target, told } = recorder()
+    annotator.bind(target)
+    const cards = new Map<string, RunCardSnapshot>()
+    const send = (event: ContractEvent): void => {
+      if (event.name === 'run:started') cards.set(event.payload.runId, startCard(event.payload))
+      else if ('runId' in event.payload) {
+        const card = cards.get(event.payload.runId)
+        if (card !== undefined) cards.set(card.runId, foldRunCard(card, event))
+      }
+      annotator.apply(event, 'runId' in event.payload ? cards.get(event.payload.runId) : undefined)
+    }
+    const analyst = 'bmad-agent-analyst'
+    const start = (runId: string, agentId: string): ContractEvent => ({
+      name: 'run:started',
+      payload: { runId, sessionId: `s-${runId}`, agentId, code: 'CP', at: 1 }
+    })
+    const piece = (runId: string): ContractEvent => ({
+      name: 'doc:prose',
+      payload: { runId, sessionId: `s-${runId}`, callId: `c-${runId}`, path: PRD, text: '## Vision\nA.\n', at: 2 }
+    })
+    // r1 and r3 are the same persona: the owners are [pm, analyst] with r1 in, and [analyst, pm] with r1 gone.
+    send(start('r1', JOHN))
+    send(start('r2', analyst))
+    send(start('r3', JOHN))
+    send(piece('r1'))
+    send(piece('r2'))
+    send(piece('r3'))
+    send({ name: 'run:finished', payload: { runId: 'r1', sessionId: 's-r1', at: 9 } })
+
+    // Same text, same length, the same two personas: only their order moved, and the annotator tells it.
+    expect(told.map(([, annotation]) => annotation)).toEqual([
+      { text: 'writing · §1 Vision', owner: { agentId: JOHN } },
+      { text: 'contention', owners: [{ agentId: JOHN }, { agentId: analyst }] },
+      { text: 'contention', owners: [{ agentId: analyst }, { agentId: JOHN }] }
+    ])
+  })
+
+  it('says a contended path’s owners again when it is observed', () => {
+    const { annotator, send } = run()
+    const { target, told } = recorder()
+    annotator.bind(target)
+    send(started, prose('## Vision\nA.\n'))
+    send(
+      { name: 'run:started', payload: { runId: 'r2', sessionId: 's2', agentId: 'bmad-agent-analyst', code: 'CP', at: 1 } },
+      { name: 'doc:prose', payload: { runId: 'r2', sessionId: 's2', callId: 'c2', path: PRD, text: '## Beta\nB.\n', at: 2 } }
+    )
+    told.length = 0
+
+    annotator.observed(PRD)
+
+    expect(told).toEqual([[PRD, { text: 'contention', owners: [{ agentId: JOHN }, { agentId: 'bmad-agent-analyst' }] }]])
   })
 
   it('tells `null` for the path of a rejected write, and only that path', () => {

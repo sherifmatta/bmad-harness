@@ -81,6 +81,15 @@ export function progressLabel(revising: boolean, section?: SectionPlace): string
  */
 export const STOPPED = 'stopped'
 
+/**
+ * The word a row reads while two or more runs that have not ended each hold it,
+ * on the rail alone: a run holds a file from its first piece of it until its own
+ * run ends, however long ago it last wrote it. It says that more than one holds
+ * the file, and who; never which wrote last, because the harness does not know,
+ * and never what to do about it.
+ */
+export const CONTENTION = 'contention'
+
 /** The two words a run can end with: the rail says only the first, the card's head says either. */
 export type TerminalWord = typeof STOPPED | 'failed'
 

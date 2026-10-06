@@ -324,17 +324,22 @@ describe('the annotation fold', () => {
           prose('r1', '## Alpha\nX.\n', PRD, 'a'),
           prose('r2', '## Beta\nY.\n', PRD, 'b')
         )
-        // The later-started run shows while both are writing.
-        expect(w.annotations[PRD]).toEqual({ text: 'writing · §1 Beta', owner: { agentId: 'bmad-agent-analyst' } })
+        // Both are writing it, so it is contended, and says both.
+        expect(w.annotations[PRD]).toEqual({ text: 'contention', owners: [{ agentId: JOHN }, { agentId: 'bmad-agent-analyst' }] })
 
         w.send(ended(name, 'r2'))
 
-        // r1 is still writing it, and a run writing has the last word over one that ended.
+        // r1 is still writing it alone, and a run writing has the last word over one that ended.
         expect(w.annotations[PRD]).toEqual({ text: 'writing · §1 Alpha', owner: { agentId: JOHN } })
-        // r1's next piece takes the path outright, and the ended run is left holding nothing.
+        // r2 let the path go at its end, so it is left holding nothing, and r1's next piece reads as it would alone.
+        expect(w.table.has('r2')).toBe(false)
         w.send(prose('r1', '## Alpha\nX.\n## Gamma\nZ.\n', PRD, 'a'))
         expect(w.annotations[PRD]).toEqual({ text: 'writing · §2 Gamma', owner: { agentId: JOHN } })
-        expect(w.table.has('r2')).toBe(false)
+
+        // And when r1 finishes the row is clean: the stopped word does not come back.
+        w.send(ended('run:finished', 'r1'))
+        expect(w.annotations).toEqual({})
+        expect(w.table.size).toBe(0)
       })
     }
 
@@ -363,7 +368,7 @@ describe('the annotation fold', () => {
   })
 
   describe('two runs holding text for one path', () => {
-    it('shows the later-started run’s, and the earlier one’s again when the later one ends', () => {
+    it('is contention while both write it, and the earlier one’s again when the later one ends', () => {
       const w = world().send(
         started('r1'),
         started('r2', 'bmad-agent-analyst'),
@@ -371,10 +376,252 @@ describe('the annotation fold', () => {
         prose('r1', '## Alpha\nX.\n## Gamma\nY.\n', PRD, 'a')
       )
 
-      // r2 started later, so its annotation shows even though r1 wrote last.
-      expect(w.annotations[PRD]).toEqual({ text: 'writing · §1 Beta', owner: { agentId: 'bmad-agent-analyst' } })
+      // Owners are in the order the runs started, not the order they wrote.
+      expect(w.annotations[PRD]).toEqual({ text: 'contention', owners: [{ agentId: JOHN }, { agentId: 'bmad-agent-analyst' }] })
 
       w.send(ended('run:finished', 'r2'))
+      expect(w.annotations[PRD]).toEqual({ text: 'writing · §2 Gamma', owner: { agentId: JOHN } })
+    })
+  })
+
+  describe('contention: two runs that have not ended, one path', () => {
+    const ANALYST = 'bmad-agent-analyst'
+    const ARCHITECT = 'bmad-agent-architect'
+    const PRE_REVIEW = '_bmad/planning-artifacts/pre-review.md'
+    const BRIEF = '_bmad/planning-artifacts/brief.md'
+    const contended = (...owners: string[]): RailAnnotation => ({ text: 'contention', owners: owners.map((agentId) => ({ agentId })) })
+
+    /** r1 (John) and r2 (Mary) both streaming the PRD. */
+    const two = () =>
+      world().send(started('r1'), started('r2', ANALYST), prose('r1', '## Alpha\nX.\n', PRD, 'a'), prose('r2', '## Beta\nY.\n', PRD, 'b'))
+
+    it('reads the word and both owners, in start order, and no single `owner`', () => {
+      const annotation = two().annotations[PRD]
+
+      expect(annotation).toEqual(contended(JOHN, ANALYST))
+      expect(Object.keys(annotation).sort()).toEqual(['owners', 'text'])
+    })
+
+    it('keeps each file its own `writing` and single owner when the runs write different paths', () => {
+      const w = world().send(started('r1'), started('r2', ANALYST), prose('r1', '## Alpha\nX.\n', PRD, 'a'), prose('r2', '## Brief\nY.\n', BRIEF, 'b'))
+
+      expect(w.annotations).toEqual({
+        [PRD]: { text: 'writing · §1 Alpha', owner: { agentId: JOHN } },
+        [BRIEF]: { text: 'writing · §1 Brief', owner: { agentId: ANALYST } }
+      })
+    })
+
+    it('lists all three when a third run joins, in start order whichever wrote first', () => {
+      const w = world().send(
+        started('r1'),
+        started('r2', ANALYST),
+        started('r3', ARCHITECT),
+        prose('r3', '## C\nZ.\n', PRD, 'c'),
+        prose('r1', '## A\nX.\n', PRD, 'a')
+      )
+      expect(w.annotations[PRD]).toEqual(contended(JOHN, ARCHITECT))
+
+      w.send(prose('r2', '## B\nY.\n', PRD, 'b'))
+      expect(w.annotations[PRD]).toEqual(contended(JOHN, ANALYST, ARCHITECT))
+
+      // Two left, then one: the report follows the runs.
+      w.send(ended('run:finished', 'r2'))
+      expect(w.annotations[PRD]).toEqual(contended(JOHN, ARCHITECT))
+      w.send(ended('run:finished', 'r3'))
+      expect(w.annotations[PRD]).toEqual({ text: 'writing · §1 A', owner: { agentId: JOHN } })
+    })
+
+    it('is the survivor’s again when one holder finishes, and clean when the survivor finishes', () => {
+      const w = two()
+
+      w.send(ended('run:finished', 'r2'))
+      expect(w.annotations[PRD]).toEqual({ text: 'writing · §1 Alpha', owner: { agentId: JOHN } })
+
+      w.send(ended('run:finished', 'r1'))
+      expect(w.annotations).toEqual({})
+      expect(w.table.size).toBe(0)
+    })
+
+    it('is the survivor’s again when the earlier holder finishes: `revising` after an applied `Edit` reads as it would alone', () => {
+      const w = two()
+      w.send(edited('r2', '## Beta\nY!\n', PRD, 'e2'))
+      expect(w.annotations[PRD]).toEqual(contended(JOHN, ANALYST))
+
+      w.send(ended('run:finished', 'r1'))
+
+      expect(w.annotations[PRD]).toEqual({ text: 'revising · §1 Beta', owner: { agentId: ANALYST } })
+    })
+
+    for (const name of ['run:stopped', 'run:failed'] as const) {
+      it(`${name} of one holder lets the path go to the live run: its annotation alone, then clean, never \`stopped\``, () => {
+        const w = two()
+
+        w.send(ended(name, 'r2'))
+        expect(w.annotations[PRD]).toEqual({ text: 'writing · §1 Alpha', owner: { agentId: JOHN } })
+        // The dead run holds nothing: it is gone, not waiting beneath the live one.
+        expect(w.table.has('r2')).toBe(false)
+
+        w.send(ended('run:finished', 'r1'))
+        expect(w.annotations).toEqual({})
+        expect(w.table.size).toBe(0)
+      })
+
+      it(`${name} of the earlier holder does the same: the later run’s annotation alone, then clean`, () => {
+        const w = two()
+
+        w.send(ended(name, 'r1'))
+        expect(w.annotations[PRD]).toEqual({ text: 'writing · §1 Beta', owner: { agentId: ANALYST } })
+        expect(w.table.has('r1')).toBe(false)
+
+        w.send(ended('run:finished', 'r2'))
+        expect(w.annotations).toEqual({})
+        expect(w.table.size).toBe(0)
+      })
+
+      it(`${name} releases only the paths another live run still shows, and keeps the rest as \`stopped\``, () => {
+        const w = world().send(
+          started('r1'),
+          started('r2', ANALYST),
+          prose('r1', '## Alpha\nX.\n', PRD, 'a'),
+          prose('r1', '## Brief\nX.\n', BRIEF, 'b'),
+          prose('r2', '## Beta\nY.\n', PRD, 'c')
+        )
+        expect(w.annotations).toEqual({ [PRD]: contended(JOHN, ANALYST), [BRIEF]: { text: 'writing · §1 Brief', owner: { agentId: JOHN } } })
+
+        w.send(ended(name, 'r1'))
+
+        expect(w.annotations).toEqual({
+          [PRD]: { text: 'writing · §1 Beta', owner: { agentId: ANALYST } },
+          [BRIEF]: { text: 'stopped', owner: { agentId: JOHN } }
+        })
+        expect([...(w.table.get('r1')?.paths.keys() ?? [])]).toEqual([BRIEF])
+      })
+
+      it(`${name} of the last two writers: the first lets go, the second keeps the one word`, () => {
+        const w = two()
+
+        w.send(ended(name, 'r1'), ended(name, 'r2'))
+
+        expect(w.annotations).toEqual({ [PRD]: { text: 'stopped', owner: { agentId: ANALYST } } })
+      })
+
+      it(`${name} of one of three writers leaves the other two in contention`, () => {
+        const w = world().send(
+          started('r1'),
+          started('r2', ANALYST),
+          started('r3', ARCHITECT),
+          prose('r1', '## A\nX.\n', PRD, 'a'),
+          prose('r2', '## B\nY.\n', PRD, 'b'),
+          prose('r3', '## C\nZ.\n', PRD, 'c')
+        )
+
+        w.send(ended(name, 'r2'))
+
+        expect(w.annotations[PRD]).toEqual(contended(JOHN, ARCHITECT))
+      })
+
+      it(`${name} of a run whose rival no longer shows the path keeps its own \`stopped\``, () => {
+        // r2's `Write` was rejected: it is not holding the path, so r1 stopping is not letting it go to anyone.
+        const w = two()
+        w.send(rejected('r2', PRD, 'b'))
+        expect(w.annotations[PRD]).toEqual({ text: 'writing · §1 Alpha', owner: { agentId: JOHN } })
+
+        w.send(ended(name, 'r1'))
+
+        expect(w.annotations[PRD]).toEqual({ text: 'stopped', owner: { agentId: JOHN } })
+      })
+    }
+
+    it('is no contention while one holder’s `Write` is rejected, and is again when it writes the path afresh', () => {
+      const w = two()
+
+      w.send(rejected('r2', PRD, 'b'))
+      expect(w.annotations[PRD]).toEqual({ text: 'writing · §1 Alpha', owner: { agentId: JOHN } })
+
+      w.send(prose('r2', '## Beta\nY.\n', PRD, 'b2'))
+      expect(w.annotations[PRD]).toEqual(contended(JOHN, ANALYST))
+    })
+
+    it('is no contention when a run’s only `Write` of the path was rejected and the other never wrote it', () => {
+      const w = world().send(started('r1'), started('r2', ANALYST), prose('r1', '## Alpha\nX.\n', PRD, 'a'), prose('r2', '## Beta\nY.\n', PRD, 'b'), rejected('r1', PRD, 'a'))
+
+      expect(w.annotations).toEqual({ [PRD]: { text: 'writing · §1 Beta', owner: { agentId: ANALYST } } })
+    })
+
+    it('is still reported when one holder has no persona: the owners are those that exist, possibly none', () => {
+      const one = world().send(started('r1'), started('r2', null), prose('r1', '## A\nX.\n', PRD, 'a'), prose('r2', '## B\nY.\n', PRD, 'b'))
+      expect(one.annotations[PRD]).toEqual(contended(JOHN))
+
+      const none = world().send(started('r1', null), started('r2', null), prose('r1', '## A\nX.\n', PRD, 'a'), prose('r2', '## B\nY.\n', PRD, 'b'))
+      expect(none.annotations[PRD]).toEqual({ text: 'contention', owners: [] })
+    })
+
+    it('lists a persona once when two runs share it, and still says contention', () => {
+      const w = world().send(started('r1'), started('r2'), prose('r1', '## A\nX.\n', PRD, 'a'), prose('r2', '## B\nY.\n', PRD, 'b'))
+
+      expect(w.annotations[PRD]).toEqual(contended(JOHN))
+    })
+
+    it('contends only the file both write when a skill writes several: the others keep the one run’s annotation', () => {
+      const w = world().send(
+        started('r1'),
+        started('r2', ANALYST),
+        prose('r1', '## Notes\nA.\n', ADDENDUM, 'a'),
+        prose('r1', '## Findings\nB.\n', PRE_REVIEW, 'p'),
+        prose('r1', '## Vision\nC.\n', PRD, 'v'),
+        prose('r2', '## Notes\nD.\n', ADDENDUM, 'd')
+      )
+
+      expect(w.annotations).toEqual({
+        [ADDENDUM]: contended(JOHN, ANALYST),
+        [PRE_REVIEW]: { text: 'writing · §1 Findings', owner: { agentId: JOHN } },
+        [PRD]: { text: 'writing · §1 Vision', owner: { agentId: JOHN } }
+      })
+    })
+
+    it('does not age: a run that wrote the path long ago and is still in flight contends with a run that writes it later', () => {
+      const w = world().send(
+        started('r1'),
+        prose('r1', '## Alpha\nX.\n', PRD, 'a'),
+        committed('r1', PRD, 'a'),
+        // r1's last write to the PRD is long past: a note, and a write to another file, since.
+        note('r1'),
+        prose('r1', '## Brief\nY.\n', BRIEF, 'b'),
+        started('r2', ANALYST)
+      )
+      expect(w.annotations[PRD]).toEqual({ text: 'writing · §1 Alpha', owner: { agentId: JOHN } })
+
+      w.send(note('r1'), prose('r2', '## Beta\nZ.\n', PRD, 'c'))
+
+      expect(w.annotations).toEqual({
+        [PRD]: contended(JOHN, ANALYST),
+        [BRIEF]: { text: 'writing · §1 Brief', owner: { agentId: JOHN } }
+      })
+    })
+
+    it('says no section, count or denominator, and names nobody’s write as the last', () => {
+      const text = two().annotations[PRD].text
+
+      expect(text).toBe('contention')
+      expect(text).not.toMatch(/§|\bof \d|\/\s*\d|\btotal\b|\blast\b|\bwins?\b/i)
+    })
+
+    it('is a report only: it changes nothing the table holds, and ends the moment the runs do', () => {
+      const w = two()
+      const table = w.table
+      const before = JSON.stringify([...table].map(([id, run]) => [id, run.agentId, [...run.paths]]))
+
+      annotationsOf(table)
+
+      expect(JSON.stringify([...table].map(([id, run]) => [id, run.agentId, [...run.paths]]))).toBe(before)
+      expect(w.table).toBe(table)
+    })
+
+    it('keeps each run’s own text through contention: a run’s later piece numbers its sections as it would alone', () => {
+      const w = two()
+      w.send(prose('r1', '## Alpha\nX.\n## Gamma\nZ.\n', PRD, 'a'))
+      w.send(ended('run:finished', 'r2'))
+
       expect(w.annotations[PRD]).toEqual({ text: 'writing · §2 Gamma', owner: { agentId: JOHN } })
     })
   })

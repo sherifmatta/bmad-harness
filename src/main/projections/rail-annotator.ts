@@ -36,8 +36,14 @@ export type RailAnnotator = {
   observed(path: string): void
 }
 
+/** Whether two annotations name the same owners: both none, or the same ids in the same order (an empty list is not none). */
+function sameOwners(a: RailAnnotation['owners'], b: RailAnnotation['owners']): boolean {
+  if (a === undefined || b === undefined) return a === b
+  return a.length === b.length && a.every((owner, at) => owner.agentId === b[at]?.agentId)
+}
+
 function same(a: RailAnnotation | undefined, b: RailAnnotation): boolean {
-  return a !== undefined && a.text === b.text && a.owner?.agentId === b.owner?.agentId
+  return a !== undefined && a.text === b.text && a.owner?.agentId === b.owner?.agentId && sameOwners(a.owners, b.owners)
 }
 
 export function createRailAnnotator(): RailAnnotator {
