@@ -2115,3 +2115,127 @@ describe("told once, quietly, when you are elsewhere: one silent banner, one scr
     expect(card).not.toMatch(/className="[^"]*reveal|\breveal\w*=["{]|aria-\w*reveal|data-reveal/i);
   });
 });
+
+describe("nothing this epic promised not to do: the audit's static half (Story 3.11, UX-DR35, UX-DR38)", () => {
+  const CARD = "src/renderer/ui/chat/run-card.tsx";
+  const LINE = "src/renderer/ui/chat/run-card-line.tsx";
+  const STATUS = "src/renderer/ui/chat/run-status.ts";
+  const STOP = "src/renderer/ui/chat/run-stop.tsx";
+  const USE_NOW = "src/renderer/ui/outputs/use-now.ts";
+  const DOT = "src/renderer/ui/status/status-dot.tsx";
+  const ROW = "src/renderer/ui/outputs/output-row.tsx";
+  const PROGRESS = "src/shared/section-progress.ts";
+  const FOLD = "src/main/fold/rail-annotations.ts";
+  const ANNOTATOR = "src/main/projections/rail-annotator.ts";
+  const LIVE = "src/renderer/ui/a11y/live-region.tsx";
+  const ANNOUNCER = "src/renderer/ui/a11y/announcer.ts";
+  const CONVERSATION = "src/renderer/ui/chat/use-conversation.ts";
+  const CARD_CSS = "src/renderer/ui/chat/run-card.css";
+  const TOKENS = "src/renderer/design/tokens.css";
+  const COMMANDS = "src/shared/commands.ts";
+  const EVENTS = "src/shared/events.ts";
+  const CHANNELS = "src/shared/channels.ts";
+  const PRELOAD = "src/preload/index.ts";
+  // Words are string and template literals and JSX text, including the text a `{expression}` sits beside (`{n} of {m}`).
+  const WORDS = /(["'`])(?:(?!\1)[^\n\\]|\\.)*\1|[>}][^<>{}\n]+[<{]/g;
+  const css = (path: string): string => (code.get(path) ?? "").replace(/\s+/g, " ");
+  /** The body of the first rule whose selector is exactly `selector`. */
+  const ruleBody = (path: string, selector: string): string | undefined => {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return css(path).match(new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`))?.[1];
+  };
+
+  it("reads the sources it claims to sweep", () => {
+    for (const path of [CARD, LINE, STATUS, STOP, USE_NOW, DOT, ROW, PROGRESS, FOLD, ANNOTATOR, LIVE, ANNOUNCER, CONVERSATION, CARD_CSS, TOKENS]) {
+      expect(code.get(path)?.length ?? 0, path).toBeGreaterThan(200);
+    }
+  });
+
+  it("styles the caret on at rest: one rule, and no opacity, visibility or `display: none` in it or anywhere that reaches it", () => {
+    const body = ruleBody(CARD_CSS, ".run-card-caret") ?? "";
+    expect(body).toContain("animation: var(--motion-blink)");
+    // At rest it is a solid box in the accent, of a size the tokens give it, and nothing above it hides it.
+    expect(body).toMatch(/background: var\(--accent\)/);
+    expect(body).toMatch(/width: var\(--caret-width\)/);
+    expect(body).toMatch(/height: var\(--caret-height\)/);
+    for (const ancestor of [".run-card", ".run-card-body", ".run-card-flow", ".run-card-prose", ".run-card-text"]) {
+      expect(ruleBody(CARD_CSS, ancestor) ?? "", ancestor).not.toMatch(/\b(?:opacity|visibility|clip|clip-path|transform)\b/);
+    }
+    expect(body).not.toMatch(/\b(?:opacity|visibility|content|clip|clip-path|transform|transition|animation-fill-mode|animation-play-state)\b/);
+    // `display` appears once, to give the empty span its box, and never takes the caret off the page.
+    expect(body.match(/\bdisplay\s*:\s*([\w-]+)/g)).toEqual(["display: inline-block"]);
+    // Nothing else in any stylesheet names the caret: no later rule can turn it off.
+    expect(RENDERER_ALL.filter((path) => path.endsWith(".css") && /run-card-caret/.test(code.get(path) ?? ""))).toEqual([CARD_CSS]);
+    expect(css(CARD_CSS).match(/\.run-card-caret/g)).toHaveLength(1);
+    // The markup hides it from a reader and from nothing else: no hidden attribute, no style.
+    const card = code.get(CARD) ?? "";
+    expect(card).toContain('<span className="run-card-caret" aria-hidden="true" />');
+    expect(card).toContain("running && hasText &&");
+  });
+
+  it("keeps `blink` a hard on/off that dips once, so taking the animation away leaves the caret on", () => {
+    const tokens = css(TOKENS);
+    expect(tokens).toMatch(/--motion-blink:\s*blink [\d.]+s steps\(1\) infinite;/);
+    expect(tokens.match(/@keyframes blink\s*\{([^@]*?\}\s*)\}/)?.[1].replace(/\s+/g, "")).toBe("50%{opacity:0}");
+    expect(tokens.match(/@keyframes blink/g)).toHaveLength(1);
+    // The caret never reads the blink through a timing function other than `steps(1)`: no `ease`, no `linear`, no fade.
+    expect(tokens).not.toMatch(/--motion-blink:[^;]*(?:ease|linear|cubic-bezier|forwards|backwards|both)/);
+  });
+
+  it("has one reduced-motion rule, global, that turns animation off and carves nothing out and hides nothing", () => {
+    const blocks = RENDERER_ALL.filter((path) => path.endsWith(".css")).flatMap((path) =>
+      [...css(path).matchAll(/@media[^{]*prefers-reduced-motion[^{]*\{(.*?\})\s*\}/g)].map(([, body]) => ({ path, body: body.replace(/\s+/g, "") })),
+    );
+    expect(blocks).toEqual([{ path: TOKENS, body: "*,*::before,*::after{animation:none!important;transition:none!important}" }]);
+    // Nothing else is conditioned on the setting: no stylesheet carries it twice and none names a card selector under it.
+    expect(blocks[0].body).not.toMatch(/opacity|visibility|display|caret|run-card|elapsed|status/);
+    expect(RENDERER_ALL.filter((path) => path.endsWith(".css") && /prefers-reduced-motion/.test(code.get(path) ?? ""))).toEqual([TOKENS]);
+  });
+
+  it("reads no media query in script: the card, its line, the clock and the dot behave one way however motion is set", () => {
+    expect(offenders([CARD, LINE, USE_NOW, DOT], /matchMedia|prefers-reduced-motion|reducedMotion|useReducedMotion/)).toEqual([]);
+    expect(offenders(RENDERER_CODE, /matchMedia|prefers-reduced-motion|reducedMotion|useReducedMotion/)).toEqual([]);
+    // The elapsed counter is the one thing that carries liveness once the pulse and blink are off, and it ticks on a plain interval.
+    expect(code.get(USE_NOW) ?? "").toMatch(/setInterval\(/);
+  });
+
+  it("says no denominator, spinner word, or undo, revert, restore, merge, lock or resolve in any word the card, rail or live region is made of", () => {
+    const WORDS_OF = [CARD, LINE, STATUS, STOP, ROW, PROGRESS, FOLD, ANNOTATOR, LIVE, ANNOUNCER];
+    const spoken = WORDS_OF.flatMap((path) => [...(code.get(path) ?? "").matchAll(WORDS)].map(([text]) => `${path}: ${text}`));
+    expect(spoken.length).toBeGreaterThan(20);
+    // The announcements are made in the conversation and read from the same words as the head's.
+    const conversation = code.get(CONVERSATION) ?? "";
+    const from = conversation.indexOf("function announceLifecycle");
+    const announcing = conversation.slice(from, conversation.indexOf("\n  function ", from + 10));
+    expect(from).toBeGreaterThan(0);
+    const all = [...spoken, ...[...announcing.matchAll(WORDS)].map(([text]) => `${CONVERSATION}: ${text}`)];
+    expect(all.filter((text) => /\b(?:undo|revert|restore|merge|lock|resolve)\w*/i.test(text))).toEqual([]);
+    expect(all.filter((text) => /\bof\b\s*(?:\d|\$|[mn]\b)|\/\s*\$\{|\/\s*\d|\btotal\b|\bdenominator\b|%/i.test(text))).toEqual([]);
+    expect(all.filter((text) => /\b(?:spinner|skeleton|shimmer|loading|waiting|thinking|processing|please wait|in progress)\b/i.test(text))).toEqual([]);
+  });
+
+  it("holds no card, rail or notification code that sounds, badges or toasts: no audio, Dock call, toast or badge anywhere in src", () => {
+    expect(offenders(ALL_CODE, /\bnew Audio\b|<audio\b|\bAudioContext\b|\bshell\.beep\b|\bsetBadge\w*|\bdock\.|\bsetBadgeCount\b|\bbounce\(|\btoast\w*\b/i)).toEqual([]);
+    expect(offenders(RENDERER_CODE, /[Bb]adge|[Ss]nackbar|(?<![a-z])undo|Undo/)).toEqual([]);
+    expect(offenders([CARD_CSS, "src/renderer/ui/chat/run-card-line.css", "src/renderer/ui/outputs/outputs.css"], /\bbadge\b|\btoast\b|\bsnackbar\b/i)).toEqual([]);
+  });
+
+  it("draws the card's controls from one place: the head's stop, and no dialog, confirm or second button in the card or its line", () => {
+    for (const path of [CARD, LINE, STOP, ROW]) {
+      expect(code.get(path) ?? "", path).not.toMatch(/<dialog\b|role=["'](?:dialog|alertdialog)|aria-modal|\bwindow\.confirm\b|\bconfirm\(|\balert\(|showModal/);
+    }
+    expect((code.get(CARD) ?? "").match(/<button\b/g)).toBeNull();
+    expect((code.get(LINE) ?? "").match(/<button\b/g)).toHaveLength(1);
+    expect((code.get(STOP) ?? "").match(/<button\b/g)).toHaveLength(1);
+    expect((code.get(ROW) ?? "").match(/<button\b/g)).toHaveLength(1);
+  });
+
+  it("holds the contract at seven commands, fifteen events, twenty-two channels and seventeen bridge methods", () => {
+    const commands = [...(code.get(COMMANDS) ?? "").matchAll(/^\s+'([a-z]+\.[a-z]+)':\s*CommandSpec/gm)];
+    const events = [...(code.get(EVENTS) ?? "").matchAll(/^\s+'([a-z]+:[a-z-]+)':\s*EventSpec/gm)];
+    const channels = [...(code.get(CHANNELS) ?? "").matchAll(/^export const (\w+) = '/gm)];
+    const preload = code.get(PRELOAD) ?? "";
+    const methods = [...preload.slice(preload.indexOf("const harness: HarnessApi = {"), preload.indexOf("contextBridge.exposeInMainWorld")).matchAll(/^ {2}(\w+):/gm)];
+    expect([commands.length, events.length, channels.length, methods.length]).toEqual([7, 15, 22, 17]);
+  });
+});

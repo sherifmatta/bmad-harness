@@ -21,7 +21,7 @@ Make the product's central beat real: press a skill button belonging to the pers
 - Story 3.8: Understand a run that ended early (done)
 - Story 3.9: Two writers, one file, no arbitration (done)
 - Story 3.10: Told once, quietly, when you are elsewhere (done)
-- Story 3.11: Nothing this epic promised not to do
+- Story 3.11: Nothing this epic promised not to do (done)
 
 ## Requirements & Constraints
 
