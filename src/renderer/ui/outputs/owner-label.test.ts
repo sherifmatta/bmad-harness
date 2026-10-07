@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { RailRow } from '../../../shared/rail'
-import { ownerLabel } from './owner-label'
+import { ROOM_LABEL, ownerLabel } from './owner-label'
 
 const NAMES = new Map([
   ['bmad-agent-pm', 'John'],
@@ -60,5 +60,23 @@ describe('ownerLabel of a contended row', () => {
 
   it('does not name the class’s owner beside the writers', () => {
     expect(ownerLabel(contended('bmad-agent-analyst', 'bmad-agent-architect'), NAMES)).toBe('Mary and Winston')
+  })
+})
+
+describe('ownerLabel of a row the room wrote (Story 4.1)', () => {
+  it('is `the room`, and no persona’s name', () => {
+    expect(ROOM_LABEL).toBe('the room')
+    expect(ownerLabel(row({ room: true }), NAMES)).toBe('the room')
+  })
+
+  it('wins over the class’s owner and over the stream’s, which are not who wrote it', () => {
+    expect(ownerLabel(row({ room: true, owner: { agentId: 'bmad-agent-pm' } }), NAMES)).toBe('the room')
+    expect(
+      ownerLabel(row({ room: true, annotation: { text: 'writing', owner: { agentId: 'bmad-agent-analyst' } } }), NAMES)
+    ).toBe('the room')
+  })
+
+  it('is drawn even when the roster names nobody, since it needs no roster', () => {
+    expect(ownerLabel(row({ room: true }), new Map())).toBe('the room')
   })
 })

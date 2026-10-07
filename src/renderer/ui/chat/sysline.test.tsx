@@ -44,3 +44,19 @@ describe('Turns, with a sysline among them', () => {
     expect(out.match(/class="sysline"/g)).toHaveLength(1)
   })
 })
+
+describe('Turns, with a room’s sysline among them (Story 4.1)', () => {
+  const entries: TranscriptEntry[] = [
+    { kind: 'user', id: 'u1', at: 1, text: 'hello' },
+    { kind: 'sysline', id: 'm-1', at: 5, text: 'room opened by you · present · Mary', room: true },
+    { kind: 'sysline', id: 'm-2', at: 6, text }
+  ]
+
+  it('never draws it in a persona’s thread, and still draws the other sysline', () => {
+    const out = renderToStaticMarkup(<Turns entries={entries} />)
+
+    expect(out).not.toContain('room opened by you')
+    expect(out).toContain(text)
+    expect(out.match(/class="sysline"/g)).toHaveLength(1)
+  })
+})

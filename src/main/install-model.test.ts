@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { InstallSnapshot } from '../shared/install'
-import { agentNameFor, forgetInstall, menuEntryFor, rememberInstall } from './install-model'
+import { agentNameFor, forgetInstall, menuEntryFor, rememberInstall, rosterFor } from './install-model'
 import type { InstallProjection } from './projections/install'
 
 const projection = (names: Record<string, string>): InstallProjection => ({
@@ -33,6 +33,17 @@ describe('the install model main shares between bridges', () => {
     expect(agentNameFor(902, 'bmad-agent-pm')).toBeUndefined()
     forgetInstall(901, projection({}))
     expect(agentNameFor(901, 'bmad-agent-pm')).toBe('John')
+  })
+
+  it('answers the roster in order as id and name for a remembered window, and nothing for an unknown one', () => {
+    rememberInstall(906, projection({ 'bmad-agent-pm': 'John', 'bmad-agent-analyst': 'Mary', 'custom-agent': '' }))
+
+    expect(rosterFor(906)).toEqual([
+      { id: 'bmad-agent-pm', name: 'John' },
+      { id: 'bmad-agent-analyst', name: 'Mary' },
+      { id: 'custom-agent', name: '' }
+    ])
+    expect(rosterFor(907)).toEqual([])
   })
 
   it('reads the roster as it is now, and answers nothing for an empty name', () => {

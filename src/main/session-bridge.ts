@@ -26,11 +26,13 @@ import {
 } from './bridge-kit'
 import type { Sender } from './bridge-kit'
 import { beginTurn } from './fold/turn-end'
-import { agentNameFor, menuEntryFor } from './install-model'
+import { agentNameFor, menuEntryFor, rosterFor } from './install-model'
+import type { RosterMember } from './install-model'
 import { personaProjectionFor } from './persona-states'
 import { createTranscriptRegistry } from './projections/transcript'
 import type { TranscriptRegistry } from './projections/transcript'
 import { createHandoffComposer } from './session-handoff'
+import { LINES } from './session-voice'
 import { NOT_FOUND, createSessionRegistry } from './session-registry'
 import type { Entry, OpenReply, Service, SessionRegistry, SessionRegistryDeps } from './session-registry'
 import type { TemplatePlan } from '../shared/section-plan'
@@ -38,7 +40,7 @@ import type { ResolvedMenuEntry } from './sources/install/schema'
 import { readText } from './sources/project/read-text'
 import { readPlan } from './sources/skill/read-plan'
 import { canonicalPath } from './sources/session/canonical-path'
-import { isAgentId, spawnSession } from './sources/session/session-process'
+import { isAgentId, roomActivationTurn, spawnSession } from './sources/session/session-process'
 import type { SpawnOutcome, SpawnSessionOptions } from './sources/session/session-process'
 
 /**
@@ -76,6 +78,12 @@ export type SessionBridgeDeps = {
    * this id. The real one reads the install bridge's projection.
    */
   agentName?: (webContentsId: number, agentId: string) => string | undefined
+  /**
+   * The roster of the window with this id, in roster order, from main's own install
+   * model: what a room's cast is checked and named against (Story 4.1). The real one
+   * reads the install bridge's projection.
+   */
+  roster?: (webContentsId: number) => readonly RosterMember[]
   /**
    * The transcripts, per project, that survive a reload and a relaunch. The
    * real one keeps them under `userData`; the composition root holds it so it
@@ -133,9 +141,75 @@ type Context = {
   transcripts: TranscriptRegistry
   registry: SessionRegistry
   handoffFor: ReturnType<typeof createHandoffComposer>
+  roster: NonNullable<SessionBridgeDeps['roster']>
   menuEntryFor: NonNullable<SessionBridgeDeps['menuEntryFor']>
   newRunId: () => RunId
   readPlan: NonNullable<SessionBridgeDeps['readPlan']>
+}
+
+/** The argument that asks for the room rather than a persona: an object carrying `room`. */
+function asksForRoom(target: unknown): target is { room: unknown } {
+  return typeof target === 'object' && target !== null && !Array.isArray(target) && 'room' in target
+}
+
+const INVALID_CAST = failure({
+  code: 'session/invalid-cast',
+  message: 'session · not a valid cast for a room'
+})
+
+/** A cast that is a non-empty list of agent ids the roster has, each once in the order given; else `undefined`. */
+function castOf(room: unknown, roster: readonly RosterMember[]): RosterMember[] | undefined {
+  if (!Array.isArray(room) || room.length === 0) {
+    return undefined
+  }
+  const cast: RosterMember[] = []
+  for (const id of room as unknown[]) {
+    const member = isAgentId(id) ? roster.find((held) => held.id === id) : undefined
+    if (member === undefined) {
+      return undefined
+    }
+    if (!cast.includes(member)) {
+      cast.push(member)
+    }
+  }
+  return cast
+}
+
+/**
+ * Open the window's room (Story 4.1): a session of the same kind as a persona's, with
+ * no agent, activated with the party skill. One per window: a second open finds the
+ * live room, spawns nothing and says nothing. The sysline naming who is present is
+ * said once, by the open that started the process, and only when it came up.
+ */
+async function openRoom(
+  ctx: Context,
+  sender: Sender,
+  projectRoot: string,
+  room: unknown
+): Promise<OpenReply> {
+  const roster = ctx.roster(sender.id)
+  const cast = castOf(room, roster)
+  if (cast === undefined) {
+    return INVALID_CAST
+  }
+  const service = ctx.registry.serviceFor(sender, projectRoot)
+  if (service.room !== undefined) {
+    return service.room.ready
+  }
+  const entry = ctx.registry.openRoom(
+    sender,
+    service,
+    projectRoot,
+    roomActivationTurn(
+      cast,
+      roster.map(({ id }) => id)
+    )
+  )
+  const reply = await entry.ready
+  if (reply.ok && !entry.closed) {
+    ctx.registry.say(sender, entry, LINES.roomOpened(cast.map(({ id, name }) => (name === '' ? id : name))))
+  }
+  return reply
 }
 
 function openSession(ctx: Context) {
@@ -144,6 +218,13 @@ function openSession(ctx: Context) {
     const projectRoot = ctx.projectPathFor(sender.id)
     if (projectRoot === undefined) {
       return noProject('session')
+    }
+    if (asksForRoom(agentId)) {
+      try {
+        return await openRoom(ctx, sender, projectRoot, agentId.room)
+      } catch (error) {
+        return unexpected('session', error, ctx.writeDiagnostic)
+      }
     }
     if (!isAgentId(agentId)) {
       return failure({
@@ -256,6 +337,10 @@ function dispatchMenu(ctx: Context) {
       return target.error
     }
     const chosen = target.arg
+    // The room has no menu: a dispatch for it is a session nobody can dispatch into.
+    if (target.entry.agentId === undefined) {
+      return NOT_FOUND
+    }
     const resolved = ctx.menuEntryFor(sender.id, target.entry.agentId, chosen)
     if (resolved === undefined) {
       return failure({
@@ -369,6 +454,7 @@ function endConversation(ctx: Context) {
       ctx.registry.closeSessions(sender, service)
       service.lastOpened = undefined
       service.written.clear()
+      service.annotations.roomCleared()
       service.runs.clear()
     }
     return { ok: true }
@@ -392,8 +478,12 @@ function getConversation(ctx: Context) {
       service.lastOpened = undefined
     }
     // A session still starting has told the window nothing yet, and is not one.
+    // The room is no persona's session: the snapshot lists persona sessions only.
     const live = [...(service?.bySession.values() ?? [])].filter(
       (entry) => !entry.closed && entry.session !== undefined
+    )
+    const personaSessions = live.flatMap(({ agentId, sessionId }) =>
+      agentId === undefined ? [] : [{ agentId, sessionId }]
     )
     const transcript = ctx.transcripts.forProject(projectRoot)
     const own = service?.runs.snapshot() ?? []
@@ -402,8 +492,8 @@ function getConversation(ctx: Context) {
       ok: true,
       snapshot: {
         entries: [...transcript.entries()],
-        sessions: live.map(({ agentId, sessionId }) => ({ agentId, sessionId })),
-        busy: live.filter((entry) => entry.turn.busy).map((entry) => entry.sessionId),
+        sessions: personaSessions,
+        busy: live.filter((entry) => entry.agentId !== undefined && entry.turn.busy).map((entry) => entry.sessionId),
         personas: personaProjectionFor(sender, ctx.now).snapshot(),
         // The cards the transcript keeps that this window does not hold (the stored conversation's,
         // and those of an earlier window of this launch), each as it ended, then this window's own.
@@ -456,6 +546,7 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): SessionBrid
       nameOf: deps.agentName ?? agentNameFor,
       now
     }),
+    roster: deps.roster ?? rosterFor,
     menuEntryFor: deps.menuEntryFor ?? menuEntryFor,
     newRunId,
     readPlan: deps.readPlan ?? readPlan

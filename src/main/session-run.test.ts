@@ -124,7 +124,7 @@ beforeEach(() => {
     },
     spawn: (options: SpawnSessionOptions) => {
       feed = options.onFrame
-      feeds.set(options.agentId, options.onFrame)
+      feeds.set(options.agentId as string, options.onFrame)
       exit = options.onExit
       const session: SessionProcess = {
         write: (text) => {
@@ -715,7 +715,7 @@ describe('what the run says of the rail’s rows (Story 3.6)', () => {
   /** What a window's rail projection is told, in order: a path and its annotation, or `null` when it is dropped. */
   function railOf(sender: FakeSender): [string, RailAnnotation | null][] {
     const told: [string, RailAnnotation | null][] = []
-    railAnnotatorFor(sender).bind({ annotate: (path, annotation) => void told.push([path, annotation]) })
+    railAnnotatorFor(sender).bind({ annotate: (path, annotation) => void told.push([path, annotation]), markRoom: () => undefined, unmarkRoom: () => undefined, clearRoom: () => undefined })
     return told
   }
   const write = (id: string, path: string, content: string): unknown[] => [

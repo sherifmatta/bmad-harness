@@ -40,7 +40,8 @@ import type {
  *
  * A window's service exists from its first `session.open` and holds one session
  * per agent: a second open for a live agent is the same session and spawns
- * nothing. Frames are folded in main and only `persona:said` goes on to the
+ * nothing. It holds at most one room beside them (Story 4.1): a session with no
+ * agent, kept in `room` and in `bySession`, never in `byAgent`. Frames are folded in main and only `persona:said` goes on to the
  * renderer; it never sees a frame.
  */
 
@@ -48,7 +49,8 @@ export type OpenReply = SessionOpenReply
 
 export type Entry = {
   sessionId: SessionId
-  agentId: AgentId
+  /** The persona of the session; absent for the room, which has none (Story 4.1). */
+  agentId?: AgentId
   projectRoot: string
   session: SessionProcess | undefined
   /**
@@ -80,6 +82,8 @@ export type Service = {
   projectRoot: string
   bySession: Map<SessionId, Entry>
   byAgent: Map<AgentId, Entry>
+  /** The window's room session while it is open or starting; at most one (Story 4.1). */
+  room: Entry | undefined
   /** The window's persona states, shared with the rail bridge. */
   personas: PersonaProjection
   /**
@@ -137,6 +141,13 @@ export type SessionRegistry = {
   serviceFor(sender: Sender, projectRoot: string): Service
   /** Start a session; its `ready` says how that went. */
   open(sender: Sender, service: Service, projectRoot: string, agentId: AgentId): Entry
+  /**
+   * Start the window's room, a session with no agent whose first turn is `firstTurn`;
+   * its `ready` says how that went. The caller has checked there is none live.
+   */
+  openRoom(sender: Sender, service: Service, projectRoot: string, firstTurn: string): Entry
+  /** The harness says a line in its own voice about a session; a room's lines are flagged as the party thread's (Story 4.1). */
+  say(sender: Sender, entry: Entry, text: string): void
   /** Kill every session of a window and close each one. */
   closeSessions(sender: Sender, service: Service): void
   /**
@@ -170,6 +181,8 @@ type FrameSinks = {
   announce: (sender: Sender, service: Service, event: ContractEvent) => void
   /** The harness says a line in its own voice. */
   say: (sender: Sender, entry: Entry, text: string) => void
+  /** A room wrote these project-relative files: the rail marks them as the room's. */
+  roomWrote: (service: Service, paths: readonly string[]) => void
   runs: RunKit
   newRunId: () => RunId
 }
@@ -182,7 +195,7 @@ function foldFrame(
   entry: Entry,
   frame: unknown
 ): void {
-  const { now, announce, say, runs, newRunId } = sinks
+  const { now, announce, say, roomWrote, runs, newRunId } = sinks
   if (entry.closed) {
     return
   }
@@ -231,7 +244,7 @@ function foldFrame(
   }
   const routed = routeFrame(entry.route, frame, {
     sessionId: entry.sessionId,
-    agentId: entry.agentId,
+    ...(entry.agentId === undefined ? {} : { agentId: entry.agentId }),
     ...(entry.run === undefined ? {} : { runId: entry.run.runId }),
     projectRoot: entry.projectRoot,
     now: now()
@@ -240,8 +253,15 @@ function foldFrame(
   const wrote = foldWrittenPaths(entry.written, frame, entry.projectRoot)
   entry.written = wrote.state
   if (wrote.paths.length > 0) {
-    const before = service.written.get(entry.agentId) ?? []
-    service.written.set(entry.agentId, withWrittenPaths(before, wrote.paths))
+    if (entry.agentId === undefined) {
+      // The room's files are the room's, not any persona's: they mark the rail's rows, and no handoff names them.
+      roomWrote(service, wrote.paths)
+    } else {
+      // A persona writing a file the room wrote takes it over: it is the persona's now.
+      service.annotations.personaWrote(wrote.paths)
+      const before = service.written.get(entry.agentId) ?? []
+      service.written.set(entry.agentId, withWrittenPaths(before, wrote.paths))
+    }
   }
   // What the persona said is kept and told; a run's document events go to its card.
   deliver(runs, sender, service, entry, routed.events)
@@ -266,12 +286,19 @@ type StartKit = {
  * rejects leaves nothing behind: the entry is dropped from both maps and the
  * failure goes to the handler's catch.
  */
-function startProcess(kit: StartKit, sender: Sender, service: Service, entry: Entry): Promise<OpenReply> {
+function startProcess(
+  kit: StartKit,
+  sender: Sender,
+  service: Service,
+  entry: Entry,
+  firstTurn: string | undefined
+): Promise<OpenReply> {
   const { agentId, projectRoot } = entry
   return new Promise<SpawnOutcome>((resolve) =>
     resolve(
       kit.start({
-        agentId,
+        ...(agentId === undefined ? {} : { agentId }),
+        ...(firstTurn === undefined ? {} : { firstTurn }),
         cwd: projectRoot,
         onFrame: (frame) => kit.onFrame(sender, service, entry, frame),
         decide: (ask) => kit.decide(projectRoot, ask),
@@ -301,7 +328,7 @@ function startProcess(kit: StartKit, sender: Sender, service: Service, entry: En
       entry.session = outcome.session
       kit.announce(sender, service, {
         name: 'session:opened',
-        payload: { sessionId: entry.sessionId, agentId, at: kit.now() }
+        payload: { sessionId: entry.sessionId, ...(agentId === undefined ? {} : { agentId }), at: kit.now() }
       })
       // The activation turn is in flight.
       kit.watch(sender, service, entry)
@@ -312,6 +339,40 @@ function startProcess(kit: StartKit, sender: Sender, service: Service, entry: En
       throw error
     }
   )
+}
+
+/** A window's service as it begins: no session, no room, nothing written, and its own projections. */
+function newService(sender: Sender, projectRoot: string, now: () => number): Service {
+  return {
+    projectRoot,
+    bySession: new Map(),
+    byAgent: new Map(),
+    room: undefined,
+    personas: personaProjectionFor(sender, now),
+    lastOpened: undefined,
+    written: new Map(),
+    runs: createRunProjection(),
+    annotations: railAnnotatorFor(sender),
+    memlogs: createMemlogCounts()
+  }
+}
+
+/** A new entry for a session about to start: the persona's, or the room's when there is no `agentId`. */
+function newEntry(sessionId: SessionId, projectRoot: string, agentId: AgentId | undefined): Entry {
+  return {
+    sessionId,
+    ...(agentId === undefined ? {} : { agentId }),
+    projectRoot,
+    session: undefined,
+    turn: initialTurn,
+    closed: false,
+    route: initialRouteState,
+    written: initialWrittenState,
+    ready: Promise.resolve(NOT_FOUND),
+    stopQuietClock: undefined,
+    run: undefined,
+    afterStop: undefined
+  }
 }
 
 export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistry {
@@ -329,8 +390,15 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
   }
 
   const sayLine = createVoice({ transcripts, now, emit })
+  // A line of the room's (Story 4.1) is flagged as the party thread's: nothing a room says of itself lands in a persona's 1:1 thread.
   const say = (sender: Sender, entry: Entry, text: string): void =>
-    sayLine(sender, { sessionId: entry.sessionId, projectRoot: entry.projectRoot, text })
+    sayLine(sender, {
+      sessionId: entry.sessionId,
+      projectRoot: entry.projectRoot,
+      text,
+      ...(entry.agentId === undefined ? { room: true as const } : {})
+    })
+  const roomWrote = (service: Service, paths: readonly string[]): void => service.annotations.roomWrote(paths)
   const clock = createQuietClock<Sender, Entry>({
     schedule: deps.schedule ?? defaultSchedule,
     quietMs: deps.quietMs ?? QUIET_MS,
@@ -352,17 +420,7 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
     if (existing !== undefined) {
       return existing
     }
-    const service: Service = {
-      projectRoot,
-      bySession: new Map(),
-      byAgent: new Map(),
-      personas: personaProjectionFor(sender, now),
-      lastOpened: undefined,
-      written: new Map(),
-      runs: createRunProjection(),
-      annotations: railAnnotatorFor(sender),
-      memlogs: createMemlogCounts()
-    }
+    const service = newService(sender, projectRoot, now)
     services.set(sender.id, service)
 
     // The window is gone: its processes go with it. The renderer is no longer
@@ -395,8 +453,11 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
     entry.stopQuietClock?.()
     entry.stopQuietClock = undefined
     service.bySession.delete(entry.sessionId)
-    if (service.byAgent.get(entry.agentId) === entry) {
+    if (entry.agentId !== undefined && service.byAgent.get(entry.agentId) === entry) {
       service.byAgent.delete(entry.agentId)
+    }
+    if (service.room === entry) {
+      service.room = undefined
     }
   }
 
@@ -415,46 +476,46 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
     discard(service, entry)
     announce(sender, service, {
       name: 'session:closed',
-      payload: { sessionId: entry.sessionId, agentId: entry.agentId, reason, at: now() }
+      payload: {
+        sessionId: entry.sessionId,
+        ...(entry.agentId === undefined ? {} : { agentId: entry.agentId }),
+        reason,
+        at: now()
+      }
     })
   }
 
   function onFrame(sender: Sender, service: Service, entry: Entry, frame: unknown): void {
-    foldFrame({ now, announce, say, runs, newRunId }, sender, service, entry, frame)
+    foldFrame({ now, announce, say, roomWrote, runs, newRunId }, sender, service, entry, frame)
     watch(sender, service, entry)
   }
 
-  function open(sender: Sender, service: Service, projectRoot: string, agentId: AgentId): Entry {
-    const entry: Entry = {
-      sessionId: newSessionId(),
-      agentId,
-      projectRoot,
-      session: undefined,
-      turn: initialTurn,
-      closed: false,
-      route: initialRouteState,
-      written: initialWrittenState,
-      ready: Promise.resolve(NOT_FOUND),
-      stopQuietClock: undefined,
-      run: undefined,
-      afterStop: undefined
-    }
+  /** Hold a new entry and start its process; a room has no `agentId` and is given its first turn. */
+  function begin(sender: Sender, service: Service, entry: Entry, firstTurn?: string): Entry {
     service.bySession.set(entry.sessionId, entry)
-    service.byAgent.set(agentId, entry)
-
-    entry.ready = startProcess(
-      { start, now, announce, say, watch, discard, finish, onFrame, decide },
-      sender,
-      service,
-      entry
-    )
+    const kit = { start, now, announce, say, watch, discard, finish, onFrame, decide }
+    entry.ready = startProcess(kit, sender, service, entry, firstTurn)
     return entry
+  }
+
+  function open(sender: Sender, service: Service, projectRoot: string, agentId: AgentId): Entry {
+    const entry = newEntry(newSessionId(), projectRoot, agentId)
+    service.byAgent.set(agentId, entry)
+    return begin(sender, service, entry)
+  }
+
+  function openRoom(sender: Sender, service: Service, projectRoot: string, firstTurn: string): Entry {
+    const entry = newEntry(newSessionId(), projectRoot, undefined)
+    service.room = entry
+    return begin(sender, service, entry, firstTurn)
   }
 
   return {
     serviceOf: (senderId) => services.get(senderId),
     serviceFor,
     open,
+    openRoom,
+    say,
     watch,
     startRun: (sender, service, entry, runId, code, plan) => startRun(runs, sender, service, entry, runId, code, plan),
     stop: (sender, service, entry) => stopRun({ runs, say, finish }, sender, service, entry),

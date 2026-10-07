@@ -172,13 +172,27 @@ describe("no palette, no launcher, no global skills list", () => {
     ).toEqual([]);
   });
 
+  // The cast chooser (Story 4.1) is the one file with an input, and the input is a
+  // checkbox: a roster agent ticked or not. Nothing else in the renderer takes one.
+  const CAST_CHOOSER = "src/renderer/ui/party/cast-chooser.tsx";
+
   it("has no input, select, editable region, dialog, combobox or search role", () => {
     expect(
       offenders(
-        RENDERER_CODE,
+        RENDERER_CODE.filter((path) => path !== CAST_CHOOSER),
         /<(?:input|select|dialog)\b|contentEditable|role=["'](?:dialog|combobox|search|searchbox|menu|listbox)|role:\s*["'](?:dialog|combobox|search|searchbox)|aria-modal|type=["']search/,
       ),
     ).toEqual([]);
+  });
+
+  it("has an input in the cast chooser, a checkbox, and nowhere else", () => {
+    const chooser = code.get(CAST_CHOOSER) ?? "";
+    expect(
+      RENDERER_CODE.filter((path) => /<input\b/.test(code.get(path) ?? "")),
+    ).toEqual([CAST_CHOOSER]);
+    expect([...chooser.matchAll(/<input\b[^>]*>/g)].map(([tag]) => tag)).toHaveLength(1);
+    expect(chooser).toMatch(/<input[^>]*type="checkbox"/);
+    expect(chooser).not.toMatch(/<(?:select|dialog|textarea)\b|contentEditable|role=/);
   });
 
   it("has a textarea in the composer and nowhere else", () => {
@@ -1310,6 +1324,7 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
         "busy",
         "queue",
         "personas",
+        "room",
         "nextId",
       ]);
       for (const path of [

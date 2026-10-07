@@ -6,6 +6,7 @@ import type { SessionBridgeDeps } from './session-bridge'
 import type { ConversationReply } from '../shared/conversation'
 import type { ContractEvent } from '../shared/events'
 import { forgetInstall, rememberInstall } from './install-model'
+import { railAnnotatorFor } from './rail-annotations'
 import type { InstallProjection } from './projections/install'
 import { createTranscriptRegistry } from './projections/transcript'
 import type { TranscriptRegistry, TranscriptRegistryDeps } from './projections/transcript'
@@ -124,6 +125,8 @@ function launch(
     writeDiagnostic: (line) => void diagnostics.push(line),
     // The shipped composition passes none: names then come from the real install model.
     ...(realNames ? {} : { agentName: (_id: number, agentId: string) => names[agentId] }),
+    // The roster a room's cast is checked against: the names above, in the order they were given.
+    roster: () => Object.entries(names).map(([id, name]) => ({ id, name })),
     spawn: (options) =>
       new Promise<SpawnOutcome>((resolve) => {
         const writes: string[] = []
@@ -141,7 +144,7 @@ function launch(
           },
           up: async () => {
             // The real source writes the activation turn as it resolves.
-            writes.push(`/${options.agentId}`)
+            writes.push(options.firstTurn ?? `/${options.agentId}`)
             resolve({ ok: true, session: fake.session })
             await Promise.resolve()
           },
@@ -2020,5 +2023,313 @@ describe('permission requests', () => {
 
     expect(proc.options.decide(write('/project-1/new/a.md')).behavior).toBe('allow')
     expect(proc.options.decide(write('/project-1/../a.md')).behavior).toBe('deny')
+  })
+})
+
+describe('the room (Story 4.1)', () => {
+  const FIVE = {
+    'bmad-agent-analyst': 'Mary',
+    'bmad-agent-pm': 'John',
+    'bmad-agent-architect': 'Winston',
+    'bmad-agent-ux-designer': 'Sally',
+    'bmad-agent-dev': 'Amelia'
+  }
+  const ROOM_SYSLINE = 'room opened by you · present · Mary · John · Winston · Sally · Amelia'
+  const get = (sender: FakeSender): ConversationReply =>
+    (handlers.get(CONVERSATION_GET_CHANNEL) as unknown as (e: { sender: FakeSender }) => ConversationReply)({ sender })
+  const dispatch = (sender: FakeSender, sessionId: unknown, code: unknown) =>
+    (handlers.get('menu:dispatch') as unknown as (e: { sender: FakeSender }, id: unknown, code: unknown) => Promise<unknown>)(
+      { sender },
+      sessionId,
+      code
+    )
+  const said = (sender: FakeSender) =>
+    sender.events.flatMap((event) => (event.name === 'harness:said' ? [event.payload] : []))
+  async function openRoom(sender: FakeSender, cast: unknown) {
+    const pending = open(sender, { room: cast })
+    await processes[processes.length - 1]?.up()
+    return { reply: (await pending) as { ok: true; sessionId: string }, proc: processes[processes.length - 1] }
+  }
+
+  beforeEach(() => {
+    names = { ...FIVE }
+  })
+
+  it('opens an agentless session activated with the party skill alone when the cast is the whole roster, and says who is present once', async () => {
+    const sender = new FakeSender(1)
+    const { reply, proc } = await openRoom(sender, Object.keys(FIVE))
+
+    expect(reply).toEqual({ ok: true, sessionId: 's1' })
+    expect(processes).toHaveLength(1)
+    expect(proc.options.cwd).toBe('/project-1')
+    expect(proc.options.agentId).toBeUndefined()
+    expect(proc.writes).toEqual(['/bmad-party-mode'])
+    expect(sender.sent).toEqual([
+      [SESSION_EVENT_CHANNEL, { name: 'session:opened', payload: { sessionId: 's1', at: 1001 } }],
+      [
+        SESSION_EVENT_CHANNEL,
+        { name: 'harness:said', payload: { sessionId: 's1', id: 'm-0', text: ROOM_SYSLINE, at: 1003, room: true } }
+      ]
+    ])
+    expect(registry.forProject('/project-1').entries()).toEqual([
+      { kind: 'sysline', id: 'm-0', at: 1003, text: ROOM_SYSLINE, room: true }
+    ])
+  })
+
+  it('names a subset after the skill, in the order given and each once, and says those names', async () => {
+    const sender = new FakeSender(1)
+    const { proc } = await openRoom(sender, ['bmad-agent-analyst', 'bmad-agent-pm', 'bmad-agent-analyst'])
+
+    expect(proc.writes).toEqual(['/bmad-party-mode Mary (bmad-agent-analyst), John (bmad-agent-pm)'])
+    expect(said(sender).map((line) => line.text)).toEqual(['room opened by you · present · Mary · John'])
+  })
+
+  it('says the id where the roster’s name is empty', async () => {
+    names['bmad-agent-pm'] = ''
+    const sender = new FakeSender(1)
+    const { proc } = await openRoom(sender, ['bmad-agent-pm', 'bmad-agent-dev'])
+
+    expect(proc.writes).toEqual(['/bmad-party-mode bmad-agent-pm (bmad-agent-pm), Amelia (bmad-agent-dev)'])
+    expect(said(sender).map((line) => line.text)).toEqual(['room opened by you · present · bmad-agent-pm · Amelia'])
+  })
+
+  it('returns the live room and spawns and says nothing when it is opened again, however the casts differ', async () => {
+    const sender = new FakeSender(1)
+    const { reply } = await openRoom(sender, Object.keys(FIVE))
+
+    await expect(open(sender, { room: ['bmad-agent-pm'] })).resolves.toEqual(reply)
+    expect(processes).toHaveLength(1)
+    expect(said(sender)).toHaveLength(1)
+  })
+
+  it('shares one spawn and one sysline between two opens that overlap', async () => {
+    const sender = new FakeSender(1)
+    const first = open(sender, { room: Object.keys(FIVE) })
+    const second = open(sender, { room: Object.keys(FIVE) })
+    await processes[0].up()
+
+    await expect(first).resolves.toEqual({ ok: true, sessionId: 's1' })
+    await expect(second).resolves.toEqual({ ok: true, sessionId: 's1' })
+    expect(processes).toHaveLength(1)
+    expect(said(sender)).toHaveLength(1)
+  })
+
+  it('keeps a persona’s session and the room apart, in the same window', async () => {
+    const sender = new FakeSender(1)
+    const persona = await opened(sender, 'bmad-agent-pm')
+    const { reply } = await openRoom(sender, Object.keys(FIVE))
+
+    expect(reply.sessionId).not.toBe(persona.reply.sessionId)
+    expect(processes).toHaveLength(2)
+    // The room has no persona state, and the persona's own session is as it was.
+    expect(sender.events.filter((event) => event.name === 'persona:state')).toHaveLength(1)
+  })
+
+  it.each([[[]], [['../x']], [['bmad-agent-nobody']], [['bmad-agent-pm', 7]], ['bmad-agent-pm'], [undefined], [{}]])(
+    'refuses the cast %j as session/invalid-cast and spawns nothing',
+    async (cast) => {
+      const sender = new FakeSender(1)
+      const reply = await open(sender, { room: cast })
+
+      expect(reply).toEqual({
+        ok: false,
+        error: { code: 'session/invalid-cast', message: 'session · not a valid cast for a room' }
+      })
+      expect(processes).toHaveLength(0)
+      expect(sender.events).toEqual([])
+    }
+  )
+
+  it('refuses a cast for a live room too, rather than answering for one nobody asked for', async () => {
+    const sender = new FakeSender(1)
+    await openRoom(sender, Object.keys(FIVE))
+
+    await expect(open(sender, { room: [] })).resolves.toMatchObject({ ok: false, error: { code: 'session/invalid-cast' } })
+  })
+
+  it('still reads an object with no room as an invalid agent', async () => {
+    await expect(open(new FakeSender(1), {})).resolves.toMatchObject({ ok: false, error: { code: 'session/invalid-agent' } })
+  })
+
+  it('fails as a persona does when the process cannot start, says nothing, and starts afresh next time', async () => {
+    const sender = new FakeSender(1)
+    const failing = open(sender, { room: Object.keys(FIVE) })
+    processes[0].fail('ENOENT')
+
+    await expect(failing).resolves.toEqual({
+      ok: false,
+      error: { code: 'session/spawn-failed', message: 'session · could not start the session', detail: 'ENOENT' }
+    })
+    expect(sender.events).toEqual([])
+    expect(registry.forProject('/project-1').entries()).toEqual([])
+
+    const { reply } = await openRoom(sender, Object.keys(FIVE))
+    expect(reply.ok).toBe(true)
+    expect(processes).toHaveLength(2)
+  })
+
+  it('is not in the conversation snapshot, which lists persona sessions only', async () => {
+    const sender = new FakeSender(1)
+    await openRoom(sender, Object.keys(FIVE))
+    await opened(sender, 'bmad-agent-pm')
+
+    expect(get(sender)).toMatchObject({
+      ok: true,
+      snapshot: { sessions: [{ agentId: 'bmad-agent-pm', sessionId: 's2' }], personas: [{ agentId: 'bmad-agent-pm' }] }
+    })
+    const snapshot = get(sender)
+    expect(snapshot.ok && snapshot.snapshot.entries).toEqual([
+      { kind: 'sysline', id: 'm-0', at: expect.any(Number), text: ROOM_SYSLINE, room: true }
+    ])
+    // A window that reloads finds the chooser: the snapshot omits the room, and opening again finds it.
+    const reopened = get(new FakeSender(2))
+    expect(reopened).toMatchObject({ ok: true, snapshot: { sessions: [] } })
+  })
+
+  it('refuses a menu dispatch for it as session/not-found and never throws on the missing agent', async () => {
+    const sender = new FakeSender(1)
+    const { reply } = await openRoom(sender, Object.keys(FIVE))
+    processes[0].frame(result())
+
+    await expect(dispatch(sender, reply.sessionId, 'CP')).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'session/not-found' }
+    })
+  })
+
+  it('closes like any session: session:closed once, without an agent, and a room opens again afterwards', async () => {
+    const sender = new FakeSender(1)
+    const { reply, proc } = await openRoom(sender, Object.keys(FIVE))
+
+    expect(closeSession(sender, reply.sessionId)).toEqual({ ok: true })
+    expect(proc.killed).toBe(true)
+    proc.exit()
+    const closed = sender.events.filter((event) => event.name === 'session:closed')
+    expect(closed).toEqual([{ name: 'session:closed', payload: { sessionId: 's1', reason: 'closed', at: expect.any(Number) } }])
+
+    const again = await openRoom(sender, Object.keys(FIVE))
+    expect(again.reply.sessionId).toBe('s2')
+    expect(said(sender)).toHaveLength(2)
+  })
+
+  it('closes when its process exits, in the room’s own register and not in a persona’s thread', async () => {
+    const sender = new FakeSender(1)
+    const { proc } = await openRoom(sender, Object.keys(FIVE))
+    proc.exit()
+
+    expect(sender.events.filter((event) => event.name === 'session:closed')).toHaveLength(1)
+    expect(said(sender).map(({ text, room }) => [text, room])).toEqual([
+      [ROOM_SYSLINE, true],
+      ['session ended · the process exited', true]
+    ])
+  })
+
+  it('closes with the conversation and with the window', async () => {
+    const sender = new FakeSender(1)
+    const { proc } = await openRoom(sender, Object.keys(FIVE))
+    ;(handlers.get(CONVERSATION_END_CHANNEL) as unknown as (e: { sender: FakeSender }, id: unknown) => unknown)(
+      { sender },
+      '/project-1'
+    )
+
+    expect(proc.killed).toBe(true)
+    expect(sender.events.filter((event) => event.name === 'session:closed')).toHaveLength(1)
+
+    const other = new FakeSender(2)
+    const second = await openRoom(other, Object.keys(FIVE))
+    other.destroy()
+    expect(second.proc.killed).toBe(true)
+  })
+
+  it('marks the files its chat turns write as the room’s on the rail, and raises no document event', async () => {
+    const sender = new FakeSender(1)
+    const told: string[] = []
+    railAnnotatorFor(sender).bind({ annotate: () => undefined, markRoom: (path) => void told.push(path), unmarkRoom: () => undefined, clearRoom: () => undefined })
+    const { proc } = await openRoom(sender, Object.keys(FIVE))
+    const before = sender.events.length
+    const json = JSON.stringify({ file_path: '/project-1/_bmad/party/note.md', content: 'body' })
+    proc.frame({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: { type: 'content_block_start', index: 2, content_block: { type: 'tool_use', id: 't2', name: 'Write', input: {} } }
+    })
+    for (let at = 0; at < json.length; at += 9) {
+      proc.frame({
+        type: 'stream_event',
+        parent_tool_use_id: null,
+        event: { type: 'content_block_delta', index: 2, delta: { type: 'input_json_delta', partial_json: json.slice(at, at + 9) } }
+      })
+    }
+    proc.frame({ type: 'stream_event', parent_tool_use_id: null, event: { type: 'content_block_stop', index: 2 } })
+
+    expect(told).toEqual(['_bmad/party/note.md'])
+    expect(sender.events.slice(before)).toEqual([])
+  })
+
+  /** One main-thread Write of `path`, streamed in pieces, as the CLI would. */
+  function writeFile(proc: FakeProcess, path: string, index = 2): void {
+    const json = JSON.stringify({ file_path: path, content: 'body' })
+    const frame = (event: unknown) => proc.frame({ type: 'stream_event', parent_tool_use_id: null, event })
+    frame({ type: 'content_block_start', index, content_block: { type: 'tool_use', id: `t${index}`, name: 'Write', input: {} } })
+    for (let at = 0; at < json.length; at += 9) {
+      frame({ type: 'content_block_delta', index, delta: { type: 'input_json_delta', partial_json: json.slice(at, at + 9) } })
+    }
+    frame({ type: 'content_block_stop', index })
+  }
+
+  it('gives a file back when a persona session writes what the room wrote, and the room’s own rewrite takes it again', async () => {
+    const sender = new FakeSender(1)
+    const marks: string[] = []
+    railAnnotatorFor(sender).bind({
+      annotate: () => undefined,
+      markRoom: (path) => void marks.push(`mark ${path}`),
+      unmarkRoom: (path) => void marks.push(`unmark ${path}`),
+      clearRoom: () => void marks.push('clear')
+    })
+    const room = await openRoom(sender, Object.keys(FIVE))
+    const persona = await opened(sender, 'bmad-agent-pm')
+
+    writeFile(room.proc, '/project-1/_bmad/party/note.md')
+    writeFile(persona.proc, '/project-1/_bmad/party/note.md')
+    writeFile(persona.proc, '/project-1/_bmad/party/other.md', 3)
+    writeFile(room.proc, '/project-1/_bmad/party/note.md', 4)
+
+    expect(marks).toEqual(['mark _bmad/party/note.md', 'unmark _bmad/party/note.md', 'mark _bmad/party/note.md'])
+  })
+
+  it('clears every room mark when the conversation ends', async () => {
+    const sender = new FakeSender(1)
+    const marks: string[] = []
+    railAnnotatorFor(sender).bind({
+      annotate: () => undefined,
+      markRoom: (path) => void marks.push(`mark ${path}`),
+      unmarkRoom: () => undefined,
+      clearRoom: () => void marks.push('clear')
+    })
+    const { proc } = await openRoom(sender, Object.keys(FIVE))
+    writeFile(proc, '/project-1/_bmad/party/note.md')
+
+    ;(handlers.get(CONVERSATION_END_CHANNEL) as unknown as (e: { sender: FakeSender }, id: unknown) => unknown)(
+      { sender },
+      '/project-1'
+    )
+
+    expect(marks).toEqual(['mark _bmad/party/note.md', 'clear'])
+  })
+
+  it('leaves a busy room out of the snapshot’s busy set, as it leaves it out of the sessions', async () => {
+    const sender = new FakeSender(1)
+    await openRoom(sender, Object.keys(FIVE))
+    // The room's activation turn is in flight; a persona's is too.
+    const snapshotOf = (): { sessions: unknown[]; busy: string[] } => {
+      const reply = get(sender)
+      if (!reply.ok) throw new Error('no snapshot')
+      return reply.snapshot
+    }
+    expect(snapshotOf().busy).toEqual([])
+
+    const persona = await opened(sender, 'bmad-agent-pm')
+
+    expect(snapshotOf()).toMatchObject({ sessions: [{ sessionId: persona.reply.sessionId }], busy: [persona.reply.sessionId] })
   })
 })

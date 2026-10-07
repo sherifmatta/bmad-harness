@@ -65,8 +65,11 @@ export type ProjectTranscript = {
   entries(): readonly TranscriptRecord[]
   recordPersonaSaid(said: PersonaSaid): void
   recordUserTurn(text: string, at: number): void
-  /** Write the harness's own line into the transcript and return the record it became. */
-  recordSysline(text: string, at: number): SyslineRecord
+  /**
+   * Write the harness's own line into the transcript and return the record it became;
+   * `room` marks a line about a room (it opened, its turns, its process); every such line belongs to the party thread.
+   */
+  recordSysline(text: string, at: number, room?: true): SyslineRecord
   /**
    * A run's card as it stands after the event at `at`, kept with the transcript:
    * replaces the run's earlier copy, if any. A run of a conversation that has
@@ -232,8 +235,8 @@ export function createTranscriptRegistry(deps: TranscriptRegistryDeps): Transcri
       return outcome
     }
 
-    function recordSysline(text: string, at: number): SyslineRecord {
-      changed(foldSysline(state, text, at))
+    function recordSysline(text: string, at: number, room?: true): SyslineRecord {
+      changed(foldSysline(state, text, at, room))
       return state.entries[state.entries.length - 1] as SyslineRecord
     }
 

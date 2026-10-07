@@ -102,6 +102,16 @@
   color: var(--dim);
 }
 
+/* The room's own presentation (Story 4.1): a file the room wrote is not a persona's, so
+   the label is a tag in the accent register, with no portrait and no persona's name. */
+.output-row-owner--room {
+  padding: var(--code-tag-padding);
+  border: var(--rule-width) solid var(--accent-border);
+  border-radius: var(--radius-chip);
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
 /* The state string, with its dot (only while changing) inside it. */
 .output-row-state {
   display: inline-flex;

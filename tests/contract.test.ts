@@ -125,7 +125,8 @@ describe('the commands in', () => {
   it('carry the signatures the epic names', () => {
     const args = (name: string): string =>
       (declared.get(name)?.match(/\[([^\]]*)\]/)?.[1] ?? '').replace(/:\s*[A-Za-z]+/g, '').replace(/\s+/g, '')
-    expect(args('session.open')).toBe('agentId')
+    // A persona's agent id, or from Story 4.1 the room's cast: one argument, `SessionTarget`.
+    expect(args('session.open')).toBe('target')
     expect(args('session.close')).toBe('sessionId')
     expect(args('turn.send')).toBe('sessionId,text')
     expect(args('menu.dispatch')).toBe('sessionId,code')

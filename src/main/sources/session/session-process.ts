@@ -83,6 +83,31 @@ export function activationTurn(agentId: string): string {
   return `/${agentId}`
 }
 
+/** The skill that runs a room (Story 4.1): the same skill whatever the cast. */
+export const ROOM_SKILL = 'bmad-party-mode'
+
+/** One member of a room's cast, as the first turn names them: the id, and the roster's display name. */
+export type RoomMember = { id: string; name: string }
+
+/**
+ * The turn that activates a room: the party skill's own invocation. When the
+ * cast is exactly the roster's agents it is the skill alone, because the skill's
+ * default room is the installed agents and a cast would only restate it. A subset
+ * is named inline after the skill, `Name (id)` for each member joined by `, `,
+ * which the skill reads as the roster for the session
+ * (`.claude/skills/bmad-party-mode/SKILL.md`, step 4: "an inline-named cast IS
+ * the roster for the session"). Never an argv.
+ */
+export function roomActivationTurn(cast: readonly RoomMember[], rosterIds: readonly string[]): string {
+  const everyone =
+    cast.length === rosterIds.length && rosterIds.every((id) => cast.some((member) => member.id === id))
+  if (everyone) {
+    return `/${ROOM_SKILL}`
+  }
+  const named = cast.map(({ id, name }) => `${name === '' ? id : name} (${id})`)
+  return `/${ROOM_SKILL} ${named.join(', ')}`
+}
+
 /** A tool call the CLI asks permission for, as it arrived: neither field is checked here. */
 export type PermissionAsk = { toolName: unknown; input: unknown }
 
@@ -196,7 +221,13 @@ export type SessionProcess = {
 }
 
 export type SpawnSessionOptions = {
-  agentId: string
+  /**
+   * The persona the session activates, whose skill invocation is the first stdin
+   * turn. A room has none: it is given `firstTurn` instead.
+   */
+  agentId?: string
+  /** The first stdin turn of a session that has no `agentId`: a room's activation. */
+  firstTurn?: string
   /** The project root. */
   cwd: string
   /** Each parsed stdout line; a line that is not JSON never gets here. */
@@ -349,7 +380,7 @@ export function spawnSession(options: SpawnSessionOptions): Promise<SpawnOutcome
 
     child.on('spawn', () => {
       spawned = true
-      void session.write(activationTurn(options.agentId))
+      void session.write(options.firstTurn ?? activationTurn(options.agentId ?? ''))
       resolve({ ok: true, session })
     })
 

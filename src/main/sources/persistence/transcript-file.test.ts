@@ -90,6 +90,19 @@ describe('writeTranscript and loadTranscript', () => {
     ])
   })
 
+  it('keeps the `room` flag of a sysline through a write and a read, and invents none', () => {
+    const file = transcriptFilePath(userData, project)
+    const held: TranscriptRecord[] = [
+      { kind: 'sysline', id: 'm-0', at: 1, text: 'room opened by you · present · Mary', room: true },
+      { kind: 'sysline', id: 'm-1', at: 2, text: 'handed off · A → B' }
+    ]
+    writeTranscript(file, project, held)
+
+    const loaded = loadTranscript(file, project)
+    expect(loaded).toEqual({ kind: 'loaded', entries: held, runs: [], dropped: 0 })
+    expect(loaded.kind === 'loaded' && 'room' in loaded.entries[1]).toBe(false)
+  })
+
   it('reports the errno code and throws nothing when the write cannot happen', () => {
     // The conversations directory is where a regular file lies.
     writeFileSync(join(userData, 'conversations'), 'in the way')

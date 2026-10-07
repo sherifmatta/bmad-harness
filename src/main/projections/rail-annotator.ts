@@ -25,6 +25,12 @@ import { EMPTY_ANNOTATIONS, annotationsOf, foldAnnotations } from '../fold/rail-
 /** The one thing the producer needs of the rail projection. */
 export type AnnotationTarget = {
   annotate(path: string, annotation: RailAnnotation | null): void
+  /** A room session wrote `path` (Story 4.1). */
+  markRoom(path: string): void
+  /** A persona wrote `path`: it is no longer the room's. */
+  unmarkRoom(path: string): void
+  /** The conversation ended: no file is the room's any more. */
+  clearRoom(): void
 }
 
 export type RailAnnotator = {
@@ -34,6 +40,12 @@ export type RailAnnotator = {
   bind(target: AnnotationTarget): void
   /** The watcher observed `path`: say its held annotation again. */
   observed(path: string): void
+  /** A room session wrote these project-relative files: the rail's rows for them are the room's. */
+  roomWrote(paths: readonly string[]): void
+  /** A persona session wrote these files: any of them the room had is the persona's now. */
+  personaWrote(paths: readonly string[]): void
+  /** The conversation ended: every room mark goes. */
+  roomCleared(): void
 }
 
 /** Whether two annotations name the same owners: both none, or the same ids in the same order (an empty list is not none). */
@@ -51,6 +63,8 @@ export function createRailAnnotator(): RailAnnotator {
   let target: AnnotationTarget | undefined
   /** What the target was last told, by path. */
   let told = new Map<string, RailAnnotation>()
+  /** The files a room session wrote: told to the target once each, and again on `bind`. */
+  const roomPaths = new Set<string>()
 
   /** Tell the target what moved since it was last told. */
   function tell(): void {
@@ -76,12 +90,33 @@ export function createRailAnnotator(): RailAnnotator {
     bind(next) {
       target = next
       told = new Map()
+      for (const path of roomPaths) next.markRoom(path)
       tell()
     },
 
     observed(path) {
       const annotation = annotationsOf(table).get(path)
       if (annotation !== undefined) target?.annotate(path, annotation)
+    },
+
+    personaWrote(paths) {
+      for (const path of paths) {
+        if (roomPaths.delete(path)) target?.unmarkRoom(path)
+      }
+    },
+
+    roomCleared() {
+      if (roomPaths.size === 0) return
+      roomPaths.clear()
+      target?.clearRoom()
+    },
+
+    roomWrote(paths) {
+      for (const path of paths) {
+        if (roomPaths.has(path)) continue
+        roomPaths.add(path)
+        target?.markRoom(path)
+      }
     }
   }
 }

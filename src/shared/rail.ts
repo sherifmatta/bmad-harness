@@ -44,6 +44,11 @@ export type RailRow = {
   path: string
   owner?: RailOwner
   annotation?: RailAnnotation
+  /**
+   * Set when a room session wrote the file (Story 4.1): the row's owner is the
+   * room, which is no persona. It stands in place of `owner`, never beside it.
+   */
+  room?: true
 } & DiskField
 
 /** `revision` only ever increases, so a late push can be told from a fresh one. */

@@ -21,11 +21,18 @@ export type CommandSpec<Args extends unknown[], Cardinality extends string, Repl
   reply: Reply
 }
 
+/**
+ * What `session.open` opens: a persona's session, by its agent id, or the room
+ * (Story 4.1), a party session of the cast named, in the order given. The room
+ * has no agent id of its own.
+ */
+export type SessionTarget = AgentId | { room: readonly AgentId[] }
+
 /** The seven commands in, by name. */
 export type ContractCommands = {
   'session.open': CommandSpec<
-    [agentId: AgentId],
-    'at most once per active persona, not per run',
+    [target: SessionTarget],
+    'at most once per active persona and once per room, not per run',
     CommandReply<{ sessionId: SessionId }>
   >
   'session.close': CommandSpec<

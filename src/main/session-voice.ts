@@ -25,6 +25,12 @@ export const LINES = {
   stopUnfinished: 'stop sent · the turn did not end · the session ended with the run',
   // Placeholder copy until `bmad-ux` writes it: said when a turn nobody sent begins after a stop the user asked for, and a run starts for it.
   carriedOn: 'carried on after the stop · a new run follows it',
+  /**
+   * Said once when a room first opens (Story 4.1): who opened it and who is present, by
+   * the roster's display names (the id where a name is empty). Placeholder copy until
+   * `bmad-ux` writes it, in the register of EXPERIENCE.md's sysline sample.
+   */
+  roomOpened: (names: readonly string[]): string => `room opened by you · present · ${names.join(' · ')}`,
   quiet: (ms: number): string =>
     `no output for ${Math.round(ms / 1000)}s · the session may be stuck · close it to start over`
 }
@@ -38,12 +44,21 @@ export function createVoice(deps: {
   transcripts: TranscriptRegistry
   now: () => number
   emit: (sender: Sender, event: ContractEvent) => void
-}): (sender: Sender, line: { sessionId: SessionId; projectRoot: string; text: string }) => void {
-  return (sender, { sessionId, projectRoot, text }) => {
-    const record = deps.transcripts.forProject(projectRoot).recordSysline(text, deps.now())
+}): (
+  sender: Sender,
+  line: { sessionId: SessionId; projectRoot: string; text: string; room?: true }
+) => void {
+  return (sender, { sessionId, projectRoot, text, room }) => {
+    const record = deps.transcripts.forProject(projectRoot).recordSysline(text, deps.now(), room)
     deps.emit(sender, {
       name: 'harness:said',
-      payload: { sessionId, id: record.id, text: record.text, at: record.at }
+      payload: {
+        sessionId,
+        id: record.id,
+        text: record.text,
+        at: record.at,
+        ...(record.room === true ? { room: true } : {})
+      }
     })
   }
 }

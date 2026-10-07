@@ -136,7 +136,7 @@ beforeEach(() => {
         duringInterrupt: undefined,
         interruptThrows: false
       }
-      fakes.set(options.agentId, fake)
+      fakes.set(options.agentId as string, fake)
       const session: SessionProcess = {
         write: (text) => {
           fake.writes.push(text)

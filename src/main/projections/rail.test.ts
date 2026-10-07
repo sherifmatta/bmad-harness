@@ -234,3 +234,83 @@ describe('the rail projection', () => {
     quick.dispose()
   })
 })
+
+describe('a file a room wrote (Story 4.1)', () => {
+  const NOTE = '_bmad/party/2026-10-06-topic.md'
+
+  it('is marked as the room’s, which stands in place of the class’s owner and raises no owner of its own', () => {
+    projection.observe(obs('artifact:found', PRD))
+    projection.observe(obs('artifact:found', NOTE))
+    projection.ready()
+    projection.markRoom(PRD)
+    projection.markRoom(NOTE)
+
+    const [note, prd] = projection.snapshot().rows
+    expect(note).toMatchObject({ path: NOTE, room: true })
+    expect('owner' in note).toBe(false)
+    expect(prd).toMatchObject({ path: PRD, room: true })
+    expect('owner' in prd).toBe(false)
+  })
+
+  it('leaves every other row as it was, with no `room` field', () => {
+    projection.observe(obs('artifact:found', PRD))
+    projection.ready()
+    projection.markRoom(NOTE)
+
+    const [prd] = projection.snapshot().rows
+    expect('room' in prd).toBe(false)
+    expect(prd.owner).toEqual({ agentId: 'bmad-agent-pm' })
+  })
+
+  it('creates no row of its own, and marks the row the watcher makes later', () => {
+    projection.ready()
+    projection.markRoom(NOTE)
+
+    expect(projection.snapshot().rows).toEqual([])
+    expect(pushes).toEqual([])
+
+    projection.observe(obs('artifact:written', NOTE))
+    expect(pushes.at(-1)?.rows[0]).toMatchObject({ path: NOTE, room: true, state: 'changing' })
+  })
+
+  it('pushes once when it marks a row that is there, and not again for the same path', () => {
+    projection.observe(obs('artifact:found', NOTE))
+    projection.ready()
+
+    projection.markRoom(NOTE)
+    projection.markRoom(NOTE)
+
+    expect(pushes).toHaveLength(1)
+    expect(pushes[0].rows[0]).toMatchObject({ path: NOTE, room: true })
+  })
+
+  it('gives a row back to its class’s owner when a persona wrote the file, and ignores a path never marked', () => {
+    projection.observe(obs('artifact:found', PRD))
+    projection.ready()
+    projection.markRoom(PRD)
+
+    projection.unmarkRoom('_bmad/other.md')
+    expect(projection.snapshot().rows[0]).toMatchObject({ room: true })
+
+    projection.unmarkRoom(PRD)
+    const [prd] = projection.snapshot().rows
+    expect('room' in prd).toBe(false)
+    expect(prd.owner).toEqual({ agentId: 'bmad-agent-pm' })
+    expect(pushes.at(-1)?.rows[0]).toEqual(prd)
+  })
+
+  it('drops every mark when the conversation ends, in one push', () => {
+    projection.observe(obs('artifact:found', PRD))
+    projection.observe(obs('artifact:found', NOTE))
+    projection.ready()
+    projection.markRoom(PRD)
+    projection.markRoom(NOTE)
+    pushes.length = 0
+
+    projection.clearRoom()
+    projection.clearRoom()
+
+    expect(pushes).toHaveLength(1)
+    expect(projection.snapshot().rows.some((row) => 'room' in row)).toBe(false)
+  })
+})

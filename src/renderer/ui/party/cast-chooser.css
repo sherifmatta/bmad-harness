@@ -1,0 +1,117 @@
+/*
+ * The cast chooser (Story 4.1): a list of roster agents, each a native checkbox in a
+ * label, and one button. It is drawn from the tile's own tokens (the same padding, rule,
+ * ground and type) so it reads as the roster and not as a form. No ring is drawn here:
+ * the shared `:focus-visible` ring covers the checkboxes and the button. No motion, no
+ * count, no spinner. Every value reaches the design system through `var()`.
+ */
+
+.cast-chooser {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-xxl);
+}
+
+.cast-chooser-set {
+  align-self: stretch;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.cast-chooser-legend {
+  padding: var(--rail-group-padding);
+  font-family: var(--mono);
+  font-size: var(--fs-meta);
+  letter-spacing: var(--track-micro);
+  color: var(--dim);
+}
+
+.cast-chooser-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cast-chooser-item {
+  border-bottom: var(--rule-width) solid var(--line-soft);
+}
+
+.cast-chooser-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  min-height: var(--tile-height);
+  padding: var(--tile-padding);
+  cursor: pointer;
+}
+
+.cast-chooser-label:hover {
+  background: var(--panel-2);
+}
+
+.cast-chooser-check {
+  flex: 0 0 auto;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.cast-chooser-face {
+  flex: 0 0 auto;
+  display: inline-flex;
+}
+
+.cast-chooser-who {
+  display: flex;
+  align-items: baseline;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: var(--space-sm-plus);
+  font-family: var(--sans);
+}
+
+.cast-chooser-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--fs-name);
+  font-weight: var(--weight-strong);
+  color: var(--text-strong);
+}
+
+.cast-chooser-title {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--fs-ident);
+  color: var(--dim);
+}
+
+/* The send button's own tokens: the one action here is the same kind of act. */
+.cast-chooser-open {
+  padding: var(--send-padding);
+  border: var(--rule-width) solid var(--send-line);
+  border-radius: var(--radius-control);
+  background: var(--send-bg);
+  font-family: var(--sans);
+  font-size: var(--fs-control);
+  letter-spacing: var(--track-control);
+  color: var(--send-ink);
+  cursor: pointer;
+}
+
+.cast-chooser-open:hover:not(:disabled) {
+  background: var(--send-hover);
+}
+
+.cast-chooser-open:disabled {
+  opacity: var(--opacity-idle);
+  cursor: default;
+}

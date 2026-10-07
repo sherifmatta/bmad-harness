@@ -44,6 +44,12 @@ export type SyslineRecord = {
   id: string
   at: EpochMs
   text: string
+  /**
+   * Set on every harness line about a room (Story 4.1): the one that says it opened,
+   * and the ones about its turns or its process. Such a line belongs to the party
+   * thread and never to a persona's 1:1 thread. Absent on every other line.
+   */
+  room?: true
 }
 
 export type TranscriptRecord = PersonaRecord | UserRecord | SyslineRecord

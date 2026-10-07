@@ -1,3 +1,4 @@
+import type { SessionTarget } from '../shared/commands'
 import type { ConversationSnapshot, OpenedSession } from '../shared/conversation'
 import type { ContractEvent } from '../shared/events'
 import type { RunId, SessionId } from '../shared/ids'
@@ -38,10 +39,11 @@ export interface HarnessApi {
   /**
    * Open the session for a persona, or find the one already open for it, and
    * resolve with its id, and with the sysline main wrote when this open was a
-   * handoff from another persona. Rejects with the `HarnessError` envelope when
-   * main refused or could not start it.
+   * handoff from another persona. Given `{ room }` it opens the room of that
+   * cast (Story 4.1), or finds the one already open. Rejects with the
+   * `HarnessError` envelope when main refused or could not start it.
    */
-  openSession(agentId: string): Promise<OpenedSession>
+  openSession(target: SessionTarget): Promise<OpenedSession>
   /**
    * End one session: main kills its process and closes it, which it reports as
    * `session:closed`. Resolves when it has; rejects with the `HarnessError`

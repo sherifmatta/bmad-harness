@@ -487,6 +487,15 @@ it('sends openSession down the open channel with the agent id, and resolves with
   expect(invoke).toHaveBeenCalledWith(sessionBridge.SESSION_OPEN_CHANNEL, 'bmad-agent-pm')
 })
 
+it('sends a room’s cast down the same open channel, as the object it was given, and resolves as for a persona', async () => {
+  invoke.mockClear()
+  invoke.mockResolvedValue({ ok: true, sessionId: 's9' })
+  const openSession = exposedApis.get('harness')?.openSession as (target: unknown) => Promise<unknown>
+
+  await expect(openSession({ room: ['bmad-agent-pm', 'bmad-agent-dev'] })).resolves.toEqual({ sessionId: 's9' })
+  expect(invoke).toHaveBeenCalledWith(sessionBridge.SESSION_OPEN_CHANNEL, { room: ['bmad-agent-pm', 'bmad-agent-dev'] })
+})
+
 it('resolves openSession with the handoff sysline when main answered with one, and with no other field', async () => {
   const handoff = { kind: 'sysline', id: 'm-3', at: 9, text: 'handed off · Mary → John' }
   invoke.mockClear()

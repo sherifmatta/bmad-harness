@@ -1,0 +1,18 @@
+/*
+ * The party view (Story 4.1): a scrolling region holding one centred column, at the party
+ * thread's own measure (--party-thread-max). The side panel (--party-side) is a later
+ * story's and is not drawn here. Every value reaches the design system through `var()`.
+ */
+
+.party-view {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--bg);
+}
+
+.party-column {
+  max-width: var(--party-thread-max);
+  margin: 0 auto;
+  padding: var(--thread-padding);
+}

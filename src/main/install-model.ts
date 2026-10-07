@@ -27,6 +27,16 @@ export function agentNameFor(webContentsId: number, agentId: string): string | u
   return agent === undefined || agent.name === '' ? undefined : agent.name
 }
 
+/** One agent of a window's roster, as a room's cast is checked and named against it. */
+export type RosterMember = { id: string; name: string }
+
+/** The window's roster, in roster order, as main's own install model has it; none when no install is known. */
+export function rosterFor(webContentsId: number): readonly RosterMember[] {
+  return (
+    projections.get(webContentsId)?.snapshot().agents.map(({ id, name }) => ({ id, name })) ?? []
+  )
+}
+
 /**
  * What a persona's menu code runs, in a window: a skill or a prompt, decided
  * here in main and never sent to the renderer. `undefined` when the roster has

@@ -69,7 +69,14 @@ export type PersonaSaid = {
  * persona, has no portrait or name, and is kept with the transcript under `id`,
  * so a window that reloads finds it where it fell.
  */
-export type HarnessSaid = { sessionId?: SessionId; id: string; text: string; at: EpochMs }
+export type HarnessSaid = {
+  sessionId?: SessionId
+  id: string
+  text: string
+  at: EpochMs
+  /** Set on every harness line about a room: it belongs to the party thread (`SyslineRecord.room`). */
+  room?: true
+}
 
 /** A persona's aggregated state changed. Keyed by `agentId`, never by name. */
 export type PersonaStateChanged = { agentId: AgentId; state: PersonaState; at: EpochMs }

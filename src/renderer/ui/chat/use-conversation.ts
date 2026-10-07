@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { SessionTarget } from '../../../shared/commands'
 import type { ConversationSnapshot, OpenedSession, SyslineRecord } from '../../../shared/conversation'
 import type { ContractEvent } from '../../../shared/events'
 import type { AgentView, HarnessError } from '../../../shared/install'
@@ -15,6 +16,7 @@ import {
   hydrate,
   initialConversation,
   orphansOf,
+  roomReady,
   runCardOf,
   sendMessage,
   sessionOf,
@@ -29,7 +31,7 @@ import type { TranscriptEntry } from './transcript-entry'
 
 /** The eight bridge methods the conversation needs, and nothing else of the bridge. */
 export type ConversationBridge = {
-  openSession(agentId: string): Promise<OpenedSession>
+  openSession(target: SessionTarget): Promise<OpenedSession>
   closeSession(sessionId: string): Promise<void>
   sendTurn(sessionId: string, text: string): Promise<void>
   dispatchMenu(sessionId: string, code: string): Promise<string>
@@ -50,6 +52,12 @@ export type Conversation = {
    * rejects.
    */
   activate(agentId: string): Promise<void>
+  /**
+   * The user chose a cast and asked for the room (Story 4.1): main opens it, or answers with
+   * the one already live, and the reply makes it the window's room. Resolves when the open has
+   * settled; never rejects, and a refusal is the failure line. One open at a time.
+   */
+  openRoom(cast: readonly string[]): Promise<void>
   /** The user sent `text` to a persona. */
   send(agentId: string, text: string): void
   /** The user took a queued message back, by its transcript entry's id. */
@@ -133,6 +141,10 @@ export function createConversation(deps: ConversationDeps): Conversation {
   let hydrated = false
   /** The personas a session was asked for before the snapshot arrived, in order. */
   const awaitingSnapshot: { agentId: string; always: boolean; settled: () => void }[] = []
+  /** The room open in flight, if any: a second ask while it runs is that one. */
+  let openingRoom: Promise<void> | undefined
+  /** What waits for main's snapshot besides a persona's open: a room's. */
+  const afterSnapshot: (() => void)[] = []
   /** How many times the conversation has ended: an open begun before an end belongs to the one before it. */
   let endings = 0
 
@@ -241,6 +253,41 @@ export function createConversation(deps: ConversationDeps): Conversation {
     onLifecycle(runLifecycleLine(card, agentOf(agentId)?.name || agentId, written))
   }
 
+  function openTheRoom(cast: readonly string[]): Promise<void> {
+    onFailure(null)
+    if (!hydrated) {
+      return new Promise<void>((settled) => {
+        afterSnapshot.push(() => void openTheRoom(cast).then(settled))
+      })
+    }
+    if (openingRoom !== undefined) {
+      return openingRoom
+    }
+    const generation = endings
+    const attempt: Promise<void> = bridge
+      .openSession({ room: [...cast] })
+      .then(({ sessionId }) => {
+        // An open that outlived the conversation it began in found it ended.
+        if (generation !== endings) {
+          return
+        }
+        commit(roomReady(state, sessionId))
+      })
+      .catch((reason: unknown) => {
+        if (generation !== endings) {
+          return
+        }
+        fail(reason)
+      })
+      .finally(() => {
+        if (openingRoom === attempt) {
+          openingRoom = undefined
+        }
+      })
+    openingRoom = attempt
+    return attempt
+  }
+
   return {
     connect() {
       // Subscribed first, so nothing is missed; what comes before the snapshot is in it.
@@ -269,6 +316,9 @@ export function createConversation(deps: ConversationDeps): Conversation {
         hydrated = true
         for (const { agentId, always, settled } of awaitingSnapshot.splice(0)) {
           void ensureSession(agentId, always).then(settled)
+        }
+        for (const run of afterSnapshot.splice(0)) {
+          run()
         }
       }
       bridge
@@ -306,6 +356,8 @@ export function createConversation(deps: ConversationDeps): Conversation {
       onFailure(null)
       return ensureSession(agentId, true)
     },
+
+    openRoom: openTheRoom,
 
     send(agentId, text) {
       onFailure(null)
@@ -383,7 +435,9 @@ export function createConversation(deps: ConversationDeps): Conversation {
       // An open still pending belongs to the conversation that ended; the next
       // send starts a new one rather than waiting on it.
       opening.clear()
+      openingRoom = undefined
       awaitingSnapshot.length = 0
+      afterSnapshot.length = 0
       prose.clear()
       commit(ended(state))
       return true
@@ -406,6 +460,10 @@ export function useConversation(
   personas: ReadonlyMap<string, PersonaStateEntry>
   failure: HarnessError | null
   activate: (agentId: string) => Promise<void>
+  /** Open the room of a cast, by agent ids (Story 4.1); one already live is the same room. */
+  openRoom: (cast: readonly string[]) => Promise<void>
+  /** The window's room session, while one is live; the room is no persona's session. */
+  room: string | undefined
   send: (agentId: string, text: string) => void
   cancel: (entryId: string) => void
   end: (projectId: string) => Promise<boolean>
@@ -475,6 +533,10 @@ export function useConversation(
     async (agentId: string) => void (await conversation.current?.activate(agentId)),
     []
   )
+  const openRoom = useCallback(
+    async (cast: readonly string[]) => void (await conversation.current?.openRoom(cast)),
+    []
+  )
   const send = useCallback(
     (agentId: string, text: string) => conversation.current?.send(agentId, text),
     []
@@ -517,6 +579,8 @@ export function useConversation(
     personas: state.personas,
     failure,
     activate,
+    openRoom,
+    room: state.room,
     send,
     cancel,
     end,

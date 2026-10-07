@@ -244,10 +244,11 @@ describe('the rail modules in main', () => {
       // No disk word, no way to make, remove or settle a row.
       expect(text, path).not.toMatch(/\b(?:savedAt|observedAt|mtimeMs|nextSettleAt|settle|observe|toRows|RailRow|RailSnapshot|RailTable|createRailProjection|artifact:\w+)\b|\bstate\s*:/)
     }
-    // The producer reaches the projection through `annotate` alone.
-    const methods = [...annotator.matchAll(/\btarget\??\.(\w+)\(/g)].map(([, method]) => method)
+    // The producer reaches the projection through `annotate`, and from Story 4.1 `markRoom`, which says only
+    // that a room wrote a path: neither makes, removes or settles a row.
+    const methods = [...annotator.matchAll(/\bnext?\??\.(\w+)\(|\btarget\??\.(\w+)\(/g)].map(([, a, b]) => a ?? b)
     expect(methods.length).toBeGreaterThan(0)
-    expect(new Set(methods)).toEqual(new Set(['annotate']))
+    expect(new Set(methods)).toEqual(new Set(['annotate', 'markRoom', 'unmarkRoom', 'clearRoom']))
     expect(annotator).toMatch(/annotate\(path: string, annotation: RailAnnotation \| null\): void/)
     // The projection's own surface is as it was: `annotate` stays the stream's one way in.
     const projection = code('src/main/projections/rail.ts')

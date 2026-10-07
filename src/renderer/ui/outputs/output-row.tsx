@@ -85,7 +85,12 @@ export function OutputRow({
           {row.annotation !== undefined && (
             <span className="output-row-annotation">{row.annotation.text}</span>
           )}
-          {ownerName !== undefined && <span className="output-row-owner">{ownerName}</span>}
+          {ownerName !== undefined && (
+            // The room is no persona: its own class and tokens, and no portrait (Story 4.1).
+            <span className={row.room === true ? 'output-row-owner output-row-owner--room' : 'output-row-owner'}>
+              {ownerName}
+            </span>
+          )}
           <span className="output-row-state">
             {row.state === 'changing' && <StatusDot state="work" />}
             {stateText(row, now)}

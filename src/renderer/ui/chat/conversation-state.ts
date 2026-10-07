@@ -31,6 +31,11 @@ export type ConversationState = {
   queue: ReadonlyMap<string, readonly QueuedMessage[]>
   /** The last state main reported for each persona, by agent id; an absent persona is idle. */
   personas: ReadonlyMap<string, PersonaStateEntry>
+  /**
+   * The window's room session, while one is live (Story 4.1): its session id. The room
+   * has no agent id, so it is in none of the maps above and has no persona state.
+   */
+  room: string | undefined
   /** The next entry's key. */
   nextId: number
 }
@@ -41,6 +46,7 @@ export const initialConversation: ConversationState = {
   busy: new Set(),
   queue: new Map(),
   personas: new Map(),
+  room: undefined,
   nextId: 0
 }
 
@@ -277,8 +283,18 @@ export function ended(state: ConversationState): ConversationState {
     entries: [],
     sessions: new Map(),
     busy: new Set(),
-    queue: new Map()
+    queue: new Map(),
+    room: undefined
   }
+}
+
+/**
+ * The reply to opening the room: the session it answered with is the room, whether the
+ * events announced it already or it was live before this window loaded. Nothing else
+ * changes: the room has no turn state here and no queue.
+ */
+export function roomReady(state: ConversationState, sessionId: string): ConversationState {
+  return state.room === sessionId ? state : { ...state, room: sessionId }
 }
 
 /**
@@ -291,7 +307,13 @@ export function withHandoff(state: ConversationState, record: SyslineRecord): Co
   if (state.entries.some((entry) => entry.id === record.id)) {
     return state
   }
-  return withEntry(state, { kind: 'sysline', id: record.id, at: record.at, text: record.text })
+  return withEntry(state, {
+    kind: 'sysline',
+    id: record.id,
+    at: record.at,
+    text: record.text,
+    ...(record.room === true ? { room: true as const } : {})
+  })
 }
 
 /** The card main held for a run, as the window keeps it; its prose goes to the prose store. */
@@ -436,7 +458,13 @@ export function hydrate(
           messageId: record.messageId
         }
       : record.kind === 'sysline'
-        ? { kind: 'sysline', id: record.id, at: record.at, text: record.text }
+        ? {
+            kind: 'sysline',
+            id: record.id,
+            at: record.at,
+            text: record.text,
+            ...(record.room === true ? { room: true as const } : {})
+          }
         : { kind: 'user', id: record.id, at: record.at, text: record.text }
   )
   const cards = snapshot.runs.map(runEntryOf)
@@ -475,9 +503,10 @@ export function foldEvent(
   switch (event.name) {
     case 'session:opened': {
       const { agentId, sessionId } = event.payload
-      // The activation turn is in flight until the session says it is awaiting.
+      // The room has no agent id: it is the window's room, and nothing else of it is kept (Story 4.1).
+      // The activation turn of a persona is in flight until the session says it is awaiting.
       return agentId === undefined
-        ? { state }
+        ? { state: roomReady(state, sessionId) }
         : {
             state: withBusy(withSession(state, agentId, sessionId), sessionId, true)
           }
@@ -486,6 +515,9 @@ export function foldEvent(
     case 'session:closed': {
       const { sessionId, reason } = event.payload
       let next = withBusy(state, sessionId, false)
+      if (next.room === sessionId) {
+        next = { ...next, room: undefined }
+      }
       for (const [agentId, live] of state.sessions) {
         if (live === sessionId) {
           const sessions = new Map(next.sessions)
@@ -501,8 +533,8 @@ export function foldEvent(
 
     case 'harness:said': {
       // The harness's own line, once and at the end; one already held (by its id) is not added again.
-      const { id, at, text } = event.payload
-      return { state: withHandoff(state, { kind: 'sysline', id, at, text }) }
+      const { id, at, text, room } = event.payload
+      return { state: withHandoff(state, { kind: 'sysline', id, at, text, ...(room === true ? { room: true as const } : {}) }) }
     }
 
     case 'session:awaiting-turn': {

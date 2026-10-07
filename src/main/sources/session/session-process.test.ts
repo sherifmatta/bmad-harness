@@ -1,12 +1,14 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
 import {
+  ROOM_SKILL,
   SESSION_ARGS,
   SESSION_COMMAND,
   activationTurn,
   createLineSplitter,
   interruptLine,
   isAgentId,
+  roomActivationTurn,
   spawnSession,
   userTurnLine
 } from './session-process'
@@ -105,6 +107,39 @@ describe('userTurnLine', () => {
   })
 })
 
+describe('roomActivationTurn', () => {
+  const ROSTER = ['bmad-agent-analyst', 'bmad-agent-pm', 'bmad-agent-dev']
+  const mary = { id: 'bmad-agent-analyst', name: 'Mary' }
+  const john = { id: 'bmad-agent-pm', name: 'John' }
+  const amelia = { id: 'bmad-agent-dev', name: 'Amelia' }
+
+  it('names the party skill, which is the one skill whatever the cast', () => {
+    expect(ROOM_SKILL).toBe('bmad-party-mode')
+  })
+
+  it('is the skill alone when the cast is exactly the roster, in whatever order', () => {
+    expect(roomActivationTurn([mary, john, amelia], ROSTER)).toBe('/bmad-party-mode')
+    expect(roomActivationTurn([amelia, mary, john], ROSTER)).toBe('/bmad-party-mode')
+  })
+
+  it('names a subset inline, `Name (id)` joined by a comma and a space, in the order given', () => {
+    expect(roomActivationTurn([mary, john], ROSTER)).toBe('/bmad-party-mode Mary (bmad-agent-analyst), John (bmad-agent-pm)')
+    expect(roomActivationTurn([john], ROSTER)).toBe('/bmad-party-mode John (bmad-agent-pm)')
+  })
+
+  it('is a subset, not the roster, when the roster has agents the cast lacks', () => {
+    expect(roomActivationTurn([mary, john, amelia], [...ROSTER, 'bmad-agent-architect'])).toBe(
+      '/bmad-party-mode Mary (bmad-agent-analyst), John (bmad-agent-pm), Amelia (bmad-agent-dev)'
+    )
+  })
+
+  it('falls back to the id where a name is empty', () => {
+    expect(roomActivationTurn([{ id: 'bmad-agent-pm', name: '' }], ROSTER)).toBe(
+      '/bmad-party-mode bmad-agent-pm (bmad-agent-pm)'
+    )
+  })
+})
+
 describe('createLineSplitter', () => {
   function collect() {
     const lines: string[] = []
@@ -145,6 +180,29 @@ describe('spawnSession', () => {
       type: 'user',
       message: { role: 'user', content: [{ type: 'text', text: '/bmad-agent-analyst' }] }
     })
+  })
+
+  it('writes a room’s first turn, given as `firstTurn`, and no agent’s skill', async () => {
+    const { child, calls } = harness()
+    const pending = spawnSession({
+      firstTurn: '/bmad-party-mode Mary (bmad-agent-analyst)',
+      cwd: '/work/project',
+      spawn: (command, args, options) => {
+        calls.push({ command, args, cwd: options.cwd })
+        return child as unknown as SessionChild
+      },
+      killGroup: () => undefined,
+      onFrame: () => undefined,
+      onExit: () => undefined,
+      decide: () => ({ behavior: 'allow', updatedInput: {} })
+    })
+    child.spawn()
+    await pending
+
+    expect(calls[0].args).toEqual([...SESSION_ARGS])
+    expect(child.writes.map((line) => JSON.parse(line).message.content[0].text)).toEqual([
+      '/bmad-party-mode Mary (bmad-agent-analyst)'
+    ])
   })
 
   it('never passes the activation as an argument', async () => {

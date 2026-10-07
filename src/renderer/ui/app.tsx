@@ -16,6 +16,7 @@ import { Preflight } from './install/preflight'
 import { announceable, newAnnouncements, roomState } from './install/install-state'
 import { useInstall } from './install/use-install'
 import { useRail } from './outputs/use-rail'
+import { PartyView } from './party/party-view'
 import { Shell } from './shell/shell'
 import { currentAgent, displayOrder, groupAgents } from './team/tile-groups'
 import type { SyslineRecord } from '../../shared/conversation'
@@ -262,6 +263,14 @@ export function App(): JSX.Element | null {
           pinnedEntry === null ? null : (
             <RunCard key={pinnedEntry.id} entry={pinnedEntry} prose={conversation.prose} onStop={conversation.stopRun} />
           )
+        }
+        party={
+          <PartyView
+            agents={snapshot.agents}
+            room={conversation.room}
+            entries={conversation.entries}
+            onOpen={(cast) => void conversation.openRoom(cast)}
+          />
         }
         composer={(agent, items) => (
           // Keyed apart from the chat header, which carries the same agent id in the same list.

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import type { SessionTarget } from '../../../shared/commands'
 import type { ConversationSnapshot, OpenedSession, SyslineRecord } from '../../../shared/conversation'
 import type { ContractEvent } from '../../../shared/events'
 import type { AgentView } from '../../../shared/install'
@@ -60,8 +61,15 @@ class FakeBridge implements ConversationBridge {
   /** The sysline the open at this position answers with, if any; one entry is read per open. */
   handoffs: (SyslineRecord | undefined)[] = []
 
-  openSession(agentId: string): Promise<OpenedSession> {
+  /** The casts the room was asked for, in order; a room open is also an entry of `opens`, as `room`. */
+  casts: (readonly string[])[] = []
+
+  openSession(target: SessionTarget): Promise<OpenedSession> {
     const handoff = this.handoffs[this.opens.length]
+    if (typeof target !== 'string') {
+      this.casts.push(target.room)
+    }
+    const agentId = typeof target === 'string' ? target : 'room'
     this.opens.push(agentId)
     const pending = deferred<string>()
     this.openResult.push(pending)
@@ -1388,5 +1396,123 @@ describe('stopping a run (Story 3.7)', () => {
     await conversation.stopRun('r2')
 
     expect(bridge.stops).toEqual(['r-orphan', 'r2'])
+  })
+})
+
+describe('openRoom (Story 4.1)', () => {
+  const CAST = [mary.id, john.id]
+  const roomOpened = (sessionId: string): ContractEvent => ({ name: 'session:opened', payload: { sessionId, at: 1 } })
+  const roomClosed = (sessionId: string): ContractEvent => ({
+    name: 'session:closed',
+    payload: { sessionId, reason: 'process-exited', at: 9 }
+  })
+  const roomOf = (published: object | undefined): unknown => (published as { room?: unknown } | undefined)?.room
+
+  it('asks main for the cast, and the reply makes the session the window’s room, no persona’s', async () => {
+    const { conversation, last } = build()
+    await connected(conversation)
+    void conversation.openRoom(CAST)
+    expect(bridge.casts).toEqual([CAST])
+
+    bridge.openResult[0].resolve('r1')
+    await settle()
+
+    expect(roomOf(last())).toBe('r1')
+    expect(conversation).not.toHaveProperty('room')
+  })
+
+  it('takes the room from the agentless session:opened and clears it on the agentless session:closed', async () => {
+    const { conversation, last } = build()
+    await connected(conversation)
+
+    bridge.push(roomOpened('r1'))
+    expect(roomOf(last())).toBe('r1')
+    bridge.push(roomClosed('r1'))
+    expect(roomOf(last())).toBeUndefined()
+  })
+
+  it('leaves the persona maps alone: the room is in no session, queue or busy set', async () => {
+    const { conversation, last } = build()
+    await connected(conversation)
+    bridge.push(roomOpened('r1'))
+
+    const state = last() as unknown as { sessions: ReadonlyMap<string, string>; busy: ReadonlySet<string> }
+    expect(state.sessions.size).toBe(0)
+    expect(state.busy.size).toBe(0)
+  })
+
+  it('keeps a persona’s session when the room closes, and the room when a persona’s closes', async () => {
+    const { conversation, last } = build()
+    await connected(conversation)
+    bridge.push(opened('s1', mary.id))
+    bridge.push(roomOpened('r1'))
+
+    bridge.push(roomClosed('r1'))
+    expect([...(last() as unknown as { sessions: ReadonlyMap<string, string> }).sessions.keys()]).toEqual([mary.id])
+    bridge.push(roomOpened('r2'))
+    bridge.push({ name: 'session:closed', payload: { sessionId: 's1', agentId: mary.id, reason: 'closed', at: 9 } })
+    expect(roomOf(last())).toBe('r2')
+  })
+
+  it('has one open in flight at a time, and waits for the snapshot before asking', async () => {
+    const { conversation } = build()
+    const stop = conversation.connect()
+    void conversation.openRoom(CAST)
+    expect(bridge.casts).toEqual([])
+    await settle()
+    expect(bridge.casts).toEqual([CAST])
+
+    void conversation.openRoom(CAST)
+    expect(bridge.casts).toEqual([CAST])
+    stop()
+  })
+
+  it('shows a refused open as the envelope and leaves the window without a room', async () => {
+    const { conversation, failures, last } = build()
+    await connected(conversation)
+    void conversation.openRoom(CAST)
+    bridge.openResult[0].reject({ code: 'session/invalid-cast', message: 'session · not a valid cast for a room' })
+    await settle()
+
+    expect(failures.at(-1)).toMatchObject({ code: 'session/invalid-cast' })
+    expect(roomOf(last())).toBeUndefined()
+  })
+
+  it('takes a room sysline from a push and from the snapshot, flagged, and the 1:1 transcript keeps the flag', async () => {
+    const { conversation, last } = build()
+    bridge.conversation = Promise.resolve({
+      ...EMPTY,
+      entries: [{ kind: 'sysline', id: 'm-0', at: 1, text: 'room opened by you · present · Mary', room: true }]
+    })
+    await connected(conversation)
+    bridge.push({
+      name: 'harness:said',
+      payload: { sessionId: 'r1', id: 'm-1', text: 'session ended · the process exited', at: 5, room: true }
+    })
+    bridge.push({ name: 'harness:said', payload: { sessionId: 's1', id: 'm-2', text: 'turn failed', at: 6 } })
+
+    expect(last().entries).toEqual([
+      { kind: 'sysline', id: 'm-0', at: 1, text: 'room opened by you · present · Mary', room: true },
+      { kind: 'sysline', id: 'm-1', at: 5, text: 'session ended · the process exited', room: true },
+      { kind: 'sysline', id: 'm-2', at: 6, text: 'turn failed' }
+    ])
+  })
+
+  it('ignores an agentless persona:said, as the transcript fold does', async () => {
+    const { conversation, last } = build()
+    await connected(conversation)
+    bridge.push({ name: 'persona:said', payload: { sessionId: 'r1', messageId: 'm', text: 'room', at: 1 } })
+
+    expect(last()?.entries ?? []).toEqual([])
+  })
+
+  it('forgets the room when the conversation ends', async () => {
+    const { conversation, last } = build()
+    await connected(conversation)
+    bridge.push(roomOpened('r1'))
+
+    await conversation.end('/project')
+
+    expect(roomOf(last())).toBeUndefined()
   })
 })

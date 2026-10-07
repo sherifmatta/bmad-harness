@@ -201,6 +201,17 @@ describe('Shell', () => {
     expect(markup.indexOf('class="chat"')).toBeLessThan(markup.indexOf('class="rail"'))
   })
 
+  it('puts what `party` is given in the party view and nowhere else, and still hides it on open', () => {
+    const slotted = renderToStaticMarkup(
+      <Shell projectPath="/work/falcon" snapshot={snapshot(5)} party={<p className="slotted">in the room</p>} />
+    )
+    const party = slotted.slice(slotted.indexOf('<section class="view view-party"'))
+
+    expect(party).toMatch(/^<section[^>]*hidden=""[^>]*><p class="slotted">in the room<\/p><\/section>/)
+    expect(slotted.match(/class="slotted"/g)).toHaveLength(1)
+    expect(slotted.indexOf('class="slotted"')).toBeGreaterThan(slotted.indexOf('view-party'))
+  })
+
   it('leaves the party view empty', () => {
     expect(markup).toMatch(/<section[^>]*view-party[^>]*><\/section>/)
   })

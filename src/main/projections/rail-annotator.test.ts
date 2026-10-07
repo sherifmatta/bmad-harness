@@ -41,7 +41,7 @@ function run() {
 /** A target that records what it was told. */
 function recorder() {
   const told: [string, RailAnnotation | null][] = []
-  const target: AnnotationTarget = { annotate: (path, annotation) => void told.push([path, annotation]) }
+  const target: AnnotationTarget = { annotate: (path, annotation) => void told.push([path, annotation]), markRoom: () => undefined, unmarkRoom: () => undefined, clearRoom: () => undefined }
   return { target, told }
 }
 
@@ -405,5 +405,72 @@ describe('the annotator and the rail projection, two channels', () => {
     vi.advanceTimersByTime(SETTLE_MS)
     expect(projection.snapshot().rows[0].state).toBe('saved')
     expect(Object.keys(projection.snapshot().rows[0])).not.toContain('annotation')
+  })
+})
+
+describe('the room’s files (Story 4.1)', () => {
+  /** A target that records the paths it was told a room wrote. */
+  function roomRecorder() {
+    const marked: string[] = []
+    const target: AnnotationTarget = {
+      annotate: () => undefined,
+      markRoom: (path) => void marked.push(path),
+      unmarkRoom: () => undefined,
+      clearRoom: () => undefined
+    }
+    return { target, marked }
+  }
+
+  it('tells a bound target each path once, and holds what it learned before one was bound', () => {
+    const annotator = createRailAnnotator()
+    annotator.roomWrote(['_bmad/a.md'])
+    const { target, marked } = roomRecorder()
+
+    annotator.bind(target)
+    annotator.roomWrote(['_bmad/a.md', '_bmad/b.md'])
+    annotator.roomWrote(['_bmad/b.md'])
+
+    expect(marked).toEqual(['_bmad/a.md', '_bmad/b.md'])
+  })
+
+  it('reaches the real projection, whose row for the path becomes the room’s', () => {
+    vi.useFakeTimers()
+    const projection = createRailProjection({ onChange: () => undefined })
+    projection.observe({ type: 'artifact:found', path: PRD, size: 1, mtimeMs: 1 })
+    projection.ready()
+    const annotator = createRailAnnotator()
+    annotator.bind(projection)
+
+    annotator.roomWrote([PRD])
+
+    expect(projection.snapshot().rows[0]).toMatchObject({ path: PRD, room: true })
+    projection.dispose()
+    vi.useRealTimers()
+  })
+
+  it('tells the target to unmark a path a persona wrote, only if the room had it, and to clear all when the conversation ends', () => {
+    const unmarked: string[] = []
+    let cleared = 0
+    const annotator = createRailAnnotator()
+    annotator.bind({
+      annotate: () => undefined,
+      markRoom: () => undefined,
+      unmarkRoom: (path) => void unmarked.push(path),
+      clearRoom: () => void (cleared += 1)
+    })
+    annotator.roomWrote(['_bmad/a.md', '_bmad/b.md'])
+
+    annotator.personaWrote(['_bmad/a.md', '_bmad/never.md'])
+    annotator.personaWrote(['_bmad/a.md'])
+    expect(unmarked).toEqual(['_bmad/a.md'])
+
+    annotator.roomCleared()
+    annotator.roomCleared()
+    expect(cleared).toBe(1)
+
+    // Nothing is held for a later bind: the room's marks are gone.
+    const later: string[] = []
+    annotator.bind({ annotate: () => undefined, markRoom: (path) => void later.push(path), unmarkRoom: () => undefined, clearRoom: () => undefined })
+    expect(later).toEqual([])
   })
 })

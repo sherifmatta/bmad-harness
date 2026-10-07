@@ -156,3 +156,21 @@ describe('OutputRow', () => {
     }
   })
 })
+
+describe('OutputRow, for a file the room wrote (Story 4.1)', () => {
+  const ROOM: RailRow = { path: '_bmad/party/2026-10-06-topic.md', state: 'saved', savedAt: NOW - DAY, room: true }
+
+  it('draws `the room` in the owner slot in the room’s own class, with no portrait', () => {
+    const markup = render(ROOM, 'the room')
+
+    expect(markup).toContain('<span class="output-row-owner output-row-owner--room">the room</span>')
+    expect(markup).not.toMatch(/portrait|initials|<svg class="portrait/)
+  })
+
+  it('leaves a persona’s owner in the plain class', () => {
+    const markup = render(SAVED, 'John')
+
+    expect(markup).toContain('<span class="output-row-owner">John</span>')
+    expect(markup).not.toContain('output-row-owner--room')
+  })
+})

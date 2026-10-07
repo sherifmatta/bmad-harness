@@ -30,7 +30,7 @@ describe('railAnnotatorFor', () => {
     // The session bridge folds a run's events; the rail bridge, later, binds its projection.
     railAnnotatorFor(window).apply({ name: 'run:started', payload: started }, startCard(started))
     railAnnotatorFor(window).apply(piece, foldRunCard(startCard(started), piece))
-    railAnnotatorFor(window).bind({ annotate: (path, annotation) => void told.push([path, annotation]) })
+    railAnnotatorFor(window).bind({ annotate: (path, annotation) => void told.push([path, annotation]), markRoom: () => undefined, unmarkRoom: () => undefined, clearRoom: () => undefined })
 
     expect(told).toEqual([['_bmad/prd.md', { text: 'writing · §1 Vision', owner: { agentId: 'bmad-agent-pm' } }]])
   })

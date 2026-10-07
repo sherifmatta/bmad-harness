@@ -37,6 +37,8 @@ const snapshot: InstallSnapshot = {
 
 let mounted: Mounted | null
 let opened: string[]
+/** The casts the window asked for a room of, in order. */
+let roomCasts: (readonly string[])[]
 let sent: [string, string][]
 let ended: string[]
 /** The runs the window asked main to stop, and what main answers a stop with (nothing: it took it). */
@@ -74,7 +76,12 @@ function installBridge(): void {
       dispatchedMenus.push([sessionId, code])
       return 'r-dispatched'
     },
-    openSession: async (agentId: string) => {
+    openSession: async (target: string | { room: readonly string[] }) => {
+      if (typeof target !== 'string') {
+        roomCasts.push(target.room)
+        return { sessionId: 'session-of-the-room' }
+      }
+      const agentId = target
       opened.push(agentId)
       const handoff = handoffs.shift()
       return handoff === undefined
@@ -110,6 +117,7 @@ function installBridge(): void {
 beforeEach(() => {
   mounted = null
   opened = []
+  roomCasts = []
   sent = []
   ended = []
   stopped = []
@@ -1838,5 +1846,102 @@ describe('App, told once when elsewhere (Story 3.10)', () => {
     reveal('r2')
 
     expect(scrolled.map(([element]) => element)).toEqual([cards[1]])
+  })
+})
+
+describe('the party view (Story 4.1)', () => {
+  const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
+  const click = (element: Element | null | undefined): void => act(() => (element as HTMLElement).click())
+  const partyButton = (): Element | undefined =>
+    [...mounted!.container.querySelectorAll('.topbar button')].find((button) => button.textContent === 'Party Mode')
+  const party = (): Element => mounted!.container.querySelector('.view-party') as Element
+  const openButton = (): HTMLButtonElement | null =>
+    party().querySelector<HTMLButtonElement>('.cast-chooser-open')
+
+  it('shows the chooser under Party Mode while a persona session in the 1:1 view keeps running', async () => {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    push({ name: 'session:opened', payload: { sessionId: 's-mary', agentId: mary.id, at: 1 } })
+    push({
+      name: 'persona:said',
+      payload: { sessionId: 's-mary', agentId: mary.id, messageId: 'm1', text: 'Hello', at: 2 }
+    })
+
+    click(partyButton())
+
+    expect(party().hasAttribute('hidden')).toBe(false)
+    expect(mounted.container.querySelector('.view-conversation')?.hasAttribute('hidden')).toBe(true)
+    expect(party().querySelectorAll('input[type="checkbox"]')).toHaveLength(2)
+    expect(openButton()?.textContent).toBe('Open the room')
+    // Both views stay mounted: the conversation is still there, and no session was closed by looking away.
+    expect(mounted.container.querySelectorAll('.view-conversation .turn')).toHaveLength(1)
+    expect(closedSessions).toEqual([])
+  })
+
+  it('asks for the room of the ticked cast when *Open the room* is pressed, and draws the room’s sysline in the party thread and never in the 1:1 thread', async () => {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    click(partyButton())
+
+    // Mary and John are two of the five core personas, so both start ticked.
+    click(openButton())
+    await settle()
+    expect(roomCasts).toEqual([[mary.id, john.id]])
+
+    push({ name: 'session:opened', payload: { sessionId: 'session-of-the-room', at: 1 } })
+    push({
+      name: 'harness:said',
+      payload: {
+        sessionId: 'session-of-the-room',
+        id: 'm-0',
+        text: 'room opened by you · present · Mary · John',
+        at: 2,
+        room: true
+      }
+    })
+
+    expect(openButton()).toBeNull()
+    expect([...party().querySelectorAll('.sysline')].map((line) => line.textContent)).toEqual([
+      'room opened by you · present · Mary · John'
+    ])
+    expect(party().querySelector('.turn, .portrait, .persona-tile')).toBeNull()
+    expect(mounted.container.querySelector('.view-conversation')?.textContent).not.toContain('room opened by you')
+    // The room has no tile, no state and no entry among the persona sessions.
+    expect(mounted.container.querySelectorAll('.persona-tile')).toHaveLength(2)
+    expect(opened).toEqual([])
+  })
+
+  it('returns the chooser when the room closes, and leaves the old line where it fell', async () => {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    push({ name: 'session:opened', payload: { sessionId: 'r1', at: 1 } })
+    expect(openButton()).toBeNull()
+
+    push({ name: 'session:closed', payload: { sessionId: 'r1', reason: 'process-exited', at: 2 } })
+
+    expect(openButton()).not.toBeNull()
+  })
+
+  it('shows a file the room wrote as owned by the room, apart from a persona’s', async () => {
+    mounted = mount(createElement(App))
+    await settle()
+    const rows = [
+      { path: '_bmad/party/note.md', state: 'saved', savedAt: Date.now(), room: true },
+      { path: '_bmad/planning-artifacts/prd.md', state: 'saved', savedAt: Date.now(), owner: { agentId: john.id } }
+    ]
+    ;(window.harness as unknown as { getRail: () => Promise<unknown> }).getRail = async () => ({ revision: 2, rows })
+    mounted.unmount()
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+
+    const owners = [...mounted.container.querySelectorAll('.output-row-owner')]
+    expect(owners.map((owner) => [owner.textContent, owner.classList.contains('output-row-owner--room')])).toEqual([
+      ['the room', true],
+      ['John', false]
+    ])
   })
 })

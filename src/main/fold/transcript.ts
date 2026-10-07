@@ -58,9 +58,18 @@ export function foldUserTurn(state: TranscriptState, text: string, at: number): 
   return withRecord(state, { kind: 'user', id: `m-${state.nextId}`, at, text })
 }
 
-/** The harness's own line, appended as a record that no persona message joins. */
-export function foldSysline(state: TranscriptState, text: string, at: number): TranscriptState {
-  return withRecord(state, { kind: 'sysline', id: `m-${state.nextId}`, at, text })
+/**
+ * The harness's own line, appended as a record that no persona message joins. `room`, set on every line about a room,
+ * is kept on the record when set, and is absent otherwise.
+ */
+export function foldSysline(state: TranscriptState, text: string, at: number, room?: true): TranscriptState {
+  return withRecord(state, {
+    kind: 'sysline',
+    id: `m-${state.nextId}`,
+    at,
+    text,
+    ...(room === true ? { room: true as const } : {})
+  })
 }
 
 /**

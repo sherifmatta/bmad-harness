@@ -247,6 +247,23 @@ describe('note', () => {
       rows: [row('_bmad/prd.md', 'saved', B, 1), row('_bmad/epics.md', 'saved', undefined, 1)]
     })
 
+  it('raises no note for a file the room wrote, and takes no agentless session for a persona (Story 4.1)', () => {
+    const roomRow = (path: string, state: 'saved' | 'changing'): RailRow => ({ ...row(path, state), room: true })
+    const after = foldAt(
+      [
+        opened('room', undefined),
+        rail(2, row('_bmad/prd.md', 'saved', B, 1), roomRow('_bmad/party/note.md', 'changing')),
+        rail(3, row('_bmad/prd.md', 'saved', B, 1), roomRow('_bmad/party/note.md', 'saved'))
+      ],
+      NOW,
+      idle()
+    )
+
+    expect(after.shown.size).toBe(0)
+    expect(stateOf(after, B)).toBe('idle')
+    expect(after.rail?.has('_bmad/party/note.md')).toBe(false)
+  })
+
   it('treats the first snapshot as a baseline and raises nothing', () => {
     const first = fold(
       [rail(1, row('_bmad/prd.md', 'changing', B))],

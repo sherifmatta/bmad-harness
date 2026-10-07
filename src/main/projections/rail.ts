@@ -29,13 +29,30 @@ export type RailProjection = {
   observe(observation: ArtifactObservation): void
   /** The stream side's only way in. Decorates an existing row; creates nothing. */
   annotate(path: string, annotation: RailAnnotation | null): void
+  /**
+   * The stream side's other way in (Story 4.1): a room session wrote `path`, so its row
+   * is the room's. Creates no row; a path with none is marked for when the watcher
+   * makes one, and the mark is kept until the window goes.
+   */
+  markRoom(path: string): void
+  /** A persona wrote `path`: it is no longer the room's. Creates no row, and does nothing for a path never marked. */
+  unmarkRoom(path: string): void
+  /** The conversation ended: no file is the room's any more. */
+  clearRoom(): void
   /** The initial scan is done: fix the baseline, and push from here on. */
   ready(): void
   snapshot(): RailSnapshot
   dispose(): void
 }
 
-function withOwner(row: RailRow): RailRow {
+/**
+ * A row's owner: the room when a room session wrote the file, which stands in place of
+ * the class's owner, else the class's, else nobody.
+ */
+function withOwner(row: RailRow, roomPaths: ReadonlySet<string>): RailRow {
+  if (roomPaths.has(row.path)) {
+    return { ...row, room: true }
+  }
   const agentId = ownerAgentIdFor(row.path)
   return agentId === undefined ? row : { ...row, owner: { agentId } }
 }
@@ -56,7 +73,10 @@ export function createRailProjection({
   let disposed = false
   let timer: NodeJS.Timeout | null = null
 
-  const rows = (): RailRow[] => toRows(table).map(withOwner)
+  /** The files a room session wrote, by path. */
+  const roomPaths = new Set<string>()
+
+  const rows = (): RailRow[] => toRows(table).map((row) => withOwner(row, roomPaths))
 
   /** Advance the revision if the rows differ from the last sent; report whether they did. */
   function commit(): RailSnapshot | null {
@@ -119,6 +139,27 @@ export function createRailProjection({
       }
       table = annotate(table, path, annotation)
       flush()
+    },
+
+    markRoom(path) {
+      if (disposed || roomPaths.has(path)) {
+        return
+      }
+      roomPaths.add(path)
+      flush()
+    },
+
+    unmarkRoom(path) {
+      if (!disposed && roomPaths.delete(path)) {
+        flush()
+      }
+    },
+
+    clearRoom() {
+      if (!disposed && roomPaths.size > 0) {
+        roomPaths.clear()
+        flush()
+      }
     },
 
     ready() {

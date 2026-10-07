@@ -59,8 +59,9 @@ const NO_SINCE: ReadonlyMap<string, number> = new Map()
  * the user was doing is lost by looking at the other one. The Team half holds
  * the tiles and the chat column its header (Story 1.10); the Outputs half holds the
  * project's files (Story 1.11), and with no `rail` yet it is a head over an
- * empty body. The Party view is an empty region: its side panel is a later
- * story's, and no slot is reserved for it. `children` is what the thread holds.
+ * empty body. The Party view holds what `party` gives it (Story 4.1): its side
+ * panel is a later story's, and no slot is reserved for it. `children` is what
+ * the thread holds.
  *
  * Which persona is current is derived at render from the display order — the
  * chosen id if the roster still has it, else the topmost tile — so a roster
@@ -86,6 +87,7 @@ export function Shell({
   onCloseSession,
   composer,
   pinned,
+  party,
   children
 }: {
   projectPath: string
@@ -128,6 +130,8 @@ export function Shell({
   /** What is pinned at the top of the chat column for the current persona (Story 3.14): the
       running card. Called with the current persona; a `null` result draws no slot. */
   pinned?: (agent: AgentView) => ReactNode
+  /** What the Party view holds (Story 4.1): the cast chooser and the party thread. Left out, the view is empty. */
+  party?: ReactNode
   children?: ReactNode
 }): JSX.Element {
   const [view, setView] = useState<ViewId>(initialView)
@@ -213,7 +217,9 @@ export function Shell({
         className="view view-party"
         aria-label={labelOf('party')}
         hidden={view !== 'party'}
-      />
+      >
+        {party}
+      </section>
     </div>
   )
 }

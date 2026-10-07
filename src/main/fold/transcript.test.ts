@@ -120,3 +120,15 @@ describe('the sysline fold', () => {
     expect(foldUserTurn(loaded, 'next', 2).entries.at(-1)?.id).toBe('m-7')
   })
 })
+
+describe('a room’s sysline', () => {
+  it('keeps the `room` flag on its record, and a line without it has no such field', () => {
+    const state = foldSysline(foldSysline(EMPTY_TRANSCRIPT, 'room opened by you · present · Mary', 5, true), 'handed off', 6)
+
+    expect(state.entries).toEqual([
+      { kind: 'sysline', id: 'm-0', at: 5, text: 'room opened by you · present · Mary', room: true },
+      { kind: 'sysline', id: 'm-1', at: 6, text: 'handed off' }
+    ])
+    expect('room' in state.entries[1]).toBe(false)
+  })
+})

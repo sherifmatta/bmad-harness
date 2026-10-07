@@ -42,6 +42,12 @@ export type SyslineEntry = {
   id: string
   at: number
   text: string
+  /**
+   * The line is one the harness said about a room (Story 4.1), whether it opened, its
+   * turns or its process: it belongs to the party thread, which draws only these, and
+   * a persona's 1:1 thread never draws one.
+   */
+  room?: true
 }
 
 /**
