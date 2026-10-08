@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-25-2026 17:00
-last_updated: 10-06-2026 17:07
+last_updated: 10-08-2026 12:35
 project: bmad-harness
 project_key: NOKEY
 tracking_system: file-system
@@ -93,7 +93,7 @@ development_status:
   4-4-take-the-room-away-with-you: done
   4-5-the-room-ends-it-does-not-pause: done
   4-6-nothing-this-epic-promised-not-to-do: done
-  epic-4-retrospective: optional
+  epic-4-retrospective: done
 action_items:
   - id: "epic-1-retro-item-1-make-the-packaged-app-find-claude-and-uv"
     epic: 1
@@ -382,7 +382,7 @@ action_items:
       interrupt with a subagent running and one on an idle session. Before the build
       is used on a real skill."
     owner: "dev"
-    status: in-progress
+    status: done
     ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
   - id: "epic-3-retro-item-34-one-live-judgement-of-epic-3-on-a-real-c"
     epic: 3
@@ -518,3 +518,111 @@ action_items:
     owner: "dev"
     status: done
     ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-4-retro-item-49-keep-the-room-across-a-reload-f1-put-the"
+    epic: 4
+    action: "Keep the room across a reload (F1): put the live room (session id, cast,
+      opened-at, first message) in the conversation snapshot so the renderer rehydrates
+      header, strip, composer and stop; Open the room against a live room never replaces
+      the cast or resets counters; add a test that hydrates a snapshot while main
+      holds a live room."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-4-retro-2026-10-08.md"
+  - id: "epic-4-retro-item-50-make-a-refused-room-send-honest-f2-on-se"
+    epic: 4
+    action: "Make a refused room send honest (F2): on session/busy show a failure
+      line or drop the entry and offer retry; set the topic only after delivery; stop
+      room during an in-flight send shows no failure; replace the two tests that pin
+      the silent behavior."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-4-retro-2026-10-08.md"
+  - id: "epic-4-retro-item-51-decide-and-fix-what-the-room-shows-when"
+    epic: 4
+    action: "Decide and fix what the room shows when text is unmarked (F3): continuation
+      after a tool call keeps the speaker; orchestrator welcome, questions and tails
+      get an explicit rule; marker accept requires icon or cast membership and refuses
+      list and quote prefixes; guest outside the cast; the room's reply to the summary
+      ask is shown; replace route-frame tests that specify the drops."
+    owner: "Sherif + architect + dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-4-retro-2026-10-08.md"
+  - id: "epic-4-retro-item-52-run-the-room-once-through-the-product-ag"
+    epic: 4
+    action: "Run the room once through the product against a real claude and record
+      it (P3): default cast and a subset, greeting, interrupt, summary ask and reply,
+      stop, reload; record with scripts/record-run.mjs into fixtures/runs and add
+      a replay test; note party_mode in effect. Use the private real session in the
+      Claude logs only if Sherif says so. Before the room is used on real work."
+    owner: "Sherif + dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-4-retro-2026-10-08.md"
+  - id: "epic-4-retro-item-53-make-the-room-panel-say-what-the-room-re"
+    epic: 4
+    action: "Make the Room panel say what the room read and keep the destination visible
+      (F6): scope or cap the context list, destination shows without scrolling, decide
+      destination at 1180px and below."
+    owner: "dev + UX"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-4-retro-2026-10-08.md"
+  - id: "epic-4-retro-item-54-room-thread-and-room-lines-f5-f7-a5-boun"
+    epic: 4
+    action: "Room thread and room lines (F5, F7, A5): boundary or per-room scoping
+      for earlier rooms' entries; route quiet, failed and exited lines through room-register
+      lines with no guidance copy; make the 4.6 audit enumerate lines that reach the
+      party thread by rendering and drive sysline assertions from LINES; add route-frame
+      attribution to the persona-entry makers sweep."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-4-retro-2026-10-08.md"
+  - id: "epic-4-retro-item-55-settle-what-stop-room-and-write-summary"
+    epic: 4
+    action: "Settle what stop room and Write summary mean (F4, F8): kill only, or
+      an interrupt-only control plus wrap-up (FR84); guard Write summary against double
+      press and mid-turn; summary ask wording and whether it shows as the user's turn;
+      slug rules for long and non-ASCII topics; feedback that the file landed."
+    owner: "Sherif + architect + UX"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-4-retro-2026-10-08.md"
+  - id: "epic-4-retro-item-56-epic-4-structural-debt-a2-a3-p5-together"
+    epic: 4
+    action: "Epic 4 structural debt (A2, A3, P5), together with Epic 3 items 43 and
+      44 and Epic 2 item 30: split createConversation (366 lines) into persona-open,
+      room-open and send pipelines; one elapsed ticker; one unknown-agent stub; a
+      room entry type or discriminated field instead of eight optional room flags;
+      party-speech in the fold-purity list; src/main root in a layering net; split
+      negative-surface.test.ts."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-4-retro-2026-10-08.md"
+  - id: "epic-4-retro-item-57-spec-reconciliation-s4-f9-f10-proposed-n"
+    epic: 4
+    action: "Spec reconciliation (S4, F9, F10), proposed not applied: AD-14 288px/940px
+      to 240/900, AD-3 session.open union, spine line 226, EXPERIENCE.md 549 and 170,
+      FR69 context/turn counter/who opened it, epics.md 4.1 AC wording, FR84 for a
+      room, DESIGN.md 501 vs epic-4-context on wrap or scroll, UX-DR21 present-listening
+      vs in the room, @name semantics (EXPERIENCE.md 163)."
+    owner: "PM + architect + UX"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-4-retro-2026-10-08.md"
+  - id: "epic-4-retro-item-58-process-p1-p2-a-story-with-followup_revi"
+    epic: 4
+    action: "Process (P1, P2): a story with followup_review_recommended true or an
+      AC needing a live run does not go to done without a recorded decision; put each
+      Epic 4 residual risk (reload, old-room lines, real-skill premise, @name, destination
+      at narrow widths) into deferred-work.md now; set epic-4 to done in sprint status
+      after the verdict decision."
+    owner: "Sherif"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-4-retro-2026-10-08.md"
+  - id: "epic-4-retro-item-59-low-severity-bundle-f10-f11-f12-capitali"
+    epic: 4
+    action: "Low-severity bundle (F10, F11, F12): capitalised sans harness words and
+      the Placeholder copy line; equaliser bar count; strip cards and user avatars
+      as tab stops and announce room opened and stopped in the one live region; strip
+      newlines and parentheses from roster names in the first turn and remove the
+      activationTurn empty fallback; flush a held fragment as no one after an interrupt;
+      one clock for user-entry order."
+    owner: "dev + UX"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-4-retro-2026-10-08.md"
