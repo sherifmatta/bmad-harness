@@ -29,6 +29,9 @@ const FOCUS_CSS = 'src/renderer/design/focus.css'
 const A11Y = 'src/renderer/ui/a11y/'
 const ROVING = `${A11Y}roving-tabindex.ts`
 const LIVE_REGION = `${A11Y}live-region.tsx`
+// The splitter's key table (Story 5.5) is the one place outside a11y/ that names an arrow: `←` grows a
+// panel and `→` shrinks it, which no list's travel is. The folder heading's arrows are a11y/fold-key.ts's.
+const SPLITTER_KEYS = 'src/shared/layout.ts'
 const ENTRY = join(ROOT, 'src/renderer/ui/main.tsx')
 
 const focusCss = readFileSync(join(ROOT, FOCUS_CSS), 'utf8')
@@ -140,7 +143,7 @@ describe('the roving tabindex', () => {
     // list behaviour — clamping, off-axis keys, the empty list — with every
     // other check still green. Arrows belong to a11y/ or to nobody.
     expect(
-      sourcesMatching(/Arrow(?:Up|Down|Left|Right)/).filter((path) => !path.startsWith(A11Y))
+      sourcesMatching(/Arrow(?:Up|Down|Left|Right)/).filter((path) => !path.startsWith(A11Y) && path !== SPLITTER_KEYS)
     ).toEqual([])
     // And the reducer really is where they live, so the sweep is not vacuous.
     expect(sourcesMatching(/Arrow(?:Up|Down|Left|Right)/)).toContain(ROVING)
@@ -480,7 +483,7 @@ describe('the team, status and chat stylesheets', () => {
     const nav = sourceText.get('src/renderer/ui/team/tile-nav.ts') ?? ''
 
     expect(nav).toContain('rovingKey(')
-    expect(sourcesMatching(/Arrow(?:Up|Down|Left|Right)/).filter((path) => !path.startsWith(A11Y))).toEqual([])
+    expect(sourcesMatching(/Arrow(?:Up|Down|Left|Right)/).filter((path) => !path.startsWith(A11Y) && path !== SPLITTER_KEYS)).toEqual([])
   })
 
   it('never add a second live region', () => {

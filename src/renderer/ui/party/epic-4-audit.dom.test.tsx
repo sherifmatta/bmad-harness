@@ -22,7 +22,7 @@ import {
 } from '../chat/conversation-state'
 import type { ConversationState } from '../chat/conversation-state'
 import type { TranscriptEntry } from '../chat/transcript-entry'
-import { DENOMINATOR, SPINNER_MARKUP, STAND_IN, spoken } from '../testing/audit-patterns'
+import { DENOMINATOR, SPINNER_MARKUP, STAND_IN, spoken, withoutSplitters } from '../testing/audit-patterns'
 import '../testing/render-hook'
 import { PartyView } from './party-view'
 
@@ -247,7 +247,7 @@ describe.each(CASES)('Epic 4 promised nothing it did not keep: $name', ({ props,
   beforeEach(() => mountWith(props))
 
   it('draws no spinner, skeleton, bar, progress, meter or stand-in sentence, and no denominator', () => {
-    expect(container.innerHTML).not.toMatch(SPINNER_MARKUP)
+    expect(withoutSplitters(container.innerHTML)).not.toMatch(SPINNER_MARKUP)
     expect(container.querySelector(`progress, meter, audio, video, canvas, dialog, [role~=progressbar], ${ANNOUNCING}`)).toBeNull()
     expect(harnessWords()).not.toMatch(STAND_IN)
     // A path is not a fraction: the destination's `/` and its date are the panel's own fact, read as one.
@@ -260,8 +260,9 @@ describe.each(CASES)('Epic 4 promised nothing it did not keep: $name', ({ props,
     for (const banned of ['badge', 'unread', 'count', 'toast', 'snackbar', 'spinner', 'skeleton', 'shimmer', 'loader', 'progress']) {
       expect(words.has(banned), banned).toBe(false)
     }
-    // The only roles are the faces' own: a portrait is an image with a name, and nothing is a role of a control or a region.
-    expect(all('[role]').filter((node) => node.getAttribute('role') !== 'img')).toEqual([])
+    // The only roles are the faces' own: a portrait is an image with a name, and nothing is a role of a control or a region;
+    // bar the Room panel's splitter (Story 5.5), a separator with its value, which is neither.
+    expect(all('[role]').filter((node) => !['img', 'separator'].includes(node.getAttribute('role') ?? ''))).toEqual([])
   })
 
   it('draws no guidance and no next step: no start another, try, next, or you can', () => {
@@ -508,7 +509,7 @@ describe('the room’s words are the harness’s facts (UX-DR36)', () => {
 
       expect(all('.party-chip').map(text)[1], name).toMatch(/^turn \d+ · 10m 00s$/)
       expect([...all('.sysline'), ...all('.party-side'), ...all('.cast-strip'), ...all('.composer')].map(text), name).toEqual(before)
-      expect(container.innerHTML, name).not.toMatch(SPINNER_MARKUP)
+      expect(withoutSplitters(container.innerHTML), name).not.toMatch(SPINNER_MARKUP)
       expect(harnessWords(), name).not.toMatch(STAND_IN)
       // The refusal line (Story 4.8) is a fact said at the refusal, not a word about time passing: it is read as itself.
       expect(harnessWords().replace(ROOM_REFUSED_LINE, ''), name).not.toMatch(/\b(?:still|yet|idle|quiet|silent|stuck|inactive|away|timed out|expired|waiting)\b/i)

@@ -1,4 +1,4 @@
-import type { JSX } from 'react'
+import type { CSSProperties, JSX } from 'react'
 
 import './room-panel.css'
 import { roomDestination } from '../../../shared/room-destination'
@@ -20,7 +20,8 @@ export function RoomPanel({
   topic,
   openedAt,
   rows,
-  folder
+  folder,
+  style
 }: {
   /** What the room is about, or `undefined` until the user's first message. */
   topic: string | undefined
@@ -30,10 +31,12 @@ export function RoomPanel({
   rows: readonly RailRow[]
   /** The project's output folder, which the summary is written under (Story 5.4); `undefined` until the rail has said. */
   folder: string | undefined
+  /** The panel's own width while the user has chosen one (Story 5.5): `--party-side`, overridden. */
+  style?: CSSProperties | undefined
 }): JSX.Element {
   const context = rows.filter((row) => row.room !== true).map((row) => row.path)
   return (
-    <aside className="party-side" aria-label="room">
+    <aside className="party-side" aria-label="room" style={style}>
       <h2 className="room-panel-heading">Room</h2>
       <div className="room-panel-row">
         <span className="room-panel-key">topic</span>

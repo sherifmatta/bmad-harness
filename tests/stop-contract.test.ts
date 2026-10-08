@@ -108,7 +108,9 @@ describe('what a stop never touches', () => {
     const writers = main.filter((path) => /\b(?:writeFileSync|writeFile|appendFile|renameSync|unlinkSync|createWriteStream)\b/.test(code(path)))
 
     // Story 5.1's recent list is the one other: a path and a time under `userData`, written atomically.
+    // Story 5.5's layout is the next: two widths and the folded directories, under `userData` and atomic.
     expect(writers.map(rel).sort()).toEqual([
+      'src/main/sources/persistence/layout-file.ts',
       'src/main/sources/persistence/output-folder-file.ts',
       'src/main/sources/persistence/recent-file.ts',
       'src/main/sources/persistence/theme-file.ts',

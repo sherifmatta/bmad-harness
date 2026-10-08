@@ -858,11 +858,10 @@ describe('the light theme (Story 5.2, seam A)', () => {
     expect(firstDifferingLine(verbatimBlock(), fullCss)).toBeNull()
     expect(fullCss.startsWith(verbatimBlock())).toBe(true)
     // The promoted block as it stood before Story 5.2, plus the follow control's two
-    // dimensions (Story 5.3) and the Outputs head's one padding (Story 5.4) at its end, held by its digest: any byte moved in it, a
+    // dimensions (Story 5.3), the Outputs head's one padding (Story 5.4) and the splitter's and the folder heading's
+    // five dimensions (Story 5.5) at its end, held by its digest: any byte moved in it, a
     // value or a comment, changes the dark theme's source.
-    expect(createHash('sha256').update(promotedBlock()).digest('hex')).toBe(
-      '6254094cc51f5fde294c9c8020969c6d1ad110cd47df198435b6114f53afdba1'
-    )
+    expect(createHash('sha256').update(promotedBlock()).digest('hex')).toBe('69752673bc1f4bb99acca2692fe6c7d656b35188dec0328030b78ae3cd7f7216')
   })
 
   it('states color-scheme: light in its own block, and the dark theme still states dark', () => {

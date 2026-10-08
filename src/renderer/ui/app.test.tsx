@@ -2371,7 +2371,7 @@ describe('App, the output folder (Story 5.4)', () => {
       rows: [{ path: '_bmad/old.md', state: 'saved', savedAt: Date.now() }]
     }
     await start()
-    expect([...mounted!.container.querySelectorAll('.rail-group')].map((group) => group.textContent)).toContain('_bmad/')
+    expect([...mounted!.container.querySelectorAll('.folder-heading-path')].map((group) => group.textContent)).toContain('_bmad/')
 
     pushRail({
       revision: 2,
@@ -2464,5 +2464,46 @@ describe('App, the output folder (Story 5.4)', () => {
     expect(sent).toHaveLength(1)
     expect(sent[0][1]).toContain('docs/out/party/2026-10-08-<topic>.md')
     expect(sent[0][1]).not.toContain('_bmad')
+  })
+})
+
+describe('App, the layout (Story 5.5)', () => {
+  const start = async (): Promise<void> => {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+  }
+
+  it('provides the stored layout to the rail and the Outputs list, and keeps a fold through the bridge', async () => {
+    const setFolded: string[][] = []
+    const setPanelWidth: [string, number | null][] = []
+    railNow = {
+      revision: 1,
+      folder: '_bmad/',
+      rows: [
+        { path: '_bmad/epics.md', state: 'saved', savedAt: 1 },
+        { path: '_bmad/ux/design.md', state: 'saved', savedAt: 1 }
+      ]
+    }
+    Object.assign(window.harness, {
+      getLayout: () => ({ rail: 400, room: null, folded: ['_bmad/'] }),
+      setFolded: (dirs: string[]) => void setFolded.push([...dirs]),
+      setPanelWidth: (panel: string, width: number | null) => void setPanelWidth.push([panel, width])
+    })
+
+    await start()
+
+    const rail = mounted!.container.querySelector('.rail') as HTMLElement
+    expect(rail.style.getPropertyValue('--rail')).toBe('400px')
+    const headings = [...mounted!.container.querySelectorAll<HTMLButtonElement>('.folder-heading')]
+    expect(headings.map((heading) => heading.textContent)).toEqual(['_bmad/', '_bmad/ux/'])
+    expect(headings[0].getAttribute('aria-expanded')).toBe('false')
+    expect(headings[1].getAttribute('aria-expanded')).toBe('true')
+    expect([...mounted!.container.querySelectorAll('.output-row-name')].map((name) => name.textContent)).toEqual(['design.md'])
+
+    act(() => headings[1].click())
+
+    expect(setFolded).toEqual([['_bmad/', '_bmad/ux/']])
+    expect(setPanelWidth).toEqual([])
   })
 })

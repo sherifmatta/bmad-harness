@@ -3,11 +3,12 @@ import type { ConversationSnapshot, OpenedSession } from '../shared/conversation
 import type { ContractEvent } from '../shared/events'
 import type { RunId, SessionId } from '../shared/ids'
 import type { InstallSnapshot } from '../shared/install'
+import type { Layout, PanelId } from '../shared/layout'
 import type { ChooseOutcome } from '../shared/output-folder'
 import type { RailSnapshot } from '../shared/rail'
 
 /**
- * The whole bridge surface. Explicitly enumerated: eighteen named methods, no
+ * The whole bridge surface. Explicitly enumerated: twenty-one named methods, no
  * generic `invoke(channel, …)` passthrough, and no `ipcRenderer` in the
  * renderer's reach.
  */
@@ -40,6 +41,22 @@ export interface HarnessApi {
    * arrive in the rail's next snapshot. Rejects with the `HarnessError` envelope.
    */
   chooseOutputFolder(): Promise<ChooseOutcome>
+  /**
+   * The layout this window starts from (Story 5.5): the two panel widths the user chose,
+   * or `null` for a panel left at its default, and the Outputs directories this project
+   * has folded. Synchronous, so the first paint is at the stored width; never throws.
+   */
+  getLayout(): Layout
+  /**
+   * Keep one panel's width (an integer within its range), or `null` to forget it. A request:
+   * nothing comes back, and main ignores a width the panel would not read.
+   */
+  setPanelWidth(panel: PanelId, width: number | null): void
+  /**
+   * Keep the Outputs directories this project has folded, as project-relative paths. A
+   * request: nothing comes back. Held under `userData`, never in the project.
+   */
+  setFolded(dirs: readonly string[]): void
   /**
    * Calls back with the project-relative path of the row whose document window
    * has just been closed by the user; returns the way to stop listening.

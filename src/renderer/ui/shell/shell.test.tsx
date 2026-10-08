@@ -480,12 +480,13 @@ describe('Shell, the project files', () => {
     const outputs = outputsOf(withRail)
 
     expect(outputs).not.toMatch(/<input|<a |role=/)
-    // The head's `change…` and the two rows: the rows are the one tab stop, the head's button its own, before them.
-    expect(count(outputs, /<button/g)).toBe(1 + 2)
+    // The head's `change…`, the two directories' headings and the two rows: the headings and the rows are the
+    // list's one tab stop (the first heading holds it), the head's button its own, before them.
+    expect(count(outputs, /<button/g)).toBe(1 + 2 + 2)
     expect(count(outputs, /tabindex="0"/g)).toBe(1)
     expect(outputs.indexOf('change…')).toBeLessThan(outputs.indexOf('<li'))
-    // Three tiles, two switch buttons, `change…` and the two rows.
-    expect(count(withRail, /<button/g)).toBe(2 + 3 + 1 + 2)
+    // Three tiles, two switch buttons, `change…`, the two headings and the two rows.
+    expect(count(withRail, /<button/g)).toBe(2 + 3 + 1 + 2 + 2)
   })
 
   it('shows the empty state for a snapshot with no rows, and the failure for a failed rail', () => {

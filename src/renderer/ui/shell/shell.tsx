@@ -8,6 +8,8 @@ import type { RailSnapshot } from '../../../shared/rail'
 import { ChatHeader } from '../chat/chat-header'
 import { OrphanHeader } from '../chat/orphan-header'
 import { FollowScroller } from '../follow/follow-scroller'
+import { PanelSplitter } from '../layout/panel-splitter'
+import { usePanelWidth } from '../layout/use-panel-width'
 import type { PersonaState } from '../persona/portrait'
 import { ConnectedOutputs } from '../outputs/outputs'
 import { OutputsFolder, OutputsState } from '../outputs/outputs-head'
@@ -167,6 +169,8 @@ export function Shell({
   const [view, setView] = useState<ViewId>(initialView)
   const [ownId, setOwnId] = useState<string | null>(null)
   const branch = useBranch()
+  // The rail's width (Story 5.5): chosen by its splitter, shown as the token's own property overridden on the rail.
+  const { holdContainer: holdView, style: railStyle, splitter: railSplitter } = usePanelWidth('rail')
   // The current composer's field, which the thread's `↓ latest` puts focus in (Story 5.3).
   const [fieldRef] = useState(() => createRef<HTMLTextAreaElement>())
 
@@ -201,6 +205,7 @@ export function Shell({
         className="view view-conversation"
         aria-label={labelOf('conversation')}
         hidden={view !== 'conversation'}
+        ref={holdView}
       >
         <div className="chat">
           {pinnedNode !== null && pinnedNode !== undefined && <div className="pinned">{pinnedNode}</div>}
@@ -231,7 +236,8 @@ export function Shell({
           </FollowScroller>
           {current !== null && composer?.(current, snapshot.menus[current.id] ?? NO_ITEMS, fieldRef)}
         </div>
-        <div className="rail">
+        <PanelSplitter splitter={railSplitter} />
+        <div className="rail" style={railStyle}>
           <RailHalf label="Team">
             <Team
               agents={snapshot.agents}

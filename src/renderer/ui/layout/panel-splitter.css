@@ -1,0 +1,54 @@
+/*
+ * A side panel's splitter (Story 5.5), from DESIGN.md's `components.splitter`
+ * and the mockup's resize handle. A 9px hit area centred on the panel's own 1px
+ * border, which is the line at rest. It is a flex item of net-zero width (the
+ * box is --splitter-hit and its two margins pull it back by the same), so it
+ * takes no room from either column, and `position: relative` lets it paint over
+ * the panel's edge without a stacking index.
+ *
+ * Hover widens the line to 3px of --accent-border; a drag and keyboard focus make
+ * it 3px of --accent, and focus keeps the shared ring (design/focus.css).
+ *
+ * No transition, animation or easing: the panel follows the pointer one frame at
+ * a time and every state change is one frame. Whether it shows at all is the
+ * shell's two media rules. Every value reaches the design system through `var()`.
+ */
+
+.panel-splitter {
+  position: relative;
+  flex: 0 0 var(--splitter-hit);
+  width: var(--splitter-hit);
+  margin: 0 var(--splitter-pull);
+  align-self: stretch;
+  cursor: col-resize;
+}
+
+.panel-splitter::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--splitter-inset);
+  width: var(--splitter-line);
+  background: transparent;
+}
+
+.panel-splitter:hover::before {
+  background: var(--accent-border);
+}
+
+.panel-splitter.is-dragging::before,
+.panel-splitter:focus-visible::before {
+  background: var(--accent);
+}
+
+/* While a splitter is dragged the whole window shows the resize cursor and
+   selects nothing; the class is removed on release, cancel and unmount. */
+body.is-resizing,
+body.is-resizing * {
+  cursor: col-resize;
+}
+
+body.is-resizing {
+  user-select: none;
+}

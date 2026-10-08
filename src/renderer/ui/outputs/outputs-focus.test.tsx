@@ -3,6 +3,7 @@ import { isValidElement } from 'react'
 import type { KeyboardEvent, ReactElement, ReactNode } from 'react'
 
 import type { RailRow, RailSnapshot } from '../../../shared/rail'
+import { FolderHeading } from './folder-heading'
 import { OutputRow } from './output-row'
 import { Outputs } from './outputs'
 
@@ -87,11 +88,15 @@ vi.mock('react', async (importOriginal) => {
     useEffect: (effect: () => void) => {
       effect()
     },
-    useCallback: (callback: unknown) => callback
+    useCallback: (callback: unknown) => callback,
+    // The layout context with no provider is its inert default, and the ids are fixed (Story 5.5).
+    useContext: (context: { _currentValue: unknown }) => context._currentValue,
+    useId: () => 'outputs'
   }
 })
 
 type RowProps = Parameters<typeof OutputRow>[0]
+type HeadingProps = Parameters<typeof FolderHeading>[0]
 type OutputsProps = Parameters<typeof Outputs>[0]
 
 /** Every element of a given component type in a returned tree, in document order. */
@@ -121,6 +126,11 @@ const ARCHITECTURE = '_bmad/planning-artifacts/architecture.md'
 const PRD = '_bmad/planning-artifacts/prd.md'
 const ORDER = [EPICS, ARCHITECTURE, PRD]
 
+/** The two directories' headings, in visual order, as the list keys them (Story 5.5). */
+const TOP = '_bmad/'
+const PLANNING = '_bmad/planning-artifacts/'
+const HEADING = (dir: string): string => `dir:${dir}`
+
 const SNAPSHOT: RailSnapshot = {
   revision: 1,
   folder: '_bmad/',
@@ -138,9 +148,18 @@ function outputsProps(overrides: Partial<OutputsProps> = {}): OutputsProps {
   }
 }
 
-function renderOutputs(props: OutputsProps = outputsProps()): RowProps[] {
+/** One render: the headings and the rows of the list, each in visual order. */
+function renderList(props: OutputsProps = outputsProps()): { rows: RowProps[]; headings: HeadingProps[] } {
   hooks.begin('outputs')
-  return elementsOfType<RowProps>(Outputs(props), OutputRow).map((element) => element.props)
+  const tree = Outputs(props)
+  return {
+    rows: elementsOfType<RowProps>(tree, OutputRow).map((element) => element.props),
+    headings: elementsOfType<HeadingProps>(tree, FolderHeading).map((element) => element.props)
+  }
+}
+
+function renderOutputs(props: OutputsProps = outputsProps()): RowProps[] {
+  return renderList(props).rows
 }
 
 /** A fake key event: no modifier held unless told, and a spy for `preventDefault`. */
@@ -150,13 +169,18 @@ function keyEvent(key: string, modifiers: Partial<Record<'altKey' | 'ctrlKey' | 
   return { event: event as unknown as KeyboardEvent<HTMLButtonElement>, preventDefault }
 }
 
-/** Register a fake element for each row, as React would through its ref. */
-function register(rows: RowProps[]): Map<string, ReturnType<typeof vi.fn>> {
+/** Register a fake element for each row and heading, as React would through its ref; a heading is keyed as the list keys it. */
+function register(rows: RowProps[], headings: HeadingProps[] = []): Map<string, ReturnType<typeof vi.fn>> {
   const focuses = new Map<string, ReturnType<typeof vi.fn>>()
   rows.forEach((row) => {
     const focus = vi.fn()
     focuses.set(row.row.path, focus)
     row.buttonRef({ focus } as unknown as HTMLButtonElement)
+  })
+  headings.forEach((heading) => {
+    const focus = vi.fn()
+    focuses.set(HEADING(heading.dir), focus)
+    heading.buttonRef({ focus } as unknown as HTMLButtonElement)
   })
   return focuses
 }
@@ -184,60 +208,72 @@ beforeEach(() => {
 const tabStops = (rows: RowProps[]): boolean[] => rows.map((row) => row.tabStop)
 
 describe('Outputs, visual order', () => {
-  it('lists the rows groups first, names second, and makes the first the tab stop', () => {
-    const rows = renderOutputs()
+  it('lists the headings and the rows groups first, names second, and makes the first heading the tab stop', () => {
+    const { rows, headings } = renderList()
 
+    expect(headings.map((heading) => heading.dir)).toEqual([TOP, PLANNING])
     expect(rows.map((row) => row.row.path)).toEqual(ORDER)
-    expect(tabStops(rows)).toEqual([true, false, false])
+    expect(headings.map((heading) => heading.tabStop)).toEqual([true, false])
+    expect(tabStops(rows)).toEqual([false, false, false])
   })
 })
 
 describe('Outputs, keys', () => {
-  it('moves down across a directory group in visual order, focuses the row and stops the scroll', () => {
-    const rows = renderOutputs()
-    const focuses = register(rows)
+  it('moves down across a directory group in visual order, a heading between, and stops the scroll', () => {
+    const { rows, headings } = renderList()
+    const focuses = register(rows, headings)
     const { event, preventDefault } = keyEvent(DOWN)
 
-    // epics.md is the only row of its group; the next in visual order is in another.
+    // epics.md is the only row of its group; the next in visual order is the next directory's heading.
     rows[0].onKey(event)
 
     expect(preventDefault).toHaveBeenCalledTimes(1)
-    expect(focuses.get(ARCHITECTURE)).toHaveBeenCalledTimes(1)
+    expect(focuses.get(HEADING(PLANNING))).toHaveBeenCalledTimes(1)
     expect(focuses.get(EPICS)).not.toHaveBeenCalled()
-    expect(focuses.get(PRD)).not.toHaveBeenCalled()
-    expect(hooks.events).toEqual([`set:outputs:1:${ARCHITECTURE}`])
-    // The moved-to row holds the tab stop on the next render.
-    expect(tabStops(renderOutputs())).toEqual([false, true, false])
+    expect(focuses.get(ARCHITECTURE)).not.toHaveBeenCalled()
+    expect(hooks.events).toEqual([`set:outputs:1:${HEADING(PLANNING)}`])
+    // The moved-to heading holds the tab stop on the next render, and no row does.
+    const next = renderList()
+    expect(next.headings.map((heading) => heading.tabStop)).toEqual([false, true])
+    expect(tabStops(next.rows)).toEqual([false, false, false])
+
+    // And down again, from the heading, to the group's first row.
+    headings[1].onKey(keyEvent(DOWN).event)
+    expect(focuses.get(ARCHITECTURE)).toHaveBeenCalledTimes(1)
   })
 
-  it('moves up back across the group boundary', () => {
-    const rows = renderOutputs()
-    const focuses = register(rows)
+  it('moves up back across the group boundary, through the heading', () => {
+    const { rows, headings } = renderList()
+    const focuses = register(rows, headings)
 
     rows[1].onKey(keyEvent(UP).event)
+    expect(focuses.get(HEADING(PLANNING))).toHaveBeenCalledTimes(1)
 
+    headings[1].onKey(keyEvent(UP).event)
     expect(focuses.get(EPICS)).toHaveBeenCalledTimes(1)
   })
 
   it('clamps at both ends of the whole list, not of a group', () => {
-    const rows = renderOutputs()
-    const focuses = register(rows)
+    const { rows, headings } = renderList()
+    const focuses = register(rows, headings)
 
     rows[2].onKey(keyEvent(DOWN).event)
     expect(focuses.get(PRD)).toHaveBeenCalledTimes(1)
 
-    rows[0].onKey(keyEvent(UP).event)
-    expect(focuses.get(EPICS)).toHaveBeenCalledTimes(1)
+    headings[0].onKey(keyEvent(UP).event)
+    expect(focuses.get(HEADING(TOP))).toHaveBeenCalledTimes(1)
+    expect(focuses.get(HEADING(PLANNING))).not.toHaveBeenCalled()
     expect(focuses.get(ARCHITECTURE)).not.toHaveBeenCalled()
   })
 
   it('does nothing when a modifier is held', () => {
-    const rows = renderOutputs()
-    const focuses = register(rows)
+    const { rows, headings } = renderList()
+    const focuses = register(rows, headings)
 
     for (const modifier of ['altKey', 'ctrlKey', 'metaKey', 'shiftKey'] as const) {
       const { event, preventDefault } = keyEvent(DOWN, { [modifier]: true })
       rows[0].onKey(event)
+      headings[0].onKey(keyEvent(DOWN, { [modifier]: true }).event)
 
       expect(preventDefault, modifier).not.toHaveBeenCalled()
     }
@@ -290,13 +326,14 @@ describe('Outputs, focus return', () => {
     expect(tabStops(renderOutputs())).toEqual([false, false, true])
   })
 
-  it('falls to the list’s first tab stop when the row has gone', () => {
-    const rows = renderOutputs()
-    const focuses = register(rows)
+  it('falls to the list’s first tab stop, the first heading, when the row has gone', () => {
+    const { rows, headings } = renderList()
+    const focuses = register(rows, headings)
 
     closed('_bmad/gone.md')
 
-    expect(focuses.get(EPICS)).toHaveBeenCalledTimes(1)
+    expect(focuses.get(HEADING(TOP))).toHaveBeenCalledTimes(1)
+    expect(focuses.get(EPICS)).not.toHaveBeenCalled()
     expect(focuses.get(ARCHITECTURE)).not.toHaveBeenCalled()
     expect(focuses.get(PRD)).not.toHaveBeenCalled()
     expect(hooks.events).toEqual([])

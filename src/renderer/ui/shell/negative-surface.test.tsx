@@ -89,7 +89,10 @@ describe('the assembled shell, all five persona states', () => {
   it('has no input, no dialog, combobox or search, no footer', () => {
     expect(markup).not.toMatch(/<(?:input|textarea|select|dialog|footer)\b/i)
     expect(markup).not.toMatch(/role="(?:dialog|alertdialog|combobox|search|searchbox|listbox|menu)"/)
-    expect(markup).not.toMatch(/aria-modal|aria-haspopup|aria-expanded|contenteditable/i)
+    expect(markup).not.toMatch(/aria-modal|aria-haspopup|contenteditable/i)
+    // `aria-expanded` is a folder heading's own (Story 5.5), on that button and nothing else.
+    const folded = markup.replace(/(class="folder-heading focus-inset") aria-expanded="(?:true|false)"/g, '$1')
+    expect(folded).not.toMatch(/aria-expanded/i)
   })
 
   it('has no badge, unread count, quest marker or highlight', () => {

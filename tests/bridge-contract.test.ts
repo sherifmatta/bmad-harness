@@ -90,6 +90,7 @@ const projectBridge = await import('../src/main/project-bridge')
 const railBridge = await import('../src/main/rail-bridge')
 const docBridge = await import('../src/main/doc-bridge')
 const outputFolderBridge = await import('../src/main/output-folder-bridge')
+const layoutBridge = await import('../src/main/layout-bridge')
 const welcomeBridge = await import('../src/main/welcome-bridge')
 const themeBridge = await import('../src/main/theme-bridge')
 const sessionBridge = await import('../src/main/session-bridge')
@@ -127,6 +128,22 @@ it('answers the output folder’s one channel on the same literal from both side
   expect(preload.OUTPUT_FOLDER_CHOOSE_CHANNEL).toBe(outputFolderBridge.OUTPUT_FOLDER_CHOOSE_CHANNEL)
   expect(preload.OUTPUT_FOLDER_CHOOSE_CHANNEL).toBe('output-folder:choose')
   expect(registeredHandlers.has(outputFolderBridge.OUTPUT_FOLDER_CHOOSE_CHANNEL)).toBe(true)
+})
+
+it('answers the layout’s three channels on the same literals from both sides (Story 5.5)', () => {
+  expect(preload.LAYOUT_GET_CHANNEL).toBe(layoutBridge.LAYOUT_GET_CHANNEL)
+  expect(preload.LAYOUT_SET_WIDTH_CHANNEL).toBe(layoutBridge.LAYOUT_SET_WIDTH_CHANNEL)
+  expect(preload.LAYOUT_SET_FOLDED_CHANNEL).toBe(layoutBridge.LAYOUT_SET_FOLDED_CHANNEL)
+  expect([
+    layoutBridge.LAYOUT_GET_CHANNEL,
+    layoutBridge.LAYOUT_SET_WIDTH_CHANNEL,
+    layoutBridge.LAYOUT_SET_FOLDED_CHANNEL
+  ]).toEqual(['layout:get', 'layout:set-width', 'layout:set-folded'])
+  // The read is answered synchronously, as the theme's state is, so the first paint is at the stored width.
+  expect(registeredListeners.has(layoutBridge.LAYOUT_GET_CHANNEL)).toBe(true)
+  expect(registeredHandlers.has(layoutBridge.LAYOUT_GET_CHANNEL)).toBe(false)
+  expect(registeredHandlers.has(layoutBridge.LAYOUT_SET_WIDTH_CHANNEL)).toBe(true)
+  expect(registeredHandlers.has(layoutBridge.LAYOUT_SET_FOLDED_CHANNEL)).toBe(true)
 })
 
 it('answers the document channels on the same literals from both sides', () => {
@@ -229,7 +246,7 @@ it('paints each of the three windows from main’s state as its preload loads, a
   }
 })
 
-it('exposes exactly eighteen named methods, and no channel passthrough', () => {
+it('exposes exactly twenty-one named methods, and no channel passthrough', () => {
   const harness = exposedApis.get('harness')
 
   expect(harness).toBeDefined()
@@ -242,6 +259,9 @@ it('exposes exactly eighteen named methods, and no channel passthrough', () => {
     'onRailChanged',
     'openDoc',
     'chooseOutputFolder',
+    'getLayout',
+    'setPanelWidth',
+    'setFolded',
     'onDocClosed',
     'openSession',
     'closeSession',
@@ -299,7 +319,7 @@ it('exposes the Welcome exactly seven named methods, four of them its own and th
     }
   }
   // The counts of the other two are untouched by the Welcome's arrival.
-  expect(Object.keys(exposedApis.get('harness') ?? {})).toHaveLength(18)
+  expect(Object.keys(exposedApis.get('harness') ?? {})).toHaveLength(21)
   expect(Object.keys(exposedApis.get('docWindow') ?? {})).toHaveLength(5)
 })
 
@@ -497,6 +517,33 @@ it('sends chooseOutputFolder down its channel with nothing, and resolves with wh
   const error = { code: 'output-folder/unexpected', message: 'output-folder · unexpected failure', detail: 'Error' }
   invoke.mockResolvedValue({ ok: false, error })
   await expect(choose()).rejects.toEqual(error)
+})
+
+it('asks for the layout only when the window does, and sends a width and a folded set down their own channels, each with only what it holds (Story 5.5)', () => {
+  const harness = exposedApis.get('harness') as {
+    getLayout: () => unknown
+    setPanelWidth: (panel: string, width: number | null) => unknown
+    setFolded: (dirs: string[]) => unknown
+  }
+  // Not at load: the three preloads' only synchronous ask is the theme's.
+  expect(syncAsked.some(([channel]) => channel === layoutBridge.LAYOUT_GET_CHANNEL)).toBe(false)
+
+  const stored = { rail: 400, room: null, folded: ['_bmad/'] }
+  sendSync.mockReturnValueOnce(stored as never)
+  expect(harness.getLayout()).toBe(stored)
+  expect(sendSync.mock.calls.at(-1)).toEqual([layoutBridge.LAYOUT_GET_CHANNEL])
+
+  invoke.mockClear()
+  invoke.mockResolvedValue({ ok: true })
+  expect(harness.setPanelWidth('rail', 400)).toBeUndefined()
+  expect(harness.setPanelWidth('room', null)).toBeUndefined()
+  const dirs = ['_bmad/', '_bmad/planning-artifacts/']
+  expect(harness.setFolded(dirs)).toBeUndefined()
+  expect(invoke.mock.calls).toEqual([
+    [layoutBridge.LAYOUT_SET_WIDTH_CHANNEL, 'rail', 400],
+    [layoutBridge.LAYOUT_SET_WIDTH_CHANNEL, 'room', null],
+    [layoutBridge.LAYOUT_SET_FOLDED_CHANNEL, dirs]
+  ])
 })
 
 it('turns a refused doc:open into a rejection carrying the envelope', async () => {

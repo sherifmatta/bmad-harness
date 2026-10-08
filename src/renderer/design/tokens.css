@@ -639,6 +639,18 @@
      on the spacing ladder. Everything else it needs (--fs-label, --dim, --panel,
      --line-soft, --rule-width, --mono) already exists. */
   --rail-state-padding:var(--space-xs) 11px;
+
+  /* ── The side panels' splitter and the Outputs folder heading's chevron (Story 5.5), read
+     off DESIGN.md's `components.splitter` and `components.folder-heading`. --rail and
+     --party-side are the panels' DEFAULTS: a chosen width overrides the property inline on
+     the panel, and the stylesheets never spell a width. The splitter is a 9px hit area of
+     net-zero width (its two margins pull it back by half the box each), its drawn line is
+     3px and sits (hit - line) / 2 in from the box's edge; the chevron is 9px. */
+  --splitter-hit:9px;
+  --splitter-pull:-4.5px;
+  --splitter-line:3px;
+  --splitter-inset:3px;
+  --chevron-size:9px;
 }
 
 /*

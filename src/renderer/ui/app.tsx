@@ -12,6 +12,8 @@ import type { RunCollapse } from './chat/transcript'
 import { useConversation } from './chat/use-conversation'
 import { connectRunRevealed } from './chat/use-reveal'
 import { ErrorLine } from './install/error-line'
+import { LayoutContext } from './layout/layout-context'
+import { useLayout } from './layout/use-layout'
 import { Preflight } from './install/preflight'
 import { announceable, newAnnouncements, roomState } from './install/install-state'
 import { useInstall } from './install/use-install'
@@ -65,6 +67,8 @@ export function App(): JSX.Element | null {
   const [failure, setFailure] = useState<string | null>(null)
   const { snapshot, failure: installFailure } = useInstall()
   const { snapshot: rail, failure: railFailure } = useRail()
+  // The panels' widths and the folded directories the window started from (Story 5.5), and how to keep them.
+  const layout = useLayout()
   const [announcer] = useState(() => new Announcer())
   const [currentId, setCurrentId] = useState<string | null>(null)
   // The persona whose composer takes focus when it appears, or when `n` moves: after an
@@ -258,7 +262,7 @@ export function App(): JSX.Element | null {
     onRevealed: revealed
   }
   return (
-    <>
+    <LayoutContext.Provider value={layout}>
       <Shell
         key="shell"
         projectPath={projectPath}
@@ -357,6 +361,6 @@ export function App(): JSX.Element | null {
         <Turns entries={conversation.entries} onCancel={conversation.cancel} canAnswer={conversation.canAnswer} onChoose={answer} prose={conversation.prose} pinnedRunId={pinnedEntry?.id} collapse={collapse} onStop={conversation.stopRun} />
       </Shell>
       <LiveRegion key="live-region" announcer={announcer} />
-    </>
+    </LayoutContext.Provider>
   )
 }

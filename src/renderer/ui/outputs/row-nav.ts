@@ -28,7 +28,16 @@ export function rowMove(key: string, index: number, count: number): number | nul
 }
 
 /**
- * The one row that holds `tabindex="0"`: the one last moved to or opened, else
+ * The key a directory's heading has in the list's order (Story 5.5): the list holds
+ * headings and rows, and a row is keyed by its path. A heading's key ends in `/`
+ * and a file's path never does, so no heading is taken for a row.
+ */
+export function headingKey(dir: string): string {
+  return `dir:${dir}`
+}
+
+/**
+ * The one entry that holds `tabindex="0"`: the one last moved to or opened, else
  * the first in visual order. A moved-to path the list no longer holds falls
  * through to the first, so a change of rows can never leave the list with no
  * tab stop.

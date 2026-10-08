@@ -6,6 +6,9 @@ import {
   DOC_OPEN_CHANNEL,
   INSTALL_CHANGED_CHANNEL,
   INSTALL_GET_CHANNEL,
+  LAYOUT_GET_CHANNEL,
+  LAYOUT_SET_FOLDED_CHANNEL,
+  LAYOUT_SET_WIDTH_CHANNEL,
   MENU_DISPATCH_CHANNEL,
   OUTPUT_FOLDER_CHOOSE_CHANNEL,
   PROJECT_BRANCH_CHANNEL,
@@ -30,6 +33,7 @@ import type { DocAck } from '../shared/document'
 import type { ContractEvent } from '../shared/events'
 import type { RunId } from '../shared/ids'
 import type { InstallReply, InstallSnapshot } from '../shared/install'
+import type { Layout } from '../shared/layout'
 import type { OutputFolderReply } from '../shared/output-folder'
 import type { RailReply, RailSnapshot } from '../shared/rail'
 import { followTheme, pageDocument } from '../shared/theme'
@@ -47,6 +51,9 @@ export {
   DOC_OPEN_CHANNEL,
   INSTALL_CHANGED_CHANNEL,
   INSTALL_GET_CHANNEL,
+  LAYOUT_GET_CHANNEL,
+  LAYOUT_SET_FOLDED_CHANNEL,
+  LAYOUT_SET_WIDTH_CHANNEL,
   MENU_DISPATCH_CHANNEL,
   OUTPUT_FOLDER_CHOOSE_CHANNEL,
   PROJECT_BRANCH_CHANNEL,
@@ -122,6 +129,20 @@ const harness: HarnessApi = {
       throw reply.error
     }
     return reply.outcome
+  },
+
+  // The window's layout (Story 5.5), read when the window needs it and never at load: two
+  // widths and this project's folded directories, synchronously, so the first paint is already at
+  // the stored width. The writes are requests: a panel and a width, or the set of folded
+  // directories, and nothing comes back that the window reads. Main validates both.
+  getLayout: () => ipcRenderer.sendSync(LAYOUT_GET_CHANNEL) as Layout,
+
+  setPanelWidth: (panel, width) => {
+    void ipcRenderer.invoke(LAYOUT_SET_WIDTH_CHANNEL, panel, width)
+  },
+
+  setFolded: (dirs) => {
+    void ipcRenderer.invoke(LAYOUT_SET_FOLDED_CHANNEL, [...dirs])
   },
 
   onDocClosed: (listener) => {

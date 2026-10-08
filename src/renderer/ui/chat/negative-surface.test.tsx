@@ -11,6 +11,7 @@ import { RunCard } from './run-card'
 import type { RunCardEntry } from './transcript-entry'
 import { Turns } from './transcript'
 import type { TranscriptEntry } from './transcript-entry'
+import { withoutSplitters } from '../testing/audit-patterns'
 
 /**
  * Epic 2's negative surface, rendered (Story 2.13).
@@ -172,7 +173,7 @@ describe.each(STATES)('the chat column with %s', (_label, state) => {
   it('has no live region, busy flag, status role or progress of its own', () => {
     // The window's one polite region is mounted by `App`, outside the column. (The group
     // spells its attribute so: tests/accessibility.test.ts counts the literal across `src/`.)
-    expect(markup).not.toMatch(/aria-(?:live)|aria-busy|role="(?:status|alert|log|progressbar|timer)"|aria-valuenow/)
+    expect(withoutSplitters(markup)).not.toMatch(/aria-(?:live)|aria-busy|role="(?:status|alert|log|progressbar|timer)"|aria-valuenow/)
   })
 
   it('has no stand-in sentence, loading-like word or ellipsis', () => {
@@ -296,7 +297,7 @@ describe('the decision block', () => {
     )
 
     expect(new Set(bare).size).toBe(1)
-    expect(markup).not.toMatch(/aria-(?:pressed|selected|checked|current|disabled)|autofocus|tabindex|\sstyle=|checked|selected/i)
+    expect(withoutSplitters(markup)).not.toMatch(/aria-(?:pressed|selected|checked|current|disabled)|autofocus|tabindex|\sstyle=|checked|selected/i)
     // The lean is the persona's sentence, inside its words and its option, and nowhere else.
     expect(count(markup, /I lean here/g)).toBe(2)
   })

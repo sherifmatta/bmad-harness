@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { JSX, KeyboardEvent } from 'react'
 
 import './outputs.css'
@@ -6,10 +6,13 @@ import type { AgentView, HarnessError } from '../../../shared/install'
 import { folderPathOf } from '../../../shared/output-folder'
 import type { RailSnapshot } from '../../../shared/rail'
 import { ErrorLine } from '../install/error-line'
+import { foldKey } from '../a11y/fold-key'
+import { useLayoutContext } from '../layout/layout-context'
+import { FolderHeading } from './folder-heading'
 import { OutputRow } from './output-row'
 import { ownerLabel } from './owner-label'
 import { groupRows } from './row-groups'
-import { rowMove, tabStopPath } from './row-nav'
+import { headingKey, rowMove, tabStopPath } from './row-nav'
 import { useDocOpen } from './use-doc-open'
 import { useNow } from './use-now'
 
@@ -30,9 +33,16 @@ import { useNow } from './use-now'
  * (`ownerLabel`). `now` is data, passed in so the markup can be rendered at a
  * fixed moment.
  *
- * The rows are one roving-tabindex list (NFR20, UX-DR18): one tab stop — the
- * row last moved to or opened, else the first in visual order — with vertical,
- * clamped travel between rows through `rowMove`. Activating a row asks main to
+ * Each directory's heading is a button that folds its rows (Story 5.5). The folded
+ * set is the window's layout (`useLayoutContext`): a toggle is one `saveFolded` of
+ * the whole set, entries for directories that are gone kept. A folded directory's
+ * rows are not rendered, a file arriving under it unfolds nothing, and its
+ * heading says `changing` while a row under it is.
+ *
+ * The headings and the rows showing are one roving-tabindex list (NFR20, UX-DR18):
+ * one tab stop — the one last moved to or opened, else the first in visual order,
+ * which is a heading — with vertical, clamped travel through `rowMove`; on a
+ * heading `←` folds and `→` unfolds and focus stays on it. Activating a row asks main to
  * open its document window (FR55). When that window is closed by the user, focus
  * comes back to the row that opened it, and if the row has gone since, to the
  * list's own tab stop; it is never left on the page (NFR21).
@@ -52,9 +62,15 @@ export function Outputs({
 }): JSX.Element | null {
   const buttons = useRef(new Map<string, HTMLButtonElement>())
   const [movedToPath, setMovedToPath] = useState<string | null>(null)
+  const { folded, saveFolded } = useLayoutContext()
+  const listsId = useId()
 
   const groups = groupRows(snapshot?.rows ?? [])
-  const order = groups.flatMap((group) => group.rows.map((row) => row.path))
+  // Headings and the rows showing, in visual order: a heading is keyed `dir:<dir>`, a row by its path.
+  const order = groups.flatMap((group) => [
+    headingKey(group.dir),
+    ...(folded.has(group.dir) ? [] : group.rows.map((row) => row.path))
+  ])
   const tabStop = tabStopPath(order, movedToPath)
 
   // The tab stop as of the last render, for a close that finds its row gone.
@@ -118,36 +134,86 @@ export function Outputs({
     open(path)
   }
 
+  /** Fold or unfold one directory; the others, and entries for directories not showing, are kept as they were. */
+  function setFolded(dir: string, fold: boolean): void {
+    if (folded.has(dir) === fold) {
+      return
+    }
+    const next = new Set(folded)
+    if (fold) {
+      next.add(dir)
+    } else {
+      next.delete(dir)
+    }
+    setMovedToPath(headingKey(dir))
+    saveFolded(next)
+  }
+
+  function headingKeys(event: KeyboardEvent<HTMLButtonElement>, dir: string, index: number): void {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+      return
+    }
+    const fold = foldKey(event.key)
+    if (fold !== null) {
+      event.preventDefault()
+      setFolded(dir, fold === 'fold')
+      return
+    }
+    travel(event, index)
+  }
+
   return (
     <div className="outputs">
-      {groups.map((group) => (
-        <div key={group.dir} className="outputs-group">
-          <div className="rail-group">{group.dir}</div>
-          <ul className="outputs-list">
-            {group.rows.map((row) => {
-              const index = order.indexOf(row.path)
-              return (
-                <OutputRow
-                  key={row.path}
-                  row={row}
-                  ownerName={ownerLabel(row, nameOf)}
-                  now={now}
-                  tabStop={row.path === tabStop}
-                  onOpen={activate}
-                  onKey={(event) => travel(event, index)}
-                  buttonRef={(element) => {
-                    if (element === null) {
-                      buttons.current.delete(row.path)
-                    } else {
-                      buttons.current.set(row.path, element)
-                    }
-                  }}
-                />
-              )
-            })}
-          </ul>
-        </div>
-      ))}
+      {groups.map((group, groupIndex) => {
+        const isFolded = folded.has(group.dir)
+        const key = headingKey(group.dir)
+        const listId = `${listsId}-${groupIndex}`
+        return (
+          <div key={group.dir} className="outputs-group">
+            <FolderHeading
+              dir={group.dir}
+              folded={isFolded}
+              changing={group.rows.some((row) => row.state === 'changing')}
+              controls={listId}
+              tabStop={key === tabStop}
+              onToggle={() => setFolded(group.dir, !isFolded)}
+              onKey={(event) => headingKeys(event, group.dir, order.indexOf(key))}
+              buttonRef={(element) => {
+                if (element === null) {
+                  buttons.current.delete(key)
+                } else {
+                  buttons.current.set(key, element)
+                }
+              }}
+            />
+            <ul id={listId} className="outputs-list" hidden={isFolded}>
+              {isFolded
+                ? null
+                : group.rows.map((row) => {
+                    const index = order.indexOf(row.path)
+                    return (
+                      <OutputRow
+                        key={row.path}
+                        row={row}
+                        ownerName={ownerLabel(row, nameOf)}
+                        now={now}
+                        tabStop={row.path === tabStop}
+                        onOpen={activate}
+                        onKey={(event) => travel(event, index)}
+                        buttonRef={(element) => {
+                          if (element === null) {
+                            buttons.current.delete(row.path)
+                          } else {
+                            buttons.current.set(row.path, element)
+                          }
+                        }}
+                      />
+                    )
+                  })}
+            </ul>
+          </div>
+        )
+      })}
     </div>
   )
 }

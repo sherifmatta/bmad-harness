@@ -10,6 +10,8 @@ import { orderEntries } from '../chat/transcript'
 import type { TranscriptEntry } from '../chat/transcript-entry'
 import { UserTurn } from '../chat/turn'
 import { FollowScroller } from '../follow/follow-scroller'
+import { PanelSplitter } from '../layout/panel-splitter'
+import { usePanelWidth } from '../layout/use-panel-width'
 import { CastChooser } from './cast-chooser'
 import { CastStrip } from './cast-strip'
 import { PartyHeader } from './party-header'
@@ -92,6 +94,8 @@ export function PartyView({
     if (entry.kind === 'persona') lastSpoken = index
   })
   const live = room !== undefined
+  // The Room panel's width (Story 5.5), the party body's own: chosen by its splitter.
+  const { holdContainer: holdBody, style: roomStyle, splitter: roomSplitter } = usePanelWidth('room')
   const focusInside = useRef(false)
   const wasLive = useRef(live)
   const thread = useRef<HTMLDivElement>(null)
@@ -156,7 +160,7 @@ export function PartyView({
             onWriteSummary={onWriteSummary}
             onStop={onStop}
           />
-          <div className="party-body">
+          <div className="party-body" ref={holdBody}>
             <div className="party-main">
               <CastStrip agents={agents} cast={roomCast} speaker={speaker} />
               <FollowScroller
@@ -170,7 +174,8 @@ export function PartyView({
               </FollowScroller>
               <Composer agentName="the room" onSend={onSend} returned={returned} fieldRef={fieldRef} />
             </div>
-            <RoomPanel topic={topic} openedAt={openedAt} rows={rows} folder={folder} />
+            <PanelSplitter splitter={roomSplitter} />
+            <RoomPanel topic={topic} openedAt={openedAt} rows={rows} folder={folder} style={roomStyle} />
           </div>
         </>
       )}

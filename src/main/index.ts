@@ -3,6 +3,7 @@ import { PROJECT_PATH_CHANNEL } from '../shared/channels'
 import { defaultWriteDiagnostic } from './bridge-kit'
 import { registerDocBridge } from './doc-bridge'
 import { registerInstallBridge } from './install-bridge'
+import { registerLayoutBridge } from './layout-bridge'
 import { registerOutputFolderBridge } from './output-folder-bridge'
 import { agentNameFor } from './install-model'
 import { registerProjectBridge } from './project-bridge'
@@ -121,6 +122,8 @@ const sessions = registerSessionBridge({
 // configuration, overridden by the user's choice, which is stored under `userData`
 // and never in the project. The rail watches it, and the menu's File chooses it.
 const outputFolders = registerOutputFolderBridge({ userDataPath: () => app.getPath('userData') })
+// The two panel widths and the folded Outputs directories (Story 5.5): the user's own layout, under `userData`.
+registerLayoutBridge({ userDataPath: () => app.getPath('userData') })
 // The rail's watcher is the one that sees a memlog change; the session side
 // reads it for the notes of the run in flight.
 registerRailBridge({

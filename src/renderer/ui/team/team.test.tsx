@@ -85,7 +85,17 @@ const hooks = vi.hoisted(() => {
 
 vi.mock('react', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react')>()
-  return { ...actual, useState: hooks.useState, useRef: hooks.useRef, useEffect: () => {} }
+  // `Shell` also reads the layout context and a panel's width (Story 5.5): a context with no provider is
+  // its default, and a callback is the function itself, since nothing here re-renders.
+  return {
+    ...actual,
+    useState: hooks.useState,
+    useRef: hooks.useRef,
+    useEffect: () => {},
+    useLayoutEffect: () => {},
+    useCallback: (callback: unknown) => callback,
+    useContext: (context: { _currentValue: unknown }) => context._currentValue
+  }
 })
 
 type TileProps = Parameters<typeof PersonaTile>[0]

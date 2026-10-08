@@ -63,7 +63,7 @@ describe('Outputs', () => {
     expect(markup).not.toMatch(/<button|<input|<a |<ul|skill|persona|next|run /i)
   })
 
-  it('groups rows under directory headings in the shell’s own group class', () => {
+  it('groups rows under directory headings, each a button of the folder heading class (Story 5.5)', () => {
     const markup = render({
       snapshot: rail(
         saved('_bmad/planning-artifacts/prd.md'),
@@ -72,7 +72,8 @@ describe('Outputs', () => {
       )
     })
 
-    expect(count(markup, /class="rail-group"/g)).toBe(2)
+    expect(count(markup, /class="folder-heading focus-inset"/g)).toBe(2)
+    expect(markup).not.toContain('rail-group')
     expect(markup.indexOf('>_bmad/<')).toBeLessThan(markup.indexOf('>_bmad/planning-artifacts/<'))
     expect(count(markup, /<li/g)).toBe(3)
     expect(markup.indexOf('architecture.md')).toBeLessThan(markup.indexOf('prd.md'))
@@ -171,11 +172,11 @@ describe('Outputs', () => {
     expect(markup).not.toMatch(/\b2\b/)
   })
 
-  it('is one list per group, each row one button, and no role, style, title or live region', () => {
+  it('is one list per group, each heading and each row one button, and no role, style, title or live region', () => {
     const markup = render({ snapshot: rail(saved('_bmad/a.md'), saved('_bmad/x/b.md')) })
 
     expect(count(markup, /<ul/g)).toBe(2)
-    expect(count(markup, /<button/g)).toBe(2)
+    expect(count(markup, /<button/g)).toBe(4)
     expect(markup).not.toMatch(/<input|role=|style=|title=/)
     // Spelled in two halves: accessibility.test.ts counts the bare attribute across src/.
     expect(markup).not.toContain(`aria-${'live'}`)
@@ -198,12 +199,14 @@ describe('the rows as one roving list', () => {
     saved('_bmad/planning-artifacts/architecture.md')
   )
 
-  it('has exactly one tab stop, and it is the first row in visual order', () => {
+  it('has exactly one tab stop, and it is the first entry in visual order: the first directory’s heading', () => {
     const markup = render({ snapshot })
 
+    // Two headings and three rows are the list; one of the five holds the stop.
     expect(count(markup, /tabindex="0"/g)).toBe(1)
-    expect(count(markup, /tabindex="-1"/g)).toBe(2)
-    // Visual order: _bmad/epics.md, then the planning-artifacts group by name.
+    expect(count(markup, /tabindex="-1"/g)).toBe(4)
+    // Visual order: _bmad/, its epics.md, then the planning-artifacts heading and its rows by name.
+    expect(markup.indexOf('tabindex="0"')).toBeLessThan(markup.indexOf('_bmad/<'))
     expect(markup.indexOf('tabindex="0"')).toBeLessThan(markup.indexOf('epics.md'))
     expect(markup.indexOf('tabindex="0"')).toBeLessThan(markup.indexOf('tabindex="-1"'))
   })

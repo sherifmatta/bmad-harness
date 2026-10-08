@@ -5,8 +5,8 @@
  * Every value reaches the design system through `var()`; the only bare values
  * are zero and CSS keywords. The one place a dimension is spelled is the
  * condition of a media rule, which cannot read a custom property, and there
- * are exactly two of those (NFR27): the party side panel goes at the first,
- * the layout stacks at the second. No mobile rule exists.
+ * are exactly two of those (NFR27): the party side panel (and its splitter) goes
+ * at the first, the layout stacks (and the rail's splitter goes) at the second. No mobile rule exists.
  *
  * Nothing here draws or styles keyboard focus: the shared ring is
  * design/focus.css's, and it reaches the view switch untouched. No stacking
@@ -300,7 +300,8 @@
 /* ---------- responsive : two breakpoints, no more ---------- */
 
 @media (max-width: 1180px) {
-  .party-side {
+  .party-side,
+  .panel-splitter--room {
     display: none;
   }
 }
@@ -322,6 +323,11 @@
 
   .chat {
     min-height: var(--stack-chat-min);
+  }
+
+  /* The layout stacks: the rail takes the column's width, so no splitter and no chosen width. */
+  .panel-splitter--rail {
+    display: none;
   }
 
   .rail {

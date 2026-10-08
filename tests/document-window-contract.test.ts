@@ -240,7 +240,7 @@ describe('the trust boundary', () => {
     expect(pipeline).toMatch(/return ''/)
   })
 
-  it('has no openExternal, openPath, ipcMain.on or generic send passthrough anywhere in the product, bar the theme’s one synchronous state', () => {
+  it('has no openExternal, openPath, ipcMain.on or generic send passthrough anywhere in the product, bar the theme’s and the layout’s one synchronous read each', () => {
     for (const path of allSources) {
       const text = code(path)
 
@@ -251,6 +251,10 @@ describe('the trust boundary', () => {
         // the state is answered synchronously: one listener, one channel.
         expect(text.match(/ipcMain\.on\(/g)).toHaveLength(1)
         expect(text).toContain('ipcMain.on(THEME_STATE_CHANNEL,')
+      } else if (path === 'src/main/layout-bridge.ts') {
+        // Story 5.5: the first paint is at the stored width, so the layout is read synchronously too.
+        expect(text.match(/ipcMain\.on\(/g)).toHaveLength(1)
+        expect(text).toContain('ipcMain.on(LAYOUT_GET_CHANNEL,')
       } else {
         expect(text, path).not.toMatch(/ipcMain\.on\b/)
       }

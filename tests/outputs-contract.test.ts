@@ -84,7 +84,10 @@ describe('the outputs stylesheet', () => {
       '--text-strong',
       '--fs-body-ui',
       '--fs-label',
-      '--fs-meta'
+      '--fs-meta',
+      '--track-micro',
+      '--rail-group-padding',
+      '--chevron-size'
     ]) {
       expect(css, name).toContain(`var(${name})`)
     }
@@ -120,23 +123,34 @@ describe('the outputs stylesheet', () => {
     expect(css).toMatch(/\.output-row-button:hover\s*\{[^}]*background:\s*var\(--panel-2\)/)
     // `change…` (Story 5.4) underlines on hover, as every link does, and has no ground to raise.
     expect(css).toMatch(/\.outputs-change:hover\s*\{[^}]*text-decoration:\s*underline/)
-    expect([...css.matchAll(/:hover/g)]).toHaveLength(2)
+    // A folder heading (Story 5.5) raises its text to `text-strong` on hover, and has no ground to raise either.
+    expect(css).toMatch(/\.folder-heading:hover\s*\{[^}]*color:\s*var\(--text-strong\)/)
+    expect([...css.matchAll(/:hover/g)]).toHaveLength(3)
   })
 })
 
 describe('the outputs sources', () => {
   const ROW = `${OUTPUTS_DIR}/output-row.tsx`
   const HEAD = `${OUTPUTS_DIR}/outputs-head.tsx`
+  const FOLDER = `${OUTPUTS_DIR}/folder-heading.tsx`
 
-  it('draw no control, tab stop or handler but in the row and the head’s one link, and no role, inline style, title or live region anywhere', () => {
+  it('draw no control, tab stop or handler but in the row, the folder heading and the head’s one link, and no role, inline style, title or live region anywhere', () => {
     expect(outputsSources).toContain(ROW)
     expect(outputsSources).toContain(HEAD)
+    expect(outputsSources).toContain(FOLDER)
     for (const path of outputsSources) {
       const text = code(path)
       // The row is the list's one control (Story 1.12): a native button, its tab stop
       // and its two handlers live in output-row.tsx. The head's `change…` (Story 5.4)
       // is the one other, a native button with one click handler and no tab stop of its own.
-      if (path !== ROW) {
+      // A directory's heading (Story 5.5) is the list's other control: a native button, its tab stop, its click and its keys.
+      if (path === FOLDER) {
+        expect(text.match(/<button\b/g)).toHaveLength(1)
+        expect(text).toContain('tabIndex={tabStop ? 0 : -1}')
+        expect(text).toContain('aria-expanded={!folded}')
+        expect(text).toContain('aria-controls={controls}')
+      }
+      if (path !== ROW && path !== FOLDER) {
         expect(text, path).not.toMatch(path === HEAD ? /tabindex=|tabIndex=|onKeyDown/i : /<button|tabindex=|tabIndex=|onClick|onKeyDown/i)
       }
       if (path === HEAD) {

@@ -24,3 +24,13 @@ export const ARBITRATION = /\b(?:undo|revert|restore|merge|lock|resolve)\w*/i
  * region by the accessibility sweep, which looks for the words in every source.
  */
 export const LIVE_REGIONS = [`aria-${'live'}`, 'role="status"', 'role="log"', `role="${'al'}ert"`].map((part) => `[${part}]`).join(', ')
+
+/**
+ * A drawn window's markup without its side panels' splitters (Story 5.5). A splitter is a `separator` that
+ * exposes its value, minimum and maximum, as the role requires, and is a tab stop: to an audit of what a
+ * window draws of progress, roles or tab stops it is neither a bar nor a control of the thread. The audits
+ * of the splitters themselves are layout/panel-splitter.dom.test.tsx's.
+ */
+export function withoutSplitters(markup: string): string {
+  return markup.replace(/<div role="separator"[^>]*><\/div>/g, '')
+}

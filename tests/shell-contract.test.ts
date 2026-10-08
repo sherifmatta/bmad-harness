@@ -282,7 +282,10 @@ describe('the shell furniture stays within scope', () => {
   it('has no third view, Help, inline style, spinner or announcement of its own', () => {
     for (const path of shipped) {
       const text = code(path)
-      expect(text, path).not.toMatch(/style=\{/)
+      // The one inline style is the rail's own width while the user has chosen one (Story 5.5): the token's
+      // property overridden, set by `usePanelWidth` and by nothing in the shell.
+      expect(text.replace('style={railStyle}', ''), path).not.toMatch(/style=\{/)
+      expect(text.match(/style=\{/g)?.length ?? 0, path).toBe(path.endsWith('/shell.tsx') ? 1 : 0)
       expect(text, path).not.toMatch(/aria-live/)
       expect(text, path).not.toMatch(/\bHelp\b/)
       expect(text, path).not.toMatch(/spinner|skeleton/i)

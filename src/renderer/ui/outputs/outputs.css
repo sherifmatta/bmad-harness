@@ -18,6 +18,11 @@
  * keywords. No stacking index, no keyframes and no motion.
  */
 
+.outputs-group {
+  display: flex;
+  flex-direction: column;
+}
+
 .outputs-list {
   display: flex;
   flex-direction: column;
@@ -131,6 +136,61 @@
 }
 
 .output-row--changing .file-icon {
+  color: var(--amber);
+}
+
+/* A folded directory keeps its list, empty, so its heading's `aria-controls` names something. */
+.outputs-list[hidden] {
+  display: none;
+}
+
+/* ---------- the folder heading (Story 5.5) ----------
+   A button for the whole row: the chevron, the directory path in the group label's own
+   mono at `dim` (`text-strong` on hover), and, only while folded and a row under it is
+   changing, the amber dot and the word `changing` at the right. No count. The shared inset
+   ring is design/focus.css's. The chevron changes direction and nothing more: no rotation,
+   no transition, no animation of a fold. */
+
+.folder-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: var(--rail-group-padding);
+  border: 0;
+  background: transparent;
+  font-family: var(--mono);
+  font-size: var(--fs-meta);
+  letter-spacing: var(--track-micro);
+  text-align: left;
+  color: var(--dim);
+  cursor: pointer;
+}
+
+.folder-heading:hover {
+  color: var(--text-strong);
+}
+
+.folder-chevron {
+  flex: 0 0 auto;
+  width: var(--chevron-size);
+  height: var(--chevron-size);
+}
+
+.folder-heading-path {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-heading-live {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: var(--space-sm);
+  font-size: var(--fs-meta);
   color: var(--amber);
 }
 

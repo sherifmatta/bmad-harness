@@ -36,12 +36,12 @@ describe('what the room did not add', () => {
     expect([...body.matchAll(/^ {2}'([a-z-]+:[a-z-]+)': EventSpec</gm)]).toHaveLength(15)
   })
 
-  it('leaves the room no channel of its own: thirty in all, four the Welcome’s, three the theme’s and one the output folder’s', () => {
-    expect(Object.values(channels)).toHaveLength(30)
+  it('leaves the room no channel of its own: thirty-three in all, four the Welcome’s, three the theme’s, one the output folder’s and three the layout’s', () => {
+    expect(Object.values(channels)).toHaveLength(33)
   })
 
-  it('leaves eighteen preload methods, the eighteenth the output folder’s chooser', () => {
-    expect([...read('src/preload/harness-api.d.ts').matchAll(/^ {2}[a-zA-Z]+\(/gm)]).toHaveLength(18)
+  it('leaves twenty-one preload methods, the eighteenth the output folder’s chooser and the last three the layout’s', () => {
+    expect([...read('src/preload/harness-api.d.ts').matchAll(/^ {2}[a-zA-Z]+\(/gm)]).toHaveLength(21)
   })
 
   it('widens the argument of session.open and leaves its reply as it was', () => {
@@ -149,7 +149,7 @@ describe('what the room’s header and panel do not draw (Story 4.3)', () => {
     expect(rule).not.toMatch(/\bdisplay\b/)
     expect(css).toContain('var(--party-side)')
     expect(css).toContain('var(--party-side-key)')
-    expect(stripped(read('src/renderer/ui/shell/shell.css'))).toMatch(/@media \(max-width: 1180px\)\s*\{\s*\.party-side\s*\{\s*display: none;/)
+    expect(stripped(read('src/renderer/ui/shell/shell.css'))).toMatch(/@media \(max-width: 1180px\)\s*\{\s*\.party-side,\s*\.panel-splitter--room\s*\{\s*display: none;/)
   })
 
   it('wires the header button in the app to the conversation, which only asks the room to write', () => {
