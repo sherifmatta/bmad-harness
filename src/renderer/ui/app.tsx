@@ -274,6 +274,7 @@ export function App(): JSX.Element | null {
             topic={conversation.roomTopic}
             openedAt={conversation.roomOpenedAt}
             turns={conversation.roomTurns}
+            returned={conversation.roomReturned}
             rows={rail?.rows ?? []}
             onOpen={(cast) => void conversation.openRoom(cast)}
             onSend={conversation.sendToRoom}

@@ -158,17 +158,20 @@ function build() {
     personas: ReadonlyMap<string, { state: string; at: number }>
   }[] = []
   const failures: unknown[] = []
+  const handoffs: SyslineRecord[] = []
   const conversation = createConversation({
     bridge,
     agentOf: (id) => agents.find((agent) => agent.id === id),
     now: () => (clock += 1),
     publish: (state) => void published.push(state),
-    onFailure: (error) => void failures.push(error)
+    onFailure: (error) => void failures.push(error),
+    onHandoff: (record) => void handoffs.push(record)
   })
   return {
     conversation,
     published,
     failures,
+    handoffs,
     last: () => published[published.length - 1]
   }
 }
@@ -1536,7 +1539,7 @@ describe('sendToRoom (Story 4.2)', () => {
     name: 'persona:said',
     payload: { sessionId: 'r1', agentId, messageId, text, at: 3, room: true }
   })
-  type Held = { room?: string; roomCast: readonly string[]; roomOpenedAt?: number; roomTopic?: string; busy: ReadonlySet<string>; entries: readonly { kind: string; room?: true; queuedFor?: string; text?: string }[] }
+  type Held = { room?: string; roomCast: readonly string[]; roomOpenedAt?: number; roomTopic?: string; roomReturned?: { key: number; text: string }; busy: ReadonlySet<string>; entries: readonly { kind: string; room?: true; queuedFor?: string; text?: string }[] }
   const held = (published: object | undefined): Held => published as unknown as Held
 
   async function live() {
@@ -1546,6 +1549,8 @@ describe('sendToRoom (Story 4.2)', () => {
     bridge.openResult[0].resolve('r1')
     await settle()
     bridge.push({ name: 'session:awaiting-turn', payload: { sessionId: 'r1', at: 2 } })
+    // The user's clock is past the moment the room opened, as it is in a window.
+    clock = bridge.roomOpenedAt
     return made
   }
 
@@ -1601,15 +1606,132 @@ describe('sendToRoom (Story 4.2)', () => {
     expect(held(last()).entries.filter((entry) => entry.kind === 'user' && entry.queuedFor !== undefined)).toEqual([])
   })
 
-  it('keeps the entry and the busy mark when main refuses as busy, and says nothing', async () => {
-    const { conversation, last, failures } = await live()
+  it('takes the entry back when main refuses as busy: one harness line, the room still busy, the words returned, no failure (Story 4.8)', async () => {
+    const { conversation, last, failures, handoffs } = await live()
     bridge.sendResults.push(busy())
     conversation.sendToRoom('x')
     await settle()
 
-    expect(held(last()).busy.has('r1')).toBe(true)
-    expect(held(last()).entries).toHaveLength(1)
+    const state = held(last())
+    expect(state.busy.has('r1')).toBe(true)
+    expect(state.entries).toEqual([
+      expect.objectContaining({ kind: 'sysline', room: true, text: 'not sent · the room is still speaking' })
+    ])
+    expect(handoffs).toEqual([expect.objectContaining({ text: 'not sent · the room is still speaking', room: true })])
+    expect(state.roomReturned).toMatchObject({ text: 'x' })
     expect(failures.filter((failure) => failure !== null)).toEqual([])
+    // Nothing is sent again.
+    expect(bridge.sends).toEqual([['r1', 'x']])
+  })
+
+  it('gives each refusal its own key for the returned words', async () => {
+    const { conversation, last } = await live()
+    bridge.sendResults.push(busy())
+    conversation.sendToRoom('one')
+    await settle()
+    const first = held(last()).roomReturned
+    bridge.sendResults.push(busy())
+    conversation.sendToRoom('two')
+    await settle()
+    const second = held(last()).roomReturned
+
+    expect(first).toMatchObject({ text: 'one' })
+    expect(second).toMatchObject({ text: 'two' })
+    expect(second?.key).not.toBe(first?.key)
+  })
+
+  it('leaves no topic from a refused first message, and reads the topic of the first one delivered (Story 4.8)', async () => {
+    const { conversation, last } = await live()
+    bridge.sendResults.push(busy(), undefined, undefined)
+    conversation.sendToRoom('refused first')
+    await settle()
+    expect(held(last()).roomTopic).toBeUndefined()
+
+    conversation.sendToRoom('delivered')
+    await settle()
+    expect(held(last()).roomTopic).toBe('delivered')
+  })
+
+  it('moves the topic to a message still in flight when the first was refused', async () => {
+    const { conversation, last } = await live()
+    const first = deferred<void>()
+    bridge.sendResults.push(first.promise, undefined)
+    conversation.sendToRoom('first')
+    conversation.sendToRoom('second')
+    expect(held(last()).roomTopic).toBe('first')
+
+    first.reject({ code: 'session/busy', message: 'session · busy' })
+    await settle()
+
+    expect(held(last()).roomTopic).toBe('second')
+  })
+
+  it('keeps the topic a delivered first message set when a later one is refused', async () => {
+    const { conversation, last } = await live()
+    bridge.sendResults.push(undefined, busy())
+    conversation.sendToRoom('first')
+    conversation.sendToRoom('later')
+    await settle()
+
+    expect(held(last()).roomTopic).toBe('first')
+    expect(held(last()).entries.filter((entry) => entry.kind === 'user')).toHaveLength(1)
+  })
+
+  it('takes the entry back and says nothing when the room the user stopped answers busy or not found (Story 4.8)', async () => {
+    for (const code of ['session/busy', 'session/not-found']) {
+      bridge = new FakeBridge()
+      const { conversation, last, failures, handoffs } = await live()
+      const waiting = deferred<void>()
+      bridge.sendResults.push(waiting.promise)
+      conversation.sendToRoom('waiting')
+      void conversation.stopRoom()
+      waiting.reject({ code, message: 'session · refused' })
+      await settle()
+
+      expect(held(last()).entries).toEqual([])
+      expect(held(last()).roomReturned).toBeUndefined()
+      expect(handoffs).toEqual([])
+      expect(failures.filter((failure) => failure !== null)).toEqual([])
+    }
+  })
+
+  it('takes a refused entry back without a line when the room already closed on its own, and keeps nothing to return', async () => {
+    const { conversation, last, failures, handoffs } = await live()
+    const waiting = deferred<void>()
+    bridge.sendResults.push(waiting.promise)
+    conversation.sendToRoom('waiting')
+    bridge.push({ name: 'session:closed', payload: { sessionId: 'r1', reason: 'process-exited', at: 9 } })
+    waiting.reject({ code: 'session/busy', message: 'session · busy' })
+    await settle()
+
+    expect(held(last()).entries).toEqual([])
+    expect(handoffs).toEqual([])
+    expect(failures.filter((failure) => failure !== null)).toEqual([])
+  })
+
+  it('treats a refusal as a refusal again when main refused the stop', async () => {
+    const { conversation, last, failures } = await live()
+    bridge.closeResults.push(Promise.reject({ code: 'session/not-found', message: 'session · no such session is open' }))
+    expect(await conversation.stopRoom()).toBe(false)
+    bridge.sendResults.push(busy())
+    conversation.sendToRoom('x')
+    await settle()
+
+    expect(held(last()).entries).toEqual([expect.objectContaining({ kind: 'sysline' })])
+    expect(failures).toContainEqual(expect.objectContaining({ code: 'session/not-found' }))
+  })
+
+  it('keeps the entry, clears the busy mark and shows the failure for not found with the room live', async () => {
+    const { conversation, last, failures, handoffs } = await live()
+    bridge.sendResults.push(Promise.reject({ code: 'session/not-found', message: 'session · no such session is open' }))
+    conversation.sendToRoom('x')
+    await settle()
+
+    expect(held(last()).busy.has('r1')).toBe(false)
+    expect(held(last()).entries).toEqual([expect.objectContaining({ kind: 'user', text: 'x' })])
+    expect(held(last()).roomReturned).toBeUndefined()
+    expect(handoffs).toEqual([])
+    expect(failures[failures.length - 1]).toMatchObject({ code: 'session/not-found' })
   })
 
   it('clears the busy mark, keeps the entry and shows the failure for any other refusal', async () => {
@@ -1675,6 +1797,8 @@ describe('writeSummary (Story 4.4)', () => {
     bridge.openResult[0].resolve('r1')
     await settle()
     bridge.push({ name: 'session:awaiting-turn', payload: { sessionId: 'r1', at: 2 } })
+    // The user's clock is past the moment the room opened, as it is in a window.
+    clock = bridge.roomOpenedAt
     return made
   }
 
@@ -1713,15 +1837,30 @@ describe('writeSummary (Story 4.4)', () => {
     expect(held(last()).entries.filter((entry) => entry.kind === 'user' && entry.queuedFor !== undefined)).toEqual([])
   })
 
-  it('keeps the entry and the busy mark when main refuses as busy, and says nothing', async () => {
-    const { conversation, last, failures } = await live()
+  it('takes the ask back when main refuses as busy: one harness line, the room busy, topic and destination as before, nothing returned (Story 4.8)', async () => {
+    const { conversation, last, failures, handoffs } = await live()
+    conversation.sendToRoom('Payouts')
     bridge.sendResults.push(busy())
     conversation.writeSummary()
     await settle()
 
-    expect(held(last()).busy.has('r1')).toBe(true)
-    expect(held(last()).entries).toHaveLength(1)
+    const state = held(last())
+    expect(state.busy.has('r1')).toBe(true)
+    expect(state.roomTopic).toBe('Payouts')
+    expect(state.entries.map((entry) => entry.kind)).toEqual(['user', 'sysline'])
+    expect(state.entries[1]).toMatchObject({ room: true, text: 'not sent · the room is still speaking' })
+    expect(handoffs).toHaveLength(1)
+    expect((state as unknown as { roomReturned?: unknown }).roomReturned).toBeUndefined()
     expect(failures.filter((failure) => failure !== null)).toEqual([])
+  })
+
+  it('leaves a room with no topic without one when the ask is refused', async () => {
+    const { conversation, last } = await live()
+    bridge.sendResults.push(busy())
+    conversation.writeSummary()
+    await settle()
+
+    expect(held(last()).roomTopic).toBeUndefined()
   })
 
   it('clears the busy mark, keeps the entry and shows the failure for any other refusal', async () => {
@@ -1799,6 +1938,22 @@ describe('stopRoom (Story 4.5)', () => {
     refused.reject({ code: 'session/not-found', message: 'session · no such session is open' })
 
     expect(await result).toBe(true)
+    expect(failures.filter((failure) => failure !== null)).toEqual([])
+  })
+
+  it('is not a failure when a send still waiting is refused after stop room: no line, no entry in the stopped transcript (Story 4.8)', async () => {
+    const { conversation, last, failures, handoffs } = await live()
+    const waiting = deferred<void>()
+    bridge.sendResults.push(waiting.promise)
+    conversation.sendToRoom('waiting')
+    const stopping = conversation.stopRoom()
+    waiting.reject({ code: 'session/busy', message: 'session · busy' })
+    expect(await stopping).toBe(true)
+    bridge.push(roomClosed('r1'))
+    await settle()
+
+    expect(held(last()).entries).toEqual([])
+    expect(handoffs).toEqual([])
     expect(failures.filter((failure) => failure !== null)).toEqual([])
   })
 

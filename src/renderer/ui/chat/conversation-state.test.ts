@@ -14,10 +14,13 @@ import {
   hydrate,
   initialConversation,
   orphansOf,
+  ROOM_REFUSED_LINE,
   roomReady,
+  roomRefused,
   roomSent,
   roomSummaryAsked,
   roomTurnsOf,
+  roomUnsent,
   runCardOf,
   sendMessage,
   sessionOf,
@@ -1274,5 +1277,128 @@ describe('asking the room for its summary (Story 4.4)', () => {
 
   it('sends nothing without a live room', () => {
     expect(roomSummaryAsked(initialConversation, 1)).toEqual({ state: initialConversation })
+  })
+})
+
+describe('a message the room refused (Story 4.8)', () => {
+  const opened = (sessionId: string, at: number): ContractEvent => ({ name: 'session:opened', payload: { sessionId, at } })
+  const closed = (sessionId: string): ContractEvent => ({ name: 'session:closed', payload: { sessionId, reason: 'closed', at: 9 } })
+  const fold = (state: ConversationState, ...events: ContractEvent[]): ConversationState =>
+    events.reduce((held, event) => foldEvent(held, event, agentOf).state, state)
+  const at = Date.parse('2026-10-08T14:31:00')
+  const live = (): ConversationState => fold(initialConversation, opened('r1', at))
+
+  it('returns the entry id of a send and of the summary ask, which is the entry they added', () => {
+    const sent = roomSent(live(), at + 1, 'x')
+    const asked = roomSummaryAsked(sent.state, at + 2)
+
+    expect(sent.state.entries.at(-1)?.id).toBe(sent.entryId)
+    expect(asked.state.entries.at(-1)?.id).toBe(asked.entryId)
+    expect(sent.entryId).not.toBe(asked.entryId)
+  })
+
+  it('takes the entry, says one room line, keeps the room busy and returns the typed words', () => {
+    const sent = roomSent(live(), at + 1, 'x')
+    const refused = roomRefused(sent.state, sent.entryId ?? '', at + 2, true)
+
+    expect(refused.state.entries).toEqual([
+      { kind: 'sysline', id: expect.any(String), at: at + 2, text: ROOM_REFUSED_LINE, room: true }
+    ])
+    expect(refused.said).toMatchObject({ kind: 'sysline', text: 'not sent · the room is still speaking', room: true })
+    expect(refused.state.busy.has('r1')).toBe(true)
+    expect(refused.state.roomReturned).toEqual({ key: expect.any(Number), text: 'x' })
+    expect(refused.state.queue.size).toBe(0)
+  })
+
+  it('keeps the line in lower case, mono-register and without terminal punctuation', () => {
+    expect(ROOM_REFUSED_LINE).toBe(ROOM_REFUSED_LINE.toLowerCase())
+    expect(ROOM_REFUSED_LINE).not.toMatch(/[.!?]$/)
+    expect(ROOM_REFUSED_LINE).toContain(' · ')
+  })
+
+  it('reads the topic again from what is left: none after a refused first message', () => {
+    const sent = roomSent(live(), at + 1, 'first')
+    expect(sent.state.roomTopic).toBe('first')
+
+    expect(roomRefused(sent.state, sent.entryId ?? '', at + 2, true).state.roomTopic).toBeUndefined()
+  })
+
+  it('hands the topic to the next message still on screen, and keeps one an earlier message set', () => {
+    const first = roomSent(live(), at + 1, 'first')
+    const second = roomSent(first.state, at + 2, 'second')
+
+    expect(roomRefused(second.state, first.entryId ?? '', at + 3, true).state.roomTopic).toBe('second')
+    expect(roomRefused(second.state, second.entryId ?? '', at + 3, true).state.roomTopic).toBe('first')
+  })
+
+  it('leaves the topic and destination as they were for the summary ask, and returns nothing', () => {
+    const topical = roomSent(live(), at + 10, 'Payouts').state
+    const asked = roomSummaryAsked(topical, at + 20)
+    const refused = roomRefused(asked.state, asked.entryId ?? '', at + 21, false)
+
+    expect(refused.state.roomTopic).toBe('Payouts')
+    expect(refused.state.roomReturned).toBeUndefined()
+    expect(refused.state.entries.map((entry) => entry.kind)).toEqual(['user', 'sysline'])
+    expect(roomSummaryAsked(refused.state, at + 22).text).toContain('2026-10-08-payouts.md')
+  })
+
+  it('leaves the topic as it was when the open time is not known', () => {
+    const noTime = { ...live(), roomOpenedAt: undefined, roomTopic: 'kept' }
+    const sent = roomSent(noTime, at + 1, 'x')
+
+    expect(roomRefused(sent.state, sent.entryId ?? '', at + 2, true).state.roomTopic).toBe('kept')
+  })
+
+  it('gives each refusal a key of its own', () => {
+    const one = roomSent(live(), at + 1, 'one')
+    const refusedOne = roomRefused(one.state, one.entryId ?? '', at + 2, true).state
+    const two = roomSent(refusedOne, at + 3, 'two')
+    const refusedTwo = roomRefused(two.state, two.entryId ?? '', at + 4, true).state
+
+    expect(refusedTwo.roomReturned?.key).not.toBe(refusedOne.roomReturned?.key)
+  })
+
+  it('changes nothing and says nothing for an entry the state no longer holds', () => {
+    const sent = roomSent(live(), at + 1, 'x')
+    const gone = ended(sent.state)
+
+    expect(roomRefused(gone, sent.entryId ?? '', at + 2, true)).toEqual({ state: gone })
+    expect(roomRefused(sent.state, 'entry-nope', at + 2, true)).toEqual({ state: sent.state })
+  })
+
+  it('drops the entry alone when unsent: no line, no topic change, nothing returned', () => {
+    const sent = roomSent(live(), at + 1, 'x')
+    const unsent = roomUnsent(sent.state, sent.entryId ?? '')
+
+    expect(unsent.entries).toEqual([])
+    expect(unsent.roomReturned).toBeUndefined()
+    expect(unsent.busy).toBe(sent.state.busy)
+    expect(roomUnsent(unsent, sent.entryId ?? '')).toBe(unsent)
+  })
+
+  it('clears the returned words with the room and with the conversation', () => {
+    const sent = roomSent(live(), at + 1, 'x')
+    const refused = roomRefused(sent.state, sent.entryId ?? '', at + 2, true).state
+
+    expect(fold(refused, closed('r1')).roomReturned).toBeUndefined()
+    expect(ended(refused).roomReturned).toBeUndefined()
+    expect(initialConversation.roomReturned).toBeUndefined()
+  })
+
+  it('is not in the thread after a reload: the fold of what main recorded holds neither the entry nor the line', () => {
+    const sent = roomSent(live(), at + 1, 'x')
+    const refused = roomRefused(sent.state, sent.entryId ?? '', at + 2, true).state
+    expect(refused.entries).toHaveLength(1)
+
+    // Main recorded nothing for the refused send, so its snapshot of the room holds only the room's own lines.
+    const snapshot: ConversationSnapshot = {
+      entries: [],
+      sessions: [],
+      busy: ['r1'],
+      personas: [],
+      runs: [],
+      room: { sessionId: 'r1', cast: [mary.id], openedAt: at }
+    }
+    expect(hydrate(initialConversation, snapshot, agentOf).state.entries).toEqual([])
   })
 })

@@ -17,9 +17,11 @@ import {
   initialConversation,
   orphansOf,
   roomReady,
+  roomRefused,
   roomSent,
   roomSummaryAsked,
   roomTurnsOf,
+  roomUnsent,
   runCardOf,
   sendMessage,
   sessionOf,
@@ -64,8 +66,10 @@ export type Conversation = {
   openRoom(cast: readonly string[]): Promise<void>
   /**
    * The user sent `text` into the room (Story 4.2): one room entry, the room busy, and the text sent
-   * with no gate. Main interrupts a speaker. A refusal as busy leaves the room busy and the entry kept;
-   * any other clears the busy mark and is the failure line.
+   * with no gate. Main interrupts a speaker. A refusal as busy (Story 4.8) means the room did not receive it:
+   * the entry goes, one harness line says so, the room stays busy and the text is handed back for the composer.
+   * A refusal for a room the user stopped, or one already gone, takes the entry and says nothing. Any other
+   * refusal clears the busy mark, keeps the entry and is the failure line.
    */
   sendToRoom(text: string): void
   /**
@@ -169,6 +173,8 @@ export function createConversation(deps: ConversationDeps): Conversation {
   let openingRoom: Promise<void> | undefined
   /** What waits for main's snapshot besides a persona's open: a room's. */
   const afterSnapshot: (() => void)[] = []
+  /** The room sessions the user pressed stop on: a refusal for one is the stop's doing, not a failure (Story 4.8). */
+  const stopped = new Set<string>()
   /** How many times the conversation has ended: an open begun before an end belongs to the one before it. */
   let endings = 0
 
@@ -186,13 +192,28 @@ export function createConversation(deps: ConversationDeps): Conversation {
   }
 
   /**
-   * Send `text` into the room's session, with no gate. Busy: main could not interrupt in time and the turn
-   * goes on; the entry stays and the room stays busy. Any other refusal clears the busy mark and is the failure line.
+   * Send `text` into the room's session, with no gate; `entryId` is the entry that shows it and `typed`
+   * whether it is the user's own words (not the summary ask). Busy (Story 4.8): main could not interrupt in
+   * time and the turn goes on, so the message was not received: its entry goes, one line says so and the room
+   * stays busy. A room the user stopped, or one already gone, answering busy or not found: the entry goes and
+   * nothing is said. Any other refusal clears the busy mark, keeps the entry and is the failure line.
    */
-  function transmitToRoom(sessionId: string, text: string): void {
+  function transmitToRoom(sessionId: string, entryId: string, text: string, typed: boolean): void {
     bridge.sendTurn(sessionId, text).catch((reason: unknown) => {
-      if (asHarnessError(reason).code === 'session/busy') {
-        return
+      const code = asHarnessError(reason).code
+      if (code === 'session/busy' || code === 'session/not-found') {
+        if (stopped.has(sessionId) || state.room !== sessionId) {
+          commit(roomUnsent(state, entryId))
+          return
+        }
+        if (code === 'session/busy') {
+          const refused = roomRefused(state, entryId, now(), typed)
+          commit(refused.state)
+          if (refused.said !== undefined && live) {
+            onHandoff?.(refused.said)
+          }
+          return
+        }
       }
       commit(dispatchFailed(state, sessionId))
       fail(reason)
@@ -401,21 +422,21 @@ export function createConversation(deps: ConversationDeps): Conversation {
     sendToRoom(text) {
       onFailure(null)
       const sent = roomSent(state, now(), text)
-      if (sent.sessionId === undefined) {
+      if (sent.sessionId === undefined || sent.entryId === undefined) {
         return
       }
       commit(sent.state)
-      transmitToRoom(sent.sessionId, text)
+      transmitToRoom(sent.sessionId, sent.entryId, text, true)
     },
 
     writeSummary() {
       onFailure(null)
       const asked = roomSummaryAsked(state, now())
-      if (asked.sessionId === undefined || asked.text === undefined) {
+      if (asked.sessionId === undefined || asked.text === undefined || asked.entryId === undefined) {
         return
       }
       commit(asked.state)
-      transmitToRoom(asked.sessionId, asked.text)
+      transmitToRoom(asked.sessionId, asked.entryId, asked.text, false)
     },
 
     send(agentId, text) {
@@ -485,6 +506,8 @@ export function createConversation(deps: ConversationDeps): Conversation {
       if (room === undefined) {
         return false
       }
+      // Marked before main is asked: a send still waiting answers as the stop's doing (Story 4.8).
+      stopped.add(room)
       try {
         await bridge.closeSession(room)
       } catch (reason) {
@@ -492,6 +515,8 @@ export function createConversation(deps: ConversationDeps): Conversation {
         if (state.room !== room) {
           return true
         }
+        // Main refused the stop: the room is as it was, and a later refusal is a refusal.
+        stopped.delete(room)
         fail(reason)
         return false
       }
@@ -550,6 +575,8 @@ export function useConversation(
   roomTopic: string | undefined
   /** How many turns the room has had (Story 4.3). */
   roomTurns: number
+  /** The user's words a busy room refused, to go back into the room's composer; a new key for each (Story 4.8). */
+  roomReturned: { key: number; text: string } | undefined
   /** The agent id of the room's current speaker, or none (Story 4.2). */
   speaker: string | undefined
   /** Send text into the room, with no gate; main interrupts the speaker. */
@@ -682,6 +709,7 @@ export function useConversation(
     roomOpenedAt: state.roomOpenedAt,
     roomTopic: state.roomTopic,
     roomTurns: roomTurnsOf(state),
+    roomReturned: state.roomReturned,
     speaker: speakerOf(state),
     sendToRoom,
     writeSummary,

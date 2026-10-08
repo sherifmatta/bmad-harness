@@ -274,3 +274,66 @@ describe('refocus', () => {
     }
   })
 })
+
+describe('returned (Story 4.8)', () => {
+  function show(root: ReturnType<typeof createRoot>, returned?: { key: number; text: string }): void {
+    act(() => root.render(createElement(Composer, { agentName: 'the room', returned })))
+  }
+  let host: HTMLDivElement
+  let root: ReturnType<typeof createRoot>
+  beforeEach(() => {
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+  })
+  afterEach(() => {
+    act(() => root.unmount())
+    host.remove()
+  })
+  const field = (): HTMLTextAreaElement => host.querySelector('textarea') as HTMLTextAreaElement
+
+  it('puts the words in an empty field once for a new key, and sends nothing', () => {
+    const onSend = vi.fn()
+    act(() => root.render(createElement(Composer, { agentName: 'the room', onSend })))
+    expect(field().value).toBe('')
+    act(() => root.render(createElement(Composer, { agentName: 'the room', onSend, returned: { key: 3, text: 'x' } })))
+
+    expect(field().value).toBe('x')
+    expect(onSend).not.toHaveBeenCalled()
+  })
+
+  it('does not take the words it holds on mount', () => {
+    show(root, { key: 3, text: 'old' })
+
+    expect(field().value).toBe('')
+  })
+
+  it('leaves a draft alone, and does not take the refused words later when the field has emptied', () => {
+    show(root)
+    type(field(), 'my draft')
+    show(root, { key: 4, text: 'x' })
+    expect(field().value).toBe('my draft')
+
+    type(field(), '')
+    show(root, { key: 4, text: 'x' })
+    expect(field().value).toBe('')
+  })
+
+  it('takes the next key after the first was taken and sent', () => {
+    show(root)
+    show(root, { key: 1, text: 'one' })
+    type(field(), '')
+    show(root, { key: 2, text: 'two' })
+
+    expect(field().value).toBe('two')
+  })
+
+  it('does not take the words again when the same key renders again', () => {
+    show(root)
+    show(root, { key: 1, text: 'one' })
+    type(field(), '')
+    show(root, { key: 1, text: 'one' })
+
+    expect(field().value).toBe('')
+  })
+})

@@ -54,6 +54,12 @@ export type ConversationState = {
    * and never again for that room. `undefined` until then; the harness writes none of its own.
    */
   roomTopic: string | undefined
+  /**
+   * The words of a message the room refused as busy, handed back for the room's composer (Story 4.8):
+   * what the user typed, and a key that is new for each refusal so a composer takes each once. Set only
+   * for the user's own text, never for the summary ask; cleared where `roomCast` is. Never sent again.
+   */
+  roomReturned: { key: number; text: string } | undefined
   /** The next entry's key. */
   nextId: number
 }
@@ -68,6 +74,7 @@ export const initialConversation: ConversationState = {
   roomCast: [],
   roomOpenedAt: undefined,
   roomTopic: undefined,
+  roomReturned: undefined,
   nextId: 0
 }
 
@@ -308,7 +315,8 @@ export function ended(state: ConversationState): ConversationState {
     room: undefined,
     roomCast: [],
     roomOpenedAt: undefined,
-    roomTopic: undefined
+    roomTopic: undefined,
+    roomReturned: undefined
   }
 }
 
@@ -341,17 +349,19 @@ export function roomSent(
   state: ConversationState,
   at: number,
   text: string
-): { state: ConversationState; sessionId?: string } {
+): { state: ConversationState; sessionId?: string; entryId?: string } {
   if (state.room === undefined) {
     return { state }
   }
+  const entryId = `entry-${state.nextId}`
   const sent = withRoomEntry(state, state.room, at, text)
   // The first message is the topic, once: a room with one keeps it, a message with no text in it is none,
   // and the summary ask is never one (`hydrate` derives the topic by this same rule).
   const topic = state.roomTopic !== undefined || isRoomSummaryTurn(text) ? '' : roomTopicOf(text)
   return {
     state: topic === '' ? sent : { ...sent, roomTopic: topic },
-    sessionId: state.room
+    sessionId: state.room,
+    entryId
   }
 }
 
@@ -371,12 +381,64 @@ function withRoomEntry(state: ConversationState, room: string, at: number, text:
 export function roomSummaryAsked(
   state: ConversationState,
   at: number
-): { state: ConversationState; sessionId?: string; text?: string } {
+): { state: ConversationState; sessionId?: string; text?: string; entryId?: string } {
   if (state.room === undefined) {
     return { state }
   }
   const text = roomSummaryTurn(roomDestination(state.roomOpenedAt, state.roomTopic))
-  return { state: withRoomEntry(state, state.room, at, text), sessionId: state.room, text }
+  const entryId = `entry-${state.nextId}`
+  return { state: withRoomEntry(state, state.room, at, text), sessionId: state.room, text, entryId }
+}
+
+/** What the harness says of a message the room refused as busy (Story 4.8): a fact, in its own register. */
+export const ROOM_REFUSED_LINE = 'not sent · the room is still speaking'
+
+/**
+ * A send into the room was refused as busy (Story 4.8): the turn goes on, and the message was not
+ * received, so its entry is not shown as sent. The entry goes, the topic is read again from the entries
+ * still on screen (the rule `hydrate` uses; with no open time it is left as it was, and the summary ask
+ * never moved it), one harness line says so, and the room stays busy. `typed` is whether `text` is the
+ * user's own words: those, and only those, are handed back for the composer. Nothing is sent again.
+ * An entry no longer held (the conversation ended) changes nothing and says nothing.
+ */
+export function roomRefused(
+  state: ConversationState,
+  entryId: string,
+  at: number,
+  typed: boolean
+): { state: ConversationState; said?: SyslineRecord } {
+  const refused = state.entries.find((entry) => entry.id === entryId)
+  if (refused === undefined || refused.kind !== 'user') {
+    return { state }
+  }
+  const unsent = roomUnsent(state, entryId)
+  const topic =
+    typed && state.roomOpenedAt !== undefined
+      ? storedTopicOf(unsent.entries, state.roomOpenedAt)
+      : state.roomTopic
+  const said: SyslineRecord = {
+    kind: 'sysline',
+    id: `entry-${unsent.nextId}`,
+    at,
+    text: ROOM_REFUSED_LINE,
+    room: true
+  }
+  const withLine = withHandoff({ ...unsent, roomTopic: topic }, said)
+  return {
+    state: typed ? { ...withLine, roomReturned: { key: unsent.nextId, text: refused.text } } : withLine,
+    said
+  }
+}
+
+/**
+ * A send into the room was refused for a room the user stopped, or one already gone (Story 4.8): its
+ * entry is not shown as sent, and nothing is said, since the stop or the exit is what ended it. Only
+ * the entry goes.
+ */
+export function roomUnsent(state: ConversationState, entryId: string): ConversationState {
+  return state.entries.some((entry) => entry.id === entryId)
+    ? { ...state, entries: state.entries.filter((entry) => entry.id !== entryId) }
+    : state
 }
 
 /**
@@ -665,7 +727,14 @@ export function foldEvent(
       const { sessionId, reason } = event.payload
       let next = withBusy(state, sessionId, false)
       if (next.room === sessionId) {
-        next = { ...next, room: undefined, roomCast: [], roomOpenedAt: undefined, roomTopic: undefined }
+        next = {
+          ...next,
+          room: undefined,
+          roomCast: [],
+          roomOpenedAt: undefined,
+          roomTopic: undefined,
+          roomReturned: undefined
+        }
       }
       for (const [agentId, live] of state.sessions) {
         if (live === sessionId) {

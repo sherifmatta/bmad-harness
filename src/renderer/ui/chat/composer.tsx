@@ -32,7 +32,8 @@ export function Composer({
   onSend,
   focusOnMount = false,
   refocus = 0,
-  head
+  head,
+  returned
 }: {
   agentName: string
   onSend?: (text: string) => void
@@ -51,9 +52,24 @@ export function Composer({
   refocus?: number
   /** What sits above the field inside the composer: the persona's skill row, when it has one. */
   head?: ReactNode
+  /**
+   * Words handed back to the user (Story 4.8): the room did not receive them. Each new `key` is taken
+   * once, and only when the field is empty at that moment, so a draft is never touched and nothing is
+   * sent. The one held when the composer appears is not taken.
+   */
+  returned?: { key: number; text: string }
 }): JSX.Element {
   const [text, setText] = useState('')
   const field = useRef<HTMLTextAreaElement>(null)
+  const returnedKey = useRef(returned?.key)
+
+  useEffect(() => {
+    if (returned === undefined || returned.key === returnedKey.current) {
+      return
+    }
+    returnedKey.current = returned.key
+    setText((held) => (held === '' ? returned.text : held))
+  }, [returned])
 
   // Autogrow: collapse to content height, then take the content's. The CSS
   // min-height and max-height clamp the result, so no number is spelled here

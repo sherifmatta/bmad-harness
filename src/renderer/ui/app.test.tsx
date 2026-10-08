@@ -1964,6 +1964,46 @@ describe('the party view (Story 4.1)', () => {
     expect(party().querySelectorAll('.cast-card')).toHaveLength(2)
   })
 
+  it('takes a message main refused as busy back out of the thread, says so once in the room, and hands the words back to the composer (Story 4.8)', async () => {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    click(partyButton())
+    click(openButton())
+    await settle()
+    push({ name: 'session:opened', payload: { sessionId: 'session-of-the-room', at: 1 } })
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 'session-of-the-room', at: 2 } })
+    push({
+      name: 'persona:said',
+      payload: { sessionId: 'session-of-the-room', agentId: john.id, messageId: 'm#1', text: 'No.', at: 3, room: true }
+    })
+    ;(window.harness as unknown as { sendTurn: (sessionId: string, text: string) => Promise<void> }).sendTurn = async (
+      sessionId: string,
+      text: string
+    ) => {
+      sent.push([sessionId, text])
+      throw { code: 'session/busy', message: 'session · busy' }
+    }
+
+    const field = party().querySelector('textarea') as HTMLTextAreaElement
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
+      setter?.call(field, 'hold on')
+      field.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    act(() => {
+      field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    })
+    await settle()
+
+    expect(sent).toEqual([['session-of-the-room', 'hold on']])
+    expect((party().querySelector('textarea') as HTMLTextAreaElement).value).toBe('hold on')
+    expect(party().querySelector('.turn--user')).toBeNull()
+    expect([...party().querySelectorAll('.party-thread .sysline')].map((line) => line.textContent)).toContain(
+      'not sent · the room is still speaking'
+    )
+  })
+
   it('wires the room’s topic, open time, turns and the rail’s rows into the header and the Room panel (Story 4.3)', async () => {
     const rows = [
       { path: '_bmad/planning-artifacts/prd.md', state: 'saved', savedAt: 1, owner: { agentId: john.id } },

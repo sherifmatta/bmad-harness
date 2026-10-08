@@ -1346,6 +1346,7 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
         "roomCast",
         "roomOpenedAt",
         "roomTopic",
+        "roomReturned",
         "nextId",
       ]);
       for (const path of [
@@ -2399,7 +2400,7 @@ describe("nothing this epic promised not to do: the audit's static half (Story 4
     expect(code.get(HEADER) ?? "").toContain("Write summary to _bmad/");
     // The composer is the room's only other control in a live room, and nothing the room does can switch it off.
     const view = code.get(VIEW) ?? "";
-    expect(view.match(/<Composer\b[^>]*>/g)).toEqual(['<Composer agentName="the room" onSend={onSend} />']);
+    expect(view.match(/<Composer\b[^>]*>/g)).toEqual(['<Composer agentName="the room" onSend={onSend} returned={returned} />']);
     expect(view).not.toMatch(/disabled|readOnly|aria-disabled|aria-busy/);
     expect(code.get(COMPOSER) ?? "").not.toMatch(/\bdisabled\b|readOnly|aria-disabled/);
     expect(offenders(PARTY_TSX.filter((path) => path !== CHOOSER && path !== HEADER), /\bdisabled\b/)).toEqual([]);
@@ -2511,6 +2512,28 @@ describe("nothing this epic promised not to do: the audit's static half (Story 4
     const preload = code.get(PRELOAD) ?? "";
     const methods = [...preload.slice(preload.indexOf("const harness: HarnessApi = {"), preload.indexOf("contextBridge.exposeInMainWorld")).matchAll(/^ {2}(\w+):/gm)];
     expect([commands.length, events.length, channels.length, methods.length]).toEqual([7, 15, 22, 17]);
+  });
+
+  it("says a refused message once, as a fact, in the window's own register, and never sends, queues or retries it (Story 4.8)", () => {
+    const CONVERSATION = "src/renderer/ui/chat/use-conversation.ts";
+    const state = code.get(STATE) ?? "";
+    // One line, declared once, in the harness's register: lower case, `·`-separated, no terminal punctuation, no guidance.
+    const declared = [...state.matchAll(/ROOM_REFUSED_LINE\s*=\s*'([^']*)'/g)].map(([, line]) => line);
+    expect(declared).toEqual(["not sent · the room is still speaking"]);
+    expect(declared[0]).toBe(declared[0].toLowerCase());
+    expect(declared[0]).not.toMatch(/[.!?]$|retry|try again|resend|queue|\byou\b|\bplease\b/i);
+    // The line is the window's own: main's code never says it, and writes nothing for a refused send.
+    expect(offenders([VOICE, BRIDGE, "src/main/session-registry.ts"], /not sent|still speaking/)).toEqual([]);
+    // Nothing is sent again: the room's refusal paths hold no second send, no timer and no retry word.
+    const refusal = state.slice(state.indexOf("export function roomRefused"), state.indexOf("export function speakerOf"));
+    expect(refusal.length).toBeGreaterThan(0);
+    expect(refusal).not.toMatch(/sendTurn|setTimeout|retry|resend|queue|withQueue/i);
+    const conversation = code.get(CONVERSATION) ?? "";
+    expect(conversation.match(/bridge\.sendTurn\(/g)).toHaveLength(2);
+    expect(wordsOf([CONVERSATION, STATE, COMPOSER, ...PARTY_TSX]).filter((text) => /try again|retry|resend|re-send/i.test(text))).toEqual([]);
+    // The text goes back to the field and nowhere else: the composer takes it into its own draft and calls no handler.
+    const composer = code.get(COMPOSER) ?? "";
+    expect(composer.match(/onSend\(/g)).toHaveLength(1);
   });
 
   it("says nothing of a reload: no restored or reconnected word, control, line or banner for a room that came back (Story 4.7)", () => {

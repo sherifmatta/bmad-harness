@@ -2541,6 +2541,21 @@ describe('a send into the room (Story 4.2)', () => {
     expect(lines(sender).some((text) => text.startsWith('turn failed'))).toBe(true)
   })
 
+  it('records nothing for a send it refused as busy, so a reload shows neither the entry nor a line (Story 4.8)', async () => {
+    const { sender, reply, proc } = await room()
+    for (const frame of speech('msg_1', '🧙 **Mary:** long speech')) proc.frame(frame)
+    proc.session.interrupt = () => Promise.resolve(false)
+    const before = transcriptOf(sender)
+
+    expect(await send(sender, reply.sessionId, 'refused')).toMatchObject({ ok: false, error: { code: 'session/busy' } })
+
+    expect(transcriptOf(sender)).toEqual(before)
+    expect(transcriptOf(sender).some((entry) => entry.kind === 'user')).toBe(false)
+    // The line is the window's own: main says nothing of the refusal, in the thread or the record.
+    expect(lines(sender).some((text) => text.startsWith('not sent'))).toBe(false)
+    expect(proc.writes).toEqual(['/bmad-party-mode'])
+  })
+
   it('refuses as busy when the CLI never answers the interrupt within STOP_ACK_MS', async () => {
     const { sender, reply, proc } = await room()
     proc.session.interrupt = () => new Promise<boolean>(() => {})

@@ -47,6 +47,7 @@ export function PartyView({
   topic,
   openedAt,
   turns,
+  returned,
   rows,
   onOpen,
   onSend,
@@ -68,6 +69,8 @@ export function PartyView({
   openedAt: number | undefined
   /** How many turns the room has had. */
   turns: number
+  /** The user's words the room refused as busy, handed back to the room's composer (Story 4.8). */
+  returned?: { key: number; text: string }
   /** The rail's rows: the panel lists those a room did not write as the room's context. */
   rows: readonly RailRow[]
   /** Called with the ticked agent ids when *Open the room* is pressed. */
@@ -153,7 +156,7 @@ export function PartyView({
                   {threadOf}
                 </div>
               </div>
-              <Composer agentName="the room" onSend={onSend} />
+              <Composer agentName="the room" onSend={onSend} returned={returned} />
             </div>
             <RoomPanel topic={topic} openedAt={openedAt} rows={rows} />
           </div>

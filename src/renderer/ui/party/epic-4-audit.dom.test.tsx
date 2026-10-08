@@ -7,7 +7,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConversationSnapshot, TranscriptRecord } from '../../../shared/conversation'
 import type { AgentView } from '../../../shared/install'
 import type { RailRow } from '../../../shared/rail'
-import { hydrate, initialConversation, roomTurnsOf, speakerOf } from '../chat/conversation-state'
+import type { ContractEvent } from '../../../shared/events'
+import {
+  foldEvent,
+  hydrate,
+  initialConversation,
+  ROOM_REFUSED_LINE,
+  roomReady,
+  roomRefused,
+  roomSent,
+  roomSummaryAsked,
+  roomTurnsOf,
+  speakerOf
+} from '../chat/conversation-state'
+import type { ConversationState } from '../chat/conversation-state'
 import type { TranscriptEntry } from '../chat/transcript-entry'
 import { DENOMINATOR, SPINNER_MARKUP, STAND_IN, spoken } from '../testing/audit-patterns'
 import '../testing/render-hook'
@@ -84,7 +97,11 @@ function reloaded(busy: boolean, records: readonly TranscriptRecord[]): Props {
     runs: [],
     room: { sessionId: 's1', cast: CAST, openedAt: NOW }
   }
-  const { state } = hydrate(initialConversation, snapshot, (id) => ROSTER.find((one) => one.id === id))
+  return propsOf(hydrate(initialConversation, snapshot, (id) => ROSTER.find((one) => one.id === id)).state)
+}
+
+/** The props the view is given for a conversation state, as the window gives them. */
+function propsOf(state: ConversationState): Props {
   return {
     room: state.room,
     roomCast: state.roomCast,
@@ -104,6 +121,25 @@ const RECORDS: TranscriptRecord[] = [
   { kind: 'persona', id: 'm-2', at: NOW + 2, agentId: MARY.id, messageId: 'a', text: 'The data we hold says yes.', room: true },
   { kind: 'persona', id: 'm-3', at: NOW + 3, agentId: JOHN.id, messageId: 'b', text: 'I would hold it back a sprint.', room: true }
 ]
+
+/**
+ * A live room that refused a send as busy (Story 4.8), built as the window builds it: the room's recorded
+ * events folded, then the send and main's refusal applied by the state's own functions. Nothing is set by hand.
+ */
+function refused(asked: 'typed' | 'summary'): Props {
+  const events: ContractEvent[] = [
+    { name: 'session:opened', payload: { sessionId: 's1', at: NOW } },
+    { name: 'harness:said', payload: { id: 'm-0', at: NOW, text: OPENED.kind === 'sysline' ? OPENED.text : '', room: true } },
+    { name: 'persona:said', payload: { sessionId: 's1', agentId: MARY.id, messageId: 'a', text: 'The data we hold says yes.', at: NOW + 2, room: true } }
+  ]
+  let state = events.reduce(
+    (held, event) => foldEvent(held, event, (id) => ROSTER.find((one) => one.id === id)).state,
+    initialConversation
+  )
+  state = roomReady(state, 's1', CAST, NOW)
+  const sent = asked === 'typed' ? roomSent(state, NOW + 3, 'Should the payouts ship first') : roomSummaryAsked(state, NOW + 3)
+  return propsOf(roomRefused(sent.state, sent.entryId ?? '', NOW + 4, asked === 'typed').state)
+}
 
 const CASES: Case[] = [
   { name: 'the chooser alone', props: { ...BASE, room: undefined, roomCast: [], openedAt: undefined, entries: [] }, live: false },
@@ -135,7 +171,9 @@ const CASES: Case[] = [
     live: true
   },
   { name: 'a live room after a reload, idle, built by hydrate from the snapshot', props: reloaded(false, RECORDS), live: true },
-  { name: 'a live room after a reload, mid-turn, its speaker lit from the stored entries', props: reloaded(true, RECORDS), live: true }
+  { name: 'a live room after a reload, mid-turn, its speaker lit from the stored entries', props: reloaded(true, RECORDS), live: true },
+  { name: 'a live room after a refused message: the entry gone, one line said, built by roomRefused', props: refused('typed'), live: true },
+  { name: 'a live room after a refused summary ask: the ask gone, one line said, built by roomRefused', props: refused('summary'), live: true }
 ]
 
 let container: HTMLElement
@@ -435,7 +473,7 @@ describe('the room’s words are the harness’s facts (UX-DR36)', () => {
     mountWith(props)
 
     for (const line of all('.sysline').map(text)) {
-      expect(line).toMatch(/^room (?:opened by you · present · .+|stopped · session released)$/)
+      expect(line).toMatch(/^(?:room (?:opened by you · present · .+|stopped · session released)|not sent · the room is still speaking)$/)
     }
     expect(all('.cast-status').map(text).every((status) => status === 'speaking' || status === 'in the room')).toBe(true)
     expect(harnessWords()).not.toMatch(/\b(?:rank\w*|strongest|weakest|best|worst|winner|leading|most|least|top|agree\w*|disagree\w*|conflict\w*|tension|heated|consensus|majority|split|divided|concede\w*|challenge\w*|rebut\w*|object\w*|decid\w*|decision\w*|resolv\w*)\b/i)
@@ -469,7 +507,8 @@ describe('the room’s words are the harness’s facts (UX-DR36)', () => {
       expect([...all('.sysline'), ...all('.party-side'), ...all('.cast-strip'), ...all('.composer')].map(text), name).toEqual(before)
       expect(container.innerHTML, name).not.toMatch(SPINNER_MARKUP)
       expect(harnessWords(), name).not.toMatch(STAND_IN)
-      expect(harnessWords(), name).not.toMatch(/\b(?:still|yet|idle|quiet|silent|stuck|inactive|away|timed out|expired|waiting)\b/i)
+      // The refusal line (Story 4.8) is a fact said at the refusal, not a word about time passing: it is read as itself.
+      expect(harnessWords().replace(ROOM_REFUSED_LINE, ''), name).not.toMatch(/\b(?:still|yet|idle|quiet|silent|stuck|inactive|away|timed out|expired|waiting)\b/i)
       expect(container.querySelector(`${LIVE}, [aria-busy], ${ANNOUNCING}`), name).toBeNull()
       act(() => root.unmount())
       container.remove()
@@ -557,5 +596,26 @@ describe('dimming, never removal (UX-DR38)', () => {
     expect(lit()).toEqual([])
     expect(all('.cast-card')).toHaveLength(CAST.length)
     expect(all('.sysline').map(text)).toEqual([OPENED.kind === 'sysline' ? OPENED.text : '', STOPPED.kind === 'sysline' ? STOPPED.text : '', OPENED.kind === 'sysline' ? OPENED.text : ''])
+  })
+})
+
+describe('a message the room refused (Story 4.8)', () => {
+  it('draws the thread without the refused entry and with the one line, in the room’s thread, and the room still speaking', () => {
+    mountWith(refused('typed'))
+
+    expect(all('.turn--user')).toEqual([])
+    expect(all('.sysline').map(text)).toEqual([OPENED.kind === 'sysline' ? OPENED.text : '', ROOM_REFUSED_LINE])
+    expect(all('.party-thread .sysline')).toHaveLength(2)
+    expect(text(all('.party-chip')[1])).toMatch(/^turn 1 · /)
+    expect(text(all('.party-head-topic')[0])).not.toMatch(/payouts/)
+    expect((all('textarea')[0] as HTMLTextAreaElement).disabled).toBe(false)
+  })
+
+  it('draws the ask refused the same way, and the destination as before', () => {
+    mountWith(refused('summary'))
+
+    expect(all('.turn--user')).toEqual([])
+    expect(all('.sysline').map(text).at(-1)).toBe(ROOM_REFUSED_LINE)
+    expect(text(all('.party-side')[0])).toMatch(/_bmad\/party\/2026-10-08-<topic>\.md/)
   })
 })

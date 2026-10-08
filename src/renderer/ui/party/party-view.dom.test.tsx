@@ -179,3 +179,36 @@ describe('PartyView stopped room (Story 4.5)', () => {
     expect([...container.querySelectorAll('.party-chip')].map((chip) => chip.textContent)).toEqual(['1 participant', expect.stringMatching(/^turn 0\b/)])
   })
 })
+
+describe('PartyView returned words (Story 4.8)', () => {
+  const field = (): HTMLTextAreaElement => container.querySelector('textarea') as HTMLTextAreaElement
+  const show = (returned?: { key: number; text: string }): void =>
+    act(() => root.render(createElement(PartyView, { agents: [mary], room: 'r1', roomCast: [mary.id], speaker: undefined, entries: [LINE], topic: undefined, openedAt: 1, turns: 0, returned, rows: [], onOpen: () => {}, onSend: () => {} })))
+
+  it('hands the words a refused send brought back to the room’s composer, once, and only when it is empty', () => {
+    mount('r1')
+    show()
+    show({ key: 1, text: 'x' })
+    expect(field().value).toBe('x')
+
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
+      setter?.call(field(), 'draft')
+      field().dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    show({ key: 2, text: 'y' })
+    expect(field().value).toBe('draft')
+  })
+
+  it('takes none that was already held when the room was drawn', () => {
+    mount('r1')
+    act(() => root.unmount())
+    container.remove()
+    container = document.createElement('div')
+    document.body.append(container)
+    root = createRoot(container)
+    show({ key: 1, text: 'old' })
+
+    expect(field().value).toBe('')
+  })
+})
