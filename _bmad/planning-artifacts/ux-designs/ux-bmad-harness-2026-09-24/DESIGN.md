@@ -14,6 +14,8 @@ sources:
   - ../../architecture/architecture-bmad-harness-2026-09-23/ARCHITECTURE-SPINE.md
   - ../../../brainstorming/brainstorm-bmad-visual-harness-2026-09-22/harness-mockup.html
   - mockups/welcome-screen-chosen.html
+  - mockups/light-theme.html
+  - mockups/follow-the-thread.html
 companions:
   - EXPERIENCE.md
 
@@ -404,6 +406,17 @@ components:
     portraitSize: 44px
     opacity: '1 — these are not a room, so nothing is dimmed'
     theme-line: '{typography.meta} mono along the bottom edge, right-aligned: `theme · system · light · dark`; the current word {colors.text-strong}, the others {colors.accent}, hover underlines'
+  follow-control:
+    label: '`↓ latest` — literal text, no count, no dot, no word that says anything is new'
+    type: '{typography.label} mono, {colors.dim}'
+    ground: '{colors.panel-2}'
+    border: '1px solid {colors.line}'
+    radius: '{rounded.control}'
+    padding: '3px 11px'
+    hover: '{colors.panel-3} ground, {colors.text-strong}'
+    position: 'centred on the thread, 12px above the composer, floating over the text it covers'
+    motion: 'none — it appears and goes in one frame'
+    opacity: '1'
   document-window:
     radius: '{rounded.window}'
     background: '{colors.panel}'
@@ -859,6 +872,12 @@ A window of its own, opened by main when the harness starts without a project an
 
 There is **no motion** on this window: no entrance, no hover transition on a card, no animated drop feedback. The page is at rest.
 
+### Follow control
+
+`↓ latest`, in `label` mono at `dim` on `panel-2`, a 1px `line` border and `{rounded.control}` radius, centred along the bottom edge of the thread and 12px above the composer. It floats over the lines it covers, so its ground is opaque. It appears only while the thread is not following, and goes in the same frame as the thread returns to the bottom. **It has no count, no dot, no *new*, and no state of its own**: one literal string, always. Hover raises the ground to `panel-3` and the text to `text-strong`; focus takes the shared ring. The text is an action a user takes, so it sits at `dim` and not at `faint`. It is the same control, drawn the same way, in a persona's thread and in the party room, and in both themes through tokens alone.
+
+The scrollbar, the shadow and the elevation ladder are not touched: this control casts no shadow, because the product reserves a shadow for the document window and the speaking cast card.
+
 ### Document window
 
 A separate OS window over a `scrim` fill at z-40, window at z-50, top `8vh`, `min(880px,92vw) × min(760px,80vh)`. `panel` ground, 1px `win-line` (`#333b46`), `{rounded.window}` (8px) radius, `0 30px 70px -20px rgba(0,0,0,.85)`.
@@ -927,4 +946,5 @@ Streaming prose arrives in frame-sized bursts, with the caret at the tail. **A p
 | Set the theme from the stored choice and the OS appearance in main, before a window is first shown | Read `prefers-color-scheme` in a stylesheet or a component, or paint a window in one theme and then switch it |
 | Keep the portraits identical in both themes, on their dark backdrops | Give a portrait a theme-dependent backdrop, or a theme field in `ArtParams` |
 | Strengthen the state-dot halos in light (`.16`) | Reuse the dark alpha, which fades on white |
+| Show `↓ latest` as one literal string over a thread that is not following | Add a count, a dot, a *new* label, a pulse, or a shadow to it |
 | Ship the two themes and nothing else | Add a high-contrast variant, or a third palette |

@@ -13,6 +13,8 @@ sources:
   - ../../architecture/architecture-bmad-harness-2026-09-23/ARCHITECTURE-SPINE.md
   - ../../../brainstorming/brainstorm-bmad-visual-harness-2026-09-22/harness-mockup.html
   - mockups/welcome-screen-chosen.html
+  - mockups/light-theme.html
+  - mockups/follow-the-thread.html
 companions:
   - DESIGN.md
 ---
@@ -38,6 +40,7 @@ Every rule below traces to a memlog decision, an architecture decision (AD-n), a
 | State Patterns | tile, rail row, card, queued composer, roster, preflight, empty states |
 | Welcome | the window before a project: when it opens, the one action, recent projects, the five core personas |
 | Theme | light and dark, the System default, where the choice lives, and what changing it touches |
+| Following the thread | what a thread does as it grows: follow, pause, and the way back |
 | Dead Air | what the card does through a multi-minute silence |
 | Failure, Stopping and Contention | the stop cost, terminal states, and the no-arbitration posture |
 | Run Completion When Unattended | the notification contract for the terminal events |
@@ -178,6 +181,7 @@ Project **content** is untrusted because it is largely model-authored (AD-13). M
 | *Open project folder…* · `⌘O` | welcome | the native folder chooser; a choice opens that project's window |
 | Drop a folder | welcome | opens that project's window |
 | *View ▸ Theme ▸ System · Light · Dark* | application menu, every window | sets the theme for every window at once |
+| `↓ latest` | thread, only while it is not following | scrolls to the newest line and resumes following |
 | `theme · system · light · dark` | welcome, bottom edge | the same choice, from the one window with no project |
 | Recent row | welcome | opens that project's window |
 
@@ -426,6 +430,62 @@ No per-persona, per-project or per-window theme; no schedule of the product's ow
 
 ---
 
+## Following the thread
+
+*Added 2026-10-08. Appearance: `DESIGN.md` → Components → Follow control. Mockup: `mockups/follow-the-thread.html`.*
+
+Before this, a thread never moved by itself. A persona's text, a user turn, a document card or a room speaker's words grew the thread downward and the newest line fell out of view; the one scroll call the renderer had was the reveal of a run's card. The thread now follows what is being said, in a persona's conversation and in the party room alike, **without ever taking the page from a user who is reading**.
+
+### Two states
+
+| State | Meaning | How it is entered |
+|---|---|---|
+| **following** | the newest line is kept in view | the thread is at its bottom, which is within **one line (24px)** of it |
+| **paused** | the thread keeps the user's place | the user scrolled up, by wheel, trackpad, keys or scrollbar, to farther than that |
+
+*Following* is the resting state. There is no setting, no toggle and no remembered preference: the state is a fact about where the thread is scrolled.
+
+### What follows
+
+While following, anything that makes the thread longer keeps its bottom edge in view, **in the same frame as the growth and instantly**: a burst of a persona's prose, a user's turn, a sysline, a document card or its line, a decision block, a card returning from the pinned place to its time-ordered one, a room speaker's words. **No smooth scroll, no easing, no animation** (*Motion*, `DESIGN.md`: motion is information or it does not exist). A resize of the window keeps a following thread at its bottom.
+
+### What pauses it
+
+A user scroll that leaves the bottom, or a reveal: **a notification that scrolls to a run's card (FR94) pauses the thread**, because the user was taken somewhere that is not the bottom.
+
+While paused, **nothing moves the thread**: not new text, not a new turn, not a card arriving or leaving, not the persona finishing. The lines the user is reading stay where they are. The thread keeps growing out of view below them.
+
+### The way back
+
+| The user | The thread |
+|---|---|
+| scrolls back to within a line of the bottom | resumes following; the control goes |
+| presses `↓ latest` | scrolls to the bottom, resumes following, the control goes in the same frame; **focus moves to the composer** — the control is gone, and the composer is where the user continues. **[ASSUMPTION]** — no source places focus here |
+| sends a message, in a persona's thread or in the room | scrolls to the bottom and resumes following. A send is always an intent to be at the end |
+
+`↓ latest` is the one control. It is drawn only while the thread is paused and is one literal string, **with no count of what is below**. A count, a dot, *new*, *N unread* or any other measure of what was missed is an unread marker, which the product bans (*Banned everywhere*). It is also not the *jump to card* control Story 3.14 rules out: that was about moving to a document card, and this moves to the end of the thread.
+
+### Where it lands
+
+A thread **opens at its bottom and following**: when the window opens, on reload, when the user selects a persona, when the user switches between 1:1 and Party, and when the room opens. Nothing remembers a paused position across a switch. **[ASSUMPTION]** — no source asks for per-thread positions, and the user who left a persona mid-reread has left it.
+
+### Other surfaces
+
+- **The pinned card** (Story 3.14) is outside the thread's scroller and is untouched. When it returns to its place in the thread: a following thread keeps its bottom in view; a paused thread does not move (3.14's *the thread does not jump*).
+- **The document card's own body** already follows the tail of its prose and is a separate scroller: it is unchanged.
+- **At ≤1000px** the page, not the thread, scrolls (`DESIGN.md` → Responsive). The harness does not scroll the page for the user: following applies where the thread has a scroller of its own. **[ASSUMPTION]**
+- **An unattended window** follows as well. A user who comes back to a run that finished meanwhile finds the bottom, not where they last looked.
+
+### Accessibility
+
+Following is not announced and is not a live region (the policy in *Accessibility Floor → 4* is unchanged; no role that implies a live region is added to the thread). The scroller uses the browser's own keyboard scrolling. `↓ latest` is a button with the visible text as its name.
+
+### Banned here
+
+No count, badge, dot, toast, sound, pulse or shadow on the control; no animated scroll; no preference to turn following off; no per-thread remembered position; no *new messages* line, divider or marker in the thread.
+
+---
+
 ## Dead Air
 
 [`mockups/document-card-dead-air.html`](mockups/document-card-dead-air.html) — the three treatments compared, the approved Option A among them, plus the same run seen from the collapsed card and the rail. Where it and this spine disagree, **this spine wins**.
@@ -621,6 +681,7 @@ With no command palette (*Banned everywhere*) there is no `⌘K` escape hatch, s
 | Document window | `Esc` closes. The three escapes are tab-reachable |
 | Party | cast chooser, header controls and composer all tab-reachable; no turn gate means no focus trap |
 | Welcome | *Open project folder…*, the recent list and the three theme words are the tab stops; arrows move between recent rows, `Enter` opens, `⌘O` opens the chooser. Persona cards are content and are not tab stops. See *Welcome → Accessibility* |
+| Thread | the scroller is scrolled by the browser's own keys (`PageUp`, `PageDown`, `End`); `↓ latest` is one tab stop between the thread and the composer, present only while the thread is not following. No new tab stop otherwise |
 | Theme | *View ▸ Theme* is a native menu, reachable as every menu is; the radio items carry the current choice. No accelerator |
 
 No shortcut layer beyond this.

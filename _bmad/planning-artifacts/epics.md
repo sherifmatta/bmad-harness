@@ -178,6 +178,7 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **FR109:** The Welcome shows the five core personas, with their curated portraits at 44px and full opacity, in four lanes by phase of the method (analysis, planning, solutioning, implementation) with one harness-written sentence about each role. It reads no project, marks no lane current and recommends no persona.
 - **FR110:** The harness has a dark and a light theme. The user chooses **System** (the default, following the macOS appearance live while the app runs), **Light** or **Dark** from *View ▸ Theme* in every window's menu and from the `theme · system · light · dark` line on the Welcome. A change applies to every open window at once and is a repaint only: it touches no session, run, transcript, card, rail row or scroll position, and has no transition.
 - **FR111:** The theme choice is one value (`system`, `light` or `dark`) stored under `userData`, never in a project. A window is never painted in the other theme first. A missing, unreadable or unrecognised stored value reads as `system` without surfacing an error. The portraits are identical in both themes.
+- **FR112:** A persona's thread and the party room's thread follow what is being said. While a thread is at its bottom (within one line), anything that lengthens it keeps its newest line in view in the same frame, instantly and without animation. A user scroll away from the bottom pauses following, and while paused nothing moves the thread. Scrolling back to the bottom, pressing `↓ latest`, or sending a message resumes it. A thread opened, reloaded or switched to lands at its bottom, following. The control carries no count or sign of what is below.
 
 ### NonFunctional Requirements
 
@@ -285,10 +286,11 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **UX-DR41 — The Welcome's reach and prohibitions** (`EXPERIENCE.md` → Welcome → Accessibility, Banned on the Welcome): the tab stops are the open button and the recent list (one stop, arrows between rows, `Enter` opens); persona cards are content and take no focus; one polite live region announces a rejected drop once; focus lands on the open button on open and after a cancelled dialog; no motion; no tour, wizard, badge, count, version, *clear recent*, link out, sound or animation.
 - **UX-DR42 — The light theme's tokens** (`DESIGN.md` → Colors → The light theme, frontmatter `colors-light`): palette A, "cool paper", one twin for every colour token in `design/tokens.css`, in a third block `:root[data-theme="light"]` carrying `color-scheme: light` after the two dark blocks, which stay byte-identical. Components name no theme. Light pairs that carry text clear 4.5:1 on their surface except `meta`, which carries no actionable fact; the state colours keep their four meanings, their halos are strengthened, and the shadows and scrim are cool and low.
 - **UX-DR43 — The theme control and its prohibitions** (`EXPERIENCE.md` → Theme): *View ▸ Theme* as three radio items in every window's menu, no accelerator; the Welcome's theme line is the only on-window control and the topbar gains none; applying is instant with no transition, no toast and no announcement; native chrome follows; no per-project or per-window theme, no high-contrast variant, no third palette, and no read of `prefers-color-scheme` outside main.
+- **UX-DR44 — The follow control** (`DESIGN.md` → Components → Follow control, `EXPERIENCE.md` → Following the thread): one literal string, `↓ latest`, in `label` mono at `dim` on `panel-2` with a 1px `line` border and `control` radius, centred above the composer, present only while a thread is not following, in one frame in and out, one tab stop between the thread and the composer. No count, dot, *new*, pulse, shadow or sound, and no animated scroll anywhere.
 
 ### FR Coverage Map
 
-Every one of the 111 FRs maps to exactly one epic.
+Every one of the 112 FRs maps to exactly one epic.
 
 | FR | Epic | Covers |
 |---|---|---|
@@ -403,6 +405,7 @@ Every one of the 111 FRs maps to exactly one epic.
 | FR109 | Epic 5 | The five core personas by phase of the method |
 | FR110 | Epic 5 | Light and dark themes, System default, the View menu and the Welcome line, applied at once |
 | FR111 | Epic 5 | One stored value, no wrong-theme first paint, unknown reads as System, portraits unchanged |
+| FR112 | Epic 6 | A thread follows its newest line, pauses when the user scrolls up, and has one way back |
 
 **Coverage by epic:** Epic 1 — 42 FRs · Epic 2 — 20 FRs · Epic 3 — 34 FRs · Epic 4 — 9 FRs · **Total 105.**
 
@@ -523,6 +526,24 @@ The harness stops opening to a native dialog. It opens to a Welcome that offers 
 - **The light theme reverses NFR15** (Story 5.2). Dark is unchanged to the byte; the light theme is an additional block, so Epics 1 to 4's token tests keep passing as they are.
 - The five descriptions are a static table (the one roster shown before any install is read). They are written from each agent's `role`; they are not read from a project and not attributed to a persona.
 - **Negative-surface check:** each story's own final criteria verify the UX-DR38 prohibitions on its surfaces. The Welcome's: no badge or count, no recommended persona, no spinner or animation, no tour or wizard, no sound, no *clear recent* control.
+
+
+### Epic 6: Read along — a conversation that holds its place
+
+A thread follows what is being said, in a persona's conversation and in the party room, and stops the moment the reader scrolls up to reread, with one quiet way back.
+
+**Standalone:** it changes how a thread scrolls and nothing about what a thread contains.
+
+**FRs covered:** FR112
+
+**NFRs addressed:** NFR19, NFR20, NFR22, NFR23, NFR25, NFR26, NFR27
+
+**UX-DRs addressed:** UX-DR44
+
+**Implementation notes:**
+- The renderer's one scroll call today is the reveal of a run's card (`use-reveal.ts`, Story 3.10). This epic adds the thread's own following beside it; the reveal now also pauses following.
+- The follow state is a fact about the scroller's position, not stored state: nothing is persisted, nothing is remembered across a switch, and there is no setting.
+- **Negative-surface check:** the story's own final criteria verify the UX-DR38 prohibitions on the control: no count or unread marker, no badge, no animated scroll, no sound, no preference to turn it off.
 
 ---
 
@@ -2501,3 +2522,80 @@ So that the product is readable where I actually work and agrees with the rest o
 **Decisions to confirm before build (defaults in brackets):** no keyboard accelerator for the theme [none]; the three labels `System`, `Light`, `Dark` in the menu and `system`, `light`, `dark` on the Welcome [as written]; applying with no transition [yes].
 
 **Boundaries:** no change to the dark values; no change to any conversation, session, run, rail or document channel beyond the theme's own; no per-window or per-project theme; no portrait change; no high-contrast variant, no third palette and no accent choice; the Welcome's line is the only on-window control and the topbar gains none.
+
+---
+
+## Epic 6: Read along — a conversation that holds its place
+
+A thread follows what is being said and holds still when the reader scrolls up.
+
+### Story 6.1: The thread follows what is being said
+
+*Sequencing: added 2026-10-08 from the follow-the-thread design (`mockups/follow-the-thread.html`; `DESIGN.md` → Follow control; `EXPERIENCE.md` → Following the thread). Independent of Stories 5.1 and 5.2; it touches the thread's scroller in the shell and in the party view, and `use-reveal.ts`.*
+
+As someone watching a persona or the room write,
+I want the thread to stay on the newest line, and to hold still when I scroll up to reread,
+So that I never lose the end of a conversation I am watching and never lose my place in one I am reading.
+
+**Implements:** FR112 · UX-DR44 · NFR19, NFR20, NFR22, NFR23, NFR25, NFR26, NFR27
+
+**Evidence:** the persona thread's scroller (`.scroll`, `src/renderer/ui/shell/shell.css`) and the room's (`.party-scroll`, `src/renderer/ui/party/party-view.css`) are `overflow-y: auto` with nothing that moves them: each new line, turn, card or burst of prose lengthens the content and leaves the viewport where it was, so the newest line falls below the edge and the user scrolls by hand on every run. The renderer's only scroll call is the card reveal in `chat/use-reveal.ts` (`scrollIntoView`, whose own comment calls it "the one scroll call the renderer has"). The document card's body already tails its prose with `column-reverse` (`chat/run-card.css`), which is why the gap is only in the thread.
+
+**Acceptance Criteria:**
+
+**Given** a thread at its bottom, within one line (24px) of it, in a persona's conversation or in the room
+**When** anything lengthens it: a burst of prose, a user turn, a sysline, a document card or its line, a decision block, a room speaker's words, or a card returning from the pinned place to its time-ordered one
+**Then** the thread's bottom edge stays in view in the same frame as the growth
+**And** it moves instantly, with no smooth scroll, no `behavior: 'smooth'`, no easing and no animation anywhere in the renderer.
+
+**Given** a thread at its bottom and a window resize
+**Then** the thread is still at its bottom.
+
+**Given** the user scrolls the thread up by wheel, trackpad, keyboard or scrollbar to farther than one line from the bottom
+**Then** following is paused: nothing moves the thread while paused, whether new text, a new turn, a card arriving or leaving, or a run ending, and the lines the user is reading do not shift
+**And** `↓ latest` appears at the thread's bottom edge in the same frame, drawn as `DESIGN.md` gives it, and it carries no count, dot, *new* or other sign of what is below.
+
+**Given** a paused thread
+**When** the user scrolls back to within one line of the bottom
+**Then** following resumes and the control goes in the same frame.
+
+**Given** a paused thread
+**When** the user activates `↓ latest`, by pointer or keyboard
+**Then** the thread scrolls to its bottom, following resumes, the control goes, and focus moves to the composer
+**And** the control was one tab stop between the thread and the composer, present only while paused.
+
+**Given** a thread, paused or not
+**When** the user sends a message in a persona's thread or in the room
+**Then** the thread scrolls to its bottom and follows.
+
+**Given** a window opened, reloaded, a persona selected, a switch between 1:1 and Party, or the room opened
+**Then** the thread shown is at its bottom and following, and no paused position is remembered across the change.
+
+**Given** a notification that raises the window for a run's card (Story 3.10)
+**Then** the thread scrolls to that card as it does today, and is paused, with `↓ latest` shown
+**And** nothing resumes it but the user.
+
+**Given** a run in flight with its card pinned (Story 3.14)
+**Then** the pinned card is outside the thread's scroller and is not moved by following
+**And** when it returns to its place in the thread, a following thread keeps its bottom in view and a paused thread does not move.
+
+**Given** a window that is unfocused or hidden while a run writes
+**Then** the thread still follows, so the user returns to the bottom.
+
+**Given** a window at ≤1000px, where the page scrolls and the thread has no scroller of its own
+**Then** the harness does not scroll the page for the user, and nothing is specified beyond that.
+
+**Given** assistive technology and the keyboard
+**Then** following announces nothing, adds no live region and no role that implies one, adds no tab stop other than the control, and leaves the browser's own keys (`PageUp`, `PageDown`, `End`) working in the scroller.
+
+**Given** the negative surface and the audit
+**Then** no count, badge, dot, toast, sound, pulse or shadow exists on or around the control, no *new messages* line or divider is drawn in the thread, no preference turns following off, and `↓ latest` is one literal string
+**And** the Epic 4 audit and the shell's negative-surface tests mount a paused thread in each of the two views, built from a snapshot and not by hand.
+
+**Given** the evidence above
+**Then** the follow state is tested as a pure function of the scroller's metrics and the last user scroll, and as a hook over a fake scroller whose metrics the test sets (the jsdom environment has no layout): growth while following keeps the bottom, growth while paused changes no scroll position, and each return in the table above resumes
+**And** a test fails if growth while paused moves the scroll position, if `behavior: 'smooth'` appears under `src/renderer/`, or if the control gains any text other than `↓ latest`.
+
+**Decisions to confirm before build (defaults in brackets):** the tolerance for *at the bottom* [24px, one line]; focus lands in the composer after `↓ latest` [yes]; a thread opened or switched to is at its bottom, never at a remembered position [yes]; no following at ≤1000px [yes].
+
+**Boundaries:** no new command, event, channel or preload method; no change to the document card's own tailing, to the pinned card, to the reveal beyond pausing following, or to any copy; no stored state and no setting; the control is the only new element.
