@@ -8,9 +8,9 @@ import type { Rollup } from 'vite'
 import { inlineSharedIntoEachPreload } from '../electron.vite.inline-shared'
 
 /**
- * A sandboxed preload loads no second file. Both preloads draw on `src/shared/`,
+ * A sandboxed preload loads no second file. All three preloads draw on `src/shared/`,
  * and a module two entries share is built as a chunk that one `require`s from the
- * other, so the build gives each entry its own copy. This builds the two preload
+ * other, so the build gives each entry its own copy. This builds the three preload
  * entries for real, in memory, with the plugin the config uses.
  */
 
@@ -38,15 +38,16 @@ async function bundle(input: Record<string, string>, root = ROOT, withPlugin = t
 /** The ways one built file can reach another. */
 const RELATIVE = /require\(\s*["']\.{1,2}\/|from\s*["']\.{1,2}\/|import\(\s*["']\.{1,2}\/|import\s+["']\.{1,2}\//
 
-describe('the two preload entries, built', () => {
-  it('are exactly two files, each with no relative require or import, and each with the channels it speaks', async () => {
+describe('the three preload entries, built', () => {
+  it('are exactly three files, each with no relative require or import, and each with the channels it speaks', async () => {
     const output = await bundle({
       index: join(ROOT, 'src/preload/index.ts'),
-      doc: join(ROOT, 'src/preload/doc.ts')
+      doc: join(ROOT, 'src/preload/doc.ts'),
+      welcome: join(ROOT, 'src/preload/welcome.ts')
     })
     const chunks = output.filter((file): file is Rollup.OutputChunk => file.type === 'chunk')
 
-    expect(chunks.map((chunk) => chunk.fileName).sort()).toEqual(['doc.js', 'index.js'])
+    expect(chunks.map((chunk) => chunk.fileName).sort()).toEqual(['doc.js', 'index.js', 'welcome.js'])
     for (const chunk of chunks) {
       expect(chunk.code, chunk.fileName).not.toMatch(RELATIVE)
     }
@@ -57,16 +58,27 @@ describe('the two preload entries, built', () => {
     for (const channel of ['doc:get', 'doc:changed', 'doc:reveal', 'doc:open-in-editor', 'doc:close']) {
       expect(code('doc.js'), channel).toContain(`"${channel}"`)
     }
+    for (const channel of ['welcome:recent', 'welcome:choose', 'welcome:open-recent', 'welcome:open-dropped']) {
+      expect(code('welcome.js'), channel).toContain(`"${channel}"`)
+    }
+    // Each bundle holds its own channels and none of another window's.
+    expect(code('welcome.js')).not.toMatch(/"(?:doc|project|install|rail|session):/)
+    expect(code('doc.js')).not.toContain('"welcome:')
+    expect(code('index.js')).not.toContain('"welcome:')
   })
 
   it('would be a chunk one requires from the other without the plugin: the check can fail', async () => {
     const output = await bundle(
-      { index: join(ROOT, 'src/preload/index.ts'), doc: join(ROOT, 'src/preload/doc.ts') },
+      {
+        index: join(ROOT, 'src/preload/index.ts'),
+        doc: join(ROOT, 'src/preload/doc.ts'),
+        welcome: join(ROOT, 'src/preload/welcome.ts')
+      },
       ROOT,
       false
     )
 
-    expect(output.filter((file) => file.type === 'chunk').length).toBeGreaterThan(2)
+    expect(output.filter((file) => file.type === 'chunk').length).toBeGreaterThan(3)
   })
 })
 

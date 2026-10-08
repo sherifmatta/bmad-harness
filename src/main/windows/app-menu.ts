@@ -1,6 +1,7 @@
 import { app, Menu } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import { isDocWindow } from './doc-window'
+import { isWelcomeWindow } from './welcome-window'
 
 /**
  * The application menu, ours rather than Electron's default.
@@ -19,19 +20,28 @@ import { isDocWindow } from './doc-window'
  * focus: the document window's menu has no reload entry at all, rather than a
  * disabled one.
  *
+ * The Welcome has its own menu, because it has its own job: *File ▸ Open Project
+ * Folder…* with `⌘O` is the one accelerator the product spells, and it exists
+ * only while the Welcome has focus, so no project window's or document
+ * window's menu changes. Its View is the zooms alone: the Welcome is not
+ * reloaded.
+ *
  * Toggle Developer Tools is the developer's, and only in an unpackaged build.
  */
 
 /** Which kind of window the menu is being built for. */
-export type MenuFocus = 'project' | 'document'
+export type MenuFocus = 'project' | 'document' | 'welcome'
 
 /** The template for a build. Pure, so a test can read every role in it. */
 export function buildMenuTemplate({
   packaged,
-  focus
+  focus,
+  openProjectFolder
 }: {
   packaged: boolean
   focus: MenuFocus
+  /** What *Open Project Folder…* does; only the Welcome's menu carries it. */
+  openProjectFolder?: () => void
 }): MenuItemConstructorOptions[] {
   const view: MenuItemConstructorOptions[] = []
   if (focus === 'project') {
@@ -44,7 +54,7 @@ export function buildMenuTemplate({
     window.push({ type: 'separator' }, { role: 'toggleDevTools' })
   }
 
-  return [
+  const menus: MenuItemConstructorOptions[] = [
     {
       label: 'bmad-harness',
       submenu: [
@@ -59,13 +69,29 @@ export function buildMenuTemplate({
     { label: 'View', submenu: view },
     { label: 'Window', submenu: window }
   ]
+  if (focus === 'welcome') {
+    menus.splice(1, 0, {
+      label: 'File',
+      submenu: [
+        {
+          label: 'Open Project Folder…',
+          accelerator: 'CmdOrCtrl+O',
+          click: () => openProjectFolder?.()
+        }
+      ]
+    })
+  }
+  return menus
 }
 
 /**
  * Install it at startup, and rebuild it whenever a window of the other kind
  * gains focus. Before any window exists the project's menu is the one shown.
  */
-export function installApplicationMenu(packaged: boolean): void {
+export function installApplicationMenu(
+  packaged: boolean,
+  openProjectFolder?: () => void
+): void {
   let installed: MenuFocus | null = null
 
   const install = (focus: MenuFocus): void => {
@@ -73,11 +99,17 @@ export function installApplicationMenu(packaged: boolean): void {
       return
     }
     installed = focus
-    Menu.setApplicationMenu(Menu.buildFromTemplate(buildMenuTemplate({ packaged, focus })))
+    Menu.setApplicationMenu(Menu.buildFromTemplate(buildMenuTemplate({ packaged, focus, openProjectFolder })))
   }
 
   install('project')
   app.on('browser-window-focus', (_event, window) => {
-    install(isDocWindow(window.webContents) ? 'document' : 'project')
+    install(
+      isWelcomeWindow(window.webContents)
+        ? 'welcome'
+        : isDocWindow(window.webContents)
+          ? 'document'
+          : 'project'
+    )
   })
 }

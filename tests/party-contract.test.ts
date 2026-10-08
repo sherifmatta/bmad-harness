@@ -36,8 +36,8 @@ describe('what the room did not add', () => {
     expect([...body.matchAll(/^ {2}'([a-z-]+:[a-z-]+)': EventSpec</gm)]).toHaveLength(15)
   })
 
-  it('leaves twenty-two channels', () => {
-    expect(Object.values(channels)).toHaveLength(22)
+  it('leaves the room no channel of its own: twenty-six in all, the last four the Welcome’s', () => {
+    expect(Object.values(channels)).toHaveLength(26)
   })
 
   it('leaves seventeen preload methods', () => {

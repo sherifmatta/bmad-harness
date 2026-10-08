@@ -592,6 +592,34 @@
      padded `0 4px` (:255), which --code-tag-padding already is. */
   --skill-button-padding:4px 9px 4px 6px;
   --skill-button-hover-line:#475364;
+
+  /* ── The Welcome (Story 5.1), read off DESIGN.md's `components.welcome` block
+     and mockups/welcome-screen-chosen.html's `.D` rules, promoted so no
+     stylesheet restates a literal (NFR23). The window is 1080 by 720 and is
+     sized by main; the page spends the column (560), the band the four lanes
+     fill (960 at most) and the lanes' own proportions (planning holds two
+     cards, so it is twice as wide). It is the one surface with breathing room
+     because it holds no state, and these are what that costs: the page
+     padding, the gaps between its blocks, and a 30px mark and drop-zone
+     padding that exist nowhere else. The folder glyph is the rail row's file
+     icon drawn at 15 with a 1.4 stroke. Everything else it spends is a token
+     that already exists. */
+  --welcome-fill:100%;
+  --welcome-col:560px;
+  --welcome-team-max:960px;
+  --welcome-lanes:1fr 2fr 1fr 1fr;
+  --welcome-padding:30px 24px 22px;
+  --welcome-head-gap:18px;
+  --welcome-recent-gap:16px;
+  --welcome-team-gap:22px;
+  --welcome-team-pad:18px;
+  --welcome-mark-size:30px;
+  --welcome-mark-inset:5px;
+  --welcome-drop-padding:18px 20px;
+  --welcome-card-padding:12px 12px 11px;
+  --welcome-row-padding:3px 0;
+  --welcome-icon-size:15px;
+  --welcome-icon-stroke:1.4;
 }
 
 /* The three keyframes the inventory names, copied from the mockup. `blink` is

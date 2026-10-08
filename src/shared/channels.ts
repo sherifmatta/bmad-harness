@@ -47,3 +47,14 @@ export const CONVERSATION_END_CHANNEL = 'conversation:end'
  * window after raising it, like `doc:closed`, a push outside the session events.
  */
 export const RUN_REVEALED_CHANNEL = 'run:revealed'
+
+/**
+ * The Welcome window's four: the recent list it is shown, the native folder
+ * chooser, a recent row opened and a dropped folder opened. Each is a request
+ * the Welcome makes; nothing is pushed to it. No channel takes anything but a
+ * path the Welcome was shown or was handed by a drop.
+ */
+export const WELCOME_RECENT_CHANNEL = 'welcome:recent'
+export const WELCOME_CHOOSE_CHANNEL = 'welcome:choose'
+export const WELCOME_OPEN_RECENT_CHANNEL = 'welcome:open-recent'
+export const WELCOME_OPEN_DROPPED_CHANNEL = 'welcome:open-dropped'

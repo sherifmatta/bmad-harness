@@ -13,6 +13,7 @@ vi.mock('electron', () => ({
 
 const {
   ProjectPathError,
+  chooseProjectDirectory,
   directoryFromArgument,
   projectPathArgument,
   resolveProjectPath
@@ -39,34 +40,29 @@ describe('launching with a path', () => {
     expect(projectPathArgument(['/path/to/electron', '.', '--inspect'], false)).toBeNull()
   })
 
-  it('opens the current directory for `npm run dev -- .`, rather than the chooser', async () => {
+  it('opens the current directory for `npm run dev -- .`, rather than the Welcome', () => {
     // The dev entry placeholder is dropped by position, so a `.` the user typed
     // is a project path like any other.
     expect(projectPathArgument(['/path/to/electron', '.', '.'], false)).toBe('.')
 
-    const projectPath = await resolveProjectPath({
+    const projectPath = resolveProjectPath({
       argv: ['/path/to/electron', '.', '.'],
-      isPackaged: false,
-      useArgument: true
+      isPackaged: false
     })
 
     expect(projectPath).toBe(resolve('.'))
     expect(showOpenDialog).not.toHaveBeenCalled()
   })
 
-  it('is a named startup error for an empty argument, not the working directory', async () => {
+  it('is a named startup error for an empty argument, not the working directory', () => {
     // `resolve('')` is the harness's own cwd, so `npm run dev -- ""` would
     // otherwise open a project nobody asked for.
     expect(projectPathArgument(['/path/to/electron', '.', ''], false)).toBe('')
     expect(() => directoryFromArgument('')).toThrow(ProjectPathError)
 
-    await expect(
-      resolveProjectPath({
-        argv: ['/path/to/electron', '.', ''],
-        isPackaged: false,
-        useArgument: true
-      })
-    ).rejects.toBeInstanceOf(ProjectPathError)
+    expect(() =>
+      resolveProjectPath({ argv: ['/path/to/electron', '.', ''], isPackaged: false })
+    ).toThrow(ProjectPathError)
 
     expect(showOpenDialog).not.toHaveBeenCalled()
   })
@@ -91,25 +87,20 @@ describe('launching with a path', () => {
     }
   })
 
-  it('opens that project without showing the chooser', async () => {
-    const projectPath = await resolveProjectPath({
+  it('opens that project without showing the chooser', () => {
+    const projectPath = resolveProjectPath({
       argv: ['/path/to/electron', '.', existingDirectory],
-      isPackaged: false,
-      useArgument: true
+      isPackaged: false
     })
 
     expect(projectPath).toBe(resolve(existingDirectory))
     expect(showOpenDialog).not.toHaveBeenCalled()
   })
 
-  it('is a named startup error when the path is not a directory, never a silent fall back to the chooser', async () => {
-    await expect(
-      resolveProjectPath({
-        argv: ['/path/to/electron', '.', missingDirectory],
-        isPackaged: false,
-        useArgument: true
-      })
-    ).rejects.toBeInstanceOf(ProjectPathError)
+  it('is a named startup error when the path is not a directory, never a silent fall back to the Welcome', () => {
+    expect(() =>
+      resolveProjectPath({ argv: ['/path/to/electron', '.', missingDirectory], isPackaged: false })
+    ).toThrow(ProjectPathError)
 
     expect(() => directoryFromArgument(missingDirectory)).toThrow(ProjectPathError)
     expect(showOpenDialog).not.toHaveBeenCalled()
@@ -117,34 +108,40 @@ describe('launching with a path', () => {
 })
 
 describe('launching with no path', () => {
-  it('opens the native folder chooser and uses what was chosen', async () => {
+  it('names no project, and opens no native dialog: the Welcome is what opens', () => {
+    expect(resolveProjectPath({ argv: ['/path/to/electron', '.'], isPackaged: false })).toBeNull()
+    expect(resolveProjectPath({ argv: ['/path/to/app'], isPackaged: true })).toBeNull()
+    // A switch Electron appended is not a project path.
+    expect(
+      resolveProjectPath({ argv: ['/path/to/electron', '.', '--inspect'], isPackaged: false })
+    ).toBeNull()
+    expect(showOpenDialog).not.toHaveBeenCalled()
+  })
+})
+
+describe('the native folder chooser', () => {
+  it('opens with the options it has always had: a folder, with create-folder allowed', async () => {
     showOpenDialog.mockResolvedValue({ canceled: false, filePaths: [existingDirectory] })
 
-    const projectPath = await resolveProjectPath({
-      argv: ['/path/to/electron', '.'],
-      isPackaged: false,
-      useArgument: true
-    })
+    await expect(chooseProjectDirectory()).resolves.toBe(existingDirectory)
 
-    expect(projectPath).toBe(existingDirectory)
     expect(showOpenDialog).toHaveBeenCalledTimes(1)
-    // A folder chooser, not a file chooser.
-    expect(showOpenDialog.mock.calls[0][0].properties).toContain('openDirectory')
+    expect(showOpenDialog).toHaveBeenCalledWith({
+      title: 'open a bmad project',
+      buttonLabel: 'open',
+      properties: ['openDirectory', 'createDirectory']
+    })
   })
 
-  it('answers null when the chooser is cancelled, which is what the caller quits on', async () => {
+  it('answers null when cancelled, which is what leaves the Welcome as it was', async () => {
     showOpenDialog.mockResolvedValue({ canceled: true, filePaths: [] })
 
-    await expect(
-      resolveProjectPath({ argv: ['/path/to/electron', '.'], isPackaged: false, useArgument: true })
-    ).resolves.toBeNull()
+    await expect(chooseProjectDirectory()).resolves.toBeNull()
   })
 
-  it('answers null when the chooser returns nothing at all', async () => {
+  it('answers null when it returns nothing at all', async () => {
     showOpenDialog.mockResolvedValue({ canceled: false, filePaths: [] })
 
-    await expect(
-      resolveProjectPath({ argv: ['/path/to/electron', '.'], isPackaged: false, useArgument: true })
-    ).resolves.toBeNull()
+    await expect(chooseProjectDirectory()).resolves.toBeNull()
   })
 })

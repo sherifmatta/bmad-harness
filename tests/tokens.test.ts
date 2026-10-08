@@ -889,12 +889,14 @@ describe('the NFR23 literal guard', () => {
     ).toEqual([{ file: 'probe.css', line: 2, kind: 'hex colour', text: '#171b21' }])
   })
 
-  it('pins the breakpoints: every @media under src/renderer/ is 1180, 1000, or the reduced-motion block', () => {
+  it('pins the breakpoints: every @media under src/renderer/ is 1180, 1000 (the shell’s and the Welcome’s), or the reduced-motion block', () => {
     expect(allMediaConditions()).toEqual(
       [
         'src/renderer/design/tokens.css: (prefers-reduced-motion:reduce)',
         'src/renderer/ui/shell/shell.css: (max-width:1000px)',
-        'src/renderer/ui/shell/shell.css: (max-width:1180px)'
+        'src/renderer/ui/shell/shell.css: (max-width:1180px)',
+        // The Welcome takes the second breakpoint only: its lanes stack and its window scrolls.
+        'src/renderer/ui/welcome/welcome.css: (max-width:1000px)'
       ].sort()
     )
     expect(tokensCss).not.toMatch(/@media[^{]*width/)

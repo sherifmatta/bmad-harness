@@ -8,10 +8,17 @@ import { registerProjectBridge } from './project-bridge'
 import { createTranscriptRegistry } from './projections/transcript'
 import { registerRailBridge } from './rail-bridge'
 import { registerSessionBridge } from './session-bridge'
+import { createRecentList, registerWelcomeBridge } from './welcome-bridge'
 import { installApplicationMenu } from './windows/app-menu'
 import { ProjectPathError, resolveProjectPath } from './windows/choose-project'
-import { createProjectWindow, projectPathForWebContents } from './windows/main-window'
+import {
+  createProjectWindow,
+  isProjectOpen,
+  projectPathForWebContents,
+  raiseProjectWindow
+} from './windows/main-window'
 import { createRunNotifier } from './windows/run-notification'
+import { closeWelcome, openWelcome } from './windows/welcome-window'
 
 /**
  * The one channel behind the preload's `getProjectPath`. It is spelled in
@@ -20,25 +27,55 @@ import { createRunNotifier } from './windows/run-notification'
  */
 export { PROJECT_PATH_CHANNEL }
 
-/** The command-line argument names the project for the first window only. */
-let useCommandLineArgument = true
+/**
+ * Set once the app is on its way out, so that a window closing on the way does
+ * not raise the Welcome again: the last one to close would otherwise be met by
+ * `window-all-closed`, which opens the Welcome whenever no window is left.
+ */
+let quitting = false
 
-/** Guards against a second chooser while one is already open. */
-let choosing = false
-
-async function openProjectWindow(): Promise<void> {
-  if (choosing) {
-    return
+/**
+ * Open a project: its window is made, or the one already open for it is raised
+ * and never doubled. The project is recorded as recent, whichever way it was
+ * chosen, and the Welcome closes in the same step, so it never stays open
+ * behind a project. The window exists before the Welcome closes, so closing it
+ * is never the moment the app has no window.
+ */
+function openProject(projectPath: string): void {
+  const alreadyOpen = isProjectOpen(projectPath)
+  const window = createProjectWindow(projectPath)
+  if (alreadyOpen) {
+    raiseProjectWindow(window)
   }
-  choosing = true
+  recent.record(projectPath)
+  closeWelcome('chosen')
+}
 
+/**
+ * Open the Welcome, or raise it: never a second. Closing it by the user quits
+ * the app, because no project was chosen and there is nothing else to show;
+ * closing it because a project opened does not.
+ */
+function openWelcomeWindow(): void {
+  openWelcome({
+    onClosed: (reason) => {
+      if (reason === 'user') {
+        quitting = true
+        app.quit()
+      }
+    }
+  })
+}
+
+/**
+ * The first window: the project the command line names, or the Welcome. The
+ * path is for this launch's first window only, which is what running this
+ * once, here, is.
+ */
+function openFirstWindow(): void {
   let projectPath: string | null
   try {
-    projectPath = await resolveProjectPath({
-      argv: process.argv,
-      isPackaged: app.isPackaged,
-      useArgument: useCommandLineArgument
-    })
+    projectPath = resolveProjectPath({ argv: process.argv, isPackaged: app.isPackaged })
   } catch (error) {
     if (error instanceof ProjectPathError) {
       // A ProjectPathError can only come from a command-line argument, so the
@@ -49,17 +86,13 @@ async function openProjectWindow(): Promise<void> {
       return
     }
     throw error
-  } finally {
-    useCommandLineArgument = false
-    choosing = false
   }
 
   if (projectPath === null) {
-    app.quit()
-    return
+    openWelcomeWindow()
+  } else {
+    openProject(projectPath)
   }
-
-  createProjectWindow(projectPath)
 }
 
 ipcMain.handle(PROJECT_PATH_CHANNEL, (event) => {
@@ -88,15 +121,19 @@ registerRailBridge({
     void sessions.observeArtifact(sender, projectRoot, observation)
 })
 registerDocBridge()
+// The recent list is the app's own bookkeeping under `userData`, read on first use.
+const recent = createRecentList({ userDataPath: () => app.getPath('userData') })
+const welcome = registerWelcomeBridge({ recent, openProject })
 
 app.on('before-quit', () => {
+  quitting = true
   transcripts.flushAll()
 })
 
 /**
- * Anything `openProjectWindow` did not expect. It is attached at every call
- * site: a rejection here means no window will ever open, so failing loudly and
- * non-zero beats an app sitting in the dock with nothing on screen.
+ * Anything startup did not expect. It is attached at every call site: a
+ * rejection here means no window will ever open, so failing loudly and non-zero
+ * beats an app sitting in the dock with nothing on screen.
  */
 function reportStartupFailure(error: unknown): void {
   process.stderr.write(`startup/unexpected \u00b7 ${String(error)}\n`)
@@ -107,19 +144,27 @@ app
   .whenReady()
   .then(() => {
     // Before the first window, so no window ever has Electron's default menu.
-    installApplicationMenu(app.isPackaged)
-    return openProjectWindow()
+    installApplicationMenu(app.isPackaged, () => {
+      // Not a startup failure: the app is running, so a chooser that failed is said on
+      // stderr, in one line, and the Welcome stays as it was.
+      welcome.chooseFolder().catch((error: unknown) => {
+        process.stderr.write(`welcome/choose-failed \u00b7 ${String(error)}\n`)
+      })
+    })
+    openFirstWindow()
   })
   .catch(reportStartupFailure)
 
-// Closing a project window returns to the chooser rather than quitting;
-// cancelling the chooser quits.
+// Closing the last project window returns to the Welcome rather than quitting;
+// the Welcome is how the app is left, and closing it quits.
 app.on('window-all-closed', () => {
-  openProjectWindow().catch(reportStartupFailure)
+  if (!quitting) {
+    openWelcomeWindow()
+  }
 })
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    openProjectWindow().catch(reportStartupFailure)
+    openWelcomeWindow()
   }
 })

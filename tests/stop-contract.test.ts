@@ -84,24 +84,34 @@ describe('what a stop never touches', () => {
   it('offers no revert, restore or undo anywhere in main or the window, and no control or line in it says resume', () => {
     // Story 3.10's notifier restores one thing, the minimized project window, by Electron's own word
     // for the inverse of minimize: `window.restore()`, named once in its window type and once in the call.
+    // Story 5.1 raises a project window that is already open for a chosen folder the same way, once,
+    // in the one function that raises one.
     const NOTIFIER = join(SRC, 'main/windows/run-notification.ts')
+    const RAISE = join(SRC, 'main/windows/main-window.ts')
     for (const path of [...main, ...renderer]) {
-      if (path === NOTIFIER) continue
+      if (path === NOTIFIER || path === RAISE) continue
       expect(code(path), rel(path)).not.toMatch(/\b(?:revert|restore|undo)\w*/i)
     }
     const notifier = code(NOTIFIER)
     expect(notifier.match(/\b(?:revert|restore|undo)\w*/gi)).toEqual(['restore', 'restore'])
     expect(notifier).toMatch(/if \(window\.isMinimized\(\)\) window\.restore\(\)/)
     expect(notifier).not.toMatch(/node:fs|unlink|writeFile|rename|\brm\b/)
+    const raise = code(RAISE)
+    expect(raise.match(/\b(?:revert|restore|undo)\w*/gi)).toEqual(['restore'])
+    expect(raise).toMatch(/if \(window\.isMinimized\(\)\) window\.restore\(\)/)
     for (const path of renderer) {
       expect(code(path), rel(path)).not.toMatch(/(?:['"`>])\s*resume\b/i)
     }
   })
 
-  it('writes the file system from the one persistence source alone, which the run cards now ride in', () => {
+  it('writes the file system from the persistence sources alone, which the run cards now ride in', () => {
     const writers = main.filter((path) => /\b(?:writeFileSync|writeFile|appendFile|renameSync|unlinkSync|createWriteStream)\b/.test(code(path)))
 
-    expect(writers.map(rel)).toEqual(['src/main/sources/persistence/transcript-file.ts'])
+    // Story 5.1's recent list is the one other: a path and a time under `userData`, written atomically.
+    expect(writers.map(rel).sort()).toEqual([
+      'src/main/sources/persistence/recent-file.ts',
+      'src/main/sources/persistence/transcript-file.ts'
+    ])
   })
 
   it('changes no status, event or command of the contract: four run statuses, one stopped payload, seven commands', () => {

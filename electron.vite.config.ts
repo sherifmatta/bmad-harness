@@ -22,7 +22,9 @@ export default defineConfig({
           index: resolve(__dirname, 'src/preload/index.ts'),
           // The document window's own bridge: a second bundle that shares no
           // runtime module with the shell's (a sandboxed preload cannot load one).
-          doc: resolve(__dirname, 'src/preload/doc.ts')
+          doc: resolve(__dirname, 'src/preload/doc.ts'),
+          // The Welcome's own bridge: the third bundle, sharing nothing with the other two.
+          welcome: resolve(__dirname, 'src/preload/welcome.ts')
         }
       }
     }
@@ -35,7 +37,9 @@ export default defineConfig({
         input: {
           index: resolve(__dirname, 'src/renderer/index.html'),
           // The document window's page: its own entry, sharing no file with the shell's.
-          doc: resolve(__dirname, 'src/renderer/doc.html')
+          doc: resolve(__dirname, 'src/renderer/doc.html'),
+          // The Welcome's page: its own entry, sharing no file with the shell's.
+          welcome: resolve(__dirname, 'src/renderer/welcome.html')
         }
       }
     }

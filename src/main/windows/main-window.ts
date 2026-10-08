@@ -30,6 +30,22 @@ export function projectPathForWebContents(webContentsId: number): string | undef
   return projectPathsByWebContents.get(webContentsId)
 }
 
+/** Whether a project already has a window, so a caller can raise it rather than wait for it to show. */
+export function isProjectOpen(projectPath: string): boolean {
+  return windowsByProjectPath.has(projectPath)
+}
+
+/**
+ * Bring a project window that is already open to the front: restored if it was
+ * minimized, shown and focused. A window still being made shows itself when it is
+ * ready, so this is for the one a caller was handed back, not a new one.
+ */
+export function raiseProjectWindow(window: BrowserWindow): void {
+  if (window.isMinimized()) window.restore()
+  window.show()
+  window.focus()
+}
+
 /**
  * Open the single window for one project, or hand back the one already open for
  * it. The caller asked for that project's window; when there is one, that is

@@ -4,13 +4,14 @@ import { join } from 'node:path'
 import { afterAll, beforeEach, expect, it, vi } from 'vitest'
 
 /**
- * Closing a project window returns to the chooser rather than quitting. That is
- * a decision in the spec's frozen boundaries, so it is asserted rather than
- * demonstrated by hand.
+ * Closing the last project window returns to the Welcome rather than quitting,
+ * and closing the Welcome quits. Those are decisions in the spec's frozen
+ * boundaries, so they are asserted rather than demonstrated by hand.
  */
 
 const appHandlers = new Map<string, () => void>()
 const showOpenDialog = vi.fn()
+const openWelcome = vi.hoisted(() => vi.fn<(deps: { onClosed: (reason: 'user' | 'chosen') => void }) => void>())
 const quit = vi.fn()
 const exit = vi.fn()
 const browserWindowConstructed = vi.fn()
@@ -27,6 +28,8 @@ const notifier = vi.hoisted(() => ({ told: vi.fn() }))
 const createRunNotifier = vi.hoisted(() => vi.fn<(deps: unknown) => typeof notifier>(() => notifier))
 vi.mock('./windows/run-notification', () => ({ createRunNotifier }))
 vi.mock('./session-bridge', () => ({ registerSessionBridge }))
+// The Welcome's own window is `windows/welcome-window.test.ts`'s; here only that it is asked for, and why it closed.
+vi.mock('./windows/welcome-window', () => ({ openWelcome, closeWelcome: vi.fn(), isWelcomeWindow: () => false }))
 const registerRailBridge = vi.hoisted(() => vi.fn<(deps: { observeArtifact?: (...args: unknown[]) => void }) => void>())
 vi.mock('./rail-bridge', () => ({ registerRailBridge }))
 
@@ -55,7 +58,8 @@ vi.mock('electron', () => {
       on: (event: string, handler: () => void) => appHandlers.set(event, handler),
       quit,
       exit,
-      isPackaged: false
+      isPackaged: false,
+      getPath: () => existingDirectory
     },
     dialog: {
       showOpenDialog: (...args: unknown[]) => showOpenDialog(...args),
@@ -87,31 +91,47 @@ afterAll(() => {
 beforeEach(() => {
   showOpenDialog.mockReset()
   quit.mockReset()
+  openWelcome.mockReset()
   browserWindowConstructed.mockReset()
-  // No positional argument, so the reopen goes through the chooser.
   process.argv = ['/path/to/electron', '.']
 })
 
-it('reopens the chooser when the last window closes, rather than quitting', async () => {
-  showOpenDialog.mockResolvedValue({ canceled: false, filePaths: [existingDirectory] })
+it('opens the Welcome, and no dialog, when the last window closes', () => {
+  appHandlers.get('window-all-closed')?.()
 
-  const windowAllClosed = appHandlers.get('window-all-closed')
-  expect(windowAllClosed).toBeDefined()
-
-  windowAllClosed?.()
-  await vi.waitFor(() => expect(browserWindowConstructed).toHaveBeenCalledTimes(1))
-
-  expect(showOpenDialog).toHaveBeenCalledTimes(1)
+  expect(openWelcome).toHaveBeenCalledTimes(1)
+  expect(showOpenDialog).not.toHaveBeenCalled()
+  expect(browserWindowConstructed).not.toHaveBeenCalled()
   expect(quit).not.toHaveBeenCalled()
 })
 
-it('quits when the reopened chooser is cancelled', async () => {
-  showOpenDialog.mockResolvedValue({ canceled: true, filePaths: [] })
+it('opens the Welcome when the app is activated with no window', () => {
+  appHandlers.get('activate')?.()
 
+  expect(openWelcome).toHaveBeenCalledTimes(1)
+  expect(showOpenDialog).not.toHaveBeenCalled()
+})
+
+it('does not quit when the Welcome closed because a project opened', () => {
   appHandlers.get('window-all-closed')?.()
-  await vi.waitFor(() => expect(quit).toHaveBeenCalledTimes(1))
+  const onClosed = openWelcome.mock.calls[0][0].onClosed
 
-  expect(browserWindowConstructed).not.toHaveBeenCalled()
+  onClosed('chosen')
+
+  expect(quit).not.toHaveBeenCalled()
+})
+
+// Last of the three: a quit in progress is the app's state from here on, which is the point.
+it('quits when the user closes the Welcome, and opens no second one on the way out', () => {
+  appHandlers.get('window-all-closed')?.()
+  const onClosed = openWelcome.mock.calls[0][0].onClosed
+
+  onClosed('user')
+  expect(quit).toHaveBeenCalledTimes(1)
+
+  // The window closing is what `window-all-closed` follows: the quit is under way.
+  appHandlers.get('window-all-closed')?.()
+  expect(openWelcome).toHaveBeenCalledTimes(1)
 })
 
 it('hands the session bridge the registry that quitting flushes, and the one listener that speaks for a run outside the window', () => {

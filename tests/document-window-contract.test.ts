@@ -266,9 +266,11 @@ describe('the trust boundary', () => {
     expect(loads).toHaveLength(1)
     expect(loads[0]).toContain('devServerUrl')
     expect(loads[0]).toContain('DOC_PAGE')
+    // The Welcome (Story 5.1) is the third window with a page of its own, and loads the same way.
     expect(mainSources.filter((path) => /loadURL\(/.test(code(path))).sort()).toEqual([
       'src/main/windows/doc-window.ts',
-      'src/main/windows/main-window.ts'
+      'src/main/windows/main-window.ts',
+      'src/main/windows/welcome-window.ts'
     ])
   })
 

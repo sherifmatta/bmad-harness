@@ -2,23 +2,23 @@ import { afterAll, beforeAll, expect, it, vi } from 'vitest'
 
 /**
  * A project path that is not a directory is a *named startup error* — it names
- * the fault on the channel the user is watching and exits non-zero.
+ * the fault on the channel the user is watching and exits non-zero, with no
+ * window and no dialog, and no Welcome either.
  *
- * This lives in its own file because it depends on the module-level "use the
- * command-line argument for the first window" state being untouched, and Vitest
- * isolates module registries per file.
+ * This lives in its own file because the launch happens as `whenReady`
+ * settles, and Vitest isolates module registries per file.
  */
 
-const appHandlers = new Map<string, () => void>()
 const exit = vi.fn()
 const quit = vi.fn()
 const showErrorBox = vi.fn()
 const showOpenDialog = vi.fn()
 const browserWindowConstructed = vi.fn()
+const ready = vi.hoisted(() => ({ release: () => {} }))
 
 vi.mock('electron', () => {
   class BrowserWindow {
-    webContents = { id: 1, on() {} }
+    webContents = { id: 1, on() {}, setWindowOpenHandler() {} }
     constructor(options: unknown) {
       browserWindowConstructed(options)
     }
@@ -35,14 +35,16 @@ vi.mock('electron', () => {
   return {
     BrowserWindow,
     app: {
-      whenReady: () => new Promise<void>(() => {}),
-      on: (event: string, handler: () => void) => appHandlers.set(event, handler),
+      whenReady: () => new Promise<void>((resolve) => (ready.release = resolve)),
+      on: () => {},
       quit,
       exit,
+      getPath: () => '/nowhere',
       isPackaged: false
     },
     dialog: { showOpenDialog, showErrorBox },
-    ipcMain: { handle: vi.fn() }
+    ipcMain: { handle: vi.fn() },
+    Menu: { buildFromTemplate: (template: unknown) => template, setApplicationMenu: vi.fn() }
   }
 })
 
@@ -53,15 +55,11 @@ const written: string[] = []
 let restoreStderr: () => void
 
 beforeAll(() => {
-  const write = process.stderr.write.bind(process.stderr)
   const spy = vi.spyOn(process.stderr, 'write').mockImplementation((chunk: unknown) => {
     written.push(String(chunk))
     return true
   })
-  restoreStderr = () => {
-    spy.mockRestore()
-    void write
-  }
+  restoreStderr = () => spy.mockRestore()
   process.argv = ['/path/to/electron', '.', '/nope/not/a/real/directory']
 })
 
@@ -71,14 +69,15 @@ afterAll(() => {
 })
 
 it('names the fault on stderr and exits non-zero, rather than blocking on a modal', async () => {
-  appHandlers.get('window-all-closed')?.()
+  ready.release()
   await vi.waitFor(() => expect(exit).toHaveBeenCalledWith(1))
 
   expect(written.join('')).toContain('startup/project-path-not-a-directory')
   expect(written.join('')).toContain('/nope/not/a/real/directory')
 
-  // Not a modal, and never a silent fall back to the chooser.
+  // Not a modal, no window of any kind, and never a silent fall back to the Welcome.
   expect(showErrorBox).not.toHaveBeenCalled()
   expect(showOpenDialog).not.toHaveBeenCalled()
   expect(browserWindowConstructed).not.toHaveBeenCalled()
+  expect(quit).not.toHaveBeenCalled()
 })

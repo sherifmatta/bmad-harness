@@ -1,104 +1,133 @@
 import { tmpdir } from 'node:os'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { afterAll, expect, it, vi } from 'vitest'
 
 /**
  * The startup wiring itself: `app.whenReady()` resolving must put exactly one
- * window on screen. Deleting that block used to leave every test green while
- * the shipped app launched with nothing at all.
+ * window on screen, and what happens to the windows after that is the
+ * lifecycle the Welcome made: the last project window closing raises the
+ * Welcome, a chosen folder replaces it, closing it quits, and a native dialog
+ * opens for none of it unless the Welcome's own action asked.
  *
- * `whenReady` therefore resolves here — the one test file where it does. That
- * also means the launch happens while the module is being imported, before the
- * first test body runs, so what happened is recorded in plain arrays: Vitest
- * clears `vi.fn()` call counts between the import and the first test.
+ * `whenReady` therefore resolves here — the one test file where it does, with
+ * a path on the command line. That also means the launch happens while the
+ * module is being imported, before the first test body runs, so what happened
+ * is recorded in plain arrays: Vitest clears `vi.fn()` call counts between the
+ * import and the first test.
  */
 
+type Handler = (...args: never[]) => unknown
+
 const appHandlers = new Map<string, () => void>()
-const windowTitles: string[] = []
+const ipcHandlers = new Map<string, (event: { sender: { id: number } }, ...args: unknown[]) => unknown>()
+const windows: FakeWindow[] = []
 const choosesMade: unknown[] = []
 const quits: string[] = []
 const menusInstalled: unknown[] = []
 /** One shared log, so what came first is a fact and not an inference. */
 const callOrder: string[] = []
+let chooserAnswer: { canceled: boolean; filePaths: string[] } = { canceled: true, filePaths: [] }
+/** While set, the native chooser stays open until it settles: a chooser a second click meets. */
+let chooserGate: Promise<void> | null = null
+let nextWebContentsId = 1
+/** How many menus stood installed once the first window was up. */
+let menusAtLaunch = 0
 
-/** Close every open window the way Electron does — `closed` fires, then they are gone. */
-function closeAllWindows(): void {
-  for (const window of constructedWindows.splice(0)) {
-    for (const handler of window.closedHandlers) {
+const userData = mkdtempSync(join(tmpdir(), 'harness-startup-userdata-'))
+
+/** A window as Electron has it: open until it is closed, and `closed` fires when it goes. */
+class FakeWindow {
+  options: { title: string; webPreferences: Record<string, unknown> }
+  webContents = { id: nextWebContentsId++, on() {}, setWindowOpenHandler() {} }
+  handlers = new Map<string, Handler[]>()
+  open = true
+  raised = 0
+  minimized = false
+  restored = 0
+
+  constructor(options: { title: string; webPreferences: Record<string, unknown> }) {
+    callOrder.push('window')
+    this.options = options
+    windows.push(this)
+  }
+
+  on(event: string, handler: Handler) {
+    this.handlers.set(event, [...(this.handlers.get(event) ?? []), handler])
+  }
+  once(event: string, handler: Handler) {
+    this.on(event, handler)
+  }
+  close() {
+    if (!this.open) {
+      return
+    }
+    this.open = false
+    for (const handler of this.handlers.get('closed') ?? []) {
       handler()
     }
   }
-  openWindows = []
+  destroy() {
+    this.close()
+  }
+  isDestroyed() {
+    return !this.open
+  }
+  isMinimized() {
+    return this.minimized
+  }
+  restore() {
+    this.restored += 1
+    this.minimized = false
+  }
+  show() {
+    this.raised += 1
+  }
+  focus() {
+    this.raised += 1
+  }
+  loadURL() {}
+  loadFile() {}
+
+  static getAllWindows() {
+    return windows.filter((window) => window.open)
+  }
 }
 
-let openWindows: unknown[] = []
-/** Every window the mock has built, so closing them can be modelled faithfully. */
-const constructedWindows: { closedHandlers: (() => void)[] }[] = []
-let chooserAnswer: { canceled: boolean; filePaths: string[] } = {
-  canceled: true,
-  filePaths: []
-}
-let nextWebContentsId = 1
-
-vi.mock('electron', () => {
-  class BrowserWindow {
-    webContents = { id: nextWebContentsId++, on() {} }
-    closedHandlers: (() => void)[] = []
-
-    constructor(options: { title: string }) {
-      callOrder.push('window')
-      windowTitles.push(options.title)
-      constructedWindows.push(this)
-    }
-
-    on(event: string, handler: () => void) {
-      if (event === 'closed') {
-        this.closedHandlers.push(handler)
-      }
-    }
-
-    once() {}
-    show() {}
-    loadURL() {}
-    loadFile() {}
-
-    static getAllWindows() {
-      return openWindows
+vi.mock('electron', () => ({
+  BrowserWindow: FakeWindow,
+  app: {
+    whenReady: () => Promise.resolve(),
+    on: (event: string, handler: () => void) => appHandlers.set(event, handler),
+    quit: () => quits.push('quit'),
+    exit: (code: number) => quits.push(`exit ${code}`),
+    getPath: () => userData,
+    isPackaged: false
+  },
+  dialog: {
+    showOpenDialog: (options: unknown) => {
+      choosesMade.push(options)
+      return chooserGate === null ? Promise.resolve(chooserAnswer) : chooserGate.then(() => chooserAnswer)
+    },
+    showErrorBox: vi.fn()
+  },
+  ipcMain: {
+    handle: (channel: string, handler: (event: { sender: { id: number } }, ...args: unknown[]) => unknown) =>
+      ipcHandlers.set(channel, handler)
+  },
+  Menu: {
+    buildFromTemplate: (template: unknown) => template,
+    setApplicationMenu: (menu: unknown) => {
+      callOrder.push('menu')
+      menusInstalled.push(menu)
     }
   }
-
-  return {
-    BrowserWindow,
-    app: {
-      whenReady: () => Promise.resolve(),
-      on: (event: string, handler: () => void) => appHandlers.set(event, handler),
-      quit: () => quits.push('quit'),
-      exit: (code: number) => quits.push(`exit ${code}`),
-      isPackaged: false
-    },
-    dialog: {
-      showOpenDialog: (options: unknown) => {
-        choosesMade.push(options)
-        return Promise.resolve(chooserAnswer)
-      },
-      showErrorBox: vi.fn()
-    },
-    ipcMain: { handle: vi.fn() },
-    Menu: {
-      buildFromTemplate: (template: unknown) => template,
-      setApplicationMenu: (menu: unknown) => {
-        callOrder.push('menu')
-        menusInstalled.push(menu)
-      }
-    }
-  }
-})
+}))
 
 const projectDirectory = mkdtempSync(join(tmpdir(), 'harness-startup-'))
 const originalArgv = process.argv
 
-// Read by `openProjectWindow` as soon as whenReady resolves, so it is in place
+// Read by `openFirstWindow` as soon as whenReady resolves, so it is in place
 // before the module under test is imported.
 process.argv = ['/path/to/electron', '.', projectDirectory]
 
@@ -108,48 +137,257 @@ await import('./index')
 afterAll(() => {
   process.argv = originalArgv
   rmSync(projectDirectory, { recursive: true, force: true })
+  rmSync(userData, { recursive: true, force: true })
 })
 
-it('opens exactly one window, for the path given on the command line', async () => {
-  await vi.waitFor(() => expect(windowTitles).toHaveLength(1))
+const open = (): FakeWindow[] => windows.filter((window) => window.open)
+const welcomes = (): FakeWindow[] => open().filter((window) => window.options.title === 'bmad harness')
+const closeAllWindows = (): void => windows.forEach((window) => window.close())
+const recentFile = join(userData, 'recent-projects.json')
 
-  expect(windowTitles[0]).toBe(basename(projectDirectory))
-  expect(projectPathForWebContents(1)).toBe(projectDirectory)
+/** Ask a bridge channel as a window would. */
+async function ask(channel: string, window: FakeWindow, ...args: unknown[]): Promise<unknown> {
+  return ipcHandlers.get(channel)?.({ sender: { id: window.webContents.id } }, ...args)
+}
 
-  // The argument was supplied, so the chooser never appeared and nothing quit.
+it('opens exactly one window, for the path given on the command line, and no Welcome', async () => {
+  await vi.waitFor(() => expect(windows).toHaveLength(1))
+  menusAtLaunch = menusInstalled.length
+
+  expect(windows[0].options.title).toBe(basename(projectDirectory))
+  expect(projectPathForWebContents(windows[0].webContents.id)).toBe(projectDirectory)
+  expect(welcomes()).toHaveLength(0)
+
+  // The argument was supplied, so no dialog ever appeared and nothing quit.
   expect(choosesMade).toHaveLength(0)
   expect(quits).toHaveLength(0)
 })
 
-it('opens nothing on activate while a window is already open', async () => {
-  openWindows = [{}]
+it('records that project as the first recent one, so a command-line open is remembered too', () => {
+  expect(existsSync(recentFile)).toBe(true)
+  const entries = JSON.parse(readFileSync(recentFile, 'utf8')).entries as { path: string }[]
 
+  expect(entries.map(({ path }) => path)).toEqual([projectDirectory])
+})
+
+it('opens nothing on activate while a window is already open', () => {
   appHandlers.get('activate')?.()
-  await new Promise((resolve) => setTimeout(resolve, 20))
 
-  expect(windowTitles).toHaveLength(1)
+  expect(windows).toHaveLength(1)
   expect(choosesMade).toHaveLength(0)
 })
 
-it('opens one on activate when none is open', async () => {
-  // Emptying `getAllWindows()` alone would only model half a close: in Electron
-  // a window that is gone has emitted `closed`, which is what releases it from
-  // the one-window-per-project index. Without firing it, the next open for the
-  // same project is correctly answered with the window that just went away.
+it('opens the Welcome, and no dialog, when the last project window closes', () => {
   closeAllWindows()
+  appHandlers.get('window-all-closed')?.()
+
+  expect(welcomes()).toHaveLength(1)
+  const welcome = welcomes()[0]
+  // Its own window: no project, the sandbox and isolation on, its own preload.
+  expect(welcome.options.webPreferences).toMatchObject({
+    contextIsolation: true,
+    nodeIntegration: false,
+    sandbox: true
+  })
+  expect(String(welcome.options.webPreferences.preload)).toMatch(/preload[\\/]welcome\.js$/)
+  expect(projectPathForWebContents(welcome.webContents.id)).toBeUndefined()
+  expect(choosesMade).toHaveLength(0)
+  expect(quits).toHaveLength(0)
+})
+
+it('never opens a second Welcome while one is open, however it is asked', () => {
+  appHandlers.get('window-all-closed')?.()
+  appHandlers.get('activate')?.()
+  // Electron's own count would say one is open, so activate does nothing; and the
+  // window-all-closed above raised the one there is rather than making another.
+  expect(welcomes()).toHaveLength(1)
+})
+
+it('leaves the Welcome as it was, and the app running, when the chooser is cancelled', async () => {
+  const welcome = welcomes()[0]
+  chooserAnswer = { canceled: true, filePaths: [] }
+
+  await expect(ask('welcome:choose', welcome)).resolves.toEqual({ ok: false })
+
+  expect(choosesMade).toHaveLength(1)
+  expect(welcomes()).toEqual([welcome])
+  expect(quits).toHaveLength(0)
+  expect(open()).toEqual([welcome])
+})
+
+it('opens the chosen folder as a project window and closes the Welcome in the same step, without quitting', async () => {
+  const welcome = welcomes()[0]
   chooserAnswer = { canceled: false, filePaths: [projectDirectory] }
 
-  appHandlers.get('activate')?.()
-  await vi.waitFor(() => expect(windowTitles).toHaveLength(2))
+  await expect(ask('welcome:choose', welcome)).resolves.toEqual({ ok: true })
 
-  // The command-line argument named the first window only; after that it is the
-  // chooser every time.
-  expect(choosesMade).toHaveLength(1)
+  expect(welcomes()).toHaveLength(0)
+  expect(open()).toHaveLength(1)
+  expect(open()[0].options.title).toBe(basename(projectDirectory))
+  // The project window came first, so closing the Welcome was never the last window going.
+  expect(windows.indexOf(open()[0])).toBeGreaterThan(windows.indexOf(welcome))
   expect(quits).toHaveLength(0)
+  const entries = JSON.parse(readFileSync(recentFile, 'utf8')).entries as { path: string }[]
+  expect(entries.map(({ path }) => path)).toEqual([projectDirectory])
+})
+
+it('raises the window already open for a dropped project, makes no second, and closes the Welcome', async () => {
+  const project = open()[0]
+  // A Welcome beside an open project is not a state the app reaches by itself;
+  // the handler is simply asked, as it is on the last window closing.
+  appHandlers.get('window-all-closed')?.()
+  const welcome = welcomes()[0]
+  const before = windows.length
+  const raised = project.raised
+
+  await expect(ask('welcome:open-dropped', welcome, [projectDirectory])).resolves.toEqual({ ok: true })
+
+  expect(windows).toHaveLength(before)
+  expect(project.raised).toBeGreaterThan(raised)
+  expect(welcomes()).toHaveLength(0)
+  expect(open()).toEqual([project])
+  expect(quits).toHaveLength(0)
+})
+
+/** The Welcome the app opens when no window is left, as the last project window closing does. */
+function openWelcomeAgain(): FakeWindow {
+  // A Welcome already open is the one there is; closing it would be the user quitting.
+  if (welcomes().length === 0) {
+    closeAllWindows()
+    appHandlers.get('window-all-closed')?.()
+  }
+  return welcomes()[0]
+}
+
+/** An open project window with a Welcome beside it, a state only the handler being asked for gets to. */
+async function projectBesideWelcome(): Promise<{ project: FakeWindow; welcome: FakeWindow }> {
+  const first = openWelcomeAgain()
+  if (open().every((window) => window === first)) {
+    await ask('welcome:open-dropped', first, [projectDirectory])
+  }
+  const project = open().find((window) => window !== first) ?? open()[0]
+  appHandlers.get('window-all-closed')?.()
+  return { project, welcome: welcomes()[0] }
+}
+
+/** What Electron does when a window gains focus: the app menu is rebuilt for its kind. */
+function focus(window: FakeWindow): void {
+  ;(appHandlers.get('browser-window-focus') as unknown as (event: unknown, window: unknown) => void)(
+    {},
+    window
+  )
+}
+
+/** The installed menu's File ▸ Open Project Folder… item, as the menu bar would click it. */
+function openProjectFolderItem(): { accelerator?: string; click: () => void } {
+  const menu = menusInstalled[menusInstalled.length - 1] as {
+    label?: string
+    submenu?: { label?: string; accelerator?: string; click: () => void }[]
+  }[]
+  const item = menu.find(({ label }) => label === 'File')?.submenu?.find(({ label }) => label === 'Open Project Folder…')
+  if (item === undefined) {
+    throw new Error('the installed menu has no Open Project Folder…')
+  }
+  return item
+}
+
+it('opens the chosen folder from the Welcome’s ⌘O menu item, and a second click while the chooser is open does nothing', async () => {
+  const welcome = openWelcomeAgain()
+  expect(welcome).toBeDefined()
+  focus(welcome)
+  const item = openProjectFolderItem()
+  expect(item.accelerator).toBe('CmdOrCtrl+O')
+
+  const before = choosesMade.length
+  let release: () => void = () => {}
+  chooserGate = new Promise<void>((resolve) => (release = resolve))
+  chooserAnswer = { canceled: false, filePaths: [projectDirectory] }
+
+  item.click()
+  item.click()
+  await vi.waitFor(() => expect(choosesMade.length).toBe(before + 1))
+  // The second click met the chooser already open: no second dialog, nothing opened yet.
+  expect(welcomes()).toEqual([welcome])
+
+  release()
+  chooserGate = null
+  await vi.waitFor(() => expect(welcomes()).toHaveLength(0))
+
+  expect(choosesMade.length).toBe(before + 1)
+  expect(open()).toHaveLength(1)
+  expect(open()[0].options.title).toBe(basename(projectDirectory))
+})
+
+it('reports a chooser that fails on stderr, in one line, and keeps the app running', async () => {
+  const welcome = openWelcomeAgain()
+  focus(welcome)
+  const item = openProjectFolderItem()
+  const written: string[] = []
+  const spy = vi.spyOn(process.stderr, 'write').mockImplementation((chunk: unknown) => {
+    written.push(String(chunk))
+    return true
+  })
+  chooserGate = Promise.reject(new Error('dialog failed'))
+  chooserGate.catch(() => {})
+  const exitsBefore = quits.filter((entry) => entry.startsWith('exit')).length
+
+  item.click()
+  await vi.waitFor(() => expect(written.join('')).toContain('welcome/choose-failed · Error: dialog failed'))
+  spy.mockRestore()
+  chooserGate = null
+
+  expect(written.join('').trim().split('\n')).toHaveLength(1)
+  expect(quits.filter((entry) => entry.startsWith('exit'))).toHaveLength(exitsBefore)
+  expect(welcomes()).toEqual([welcome])
+})
+
+it.each(['dropped', 'chosen'] as const)(
+  'raises, and restores if it was minimized, a project already open when it is %s',
+  async (route) => {
+    const { project, welcome } = await projectBesideWelcome()
+    project.minimized = true
+    const restored = project.restored
+    const before = windows.length
+    chooserAnswer = { canceled: false, filePaths: [projectDirectory] }
+
+    await expect(
+      route === 'dropped' ? ask('welcome:open-dropped', welcome, [projectDirectory]) : ask('welcome:choose', welcome)
+    ).resolves.toEqual({ ok: true })
+
+    expect(project.restored).toBe(restored + 1)
+    expect(project.minimized).toBe(false)
+    expect(windows).toHaveLength(before)
+    expect(welcomes()).toHaveLength(0)
+  }
+)
+
+it('refuses a project window as a sender: the real check answers `{ok:false}` and opens nothing', async () => {
+  const { project, welcome } = await projectBesideWelcome()
+  const windowsBefore = windows.length
+  const dialogsBefore = choosesMade.length
+
+  await expect(ask('welcome:open-dropped', project, [projectDirectory])).resolves.toEqual({ ok: false })
+  await expect(ask('welcome:choose', project)).resolves.toEqual({ ok: false })
+
+  expect(windows).toHaveLength(windowsBefore)
+  expect(choosesMade).toHaveLength(dialogsBefore)
+  expect(welcomes()).toEqual([welcome])
+})
+
+it('quits when the user closes the Welcome', () => {
+  const welcome = openWelcomeAgain()
+  expect(welcome).toBeDefined()
+
+  welcome.close()
+
+  expect(quits).toEqual(['quit'])
+  // And the last window going on the way out opens no Welcome of its own.
+  appHandlers.get('window-all-closed')?.()
+  expect(welcomes()).toHaveLength(0)
 })
 
 it('installs the application menu once, before the first window, for the unpackaged build', () => {
-  expect(menusInstalled).toHaveLength(1)
+  expect(menusAtLaunch).toBe(1)
   expect(callOrder.indexOf('menu')).toBe(0)
   expect(callOrder.indexOf('window')).toBeGreaterThan(callOrder.indexOf('menu'))
   // The mock says `isPackaged: false`, so the developer's DevTools item is in.

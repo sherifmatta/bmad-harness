@@ -1,0 +1,397 @@
+/*
+ * The Welcome — Story 5.1, from mockups/welcome-screen-chosen.html's `.D` rules
+ * and DESIGN.md's `components.welcome`.
+ *
+ * The one surface with room: it holds no state, so nothing here competes for
+ * space. A 560px column holds the head, the one action and the recent rows, and
+ * under a rule a 960px band holds four lanes of persona cards. It is a page at
+ * rest: no transition, no animation, no hover state on a card, and the drop
+ * feedback is a colour change and nothing else.
+ *
+ * The body does not scroll (design/page.css); the Welcome's own root does, so a
+ * window shorter than its content, or narrower than the second breakpoint where
+ * the lanes stack to one column, scrolls inside itself.
+ *
+ * **No focus rule, and nothing that suppresses the ring.** Every control takes
+ * the one shared ring from design/focus.css. The open button is the composer's
+ * send button, unchanged. Every value reaches the design system through
+ * `var()`, and the only condition spelled is the existing 1000px breakpoint.
+ */
+
+.welcome-root {
+  display: flex;
+  flex-direction: column;
+  height: var(--viewport-tall);
+  overflow: auto;
+}
+
+/* ---------- topbar: the brand, and that no project is open ---------- */
+
+.welcome-topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xxl);
+  height: var(--topbar);
+  flex: 0 0 var(--topbar);
+  padding: 0 var(--space-xl);
+  background: var(--chrome);
+  border-bottom: var(--rule-width) solid var(--line);
+}
+
+.welcome-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  letter-spacing: var(--track-brand);
+}
+
+.welcome-brand-mark {
+  position: relative;
+  flex: 0 0 auto;
+  width: var(--brand-mark-size);
+  height: var(--brand-mark-size);
+  border: var(--rule-width) solid var(--brand-mark-line);
+  border-radius: var(--radius-chip);
+}
+
+.welcome-brand-mark::after {
+  content: '';
+  position: absolute;
+  inset: var(--brand-mark-inset);
+  background: var(--accent);
+  opacity: var(--opacity-mark);
+  border-radius: var(--radius-hairline);
+}
+
+.welcome-brand-name {
+  font-size: var(--fs-name);
+  font-weight: var(--weight-strong);
+  color: var(--text-strong);
+}
+
+.welcome-topbar-sep {
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  color: var(--topbar-sep);
+}
+
+.welcome-topbar-state {
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  color: var(--faint);
+}
+
+/* ---------- the page ---------- */
+
+.welcome-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1 0 auto;
+  padding: var(--welcome-padding);
+}
+
+.welcome-column {
+  width: var(--welcome-fill);
+  max-width: var(--welcome-col);
+}
+
+.welcome-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xxl);
+  margin-bottom: var(--welcome-head-gap);
+}
+
+.welcome-mark {
+  position: relative;
+  flex: 0 0 auto;
+  width: var(--welcome-mark-size);
+  height: var(--welcome-mark-size);
+  border: var(--rule-width) solid var(--brand-mark-line);
+  border-radius: var(--r);
+}
+
+.welcome-mark::after {
+  content: '';
+  position: absolute;
+  inset: var(--welcome-mark-inset);
+  background: var(--accent);
+  opacity: var(--opacity-mark);
+  border-radius: var(--radius-micro);
+}
+
+.welcome-title {
+  margin: 0;
+  font-size: var(--fs-h1);
+  font-weight: var(--weight-strong);
+  letter-spacing: var(--track-h1);
+  color: var(--text-strong);
+}
+
+.welcome-tagline {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: var(--fs-ident);
+  color: var(--dim);
+}
+
+/* ---------- the one action: a button and a drop zone, in one dashed box ---------- */
+
+.welcome-drop {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xl);
+  padding: var(--welcome-drop-padding);
+  background: var(--panel);
+  border: var(--rule-width) dashed var(--line);
+  border-radius: var(--radius-card);
+}
+
+.welcome-drop--over {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+
+.welcome-drop-hint {
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: var(--fs-ident);
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+
+/* The composer's send button, unchanged, with a folder glyph and the chord. */
+.welcome-open {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-lg);
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: var(--send-padding);
+  background: var(--send-bg);
+  border: var(--rule-width) solid var(--send-line);
+  border-radius: var(--radius-control);
+  color: var(--send-ink);
+  font-family: var(--sans);
+  font-size: var(--fs-control);
+  letter-spacing: var(--track-control);
+  cursor: pointer;
+}
+
+.welcome-open:hover {
+  background: var(--send-hover);
+}
+
+.welcome-open-icon {
+  flex: 0 0 auto;
+  width: var(--welcome-icon-size);
+  height: var(--welcome-icon-size);
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: var(--welcome-icon-stroke);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.welcome-open-chord {
+  font-family: var(--mono);
+  font-size: var(--fs-meta);
+  color: var(--meta);
+}
+
+/* ---------- recent ---------- */
+
+.welcome-recent {
+  margin-top: var(--welcome-recent-gap);
+}
+
+.welcome-label {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  font-weight: var(--weight-strong);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.welcome-recent .welcome-label {
+  margin-bottom: var(--space-sm);
+}
+
+.welcome-recent-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.welcome-recent-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xl);
+  width: var(--welcome-fill);
+  padding: var(--welcome-row-padding);
+  background: transparent;
+  border: 0;
+  font-family: var(--sans);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.welcome-recent-name {
+  flex: 0 0 auto;
+  font-size: var(--fs-base);
+  color: var(--accent);
+}
+
+.welcome-recent-row:hover .welcome-recent-name {
+  text-decoration: underline;
+}
+
+.welcome-recent-path {
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: var(--fs-ident);
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.welcome-recent-age {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: var(--fs-meta);
+  color: var(--faint);
+}
+
+/* A folder that is gone keeps its row and does nothing: the name is dim, never
+   underlined, and the words stand where the age was. */
+.welcome-recent-row[aria-disabled='true'] {
+  cursor: default;
+}
+
+.welcome-recent-row[aria-disabled='true'] .welcome-recent-name {
+  color: var(--dim);
+}
+
+.welcome-recent-row[aria-disabled='true']:hover .welcome-recent-name {
+  text-decoration: none;
+}
+
+.welcome-recent-missing {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  color: var(--dim);
+}
+
+/* ---------- the team: four lanes under a rule ---------- */
+
+.welcome-team {
+  width: var(--welcome-fill);
+  max-width: var(--welcome-team-max);
+  margin-top: var(--welcome-team-gap);
+  padding-top: var(--welcome-team-pad);
+  border-top: var(--rule-width) solid var(--line);
+}
+
+.welcome-team-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xl);
+  margin-bottom: var(--space-xl);
+}
+
+.welcome-team-meta {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: var(--fs-meta);
+  color: var(--dim);
+}
+
+.welcome-lanes {
+  display: grid;
+  grid-template-columns: var(--welcome-lanes);
+  gap: var(--space-lg);
+}
+
+.welcome-lane-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+/* The rule that fills the row between a lane's label and its number. */
+.welcome-lane-head::after {
+  content: '';
+  flex: 1;
+  order: 1;
+  height: var(--rule-width);
+  background: var(--line);
+}
+
+.welcome-lane-number {
+  order: 2;
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  color: var(--meta);
+}
+
+.welcome-cards {
+  display: flex;
+  gap: var(--space-lg);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A card is content: no hover state, no focus, no pointer, nothing at rest. */
+.welcome-card {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-width: 0;
+  padding: var(--welcome-card-padding);
+  background: var(--panel);
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+.welcome-card-who {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+}
+
+.welcome-card-name {
+  font-size: var(--fs-name);
+  font-weight: var(--weight-strong);
+  color: var(--text-strong);
+}
+
+.welcome-card-title {
+  font-size: var(--fs-ident);
+  color: var(--dim);
+}
+
+.welcome-card-description {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: var(--fs-body-ui);
+  line-height: var(--lh-base);
+  color: var(--dim);
+}
+
+/* The second breakpoint only: the lanes stack to one column and the window scrolls. */
+@media (max-width: 1000px) {
+  .welcome-lanes {
+    grid-template-columns: 1fr;
+  }
+}

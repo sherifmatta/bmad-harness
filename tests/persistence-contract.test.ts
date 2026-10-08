@@ -230,12 +230,15 @@ describe('a sysline in main’s transcript and in the window’s', () => {
 })
 
 describe('what is stored, and where', () => {
-  it('is written by the one persistence source and nowhere else', () => {
+  it('is written by the persistence sources and nowhere else: the transcript, and the recent list', () => {
     const writers = shipping.filter((path) =>
       /\b(?:writeFileSync|writeFile|appendFile|appendFileSync|renameSync|createWriteStream)\b/.test(code(path))
     )
 
-    expect(writers.map(rel)).toEqual(['src/main/sources/persistence/transcript-file.ts'])
+    expect(writers.map(rel).sort()).toEqual([
+      'src/main/sources/persistence/recent-file.ts',
+      'src/main/sources/persistence/transcript-file.ts'
+    ])
   })
 
   it('is read from userData only by the composition root and the bridge’s default', () => {

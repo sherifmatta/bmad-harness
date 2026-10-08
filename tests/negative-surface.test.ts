@@ -145,6 +145,9 @@ describe("no palette, no launcher, no global skills list", () => {
     "src/renderer/ui/team/",
     "src/renderer/ui/outputs/",
     "src/renderer/ui/a11y/",
+    // The Welcome's recent list is a roving list of its own page (Story 5.1), and
+    // takes its arrows from the shared roving code like the other two.
+    "src/renderer/ui/welcome/",
   ];
   // The composer is the one component that takes a keystroke of its own
   // (Story 2.3): Enter sends and Shift+Enter is a newline. It is exempt from
@@ -229,10 +232,11 @@ describe("no palette, no launcher, no global skills list", () => {
     const index = code.get("src/main/index.ts") ?? "";
     const chain = index.slice(index.indexOf("whenReady()"));
 
-    expect(chain).toContain("installApplicationMenu(app.isPackaged)");
+    // Story 5.1: the menu is handed what the Welcome's `⌘O` runs, and is still first.
+    expect(chain).toContain("installApplicationMenu(app.isPackaged,");
     expect(
-      chain.indexOf("installApplicationMenu(app.isPackaged)"),
-    ).toBeLessThan(chain.indexOf("openProjectWindow()"));
+      chain.indexOf("installApplicationMenu(app.isPackaged,"),
+    ).toBeLessThan(chain.indexOf("openFirstWindow()"));
   });
 
   it("draws no skill list: no menu descriptions beside their codes in a component", () => {
@@ -355,11 +359,14 @@ describe("the document window has no refresh, edit or save", () => {
   // held by tests/persistence-contract.test.ts; everything else in main still
   // writes nothing.
   const TRANSCRIPT_STORE = "src/main/sources/persistence/transcript-file.ts";
+  // Story 5.1 adds the one other file main writes: the recent list, a path and a
+  // time per project under `userData`. It is held by the Welcome's own contract.
+  const RECENT_STORE = "src/main/sources/persistence/recent-file.ts";
 
-  it("forces no reload, saves and writes nothing in main but the transcript store", () => {
+  it("forces no reload, saves and writes nothing in main but the transcript store and the recent list", () => {
     expect(
       offenders(
-        MAIN_CODE.filter((path) => !path.endsWith(TRANSCRIPT_STORE)),
+        MAIN_CODE.filter((path) => !path.endsWith(TRANSCRIPT_STORE) && !path.endsWith(RECENT_STORE)),
         /\bforceReload\b|\breloadIgnoringCache\b|\.reload\(|CommandOrControl|\bsaveAs\b|\bshowSaveDialog\b|\bsave\b|\bwriteFile(?:Sync)?\b|\bappendFile(?:Sync)?\b|\bcreateWriteStream\b/,
       ),
     ).toEqual([]);
@@ -709,6 +716,30 @@ describe("the text ramp", () => {
     "ui/chat/skill-row.css: .skill-row-label": {
       kind: "label",
       why: "the row's `<Persona> can` lead-in; the composer and the header name the persona, and each button carries its own words at --text",
+    },
+    "ui/welcome/welcome.css: .welcome-topbar-state": {
+      kind: "restated",
+      why: "`no project open`, on the window that is itself the choice of one: nothing on the Welcome reads a project, and a project window's own topbar names the project it holds",
+    },
+    "ui/welcome/welcome.css: .welcome-topbar-sep": {
+      kind: "decoration",
+      why: "the bar's separator glyph, aria-hidden, between the brand and the state line",
+    },
+    "ui/welcome/welcome.css: .welcome-open-chord": {
+      kind: "restated",
+      why: "the chord beside the open button; the application menu's File item states the same key, and the button works without it",
+    },
+    "ui/welcome/welcome.css: .welcome-label": {
+      kind: "label",
+      why: "a section or lane heading (`recent`, `the team`, a phase); each row and card under it names itself, and the lane's cards carry their own titles",
+    },
+    "ui/welcome/welcome.css: .welcome-recent-age": {
+      kind: "label",
+      why: "a recent row's age; the list is newest first, so position carries recency and the age only refines it, and a row whose folder is gone says so at --dim",
+    },
+    "ui/welcome/welcome.css: .welcome-lane-number": {
+      kind: "decoration",
+      why: "the lane's ordinal at the end of its rule; the four lanes are in the method's order and each is named by its label",
     },
     "ui/chat/skill-row.css: .skill-more": {
       kind: "restated",
@@ -1297,10 +1328,21 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
       const swept = [...ALL_CODE, ...RENDERER_ALL.filter((path) => path.endsWith(".css"))];
       const hits = copyOffenders(swept, STAND_IN);
 
+      // Three strings of the Welcome (Story 5.1) are what the story's text spells and are no stand-in
+      // for progress: the `…` that marks a command which opens the native chooser, as on every Mac
+      // (the menu item and the button, the same words), and Mary's description, whose noun is `thinking`.
+      const WELCOME = [
+        "src/main/windows/app-menu.ts: Open Project Folder…",
+        "src/renderer/ui/welcome/personas.ts: Market and competitive research and requirements — the thinking done before a project is committed to.",
+        "src/renderer/ui/welcome/welcome-app.tsx: open project folder…",
+      ];
       expect(
-        hits.filter((hit) => !hit.startsWith("src/renderer/ui/status/persona-state.ts: working")),
+        hits.filter(
+          (hit) => !hit.startsWith("src/renderer/ui/status/persona-state.ts: working") && !WELCOME.includes(hit),
+        ),
       ).toEqual([]);
-      expect(hits).toEqual(["src/renderer/ui/status/persona-state.ts: working"]);
+      expect(hits.filter((hit) => WELCOME.includes(hit)).sort()).toEqual([...WELCOME].sort());
+      expect(hits.filter((hit) => !WELCOME.includes(hit))).toEqual(["src/renderer/ui/status/persona-state.ts: working"]);
       // The word is rendered through the state text and written nowhere else.
       expect(
         offenders(RENDERER_CODE, /\bworking\b/).map((hit) => hit.split(":")[0]),
@@ -1863,6 +1905,7 @@ describe("two writers, one file: the rail reports it and nothing arbitrates (Sto
   const CHANNELS = "src/shared/channels.ts";
   const PRELOAD = "src/preload/index.ts";
   const TRANSCRIPT_STORE = "src/main/sources/persistence/transcript-file.ts";
+  const RECENT_STORE = "src/main/sources/persistence/recent-file.ts";
   const CHOOSER = "src/main/windows/choose-project.ts";
   const WORDS = /(["'`])(?:(?!\1)[^\n\\]|\\.)*\1|>[^<>{}\n]+</g;
   const CONTRACT = [COMMANDS, EVENTS, CHANNELS, PRELOAD];
@@ -1919,7 +1962,7 @@ describe("two writers, one file: the rail reports it and nothing arbitrates (Sto
     expect(offenders([OWNER_LABEL], /§|\bof\b|\btotal\b|\bcount\b/)).toEqual([]);
   });
 
-  it("adds no command, event, channel or bridge method: the counts stay seven, fifteen, twenty-two and seventeen", () => {
+  it("adds no command, event, channel or bridge method: the counts stay seven, fifteen, twenty-six and seventeen", () => {
     const commands = [...(code.get(COMMANDS) ?? "").matchAll(/^\s+'([a-z]+\.[a-z]+)':\s*CommandSpec/gm)].map(([, name]) => name);
     const events = [...(code.get(EVENTS) ?? "").matchAll(/^\s+'([a-z]+:[a-z-]+)':\s*EventSpec/gm)].map(([, name]) => name);
     const channels = [...(code.get(CHANNELS) ?? "").matchAll(/^export const (\w+) = '/gm)].map(([, name]) => name);
@@ -1930,9 +1973,10 @@ describe("two writers, one file: the rail reports it and nothing arbitrates (Sto
 
     // Story 3.9 left the counts at seven, fifteen, twenty-one and sixteen; Story 3.10 added
     // the one channel and the one method a window hears a revealed run on, and no event.
+    // Story 5.1 added the Welcome's four channels (twenty-six) and no method to the shell's.
     expect(commands).toHaveLength(7);
     expect(events).toHaveLength(15);
-    expect(channels).toHaveLength(22);
+    expect(channels).toHaveLength(26);
     expect(methods).toHaveLength(17);
     // And none of them is named for it.
     expect(offenders(CONTRACT, /contend|contention|\bowners\b|arbitrat/i)).toEqual([]);
@@ -1991,7 +2035,7 @@ describe("two writers, one file: the rail reports it and nothing arbitrates (Sto
   });
 
   it("writes nothing to the project: no write-capable filesystem call in main outside the harness's own transcript, which refuses the project", () => {
-    const others = MAIN_CODE.filter((path) => path !== TRANSCRIPT_STORE);
+    const others = MAIN_CODE.filter((path) => path !== TRANSCRIPT_STORE && path !== RECENT_STORE);
     const WRITES = /^(?:write|append|mkdir|mkdtemp|rename|unlink|rm|rmdir|copy|cp|truncate|ftruncate|symlink|link|chmod|chown|utimes|lutimes|createWriteStream)/;
 
     // What main takes from the filesystem is read-only: every name imported from `node:fs` outside the store.
@@ -2013,6 +2057,15 @@ describe("two writers, one file: the rail reports it and nothing arbitrates (Sto
     const store = code.get(TRANSCRIPT_STORE) ?? "";
     expect(store).toMatch(/isInsideProject\(projectPath, filePath\)/);
     expect(store).toContain("inside-project");
+    // The recent list (Story 5.1) is the only other, and it is given a path under `userData` and no project at all.
+    const recent = code.get(RECENT_STORE) ?? "";
+    expect(recent).toMatch(/export function recentFilePath\(userDataDir: string\)/);
+    expect(recent).not.toMatch(/projectPath|projectRoot/);
+    expect(offenders(MAIN_CODE, /recentFilePath\(/).map((hit) => hit.split(":")[0]).sort()).toEqual([
+      "src/main/sources/persistence/recent-file.ts",
+      "src/main/welcome-bridge.ts",
+    ]);
+    expect(code.get("src/main/welcome-bridge.ts")).toMatch(/recentFilePath\(userDataPath\(\)\)/);
     // Contention is a report: nothing in the fold, the row table or the annotator reaches a file or a process.
     expect(offenders([FOLD, ROWS, ANNOTATOR, HOLDER, OWNER_LABEL], /node:fs|node:child_process|\bspawn\b|\bkill\b|\binterrupt\b|\bwriteTurn\b|\.write\(/)).toEqual([]);
   });
@@ -2123,7 +2176,7 @@ describe("told once, quietly, when you are elsewhere: one silent banner, one scr
     expect(revealing).not.toMatch(/setCurrentId|setComposerFocus|openDoc|activate\(|send\(|runSkill|stopRun|close\(/);
   });
 
-  it("gives the preload and the shared contract no word of it, and no new command or event: seven, fifteen, twenty-two channels, seventeen methods", () => {
+  it("gives the preload and the shared contract no word of it, and no new command or event: seven, fifteen, twenty-six channels, seventeen methods", () => {
     expect(
       offenders(
         [...sources("src/preload/"), ...sources("src/shared/")],
@@ -2139,7 +2192,7 @@ describe("told once, quietly, when you are elsewhere: one silent banner, one scr
     );
     expect(commands).toHaveLength(7);
     expect(events).toHaveLength(15);
-    expect(channels).toHaveLength(22);
+    expect(channels).toHaveLength(26);
     expect(channels).toContain("RUN_REVEALED_CHANNEL");
     expect(methods).toHaveLength(17);
     expect(methods).toContain("onRunRevealed");
@@ -2281,13 +2334,13 @@ describe("nothing this epic promised not to do: the audit's static half (Story 3
     expect((code.get(ROW) ?? "").match(/<button\b/g)).toHaveLength(1);
   });
 
-  it("holds the contract at seven commands, fifteen events, twenty-two channels and seventeen bridge methods", () => {
+  it("holds the contract at seven commands, fifteen events, twenty-six channels and seventeen bridge methods", () => {
     const commands = [...(code.get(COMMANDS) ?? "").matchAll(/^\s+'([a-z]+\.[a-z]+)':\s*CommandSpec/gm)];
     const events = [...(code.get(EVENTS) ?? "").matchAll(/^\s+'([a-z]+:[a-z-]+)':\s*EventSpec/gm)];
     const channels = [...(code.get(CHANNELS) ?? "").matchAll(/^export const (\w+) = '/gm)];
     const preload = code.get(PRELOAD) ?? "";
     const methods = [...preload.slice(preload.indexOf("const harness: HarnessApi = {"), preload.indexOf("contextBridge.exposeInMainWorld")).matchAll(/^ {2}(\w+):/gm)];
-    expect([commands.length, events.length, channels.length, methods.length]).toEqual([7, 15, 22, 17]);
+    expect([commands.length, events.length, channels.length, methods.length]).toEqual([7, 15, 26, 17]);
   });
 
   it("says what carried on after a stop in lower case, `·`-separated, unpunctuated, and offers nothing: no resume, continue, retry or guidance word", () => {
@@ -2418,7 +2471,12 @@ describe("nothing this epic promised not to do: the audit's static half (Story 4
     const queries = RENDERER_ALL.filter((path) => path.endsWith(".css")).flatMap((path) =>
       [...css(path).matchAll(/@media\s*([^{]*)\{/g)].map(([, query]) => `${path}: ${query.trim()}`),
     );
-    expect(queries.filter((query) => /width/.test(query))).toEqual([`${SHELL_CSS}: (max-width: 1180px)`, `${SHELL_CSS}: (max-width: 1000px)`]);
+    // The Welcome (Story 5.1) takes the second breakpoint only, in its own stylesheet.
+    expect(queries.filter((query) => /width/.test(query))).toEqual([
+      `${SHELL_CSS}: (max-width: 1180px)`,
+      `${SHELL_CSS}: (max-width: 1000px)`,
+      "src/renderer/ui/welcome/welcome.css: (max-width: 1000px)",
+    ]);
     expect(css(SHELL_CSS)).toMatch(/@media \(max-width: 1180px\) \{ \.party-side \{ display: none; \} \}/);
     expect(RENDERER_ALL.filter((path) => path.endsWith(".css") && /\.party-side\b/.test(code.get(path) ?? "")).sort()).toEqual([PANEL_CSS, SHELL_CSS]);
     expect(css(SHELL_CSS).match(/\.party-side/g)).toHaveLength(1);
@@ -2505,13 +2563,13 @@ describe("nothing this epic promised not to do: the audit's static half (Story 4
     expect(offenders(PARTY_CSS, /spinner|skeleton|shimmer|loader|badge|@keyframes\s+(?!eq\b)/i)).toEqual([]);
   });
 
-  it("holds the contract at seven commands, fifteen events, twenty-two channels and seventeen bridge methods", () => {
+  it("holds the contract at seven commands, fifteen events, twenty-six channels and seventeen bridge methods", () => {
     const commands = [...(code.get(COMMANDS) ?? "").matchAll(/^\s+'([a-z]+\.[a-z]+)':\s*CommandSpec/gm)];
     const events = [...(code.get(EVENTS) ?? "").matchAll(/^\s+'([a-z]+:[a-z-]+)':\s*EventSpec/gm)];
     const channels = [...(code.get(CHANNELS) ?? "").matchAll(/^export const (\w+) = '/gm)];
     const preload = code.get(PRELOAD) ?? "";
     const methods = [...preload.slice(preload.indexOf("const harness: HarnessApi = {"), preload.indexOf("contextBridge.exposeInMainWorld")).matchAll(/^ {2}(\w+):/gm)];
-    expect([commands.length, events.length, channels.length, methods.length]).toEqual([7, 15, 22, 17]);
+    expect([commands.length, events.length, channels.length, methods.length]).toEqual([7, 15, 26, 17]);
   });
 
   it("says a refused message once, as a fact, in the window's own register, and never sends, queues or retries it (Story 4.8)", () => {

@@ -4,6 +4,7 @@ const setApplicationMenu = vi.fn()
 const buildFromTemplate = vi.fn((template: unknown) => ({ template }))
 const focusHandlers: ((event: unknown, window: { webContents: { id: number } }) => void)[] = []
 const isDocWindow = vi.fn<(webContents: { id: number }) => boolean>(() => false)
+const isWelcomeWindow = vi.fn<(webContents: { id: number }) => boolean>(() => false)
 
 vi.mock('electron', () => ({
   Menu: { setApplicationMenu, buildFromTemplate },
@@ -16,11 +17,14 @@ vi.mock('electron', () => ({
   }
 }))
 vi.mock('./doc-window', () => ({ isDocWindow: (webContents: { id: number }) => isDocWindow(webContents) }))
+vi.mock('./welcome-window', () => ({
+  isWelcomeWindow: (webContents: { id: number }) => isWelcomeWindow(webContents)
+}))
 
 const { buildMenuTemplate, installApplicationMenu } = await import('./app-menu')
 
-type Item = { role?: string; label?: string; accelerator?: string; submenu?: Item[] }
-type Focus = 'project' | 'document'
+type Item = { role?: string; label?: string; accelerator?: string; click?: () => void; submenu?: Item[] }
+type Focus = 'project' | 'document' | 'welcome'
 
 function items(packaged: boolean, focus: Focus): Item[] {
   return (buildMenuTemplate({ packaged, focus }) as Item[]).flatMap((menu) => [menu, ...(menu.submenu ?? [])])
@@ -40,6 +44,8 @@ beforeEach(() => {
   buildFromTemplate.mockClear()
   isDocWindow.mockReset()
   isDocWindow.mockReturnValue(false)
+  isWelcomeWindow.mockReset()
+  isWelcomeWindow.mockReturnValue(false)
   focusHandlers.length = 0
 })
 
@@ -96,6 +102,49 @@ describe('the application menu', () => {
   })
 })
 
+describe('the Welcome’s menu', () => {
+  const top = (): Item[] => buildMenuTemplate({ packaged: true, focus: 'welcome' }) as Item[]
+
+  it('is app, File, Edit, View and Window, with File first after the app', () => {
+    expect(top().map(({ label }) => label)).toEqual(['bmad-harness', 'File', 'Edit', 'View', 'Window'])
+  })
+
+  it('has Open Project Folder… with ⌘O in File, and nothing else in File', () => {
+    const file = top().find(({ label }) => label === 'File')
+
+    expect(file?.submenu).toEqual([
+      { label: 'Open Project Folder…', accelerator: 'CmdOrCtrl+O', click: expect.any(Function) }
+    ])
+  })
+
+  it('runs what it is given when Open Project Folder… is chosen', () => {
+    const openProjectFolder = vi.fn()
+    const menus = buildMenuTemplate({ packaged: true, focus: 'welcome', openProjectFolder }) as Item[]
+
+    menus.find(({ label }) => label === 'File')?.submenu?.[0].click?.()
+
+    expect(openProjectFolder).toHaveBeenCalledTimes(1)
+  })
+
+  it('gives the zooms and no reload, and the same roles otherwise as the document window’s', () => {
+    expect(viewRoles('welcome')).toEqual(['zoomIn', 'zoomOut', 'resetZoom'])
+    expect(roles(true, 'welcome')).toEqual(roles(true, 'document'))
+  })
+
+  it('is the one menu with an accelerator: the project and document menus are unchanged', () => {
+    for (const focus of ['project', 'document'] as const) {
+      const labels = (buildMenuTemplate({ packaged: true, focus }) as Item[]).map(({ label }) => label)
+      expect(labels, focus).toEqual(['bmad-harness', 'Edit', 'View', 'Window'])
+      expect(JSON.stringify(buildMenuTemplate({ packaged: true, focus })), focus).not.toMatch(/accelerator|Open Project/)
+    }
+  })
+
+  it('offers Toggle Developer Tools only when not packaged', () => {
+    expect(roles(true, 'welcome')).not.toContain('toggleDevTools')
+    expect(roles(false, 'welcome')).toContain('toggleDevTools')
+  })
+})
+
 describe('installing the menu', () => {
   it('installs the project menu before any window has focus', () => {
     installApplicationMenu(true)
@@ -121,6 +170,25 @@ describe('installing the menu', () => {
       template: buildMenuTemplate({ packaged: true, focus: 'project' })
     })
     expect(setApplicationMenu).toHaveBeenCalledTimes(3)
+  })
+
+  it('rebuilds with the Welcome’s menu when the Welcome gains focus, and hands it the action', () => {
+    const openProjectFolder = vi.fn()
+    installApplicationMenu(true, openProjectFolder)
+    isWelcomeWindow.mockImplementation(({ id }) => id === 4)
+
+    focusHandlers[0]({}, { webContents: { id: 4 } })
+
+    // A click is a closure made at each build, so the menu is read rather than compared.
+    const template = buildFromTemplate.mock.lastCall?.[0] as Item[]
+    expect(template.map(({ label }) => label)).toEqual(['bmad-harness', 'File', 'Edit', 'View', 'Window'])
+    template.find(({ label }) => label === 'File')?.submenu?.[0].click?.()
+    expect(openProjectFolder).toHaveBeenCalledTimes(1)
+
+    focusHandlers[0]({}, { webContents: { id: 1 } })
+    expect(setApplicationMenu).toHaveBeenLastCalledWith({
+      template: buildMenuTemplate({ packaged: true, focus: 'project' })
+    })
   })
 
   it('does not rebuild when focus moves between windows of the same kind', () => {

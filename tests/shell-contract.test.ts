@@ -160,13 +160,15 @@ describe('the shell stylesheet', () => {
 
 describe('the two breakpoints', () => {
   it('are the only width conditions under src/renderer/', () => {
+    // The Welcome (Story 5.1) takes the second breakpoint only, in its own stylesheet.
     expect(allMediaConditions().filter((entry) => entry.includes('width'))).toEqual([
       `${SHELL_CSS}: (max-width:1000px)`,
-      `${SHELL_CSS}: (max-width:1180px)`
+      `${SHELL_CSS}: (max-width:1180px)`,
+      'src/renderer/ui/welcome/welcome.css: (max-width:1000px)'
     ])
     // Every @media rule, not only width ones: the reduced-motion block is the
     // one known non-breakpoint, and a height or orientation query is a third.
-    expect(allMediaConditions()).toHaveLength(3)
+    expect(allMediaConditions()).toHaveLength(4)
   })
 
   it('hide the party side panel at 1180 and touch nothing else', () => {

@@ -50,6 +50,7 @@ vi.mock('electron', () => {
       handle: (channel: string, handler: (event: InvokeEvent) => unknown) =>
         registeredHandlers.set(channel, handler)
     },
+    webUtils: { getPathForFile: (file: { path: string }) => file.path },
     ipcRenderer: {
       invoke: (...args: unknown[]) => invoke(...args),
       on: (channel: string, listener: unknown) => {
@@ -71,9 +72,11 @@ const installBridge = await import('../src/main/install-bridge')
 const projectBridge = await import('../src/main/project-bridge')
 const railBridge = await import('../src/main/rail-bridge')
 const docBridge = await import('../src/main/doc-bridge')
+const welcomeBridge = await import('../src/main/welcome-bridge')
 const sessionBridge = await import('../src/main/session-bridge')
 const preload = await import('../src/preload/index')
 const docPreload = await import('../src/preload/doc')
+const welcomePreload = await import('../src/preload/welcome')
 const { createProjectWindow } = await import('../src/main/windows/main-window')
 
 it('answers on the same channel from both sides', () => {
@@ -134,6 +137,28 @@ it('answers the document channels on the same literals from both sides', () => {
   }
 })
 
+it('answers the Welcome channels on the same literals from both sides', () => {
+  expect(welcomePreload.WELCOME_RECENT_CHANNEL).toBe(welcomeBridge.WELCOME_RECENT_CHANNEL)
+  expect(welcomePreload.WELCOME_CHOOSE_CHANNEL).toBe(welcomeBridge.WELCOME_CHOOSE_CHANNEL)
+  expect(welcomePreload.WELCOME_OPEN_RECENT_CHANNEL).toBe(welcomeBridge.WELCOME_OPEN_RECENT_CHANNEL)
+  expect(welcomePreload.WELCOME_OPEN_DROPPED_CHANNEL).toBe(welcomeBridge.WELCOME_OPEN_DROPPED_CHANNEL)
+  expect([
+    welcomePreload.WELCOME_RECENT_CHANNEL,
+    welcomePreload.WELCOME_CHOOSE_CHANNEL,
+    welcomePreload.WELCOME_OPEN_RECENT_CHANNEL,
+    welcomePreload.WELCOME_OPEN_DROPPED_CHANNEL
+  ]).toEqual(['welcome:recent', 'welcome:choose', 'welcome:open-recent', 'welcome:open-dropped'])
+  // Main registered all four when the composition root loaded.
+  for (const channel of [
+    welcomeBridge.WELCOME_RECENT_CHANNEL,
+    welcomeBridge.WELCOME_CHOOSE_CHANNEL,
+    welcomeBridge.WELCOME_OPEN_RECENT_CHANNEL,
+    welcomeBridge.WELCOME_OPEN_DROPPED_CHANNEL
+  ]) {
+    expect(registeredHandlers.has(channel), channel).toBe(true)
+  }
+})
+
 it('exposes exactly seventeen named methods, and no channel passthrough', () => {
   const harness = exposedApis.get('harness')
 
@@ -179,6 +204,48 @@ it('exposes the document window exactly five named methods, none of which takes 
   }
   // And the shell's bridge does not carry the document window's methods.
   expect(exposedApis.get('harness')?.getDocument).toBeUndefined()
+})
+
+it('exposes the Welcome exactly four named methods, and no channel passthrough', () => {
+  const welcome = exposedApis.get('welcome')
+
+  expect(welcome).toBeDefined()
+  expect(Object.keys(welcome ?? {})).toEqual(['getRecent', 'chooseFolder', 'openRecent', 'openDropped'])
+  expect(welcome?.invoke).toBeUndefined()
+  expect(welcome?.send).toBeUndefined()
+  // Each speaks only its own channel, so no method of the Welcome is another window's.
+  for (const other of ['harness', 'docWindow']) {
+    for (const method of Object.keys(welcome ?? {})) {
+      expect(exposedApis.get(other)?.[method], `${other}.${method}`).toBeUndefined()
+    }
+  }
+  // The counts of the other two are untouched by the Welcome's arrival.
+  expect(Object.keys(exposedApis.get('harness') ?? {})).toHaveLength(17)
+  expect(Object.keys(exposedApis.get('docWindow') ?? {})).toHaveLength(5)
+})
+
+it('sends each Welcome method down its own channel, with only the path or paths it was given', async () => {
+  const welcome = exposedApis.get('welcome') as {
+    getRecent: () => Promise<unknown>
+    chooseFolder: () => Promise<unknown>
+    openRecent: (path: string) => Promise<unknown>
+    openDropped: (files: { path: string }[]) => Promise<unknown>
+  }
+  invoke.mockClear()
+  invoke.mockResolvedValue({ ok: true })
+
+  await welcome.getRecent()
+  await welcome.chooseFolder()
+  await welcome.openRecent('/work/falcon')
+  await welcome.openDropped([{ path: '/work/a' }, { path: '/work/b' }])
+
+  expect(invoke.mock.calls).toEqual([
+    [welcomeBridge.WELCOME_RECENT_CHANNEL],
+    [welcomeBridge.WELCOME_CHOOSE_CHANNEL],
+    [welcomeBridge.WELCOME_OPEN_RECENT_CHANNEL, '/work/falcon'],
+    // The file-path lookup is the preload's: the page hands over Files and main hears paths.
+    [welcomeBridge.WELCOME_OPEN_DROPPED_CHANNEL, ['/work/a', '/work/b']]
+  ])
 })
 
 it('turns a refused install:get into a rejection carrying the envelope', async () => {

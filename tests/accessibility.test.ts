@@ -430,11 +430,13 @@ describe('the shell stylesheets', () => {
   })
 
   it('mount the live region once per window, hidden by the component and not by its caller', () => {
-    // Two windows, two pages, one region each: the project window's (app.tsx)
-    // and the document window's own (Story 1.12), which shares no file with it.
+    // Three windows, three pages, one region each: the project window's (app.tsx),
+    // the document window's own (Story 1.12) and the Welcome's (Story 5.1), which
+    // share no file with it.
     expect(sourcesMatching(/<LiveRegion/)).toEqual([
       'src/renderer/ui/app.tsx',
-      'src/renderer/ui/doc/doc-app.tsx'
+      'src/renderer/ui/doc/doc-app.tsx',
+      'src/renderer/ui/welcome/welcome-app.tsx'
     ])
     expect(sourceText.get(LIVE_REGION) ?? '').toContain('className="visually-hidden"')
   })

@@ -4,7 +4,7 @@ import { dialog } from 'electron'
 
 /**
  * A project path was supplied on the command line but does not name an existing
- * directory. Named startup failure — never a silent fallback to the chooser.
+ * directory. Named startup failure — never a silent fallback to the Welcome.
  */
 export class ProjectPathError extends Error {
   readonly code = 'startup/project-path-not-a-directory'
@@ -27,7 +27,7 @@ export class ProjectPathError extends Error {
  *
  * The dev entry placeholder is dropped by *position* - it is always argv[1] -
  * rather than by value, so `npm run dev -- .` opens the current directory
- * instead of silently falling through to the chooser.
+ * instead of silently falling through to the Welcome.
  *
  * Switches are not project paths: Electron appends its own
  * (`--remote-debugging-port`, and macOS `-psn_...` when launched from Finder).
@@ -80,21 +80,16 @@ export async function chooseProjectDirectory(): Promise<string | null> {
 }
 
 /**
- * The project path for the next window: the command-line argument when one was
- * supplied on this launch, otherwise the chooser. `null` means cancelled.
+ * The project the command line names, if it names one: `null` is none, and the
+ * Welcome is what opens. There is no chooser fallback here any more: choosing a
+ * project is the Welcome's, and a native dialog never opens before a window.
  *
  * @throws ProjectPathError when the supplied argument is not a directory.
  */
-export async function resolveProjectPath(options: {
+export function resolveProjectPath(options: {
   argv: readonly string[]
   isPackaged: boolean
-  useArgument: boolean
-}): Promise<string | null> {
-  if (options.useArgument) {
-    const argument = projectPathArgument(options.argv, options.isPackaged)
-    if (argument !== null) {
-      return directoryFromArgument(argument)
-    }
-  }
-  return chooseProjectDirectory()
+}): string | null {
+  const argument = projectPathArgument(options.argv, options.isPackaged)
+  return argument === null ? null : directoryFromArgument(argument)
 }

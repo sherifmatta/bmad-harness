@@ -1,0 +1,53 @@
+# Epic 5 Context: Arrive and settle in
+
+<!-- Generated from planning artifacts. Regenerate with compile-epic-context if planning docs change. -->
+
+## Goal
+
+The harness stops opening to a native folder dialog and instead opens to a Welcome that offers one action (open a project folder, or drop one), lists projects opened before, and shows the five core personas by phase of the method, so the first thing seen is what the product is. It can be viewed in light or dark (System is the default). A conversation, in a persona's thread or the party room, follows what is being said and holds still when the user scrolls up to reread. The folder the rail watches for a project's output defaults to BMad's own and is the user's to override. Epic 5 changes how a project is chosen, how the product is painted and how a thread scrolls; it changes nothing about what a project window or thread contains.
+
+## Stories
+
+- Story 5.1: Choose a project from a welcome, not a dialog
+- Story 5.2: Choose light, dark or the system's theme
+- Story 5.3: The thread follows what is being said
+- Story 5.4: Choose the folder that holds the output
+
+## Requirements & Constraints
+
+- Welcome: opens when no project path is on the command line and no native dialog opens at launch. A CLI path still opens its project directly; a non-folder CLI path still fails on stderr with exit 1. Closing the last project window or reactivating with no window shows the Welcome; closing the Welcome quits; cancelling the native chooser returns to the Welcome without quitting.
+- Welcome's one action is *Open project folder…* (`⌘O`) plus one drop target; a non-folder drop opens nothing and says `not a folder · <name>`. The project window opens and the Welcome closes in the same moment.
+- Recent projects: max eight, newest first, path and time only, recorded for every open route including CLI. A vanished folder keeps its row, shows `folder missing` and does not open. Rows carry no install state, count or version, and no resolver runs for them. With none recorded, the section is not rendered.
+- Welcome shows the five core personas (curated portraits, 44px, full opacity) in four lanes (analysis, planning, solutioning, implementation) with one harness-written sentence per role. It reads no project, marks no lane current, recommends nothing.
+- Theme: one value (`system` | `light` | `dark`), default `system` following macOS appearance live. Chosen from *View ▸ Theme* (three radio items, no accelerator, every window) and the Welcome's `theme · system · light · dark` line. Applies to all windows at once as a pure repaint: no transition, toast or announcement; touches no session, run, transcript, card, rail row or scroll position. A window is never painted in the other theme first; a missing/unreadable/unrecognised stored value reads as `system` silently. Portraits are identical in both themes. This reverses the former dark-only rule.
+- Thread following: while within one line of the bottom, anything that lengthens the thread keeps the newest line in view in the same frame, instantly, no animation. A user scroll away pauses following and nothing moves the thread while paused. Returning to the bottom, pressing `↓ latest`, or sending resumes. A thread opened, reloaded or switched to lands at the bottom, following. The control shows no count or sign of what is below.
+- Output folder: resolved in order — user's stored per-project choice (existing folder inside the project, not the project root), BMad's resolved `output_folder` (usable folder inside the project), then `_bmad/`. Derived, never asked; no prompt. Chosen via `change…` in the Outputs head or *File ▸ Output Folder…* (native chooser opens at the folder now watched). Refuse and change nothing for a real path outside the project, the project folder itself, or `.git`/`node_modules` or anything inside them. *File ▸ Use BMad's Output Folder* forgets the choice. Choice stored per project under `userData`, remembered while the folder is missing.
+- The output folder drives rail rows and groups, the document window's boundary for new opens, the Outputs empty state and the party summary destination. Install, preflight and resolvers stay at `_bmad/`; no skill's writes are redirected. Outputs head says one fact beneath the folder when applicable: `bmad writes to · <folder>` (choice differs from BMad's), `<chosen> · folder missing` (rail falls back to BMad's folder), `not changed · <reason>` (once, on refusal). A change repaints the rail in one frame and touches no session, run, transcript or open document window.
+- Cross-cutting NFRs: security posture (contextIsolation on, nodeIntegration off, sandbox on, narrow enumerated preload API, no generic invoke passthrough); macOS-specific calls confined to `src/main/windows/`; two themes with no `prefers-color-scheme` branch in any stylesheet/component and no high-contrast or third palette; no literal colour/dimension/radius/font in components (tokens only); `faint`-tier text never the sole carrier of a fact; keyboard reach for every action; exactly one polite live region per window; harness microcopy lower case, mono, `·`-separated, no terminal punctuation, stating facts not guidance; no guidance surface, no audio; desktop-first with only the two existing breakpoints (<=1180px, <=1000px).
+- Negative surface (verified in each story's final criteria): Welcome has no badge or count, no recommended persona, no spinner or animation, no tour or wizard, no sound, no *clear recent* control, no *get started*/*welcome back*/*try* copy. Follow control has no count, dot, *new*, pulse, shadow or sound. Output folder has no prompt, recommendation or second folder.
+
+## Technical Decisions
+
+- The harness is a read-only projection with no write side and writes nothing into the project; all new durable state (recent list, theme value, per-project output-folder choice) lives under Electron `userData` and holds only paths, times and one word, never project content. If the recent or theme store has landed, store the output-folder choice beside them in the same `userData` module; otherwise it gets its own small file.
+- The Welcome follows the document window's precedent: its own window, own page entry and own preload bundle, sharing no runtime module with the shell's, with no project and no edge to the install, CLI or a project's files. Its startup change lands in `src/main/index.ts` (the old path called a native `dialog.showOpenDialog` via `choose-project.ts` before any window existed, and quit on cancel). Layer rules still hold: View/Design/Bridge/Projections/Fold/Sources, no upward arrows; fold interpreters stay pure.
+- Light theme: palette "cool paper", one twin for every colour token in `design/tokens.css`, added as a third block `:root[data-theme="light"]` carrying `color-scheme: light` after the two dark blocks, which stay byte-identical so existing token tests keep passing. Components name no theme. Text-carrying light pairs clear 4.5:1 except `meta`; the four state-colour meanings are kept with stronger halos; shadows and scrim are cool and low. `prefers-color-scheme` is read only in main; native chrome follows the theme.
+- The five role descriptions are a static table (the one roster shown before any install is read), written from each agent's role, not read from a project and not attributed to a persona.
+- The scroll follow state is a fact about the scroller's position: nothing persisted, no setting. The renderer's existing scroll call is the run-card reveal in `use-reveal.ts` (Story 3.10); Story 5.3 adds thread following beside it, and the reveal now also pauses following. It touches the thread scroller in the shell and in the party view.
+- The output folder and the install are two folders: the code reads `_bmad/` for both, but BMad's own resolved configuration (`output_folder`, per the derived-never-asked rule for pipeline position and file ownership) chooses the output. Only the output follows the user's choice; the choice is an override, never a setup step.
+
+## UX & Interaction Patterns
+
+- Welcome: 1080 x 720 window; topbar shows only the brand and `no project open`; a 560px column holds head, open action and recent rows; a 960px band of four lanes (`1fr 2fr 1fr 1fr`) stacks to one column at <=1000px. The open action reuses the composer's send-button style; the drop zone is the product's one dashed border. It is the one surface with breathing room because it holds no state. Role descriptions are in sans, no first person, no quotation, no suggestion of where to start.
+- Welcome accessibility: tab stops are the open button and the recent list (one stop, arrow keys between rows, `Enter` opens); persona cards take no focus; one polite live region announces a rejected drop once; focus lands on the open button on open and after a cancelled dialog; no motion.
+- Theme: the Welcome's `theme` line is the only on-window control; the topbar gains none; no per-project or per-window theme.
+- Follow control: single literal string `↓ latest` in `label` mono at `dim` on `panel-2` with a 1px `line` border and `control` radius, centred above the composer; present only while a thread is not following; appears and disappears in one frame; one tab stop between the thread and the composer; no animated scroll anywhere.
+- Outputs head: watched folder in `meta` mono at `dim` plus `change…` in `accent`; one state line beneath in `dim` mono with no colour or icon, only while there is a state. A File menu in project windows has *Output Folder…* and *Use BMad's Output Folder*, no accelerators; refusals are announced politely once.
+- Design mockups for these surfaces live under the UX design folder's `mockups/` (welcome, light theme, follow-the-thread, output-folder).
+
+## Cross-Story Dependencies
+
+- Story 5.2 seam C (the Welcome's theme line) needs Story 5.1's Welcome; build 5.2's A and B first and C after 5.1.
+- Story 5.1 is large with three seams in build order (A window/open/drop/lifecycle, B recent list, C the team); each is shippable alone and it may be split if oversized. Stories 5.2 and 5.4 are likewise three-seam (5.2: A light tokens, B stored choice and View menu, C Welcome line; 5.4: A derive folder and make surfaces follow, B choose/remember/head states, C File menu).
+- Story 5.3 is independent of 5.1 and 5.2 and can land before or after either.
+- Story 5.4 is independent of 5.1 to 5.3; it shares a `userData` store module with 5.1 and 5.2 if present.
+- Builds on earlier epics' surfaces: rail and watcher (Epic 1), the document window (Story 1.12), the run-card reveal (Story 3.10) and the party room and its summary destination (Epic 4); Epic 5 does not change what those contain.
