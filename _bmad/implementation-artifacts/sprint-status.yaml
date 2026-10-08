@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-25-2026 17:00
-last_updated: 10-08-2026 12:35
+last_updated: 10-08-2026 13:40
 project: bmad-harness
 project_key: NOKEY
 tracking_system: file-system
@@ -93,6 +93,8 @@ development_status:
   4-4-take-the-room-away-with-you: done
   4-5-the-room-ends-it-does-not-pause: done
   4-6-nothing-this-epic-promised-not-to-do: done
+  4-7-the-room-is-still-the-room-after-a-reload: backlog
+  4-8-a-message-the-room-refused-says-so: backlog
   epic-4-retrospective: done
 action_items:
   - id: "epic-1-retro-item-1-make-the-packaged-app-find-claude-and-uv"

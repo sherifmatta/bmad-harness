@@ -14,6 +14,8 @@ Let the user convene a room of chosen personas in one conversation they take par
 - Story 4.4: Take the room away with you
 - Story 4.5: The room ends, it does not pause
 - Story 4.6: Nothing this epic promised not to do
+- Story 4.7: The room is still the room after the window reloads
+- Story 4.8: A message the room refused says so
 
 ## Requirements & Constraints
 
@@ -51,3 +53,4 @@ Let the user convene a room of chosen personas in one conversation they take par
 - Builds on Epics 1 and 2 (shell and view switch, roster, rail, document window, session and turn model, orphan and relaunch behaviour); independent of Epic 3's card, though the room runs sessions through the same turn-end fold and test files, so Epic 3's open retro items on stop semantics, accessibility and test debt touch it.
 - 4.1 creates the room session and the sysline that 4.2 to 4.5 build on. 4.2 and 4.3 share the header and transcript. 4.4 needs 4.3's destination path and 4.1's room ownership. 4.5 relies on the session model's stop semantics from Epic 1.
 - 4.6 is the closing negative-surface audit of 4.1 to 4.5.
+- 4.7 and 4.8 were added after the Epic 4 retrospective (findings F1 and F2). 4.7 changes the conversation snapshot and the renderer's room hydration; 4.8 changes the room send path in `use-conversation.ts` and `session-bridge.ts`. Build 4.7 first. Both extend the 4.6 audit.

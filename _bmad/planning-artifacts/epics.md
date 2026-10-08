@@ -2168,3 +2168,105 @@ So that nothing renders that could not be populated.
 
 **Given** a persona who is not currently speaking
 **Then** their face is dimmed and never removed.
+
+### Story 4.7: The room is still the room after the window reloads
+
+*Sequencing: added 2026-10-08 from the Epic 4 retrospective, finding F1, action item `epic-4-retro-item-49`. Lands before the room is used on real work. Independent of Story 4.8, but both change the room paths of `use-conversation.ts`: build this one first.*
+
+As someone who reloaded the window while a room was running,
+I want the room to be exactly what it was when I come back,
+So that I never read a live conversation as a stopped one, or lose the means to take part in it or end it.
+
+**Implements:** FR66, FR67, FR70, FR72 · FR69
+
+**Evidence:** in the built app, against a stub `claude`, reloading the window with a live three-person room returned the view to 1:1. The party view then showed the earlier transcript above the chooser, with no header, cast strip, composer or *stop room*; the room's process stayed alive and kept streaming into that read-only thread. *Open the room* attached to the live session without spawning, but the renderer took the cast from the chooser's ticks: a room of three read "5 participants", elapsed time restarted from the press, the topic was gone and the destination fell back to `<topic>` (Epic 4 retrospective F1, behavior check 15). Cause: the conversation snapshot lists persona sessions only (`src/main/session-bridge.ts:540-546`), main answers a second open with the live room (`:196-197`), and `roomReady` stores the cast the window sent (`src/renderer/ui/chat/conversation-state.ts`). The gap was deferred from Story 4.1 to 4.2, from 4.3 to 4.5, and 4.5's spec has no row for it (`spec-4-1-choose-who-is-in-the-room.md`, Residual risks).
+
+**Acceptance Criteria:**
+
+**Given** a live room and a window reload
+**When** the window reads the conversation again
+**Then** the snapshot names the room: its session, its cast in the order the room was opened with, and when it opened
+**And** the window comes back with the room live: header, cast strip, composer and *stop room* present, the transcript above them, as before the reload
+**And** the room is still no persona's session: it has no tile and is not among the snapshot's persona `sessions`.
+
+**Given** the reloaded room
+**Then** the participant count, turn counter, elapsed time and topic in the header, and the topic, opened and writes-to rows of the Room panel, read what they read before the reload
+**And** the summary destination is the same path
+**And** elapsed time runs from the room's real opening, not from the reload.
+
+**Given** a room with a turn in flight at the reload
+**Then** it comes back busy, and the speaker is lit by the same rule as before the reload, from the stored entries and what main sends next.
+
+**Given** a room that is live
+**When** an open is made against it
+**Then** it answers with the live room's own session and cast, and the window takes the cast from that answer, never from the chooser's ticks.
+
+**Given** a reload with no live room — never opened, stopped by the user, or its process exited while the window was away
+**Then** the party view is exactly what Story 4.5 specifies: the stopped transcript above the chooser, no header, strip, composer or stop, and no room invented
+**And** a room still starting at the moment the conversation is read is not live in the snapshot; its `session:opened` event, arriving after, makes it live as it does today.
+
+**Given** the application is quit and relaunched
+**Then** no room is live after it (its process ended with the application), the transcript is above the chooser, and nothing is restored as live
+**And** the room is not persisted: the snapshot is built from main's live memory, and no field, file or setting records a room across launches.
+
+**Given** the negative surface and the audit
+**Then** the reloaded room adds no control, banner, toast, sound, spinner, badge or word that speaks of the reload (no *restored*, *reconnected*, *welcome back*), and says nothing in the transcript about it
+**And** the Story 4.6 audit (`epic-4-audit.dom.test.tsx`) mounts a reloaded live room, built by the fold from a snapshot and not by hand.
+
+**Given** the evidence above
+**Then** a test opens a room through the real bridge and registry, reads the conversation again into a fresh renderer state, and asserts the room live with its original cast and open time, the persona `sessions` unchanged, and the destination unchanged; dropping the room from the snapshot makes it fail
+**And** the tests that pin the room's absence from the snapshot (`src/main/session-bridge.test.ts` "is not in the conversation snapshot", the `use-conversation` test that forgets the room) are replaced by it.
+
+**Boundaries:** no new command, event, channel or preload method (the counts stay 7, 15, 22 and 17: the snapshot is the reply to the existing `conversation:get`, and it gains a field); no change to the stop mechanism or to what *End session* clears; earlier rooms' lines in the thread are Epic 4 retrospective F5 and are not changed here.
+
+### Story 4.8: A message the room refused says so
+
+*Sequencing: added 2026-10-08 from the Epic 4 retrospective, finding F2, action item `epic-4-retro-item-50`. Lands before the room is used on real work. Build after Story 4.7.*
+
+As someone who typed into the room,
+I want to know when the room did not take my message,
+So that what is on screen as sent is what the room received.
+
+**Implements:** FR70, FR71 · FR67
+
+**Evidence:** a send into a room whose speaker is mid-turn is written once main has interrupted the turn; main refuses with `session/busy` when the interrupt is not acknowledged within `STOP_ACK_MS` or the turn does not end within `STOP_RESULT_MS` (`src/main/session-bridge.ts`, `interruptedRoom`). The renderer swallows that refusal (`src/renderer/ui/chat/use-conversation.ts:192-196`, `transmitToRoom`), and main records the user's turn only after a write, so the thread shows a line the room never saw, with no failure line, and it is gone after a reload. The same path carries *Write summary*, so a refused summary ask looks asked. `roomSent` also sets the topic, and so the summary filename, before delivery. Separately, *stop room* pressed while a send waits makes the send answer not-found, and the renderer shows a failure line for a refusal the stop caused, leaving the entry in the stopped transcript as if delivered (`src/main/session-bridge.ts:451-459`; Epic 4 retrospective F2, diff review findings 2 and 5). Two `use-conversation` tests pin "keeps the entry … and says nothing", so the tests agree with the defect.
+
+**Acceptance Criteria:**
+
+**Given** a send into the room that main refuses as busy
+**Then** the user's entry does not stay on screen as if sent
+**And** the thread says what happened, once, in the harness's own register and not a persona's, as a fact and not as guidance (copy for `bmad-ux`; placeholder `not sent · the room is still speaking`)
+**And** the room stays busy as main's state says, because the turn goes on, and main adds nothing to the transcript record.
+
+**Given** the refused send was *Write summary to `_bmad/`*
+**Then** the same: the ask is not shown as asked, nothing implies a file is coming, and the Room panel's destination stays as it was.
+
+**Given** the first message of a room is refused
+**Then** it sets no topic: the header still reads *no topic yet* and the destination keeps `<topic>`
+**And** the topic is set by the first message main delivered, never by one it refused.
+
+**Given** a send waiting for the speaker's turn to end when *stop room* is pressed
+**Then** the renderer treats it as ended by the stop and not as a failure: no failure line, and no user entry in the stopped transcript for a message the room never received
+**And** the only line the stop adds is the one Story 4.5 specifies.
+
+**Given** a send that is delivered, after an interrupt or not
+**Then** nothing changes from Stories 4.2 and 4.4: the entry shows at once, the speaker is interrupted, main records the turn once written.
+
+**Given** any other refusal of a room send (no such session, a failed write)
+**Then** the failure line is as it is today
+**And** a persona's busy session is unchanged (`dispatchRefusedBusy`).
+
+**Given** a reload after a refused send
+**Then** the thread and the record agree before and after: the refused line is in neither.
+
+**Given** the negative surface and the audit
+**Then** the refusal adds no spinner, badge, sound, retry control, queue, *try again* word or other next-step guidance, and the line is lower case, mono, `·`-separated, with no terminal punctuation
+**And** the Story 4.6 audit mounts the refused-send state, built by the fold from the recorded events and not by hand.
+
+**Given** the evidence above
+**Then** the two `use-conversation` tests that pin the silent behavior are replaced by tests that pin the outcome above, and a bridge-level test sends through a fake process whose interrupt is never acknowledged and asserts: no transcript record, a refusal at the renderer, no entry left on screen
+**And** the stop-during-send case is pinned at the renderer (no failure line after the room's `session:closed`), so the "any other refusal shows the failure" test no longer locks in a failure line for a refusal the stop caused.
+
+**Decision to confirm before build:** whether the refused message's text returns to the composer for the user to send again (nothing is ever re-sent on their behalf), or only the line is shown. Default if unanswered: the text returns to the composer when the composer is empty.
+
+**Boundaries:** no new command, event, channel or preload method; no change to `STOP_ACK_MS`, `STOP_RESULT_MS` or to the room's no-gate rule (a send into a busy room still interrupts first); the harness never re-sends, queues or retries a message the user did not ask to send again; *Write summary*'s missing busy guard, the summary ask's wording and *stop room* meaning kill-versus-interrupt are Epic 4 retrospective F4 and F8 (action item 7) and are not changed here.
