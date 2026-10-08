@@ -1,0 +1,1409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="color-scheme" content="light">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BMad Harness — light B · shell</title>
+<style>
+  :root{
+    --bg:#f5f2ec;
+    --chrome:#eee9e0;
+    --panel:#fffdf9;
+    --panel-2:#faf7f1;
+    --panel-3:#f1ece2;
+    --line:#ddd7cc;
+    --line-soft:#e9e4da;
+    --text:#2d2a25;
+    --text-strong:#15130f;
+    --dim:#5d5850;
+    --faint:#716b61;
+    --accent:#2d5db0;    --accent-bg:rgba(45,93,176,.10);
+    --green:#2b7347;
+    --amber:#8a640a;
+    --red:#a5453a;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --r:5px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:var(--sans); font-size:13px; line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+    overflow:hidden;
+  }
+  button{font:inherit;color:inherit}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:#cfc8ba;border-radius:10px;border:3px solid transparent;background-clip:content-box}
+  ::-webkit-scrollbar-thumb:hover{background:#b8b0a0;background-clip:content-box;border:3px solid transparent}
+  ::-webkit-scrollbar-track{background:transparent}
+
+  .app{display:flex;flex-direction:column;height:100vh;min-height:0}
+
+  /* ---------- top chrome ---------- */
+  .topbar{
+    display:flex;align-items:center;gap:14px;
+    height:42px;flex:0 0 42px;padding:0 12px;
+    background:var(--chrome);border-bottom:1px solid var(--line);
+  }
+  .brand{display:flex;align-items:center;gap:8px;letter-spacing:.02em}
+  .brand .mark{width:16px;height:16px;border:1px solid #c4bcac;border-radius:3px;position:relative;flex:0 0 auto}
+  .brand .mark::after{content:"";position:absolute;inset:3px;background:var(--accent);opacity:.75;border-radius:1px}
+  .brand b{font-weight:600;font-size:12.5px;color:var(--text-strong)}
+  .brand span{color:var(--faint);font-size:11px}
+  .crumbs{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11.5px;color:var(--dim);min-width:0}
+  .crumbs .sep{color:#c4bcac}
+  .crumbs .path{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .chip{
+    display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 7px;
+    border:1px solid var(--line);border-radius:3px;background:var(--panel-2);
+    font-family:var(--mono);font-size:10.5px;color:var(--dim);white-space:nowrap;
+  }
+  .spacer{flex:1 1 auto;min-width:8px}
+  .segmented{display:flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--panel-2)}
+  .segmented button{
+    background:transparent;border:0;padding:5px 13px;font-size:12px;color:var(--dim);cursor:pointer;
+    border-right:1px solid var(--line-soft);letter-spacing:.01em;
+  }
+  .segmented button:last-child{border-right:0}
+  .segmented button[aria-pressed="true"]{background:#ebe5d9;color:var(--text-strong);box-shadow:inset 0 -2px 0 var(--accent)}
+  .segmented button:hover{color:var(--text)}
+  .ghost-btn{
+    background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r);
+    padding:4px 10px;font-size:11.5px;color:var(--dim);cursor:pointer
+  }
+  .ghost-btn:hover{color:var(--text-strong);border-color:#c2baaa}
+
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--faint);flex:0 0 auto}
+  .dot.live{background:var(--green);box-shadow:0 0 0 3px rgba(42,117,71,.16)}
+  .dot.work{background:var(--amber);box-shadow:0 0 0 3px rgba(143,106,10,.16)}
+
+  /* ---------- views ---------- */
+  .view{display:none;flex:1 1 auto;min-height:0}
+  .view.active{display:flex}
+
+  /* ================= VIEW 1 : 1:1 ================= */
+  #view-solo{flex-direction:row}
+  .col-chat{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
+  .rail{
+    flex:0 0 348px;width:348px;border-left:1px solid var(--line);
+    background:var(--panel);display:flex;flex-direction:column;min-height:0;
+  }
+  .rail-half{flex:1 1 50%;min-height:0;display:flex;flex-direction:column}
+  .rail-half + .rail-half{border-top:1px solid var(--line)}
+  .rail-head{
+    display:flex;align-items:center;gap:8px;height:30px;flex:0 0 30px;padding:0 11px;
+    border-bottom:1px solid var(--line-soft);background:var(--panel-2);
+  }
+  .rail-head h3{margin:0;font-size:10.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--dim)}
+  .rail-head .meta{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--faint);display:flex;align-items:center;gap:6px}
+  .rail-body{overflow-y:auto;flex:1 1 auto;min-height:0}
+  .rail-foot{
+    flex:0 0 auto;padding:7px 11px;border-top:1px solid var(--line-soft);
+    font-size:10.5px;color:var(--faint);background:var(--panel-2);
+  }
+
+  /* persona tiles */
+  .ptile{
+    display:flex;gap:10px;align-items:flex-start;padding:9px 11px;cursor:pointer;
+    border-bottom:1px solid var(--line-soft);position:relative;
+  }
+  .ptile:hover{background:var(--panel-2)}
+  .ptile[aria-current="true"]{background:#efe9dd}
+  .ptile[aria-current="true"]::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--accent)}
+  .ptile .pf{flex:0 0 auto}
+  .ptile .who{min-width:0;flex:1 1 auto}
+  .ptile .nm{display:flex;align-items:baseline;gap:7px}
+  .ptile .nm b{font-size:12.5px;font-weight:600;color:var(--text-strong)}
+  .ptile .nm span{font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ptile .state{display:flex;align-items:center;gap:6px;margin-top:2px;font-size:11px;color:var(--faint)}
+  .ptile .state em{font-style:normal;font-family:var(--mono);font-size:10.5px}
+  .ptile .menu-hint{
+    margin-top:5px;display:flex;flex-wrap:wrap;gap:4px;max-height:0;overflow:hidden;opacity:0;
+    transition:max-height .16s ease,opacity .16s ease;
+  }
+  .ptile:hover .menu-hint{max-height:60px;opacity:1}
+  .code-tag{
+    font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;color:var(--dim);
+    border:1px solid var(--line);border-radius:3px;padding:0 4px;background:#f1ece2;
+  }
+
+  /* output rows */
+  .frow{
+    display:flex;align-items:center;gap:9px;padding:6.5px 11px;cursor:pointer;
+    border-bottom:1px solid var(--line-soft);
+  }
+  .frow:hover{background:var(--panel-2)}
+  .frow .fi{flex:0 0 auto;opacity:.75}
+  .frow .fname{
+    font-family:var(--mono);font-size:11.5px;color:var(--text);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;
+  }
+  .frow .fmeta{font-size:10.5px;color:var(--faint);white-space:nowrap;display:flex;align-items:center;gap:6px}
+  .frow.writing .fname{color:var(--text-strong)}
+  .frow.writing .fmeta{color:var(--amber)}
+  .frow .dirline{font-family:var(--mono);font-size:10px;color:var(--faint);padding:0}
+  .fgroup{padding:8px 11px 3px;font-family:var(--mono);font-size:10px;color:#827b70;letter-spacing:.04em}
+  .pulse{animation:pulse 1.5s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+  /* chat header */
+  .chat-head{
+    flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:10px 16px;
+    border-bottom:1px solid var(--line);background:var(--chrome);
+  }
+  .chat-head .id{min-width:0}
+  .chat-head .id .l1{display:flex;align-items:baseline;gap:8px}
+  .chat-head .id b{font-size:14px;font-weight:600;color:var(--text-strong);letter-spacing:.01em}
+  .chat-head .id .role{font-size:11.5px;color:var(--dim)}
+  .chat-head .id .l2{font-size:11.5px;color:var(--faint);margin-top:1px;max-width:72ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .chat-head .right{margin-left:auto;display:flex;align-items:center;gap:8px}
+  .status-pill{
+    display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border-radius:3px;
+    background:rgba(143,106,10,.08);border:1px solid rgba(143,106,10,.28);
+    font-size:11px;color:#7a5a08;font-family:var(--mono);
+  }
+
+  /* transcript */
+  .scroll{flex:1 1 auto;overflow-y:auto;min-height:0}
+  .thread{max-width:940px;margin:0 auto;padding:16px 16px 26px}
+  .turn{display:flex;gap:12px;padding:12px 10px;border-radius:6px}
+  .turn + .turn{margin-top:2px}
+  .turn.user{background:rgba(45,93,176,.05);box-shadow:inset 2px 0 0 rgba(45,93,176,.5)}
+  .turn .av,.pturn .av{flex:0 0 auto;padding-top:1px}
+  .turn .body,.pturn .body{min-width:0;flex:1 1 auto}
+  .turn .hd,.pturn .hd{display:flex;align-items:baseline;gap:9px;margin-bottom:3px}
+  .turn .hd b,.pturn .hd b{font-size:12.5px;font-weight:600;color:var(--text-strong)}
+  .turn .hd .role,.pturn .hd .role{font-size:11px;color:var(--faint)}
+  .turn .hd .t,.pturn .hd .t{margin-left:auto;font-family:var(--mono);font-size:10px;color:#827b70}
+  .pturn .hd .tag-disagree,.pturn .hd .tag-neutral{order:2}
+  .pturn .hd .t{order:3}
+  .turn p,.pturn p{margin:0 0 8px}
+  .turn p:last-child,.pturn p:last-child{margin-bottom:0}
+  .turn .q{color:var(--text-strong)}
+  code{font-family:var(--mono);font-size:11.5px;background:#f1ece2;border:1px solid var(--line-soft);border-radius:3px;padding:.5px 4px;color:#3a352d}
+  .initials{
+    width:32px;height:32px;border-radius:50%;background:#e7e1d5;border:1px solid #d3ccbd;
+    display:flex;align-items:center;justify-content:center;font-size:11px;font-family:var(--mono);color:#5a544a;
+  }
+
+  .sysline{
+    display:flex;align-items:center;gap:10px;margin:14px 2px 10px;color:var(--faint);font-size:11px;
+  }
+  .sysline::before,.sysline::after{content:"";height:1px;background:var(--line);flex:1 1 auto}
+  .sysline span{font-family:var(--mono);font-size:10.5px;letter-spacing:.03em;white-space:nowrap}
+
+  .runchip{
+    display:inline-flex;align-items:center;gap:8px;margin:2px 0 9px;padding:4px 9px;
+    border:1px solid var(--line);background:var(--panel-2);border-radius:4px;
+    font-family:var(--mono);font-size:10.5px;color:var(--dim);
+  }
+  .runchip b{color:var(--text);font-weight:600}
+
+  /* live doc card in chat */
+  .doccard{
+    border:1px solid var(--line);border-radius:6px;background:var(--panel);overflow:hidden;margin:4px 0 10px;
+  }
+  .doccard .dh{
+    display:flex;align-items:center;gap:9px;padding:7px 11px;background:var(--panel-2);border-bottom:1px solid var(--line-soft);
+  }
+  .doccard .dh .p{font-family:var(--mono);font-size:11px;color:var(--text)}
+  .doccard .dh .s{margin-left:auto;display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10px;color:var(--amber)}
+  .doccard .dh .s.saved{color:var(--green)}
+  .doccard .dbody{
+    padding:11px 13px;max-height:230px;overflow:auto;
+    font-family:var(--mono);font-size:11.5px;line-height:1.72;color:#3d3932;white-space:pre-wrap;
+  }
+  .doccard .dbody .h{color:#15130f;font-weight:600}
+  .doccard .dbody .mut{color:#827b70}
+  .caret{display:inline-block;width:6.5px;height:13px;background:var(--accent);vertical-align:-2px;animation:blink 1.05s steps(1) infinite}
+  @keyframes blink{50%{opacity:0}}
+  .doccard .df{
+    display:flex;align-items:center;gap:8px;padding:6px 11px;border-top:1px solid var(--line-soft);
+    background:var(--panel-2);font-size:10.5px;color:var(--faint)
+  }
+
+  /* decision options */
+  .options{display:flex;flex-direction:column;gap:6px;margin:8px 0 4px}
+  .opt{
+    display:flex;gap:10px;align-items:flex-start;text-align:left;width:100%;
+    background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:9px 11px;cursor:pointer;
+  }
+  .opt:hover{border-color:#b4bfd2;background:var(--panel-2)}
+  .opt .k{font-family:var(--mono);font-size:10.5px;color:var(--accent);border:1px solid #bccbe8;background:var(--accent-bg);border-radius:3px;padding:1px 5px;flex:0 0 auto;margin-top:1px}
+  .opt .txt{min-width:0}
+  .opt .txt b{display:block;font-size:12.5px;color:var(--text-strong);font-weight:600;margin-bottom:1px}
+  .opt .txt span{font-size:11.5px;color:var(--dim)}
+  .opt .lean{margin-left:auto;font-size:10px;font-family:var(--mono);color:var(--faint);white-space:nowrap;flex:0 0 auto;align-self:center}
+  .handoff-chip{
+    display:inline-flex;align-items:center;gap:7px;margin-top:6px;padding:3px 8px 3px 4px;border-radius:99px;
+    border:1px solid var(--line);background:var(--panel-2);font-size:11px;color:var(--dim);cursor:pointer;
+  }
+  .handoff-chip:hover{border-color:#b4bfd2;color:var(--text)}
+
+  /* composer */
+  .composer{flex:0 0 auto;border-top:1px solid var(--line);background:var(--chrome);padding:9px 16px 11px}
+  .composer-inner{max-width:940px;margin:0 auto}
+  .skillrow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+  .skillrow .lbl{font-size:10px;font-family:var(--mono);letter-spacing:.07em;text-transform:uppercase;color:#827b70;margin-right:2px}
+  .skillbtn{
+    display:inline-flex;align-items:center;gap:7px;background:var(--panel-2);border:1px solid var(--line);
+    border-radius:4px;padding:4px 9px 4px 6px;cursor:pointer;color:var(--text);font-size:11.5px;
+  }
+  .skillbtn:hover{border-color:#bdb5a5;background:var(--panel-3)}
+  .skillbtn .c{font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;color:var(--accent);background:var(--accent-bg);border:1px solid #bccbe8;border-radius:2px;padding:0 4px}
+  .skillbtn .more{color:var(--faint)}
+  .inputwrap{display:flex;align-items:flex-end;gap:8px;border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:7px 8px 7px 11px}
+  .inputwrap:focus-within{border-color:#86a0d2}
+  .inputwrap textarea{
+    flex:1 1 auto;background:transparent;border:0;resize:none;color:var(--text);font:inherit;
+    min-height:20px;max-height:120px;outline:none;padding:2px 0;
+  }
+  .inputwrap textarea::placeholder{color:#948c80}
+  .sendbtn{background:#dde6f6;border:1px solid #b6c8ea;color:#20407f;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:11.5px}
+  .sendbtn:hover{background:#cfdbf1}
+  .hintline{display:flex;gap:14px;margin-top:6px;font-size:10.5px;color:#827b70;font-family:var(--mono)}
+
+  /* ================= VIEW 2 : PARTY ================= */
+  #view-party{flex-direction:column}
+  .party-head{
+    flex:0 0 auto;display:flex;align-items:center;gap:14px;padding:9px 16px;border-bottom:1px solid var(--line);background:var(--chrome);
+  }
+  .party-head .t1{font-size:13px;color:var(--text-strong);font-weight:600}
+  .party-head .t2{font-size:11.5px;color:var(--dim);border-left:1px solid var(--line);padding-left:14px}
+  .party-body{flex:1 1 auto;display:flex;min-height:0}
+  .party-main{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;min-height:0}
+  .cast{
+    flex:0 0 auto;display:flex;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,#f1ece2,#ebe5d9);overflow-x:auto;
+  }
+  .castcard{
+    flex:1 1 0;min-width:148px;display:flex;gap:10px;align-items:center;padding:9px 11px;
+    border:1px solid var(--line-soft);border-radius:6px;background:var(--panel);opacity:.42;
+    transition:opacity .25s ease,border-color .25s ease,background .25s ease;cursor:pointer;
+  }
+  .castcard:hover{opacity:.72}
+  .castcard.speaking{
+    opacity:1;border-color:#93addb;background:#fffdf9;
+    box-shadow:0 0 0 1px rgba(45,93,176,.22), 0 6px 18px -10px rgba(40,30,15,.16);
+  }
+  .castcard .pf{position:relative;flex:0 0 auto}
+  .castcard.speaking .pf{box-shadow:0 0 0 2px var(--accent);border-radius:50%}
+  .castcard .cinfo{min-width:0}
+  .castcard .cinfo b{display:block;font-size:12.5px;color:var(--text-strong);font-weight:600}
+  .castcard .cinfo span{display:block;font-size:10.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .castcard .cinfo .st{display:flex;align-items:center;gap:5px;margin-top:3px;font-family:var(--mono);font-size:9.5px;color:var(--faint)}
+  .castcard.speaking .cinfo .st{color:var(--accent)}
+  .eq{display:inline-flex;align-items:flex-end;gap:1.5px;height:8px}
+  .eq i{display:block;width:2px;background:var(--accent);height:3px;animation:eq .9s ease-in-out infinite}
+  .eq i:nth-child(2){animation-delay:.15s}.eq i:nth-child(3){animation-delay:.3s}.eq i:nth-child(4){animation-delay:.45s}
+  @keyframes eq{0%,100%{height:3px}50%{height:8px}}
+
+  .party-thread{max-width:900px;margin:0 auto;padding:16px 16px 26px}
+  .pturn{display:flex;gap:12px;padding:11px 10px;border-radius:6px}
+  .pturn.dim-other{opacity:.9}
+  .pturn.user{background:rgba(45,93,176,.05);box-shadow:inset 2px 0 0 rgba(45,93,176,.5)}
+  .pturn.live{background:#f4f6fb;box-shadow:inset 2px 0 0 var(--accent)}
+  .replyto{
+    display:inline-flex;align-items:center;gap:6px;font-size:10.5px;color:var(--faint);
+    border-left:2px solid var(--line);padding-left:8px;margin-bottom:5px;font-style:normal;
+  }
+  .tag-disagree{
+    display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;
+    color:#a5574c;border:1px solid rgba(168,68,59,.35);background:rgba(168,68,59,.07);border-radius:3px;padding:0 5px;
+  }
+  .tag-neutral{
+    display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;
+    color:var(--dim);border:1px solid var(--line);background:var(--panel-2);border-radius:3px;padding:0 5px;
+  }
+  .party-side{
+    flex:0 0 288px;width:288px;border-left:1px solid var(--line);background:var(--panel);
+    display:flex;flex-direction:column;min-height:0;
+  }
+  .sidesec{border-bottom:1px solid var(--line-soft);padding:11px 13px}
+  .sidesec h4{margin:0 0 8px;font-size:10.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--dim)}
+  .kv{display:flex;gap:8px;font-size:11.5px;margin-bottom:5px}
+  .kv .k{color:var(--faint);width:74px;flex:0 0 auto;font-family:var(--mono);font-size:10.5px}
+  .kv .v{color:var(--text);min-width:0}
+  .openq{border:1px solid var(--line);border-radius:5px;background:var(--panel-2);padding:8px 10px;margin-bottom:7px}
+  .openq .qh{display:flex;align-items:center;gap:7px;margin-bottom:4px}
+  .openq .qt{font-size:11.5px;color:var(--text);line-height:1.45}
+  .openq .qw{margin-top:5px;font-size:10.5px;color:var(--faint);font-family:var(--mono)}
+  .stackfaces{display:flex;align-items:center}
+  .stackfaces .pf{margin-right:-6px;box-shadow:0 0 0 1.5px var(--panel-2);border-radius:50%}
+
+  /* ---------- doc window ---------- */
+  .scrim{position:fixed;inset:0;background:rgba(30,24,14,.32);display:none;z-index:40}
+  .scrim.open{display:block}
+  .win{
+    position:fixed;z-index:50;display:none;flex-direction:column;
+    top:8vh;left:50%;transform:translateX(-50%);
+    width:min(880px,92vw);height:min(760px,80vh);
+    background:var(--panel);border:1px solid #d5cdbf;border-radius:8px;
+    box-shadow:0 30px 70px -20px rgba(40,30,15,.32);overflow:hidden;
+  }
+  .win.open{display:flex}
+  .win .wtitle{
+    flex:0 0 auto;display:flex;align-items:center;gap:10px;height:36px;padding:0 10px;
+    background:linear-gradient(180deg,#f6f2ea,#ece6da);border-bottom:1px solid var(--line);
+  }
+  .win .lights{display:flex;gap:6px;margin-right:4px}
+  .win .lights i{width:10px;height:10px;border-radius:50%;background:#cdc5b6;display:block}
+  .win .wpath{font-family:var(--mono);font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .win .wactions{margin-left:auto;display:flex;gap:6px}
+  .win .wbody{flex:1 1 auto;overflow:auto;padding:26px 34px 40px}
+  .md{max-width:70ch;margin:0 auto;color:#2d2a25;font-size:13.5px;line-height:1.72}
+  .md h1{font-size:20px;color:var(--text-strong);margin:0 0 4px;font-weight:600;letter-spacing:-.01em}
+  .md .sub{color:var(--faint);font-family:var(--mono);font-size:11px;margin-bottom:22px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+  .md h2{font-size:14.5px;color:var(--text-strong);margin:24px 0 7px;font-weight:600}
+  .md h3{font-size:12.5px;color:var(--dim);margin:18px 0 5px;font-weight:600;letter-spacing:.03em;text-transform:uppercase}
+  .md p{margin:0 0 10px}
+  .md ul{margin:0 0 12px;padding-left:19px}
+  .md li{margin-bottom:5px}
+  .md table{border-collapse:collapse;width:100%;margin:6px 0 14px;font-size:12.5px}
+  .md th,.md td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top}
+  .md th{background:var(--panel-2);color:var(--dim);font-weight:600;font-size:11px;letter-spacing:.04em;text-transform:uppercase}
+  .md .fr{font-family:var(--mono);font-size:11.5px;color:var(--accent);white-space:nowrap}
+  .win .wfoot{
+    flex:0 0 auto;height:28px;display:flex;align-items:center;gap:12px;padding:0 11px;
+    border-top:1px solid var(--line);background:var(--panel-2);font-family:var(--mono);font-size:10px;color:var(--faint)
+  }
+
+  /* ---------- footer legend ---------- */
+  .legend{
+    flex:0 0 24px;display:flex;align-items:center;gap:10px;padding:0 12px;
+    background:var(--chrome);border-top:1px solid var(--line);
+    font-size:10.5px;color:var(--faint);
+  }
+  .legend b{
+    color:#86653f;font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:9px;
+    border:1px solid rgba(138,106,69,.3);background:rgba(138,106,69,.08);border-radius:2px;padding:1px 5px;
+  }
+  .legend .r{margin-left:auto;display:flex;gap:14px;font-family:var(--mono);font-size:10px;color:#827b70}
+
+  .pf{display:inline-block;line-height:0;vertical-align:middle}
+
+  /* ---------- responsive ---------- */
+  @media (max-width:1180px){ .party-side{display:none} }
+  @media (max-width:1000px){
+    body{overflow:auto}
+    .app{height:auto;min-height:100vh}
+    .view.active{flex-direction:column}
+    #view-solo{flex-direction:column}
+    .col-chat{min-height:62vh}
+    .rail{flex:0 0 auto;width:auto;border-left:0;border-top:1px solid var(--line)}
+    .rail-half{min-height:230px}
+    .scroll{overflow:visible}
+    .cast{flex-wrap:wrap}
+    .castcard{flex:1 1 44%}
+    .topbar{flex-wrap:wrap;height:auto;padding:6px 10px;gap:8px}
+    .crumbs{order:3;width:100%}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none !important;transition:none !important}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ========== TOP CHROME ========== -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="mark"></span>
+      <b>BMad Harness</b>
+      <span>0.4.0-dev</span>
+    </div>
+    <div class="crumbs">
+      <span class="sep">│</span>
+      <span class="path">~/work/falcon</span>
+      <span class="chip"><span class="dot live"></span> BMad v6 · 29 skills · 5 agents</span>
+      <span class="chip">feat/payouts-prd</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="segmented" role="group" aria-label="View">
+      <button id="btn-solo" aria-pressed="true">1:1 Conversation</button>
+      <button id="btn-party" aria-pressed="false">Party Mode</button>
+    </div>
+    <button class="ghost-btn" id="btn-help" title="Not wired up in this mockup">Help</button>
+  </header>
+
+  <!-- ========== VIEW 1 : 1:1 CONVERSATION ========== -->
+  <section class="view active" id="view-solo">
+    <div class="col-chat">
+
+      <div class="chat-head">
+        <span class="pf" data-p="john" data-size="38"></span>
+        <div class="id">
+          <div class="l1">
+            <b id="ch-name">John</b>
+            <span class="role" id="ch-role">Product Manager</span>
+          </div>
+          <div class="l2" id="ch-identity">Thinks like Marty Cagan and Teresa Torres. Writes with Bezos's six-pager discipline.</div>
+        </div>
+        <div class="right">
+          <span class="status-pill" id="ch-status"><span class="dot work"></span> drafting PRD.md</span>
+          <button class="ghost-btn" id="btn-handoff">Hand off →</button>
+        </div>
+      </div>
+
+      <div class="scroll" id="solo-scroll">
+        <div class="thread" id="thread">
+
+          <div class="sysline"><span>session resumed · 3 earlier turns hidden · context: product-brief.md, research/market-2026-09-14.md</span></div>
+
+          <div class="turn user">
+            <div class="av"><span class="initials">SM</span></div>
+            <div class="body">
+              <div class="hd"><b>You</b><span class="role">sherif</span><span class="t">14:02</span></div>
+              <p>Same scope we agreed Tuesday — merchant payouts, EU only for v1. Start the PRD off the brief, don't re-interview me.</p>
+            </div>
+          </div>
+
+          <div class="turn">
+            <div class="av"><span class="pf" data-p="john" data-size="32"></span></div>
+            <div class="body">
+              <div class="hd"><b>John</b><span class="role">Product Manager</span><span class="t">14:02</span></div>
+              <p>Reading <code>_bmad/product-brief.md</code> and Mary's market note. Brief covers goals, users and the EU-only constraint, so I'll take §1–§3 straight from it and only stop where the brief is silent.</p>
+              <p>Two silences already: payout <em>failure</em> handling, and whether a merchant can trigger a payout manually. Writing now — I'll flag the second one when I get to it.</p>
+              <span class="runchip"><span class="dot work"></span> <b>PRD</b> · bmad-prd · step 4/9 · writing to _bmad/PRD.md</span>
+            </div>
+          </div>
+
+          <div class="turn">
+            <div class="av"><span class="pf" data-p="john" data-size="32"></span></div>
+            <div class="body">
+              <div class="hd"><b>John</b><span class="role">Product Manager</span><span class="t">14:04</span></div>
+
+              <div class="doccard" id="livedoc">
+                <div class="dh">
+                  <span class="dot work" id="livedot"></span>
+                  <span class="p">_bmad/PRD.md</span>
+                  <span class="s" id="livestatus">writing · §4 Functional Requirements</span>
+                </div>
+                <div class="dbody" id="livebody"></div>
+                <div class="df">
+                  <span>1,118 words · 9 sections · autosave on</span>
+                  <span style="margin-left:auto;">click the file in the rail to open it in its own window</span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <div class="turn" id="pushback">
+            <div class="av"><span class="pf" data-p="john" data-size="32"></span></div>
+            <div class="body">
+              <div class="hd"><b>John</b><span class="role">Product Manager</span><span class="t">14:05</span></div>
+              <p class="q">Stopping at FR-7, because I don't want to write your decision for you.</p>
+              <p>The brief says payouts are automatic and scheduled. Support's tickets say the top complaint is <em>"I can't pay my supplier today."</em> Those two can't both be true in v1 — a manual trigger is either in scope or it's a documented non-goal, and the difference is about a week of Amelia's time.</p>
+              <div class="options" id="opts">
+                <button class="opt" data-k="A">
+                  <span class="k">A</span>
+                  <span class="txt"><b>Scheduled only. Manual trigger is a non-goal.</b>
+                  <span>Ships the narrow thing. We answer the support complaint with clearer ETA copy, not a new path.</span></span>
+                  <span class="lean"></span>
+                </button>
+                <button class="opt" data-k="B">
+                  <span class="k">B</span>
+                  <span class="txt"><b>Manual trigger, rate-limited to one per merchant per day.</b>
+                  <span>Answers the actual complaint. Costs an idempotency story and a new state in the payout machine.</span></span>
+                  <span class="lean">John leans here</span>
+                </button>
+                <button class="opt" data-k="C">
+                  <span class="k">C</span>
+                  <span class="txt"><b>Neither — my reasoning is different.</b>
+                  <span>Tell me why and I'll re-frame the requirement before writing it.</span></span>
+                  <span class="lean"></span>
+                </button>
+              </div>
+              <p style="margin-top:8px">I lean B, but I'd rather be wrong out loud than have you discover FR-7 in a review three weeks from now. Which is it?</p>
+              <button class="handoff-chip" id="chip-winston">
+                <span class="pf" data-p="winston" data-size="20"></span>
+                Winston flagged the idempotency cost in <code>architecture.md</code> — loop him in?
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="composer">
+        <div class="composer-inner">
+          <div class="skillrow" id="skillrow">
+            <span class="lbl">John can</span>
+          </div>
+          <div class="inputwrap">
+            <textarea id="solo-input" rows="1" placeholder="Reply to John…  (⌘↵ to send)"></textarea>
+            <button class="sendbtn" id="solo-send">Send</button>
+          </div>
+          <div class="hintline">
+            <span>skills read from .claude/skills/bmad-agent-pm/customize.toml → [[agent.menu]]</span>
+            <span style="margin-left:auto">@ to hand off mid-session</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT RAIL -->
+    <aside class="rail">
+      <div class="rail-half">
+        <div class="rail-head">
+          <h3>Team</h3>
+          <span class="meta">5 agents · install</span>
+        </div>
+        <div class="rail-body" id="tiles"></div>
+        <div class="rail-foot">Read from each agent's <span style="font-family:var(--mono)">customize.toml</span> — name, title, icon and menu. Hover a tile for its skill codes; click to continue the session with them.</div>
+      </div>
+
+      <div class="rail-half">
+        <div class="rail-head">
+          <h3>Outputs</h3>
+          <span class="meta"><span class="dot live"></span> fs.watch _bmad/</span>
+        </div>
+        <div class="rail-body" id="files"></div>
+        <div class="rail-foot">Click any document to open it in its own window.</div>
+      </div>
+    </aside>
+  </section>
+
+  <!-- ========== VIEW 2 : PARTY MODE ========== -->
+  <section class="view" id="view-party">
+    <div class="party-head">
+      <span class="t1">Party mode</span>
+      <span class="t2">Topic: <strong style="color:var(--text)">payouts — extend billing-svc, or stand up the ledger now?</strong></span>
+      <span class="chip">5 participants</span>
+      <span class="chip" style="color:#a5574c;border-color:rgba(168,68,59,.35)">2 open disagreements</span>
+      <div class="spacer"></div>
+      <span class="chip">turn 11 · 6m 40s</span>
+      <button class="ghost-btn">Pause room</button>
+      <button class="ghost-btn">Write summary to _bmad/</button>
+    </div>
+
+    <div class="party-body">
+      <div class="party-main">
+        <div class="cast" id="cast"></div>
+
+        <div class="scroll" id="party-scroll">
+          <div class="party-thread" id="ptranscript">
+
+            <div class="sysline"><span>room opened by you · all five agents present · no turn order enforced</span></div>
+
+            <div class="pturn">
+              <div class="av"><span class="pf" data-p="john" data-size="32"></span></div>
+              <div class="body">
+                <div class="hd"><b>John</b><span class="role">Product Manager</span><span class="t">14:31</span></div>
+                <p>Ten minutes on this, then it goes into the PRD's constraints section as written and I stop reopening it. Question on the table: do payouts ship on <code>billing-svc</code> as it stands, or do we stand up the ledger now?</p>
+              </div>
+            </div>
+
+            <div class="pturn">
+              <div class="av"><span class="pf" data-p="winston" data-size="32"></span></div>
+              <div class="body">
+                <div class="hd"><b>Winston</b><span class="role">System Architect</span><span class="t">14:32</span></div>
+                <p>Extend <code>billing-svc</code>. I'll say the unpopular thing first: we have two call sites for a ledger, not three. Boring technology buys us the ability to be wrong cheaply, and a broker we stand up this quarter is a broker someone maintains for five years.</p>
+                <p>That's a trade-off, not a verdict. Ask me again when payouts and refunds both need replay.</p>
+              </div>
+            </div>
+
+            <div class="pturn">
+              <div class="av"><span class="pf" data-p="amelia" data-size="32"></span></div>
+              <div class="body">
+                <div class="hd"><b>Amelia</b><span class="role">Senior Software Engineer</span><span class="t">14:33</span> <span class="tag-disagree">disagrees · Winston</span></div>
+                <div class="replyto">Winston: “extend billing-svc … boring technology”</div>
+                <p>Disagree. <code>billing-svc/src/ledger/reconcile.ts</code> is 1,412 lines, no idempotency key, and the retry path is a <code>setTimeout</code>. "Boring" describes the choice we'd be making, not the code we'd be making it in.</p>
+                <p>Cost as I see it: retrofit ≈ 9 days plus a migration we can't dry-run. New path ≈ 11 days, dry-runnable. AC for both is the same.</p>
+              </div>
+            </div>
+
+            <div class="pturn">
+              <div class="av"><span class="pf" data-p="mary" data-size="32"></span></div>
+              <div class="body">
+                <div class="hd"><b>Mary</b><span class="role">Business Analyst</span><span class="t">14:35</span> <span class="tag-neutral">evidence</span></div>
+                <p>Both of you are arguing cost. Nobody has said what changes for the merchant, so let me put the evidence in: of 214 payout tickets last quarter, 61% are "where is my money", not "my money is wrong". That's an <em>observability</em> complaint.</p>
+                <p>Which means — and John, this is aimed at you — the ledger's real justification is the event history you can show a merchant, not the engineering hygiene. If we're not shipping that history in v1, we're paying for a ledger we don't use.</p>
+              </div>
+            </div>
+
+            <div class="pturn">
+              <div class="av"><span class="pf" data-p="sally" data-size="32"></span></div>
+              <div class="body">
+                <div class="hd"><b>Sally</b><span class="role">UX Designer</span><span class="t">14:36</span> <span class="tag-disagree">disagrees · framing</span></div>
+                <div class="replyto">The question as John framed it</div>
+                <p>I want to push on the framing itself. You've all called this an internal decision. It isn't. A merchant sees four states today — <em>pending, sent, failed, unknown</em> — and "unknown" is the one they call support about. The architecture picks how many honest states I'm able to draw.</p>
+                <p>Give me an event history and I can show a merchant exactly where their money is. Don't, and I'm designing a spinner with a good excuse.</p>
+              </div>
+            </div>
+
+            <div class="pturn">
+              <div class="av"><span class="pf" data-p="winston" data-size="32"></span></div>
+              <div class="body">
+                <div class="hd"><b>Winston</b><span class="role">System Architect</span><span class="t">14:38</span> <span class="tag-neutral">concedes · partly</span></div>
+                <div class="replyto">Amelia: “no idempotency key … retry path is a setTimeout”</div>
+                <p>The idempotency point lands; I'm not defending <code>reconcile.ts</code>. But Sally's requirement is a persisted event log, not a broker — those are separable and we keep merging them.</p>
+                <p>Middle path: extract reconciliation behind an interface now, write the events to Postgres, defer the broker until refunds need it. Sally gets her states, Amelia gets a dry-runnable seam, and nobody operates Kafka for one producer.</p>
+              </div>
+            </div>
+
+            <div class="pturn user">
+              <div class="av"><span class="initials">SM</span></div>
+              <div class="body">
+                <div class="hd"><b>You</b><span class="role">sherif</span><span class="t">14:39</span></div>
+                <p>Hold on — Mary, if 61% is "where is my money", is the event log enough on its own, or does it only help if we also surface an ETA?</p>
+              </div>
+            </div>
+
+            <div class="pturn live" id="liveturn">
+              <div class="av"><span class="pf" data-p="mary" data-size="32"></span></div>
+              <div class="body">
+                <div class="hd"><b>Mary</b><span class="role">Business Analyst</span><span class="t">now</span> <span class="tag-neutral">speaking</span></div>
+                <p id="partylive"></p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="composer">
+          <div class="composer-inner">
+            <div class="inputwrap">
+              <textarea id="party-input" rows="1" placeholder="Jump in — the room won't wait for a turn…"></textarea>
+              <button class="sendbtn" id="party-send">Send</button>
+            </div>
+            <div class="hintline">
+              <span>no turn gate · your message interrupts the current speaker</span>
+              <span>@name to direct a question</span>
+              <span style="margin-left:auto">transcript → _bmad/party/2026-09-23-payouts.md</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <aside class="party-side">
+        <div class="sidesec">
+          <h4>Room</h4>
+          <div class="kv"><span class="k">topic</span><span class="v">Payout persistence — billing-svc vs ledger</span></div>
+          <div class="kv"><span class="k">opened</span><span class="v">14:31 by you</span></div>
+          <div class="kv"><span class="k">context</span><span class="v">PRD.md (draft), architecture.md, research/market-2026-09-14.md</span></div>
+          <div class="kv"><span class="k">writes to</span><span class="v">_bmad/party/2026-09-23-payouts.md</span></div>
+        </div>
+
+        <div class="sidesec" style="flex:1 1 auto;overflow:auto">
+          <h4>Open disagreements</h4>
+
+          <div class="openq">
+            <div class="qh">
+              <span class="stackfaces"><span class="pf" data-p="winston" data-size="20"></span><span class="pf" data-p="amelia" data-size="20"></span></span>
+              <span class="tag-disagree">unresolved</span>
+            </div>
+            <div class="qt">Retrofit <code>reconcile.ts</code> vs new path — 9 days un-dry-runnable against 11 days dry-runnable.</div>
+            <div class="qw">since turn 3 · 2 exchanges</div>
+          </div>
+
+          <div class="openq">
+            <div class="qh">
+              <span class="stackfaces"><span class="pf" data-p="sally" data-size="20"></span><span class="pf" data-p="john" data-size="20"></span></span>
+              <span class="tag-disagree">unresolved</span>
+            </div>
+            <div class="qt">Is payout state a UX-visible decision or an internal one? Sally rejects the framing of the question.</div>
+            <div class="qw">since turn 6 · 1 exchange</div>
+          </div>
+
+          <div class="openq">
+            <div class="qh">
+              <span class="stackfaces"><span class="pf" data-p="winston" data-size="20"></span></span>
+              <span class="tag-neutral">proposed</span>
+            </div>
+            <div class="qt">Middle path: event log in Postgres now, broker deferred until refunds need replay.</div>
+            <div class="qw">turn 10 · awaiting your call</div>
+          </div>
+        </div>
+
+        <div class="sidesec">
+          <h4>Decisions so far</h4>
+          <div class="kv"><span class="k">14:34</span><span class="v">EU-only for v1 stands — nobody contested it.</span></div>
+          <div class="kv"><span class="k">14:37</span><span class="v">Event history is a requirement, not an implementation detail.</span></div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <footer class="legend">
+    <b>Mockup</b>
+    <span>Non-functional design prototype — every persona, document, timestamp and figure here is fictional. Nothing is written to disk.</span>
+    <span class="r">
+      <span>buttons, tiles, documents and both views are clickable</span>
+      <span>esc closes a document window</span>
+    </span>
+  </footer>
+</div>
+
+<!-- ========== DOCUMENT WINDOW ========== -->
+<div class="scrim" id="scrim"></div>
+<div class="win" id="win" role="dialog" aria-modal="true" aria-label="Document window">
+  <div class="wtitle">
+    <span class="lights"><i></i><i></i><i></i></span>
+    <span class="wpath" id="win-path">_bmad/PRD.md</span>
+    <span class="wactions">
+      <button class="ghost-btn">Reveal in Finder</button>
+      <button class="ghost-btn">Open in editor</button>
+      <button class="ghost-btn" id="win-close">Close</button>
+    </span>
+  </div>
+  <div class="wbody"><div class="md" id="win-md"></div></div>
+  <div class="wfoot">
+    <span id="win-foot">separate window · read-only preview · reloads on write</span>
+    <span style="margin-left:auto">markdown · utf-8</span>
+  </div>
+</div>
+
+
+<script>
+/* ============================================================
+   PERSONAS — fields mirror each agent's customize.toml on disk
+   ============================================================ */
+const P = {
+  john: {
+    name:"John", title:"Product Manager",
+    identity:"Thinks like Marty Cagan and Teresa Torres. Writes with Bezos's six-pager discipline.",
+    style:"Detective's 'why?' relentless. Direct, data-sharp, cuts through fluff.",
+    state:{kind:"work", text:"drafting PRD.md · §4/9"},
+    menu:[
+      ["PRD","Create PRD"],["CE","Epics & stories"],["IR","Implementation readiness"],["CC","Correct course"]
+    ],
+    art:{ skin:"#efc6a1", shade:"#d9a87f", hair:"#9ba3ab", style:"short", fringe:"straight",
+          crown:{cy:34, rx:19.6, ry:18.4},
+          beard:"full", glasses:null, shirt:"#465260", collar:"#39434f", bg:"#cfd9e6" }
+  },
+  mary: {
+    name:"Mary", title:"Business Analyst",
+    identity:"Channels Michael Porter's strategic rigor and Barbara Minto's Pyramid Principle discipline.",
+    style:"Treasure hunter's excitement for patterns, McKinsey memo's structure for findings.",
+    state:{kind:"idle", text:"idle · last active 41m ago"},
+    menu:[
+      ["BP","Brainstorm"],["MR","Market research"],["DR","Domain research"],["TR","Technical research"],
+      ["CB","Product brief"],["WB","PRFAQ challenge"],["CR","Competitor teardown"],["UV","User-voice"],
+      ["TS","Tech selection"],["PC","Project context"]
+    ],
+    art:{ skin:"#e7b68d", shade:"#cf9a72", hair:"#7d4a2b", style:"long", fringe:"sweep",
+          beard:null, glasses:"rect", shirt:"#3c4756", collar:"#313b48", bg:"#d4dce6" }
+  },
+  winston: {
+    name:"Winston", title:"System Architect",
+    identity:"Channels Martin Fowler's pragmatism and Werner Vogels's cloud-scale realism.",
+    style:"Calm and pragmatic. Answers with trade-offs, not verdicts.",
+    state:{kind:"note", text:"edited architecture.md · 41m ago"},
+    menu:[ ["CA","Architecture spine"],["IR","Implementation readiness"] ],
+    art:{ skin:"#7d4f30", shade:"#653d24", hair:"#1e1a17", style:"receding", fringe:null,
+          beard:"close", glasses:null, shirt:"#3c4a4b", collar:"#313d3e", bg:"#cfdcdc" }
+  },
+  sally: {
+    name:"Sally", title:"UX Designer",
+    identity:"Grounded in Don Norman's human-centered design and Alan Cooper's persona discipline.",
+    style:"Paints pictures with words. Empathetic advocate.",
+    state:{kind:"idle", text:"idle"},
+    menu:[ ["CU","UX specifications"] ],
+    art:{ skin:"#bd7c4e", shade:"#a06539", hair:"#241f1d", style:"curly", fringe:null,
+          beard:null, glasses:null, earrings:true, shirt:"#4b4053", collar:"#3d3445", bg:"#dad4e6" }
+  },
+  amelia: {
+    name:"Amelia", title:"Senior Software Engineer",
+    identity:"Disciplined in Kent Beck's TDD and the Pragmatic Programmer's precision.",
+    style:"Ultra-succinct. Speaks in file paths and AC IDs.",
+    state:{kind:"live", text:"test watcher running · 84 passing"},
+    menu:[ ["BD","Implement story"],["QA","Generate E2E tests"],["CR","Code review"],["SP","Sprint plan"],["ER","Epic retrospective"] ],
+    art:{ skin:"#ebc09c", shade:"#d3a47e", hair:"#2c2521", style:"bun", fringe:"sweep",
+          beard:null, glasses:"round", shirt:"#3f4b45", collar:"#343f3a", bg:"#d3e0dc" }
+  }
+};
+const ORDER = ["mary","john","sally","winston","amelia"];
+
+/* ============================================================
+   PORTRAITS — inline SVG, illustrated company-directory headshots
+   ============================================================ */
+function portrait(id, size){
+  const a = P[id].art, s = size || 32;
+  const hairDark = shade(a.hair, -18);
+  let g = "";
+
+  g += `<circle cx="50" cy="50" r="50" fill="${a.bg}"/>`;
+
+  // hair mass behind the head (long / tied styles)
+  if(a.style === "long"){
+    g += `<path d="M24,49 C24,23 35,13 50,13 C65,13 76,23 76,49 L76,77 C76,79 73,79 72,77 C69,69 68,60 68,52 L32,52 C32,60 31,69 28,77 C27,79 24,79 24,77 Z" fill="${hairDark}"/>`;
+  }
+  if(a.style === "bun"){
+    g += `<circle cx="72" cy="31" r="9" fill="${hairDark}"/>`;
+    g += `<path d="M28,50 C28,28 37,17 50,17 C63,17 72,28 72,50 L72,62 C72,64 69,64 68,62 C67,58 67,54 67,52 L33,52 C33,55 33,58 32,62 C31,64 28,64 28,62 Z" fill="${hairDark}"/>`;
+  }
+
+  // shoulders + neck
+  g += `<path d="M43,57 h14 v16 h-14 z" fill="${a.shade}"/>`;
+  g += `<path d="M7,100 C9,82 26,73 50,73 C74,73 91,82 93,100 Z" fill="${a.shirt}"/>`;
+  g += `<path d="M43.5,73.5 C45.5,80.5 54.5,80.5 56.5,73.5 Z" fill="${a.shade}"/>`;
+  g += `<path d="M43.5,73.5 L50,82 L56.5,73.5" fill="none" stroke="${a.collar}" stroke-width="1.6" stroke-linejoin="round"/>`;
+
+  // hair crown behind face
+  if(a.style === "curly"){
+    const c = [[34,27,9],[46,20,9.5],[58,21,9],[67,31,8.5],[30,38,8],[70,41,7.5],[50,30,10]];
+    c.forEach(([x,y,r]) => g += `<circle cx="${x}" cy="${y}" r="${r}" fill="${a.hair}"/>`);
+  } else if(a.style === "receding"){
+    g += `<ellipse cx="50" cy="38.5" rx="19.3" ry="18.4" fill="${a.hair}"/>`;
+  } else {
+    const c = a.crown || {cy:36, rx:20.6, ry:21.2};
+    g += `<ellipse cx="50" cy="${c.cy}" rx="${c.rx}" ry="${c.ry}" fill="${a.hair}"/>`;
+  }
+
+  // ears + face
+  g += `<ellipse cx="31" cy="49" rx="2.7" ry="4.2" fill="${a.shade}"/>`;
+  g += `<ellipse cx="69" cy="49" rx="2.7" ry="4.2" fill="${a.shade}"/>`;
+  g += `<ellipse cx="50" cy="46" rx="19" ry="21.4" fill="${a.skin}"/>`;
+
+  // beard (under the features)
+  if(a.beard){
+    const op = a.beard === "close" ? .42 : .9;
+    g += `<path d="M31,45 C31,61 39,68.5 50,68.5 C61,68.5 69,61 69,45 C69,55 63,59.5 50,59.5 C37,59.5 31,55 31,45 Z" fill="${a.hair}" opacity="${op}"/>`;
+  }
+
+  // fringe over the forehead
+  if(a.fringe === "sweep"){
+    g += `<path d="M31,42 C31,27 39,22 50,22 C59,22 65,25 68,31 C61,27.5 48,29 41,35.5 C37,39 33.5,44 32.3,47 C31.4,46.2 31,44 31,42 Z" fill="${a.hair}"/>`;
+  } else if(a.fringe === "straight"){
+    g += `<path d="M31,40 C31,27 39,22 50,22 C61,22 69,27 69,40 C69,33.5 61.5,30.5 50,30.5 C38.5,30.5 31,33.5 31,40 Z" fill="${a.hair}"/>`;
+  }
+
+  // brows
+  g += `<path d="M38.4,41.4 Q43,39.4 47.6,41" fill="none" stroke="${hairDark}" stroke-width="1.5" stroke-linecap="round" opacity=".9"/>`;
+  g += `<path d="M52.4,41 Q57,39.4 61.6,41.4" fill="none" stroke="${hairDark}" stroke-width="1.5" stroke-linecap="round" opacity=".9"/>`;
+
+  // eyes
+  [43,57].forEach(x => {
+    g += `<ellipse cx="${x}" cy="46" rx="3.1" ry="2.1" fill="#f3eee9"/>`;
+    g += `<circle cx="${x}" cy="46.2" r="1.35" fill="#2a2220"/>`;
+    g += `<path d="M${x-3.2},44.9 Q${x},43.1 ${x+3.2},44.9" fill="none" stroke="#3b302a" stroke-width="1.15" stroke-linecap="round"/>`;
+  });
+
+  // nose + mouth
+  g += `<path d="M50,48.8 C49.3,52.6 48.7,54.9 49.3,55.7 C50,56.5 51.4,56.3 52.3,55.5" fill="none" stroke="${a.shade}" stroke-width="1.25" stroke-linecap="round"/>`;
+  g += `<path d="M46,61 C48,62.4 52,62.4 54,61" fill="none" stroke="#9c6152" stroke-width="1.5" stroke-linecap="round"/>`;
+
+  // glasses
+  if(a.glasses === "rect"){
+    g += `<g fill="rgba(240,246,255,.07)" stroke="#cdd4dc" stroke-width="1.35" stroke-linejoin="round">
+      <rect x="35.4" y="41" width="13.4" height="9.4" rx="3"/>
+      <rect x="51.2" y="41" width="13.4" height="9.4" rx="3"/></g>
+      <path d="M48.8,45 H51.2 M35.4,44.6 L30.2,43.6 M64.6,44.6 L69.8,43.6" fill="none" stroke="#cdd4dc" stroke-width="1.35" stroke-linecap="round"/>`;
+  } else if(a.glasses === "round"){
+    g += `<g fill="rgba(240,246,255,.07)" stroke="#cdd4dc" stroke-width="1.35">
+      <circle cx="42.6" cy="45.6" r="6.6"/><circle cx="57.4" cy="45.6" r="6.6"/></g>
+      <path d="M49.2,45 H50.8 M36,44.6 L30.4,43.6 M64,44.6 L69.6,43.6" fill="none" stroke="#cdd4dc" stroke-width="1.35" stroke-linecap="round"/>`;
+  }
+  if(a.earrings){
+    g += `<circle cx="31" cy="54" r="1.7" fill="#c9b07c"/><circle cx="69" cy="54" r="1.7" fill="#c9b07c"/>`;
+  }
+
+  return `<svg width="${s}" height="${s}" viewBox="0 0 100 100" role="img" aria-label="${P[id].name}, ${P[id].title}" style="border-radius:50%;display:block">${g}</svg>`;
+}
+function shade(hex, amt){
+  const n = parseInt(hex.slice(1),16);
+  const c = [(n>>16)&255,(n>>8)&255,n&255].map(v => Math.max(0,Math.min(255, v+amt)));
+  return "#"+c.map(v=>v.toString(16).padStart(2,"0")).join("");
+}
+function paintPortraits(root){
+  (root||document).querySelectorAll(".pf").forEach(el => {
+    if(el.dataset.done) return;
+    el.innerHTML = portrait(el.dataset.p, parseInt(el.dataset.size||"32",10));
+    el.dataset.done = "1";
+  });
+}
+
+/* ============================================================
+   FAKE FILESYSTEM — the outputs rail
+   ============================================================ */
+const FILES = [
+  {group:"_bmad/"},
+  {path:"product-brief.md",  meta:"saved · 2d ago",        owner:"Mary"},
+  {path:"PRD.md",            meta:"writing · §4 of 9",     owner:"John", writing:true},
+  {path:"architecture.md",   meta:"saved · 41m ago",       owner:"Winston"},
+  {path:"sprint-status.yaml",meta:"saved · 41m ago",       owner:"—"},
+  {group:"_bmad/ux/"},
+  {path:"DESIGN.md",         meta:"saved · yesterday",     owner:"Sally"},
+  {path:"EXPERIENCE.md",     meta:"saved · yesterday",     owner:"Sally"},
+  {group:"_bmad/research/"},
+  {path:"market-2026-09-14.md", meta:"saved · 9d ago",     owner:"Mary"},
+  {path:"user-voice-tickets.md",meta:"saved · 9d ago",     owner:"Mary"},
+  {group:"_bmad/party/"},
+  {path:"2026-09-23-payouts.md", meta:"appending · live",  owner:"room", writing:true}
+];
+
+const DOCS = {
+  "PRD.md": {
+    title:"Falcon — Merchant Payouts PRD",
+    sub:"_bmad/PRD.md · owner John (Product Manager) · draft · last write 4s ago",
+    html:`
+      <h2>1. Problem</h2>
+      <p>Merchants are paid on a T+3 schedule they cannot see. Support handled 214 payout tickets last quarter; 61% were "where is my money", not "my money is wrong". The money is almost always correct and almost always invisible.</p>
+      <h2>2. Goals</h2>
+      <ul>
+        <li>A merchant can answer "where is my money" without contacting support.</li>
+        <li>Payout state is honest: no state means "unknown".</li>
+        <li>EU merchants only for v1 — SEPA rails, EUR only.</li>
+      </ul>
+      <h2>3. Non-goals</h2>
+      <ul>
+        <li>Multi-currency payouts. Deferred; revisit after EU volume is stable.</li>
+        <li>Instant payouts. Not a rail we control.</li>
+      </ul>
+      <h2>4. Functional requirements</h2>
+      <table>
+        <tr><th>ID</th><th>Requirement</th><th>Source</th></tr>
+        <tr><td class="fr">FR-1</td><td>Every payout exposes a state from a closed set: <em>scheduled, in&nbsp;transit, paid, failed</em>.</td><td>brief §3</td></tr>
+        <tr><td class="fr">FR-2</td><td>Each state change is persisted with a timestamp and a cause, and is readable by the merchant.</td><td>Sally, party 14:36</td></tr>
+        <tr><td class="fr">FR-3</td><td>A failed payout states its reason in merchant language, not the provider's error code.</td><td>tickets</td></tr>
+        <tr><td class="fr">FR-4</td><td>The merchant sees an expected arrival date on every payout not yet paid.</td><td>tickets</td></tr>
+        <tr><td class="fr">FR-5</td><td>Payout history is exportable as CSV for the last 24 months.</td><td>brief §5</td></tr>
+        <tr><td class="fr">FR-6</td><td>Notification on state change to <em>paid</em> or <em>failed</em>; no notification for intermediate states.</td><td>brief §5</td></tr>
+        <tr><td class="fr">FR-7</td><td><em style="color:#8a640a">— blocked on a product decision, see conversation 14:05 —</em></td><td>—</td></tr>
+      </table>
+      <h2>5. Open questions</h2>
+      <ul>
+        <li><strong>Manual payout trigger.</strong> The brief says scheduled-only; support tickets say otherwise. Raised with you at 14:05, unanswered.</li>
+        <li><strong>Failure retry window.</strong> Winston wants it stated as a requirement rather than left to implementation.</li>
+      </ul>
+      <h3>Sections not yet written</h3>
+      <p class="fr">6. Success metrics · 7. Rollout · 8. Risks · 9. Appendix</p>`
+  },
+  "architecture.md": {
+    title:"Falcon — Architecture spine",
+    sub:"_bmad/architecture.md · owner Winston (System Architect) · saved 41m ago",
+    html:`
+      <h2>Invariants</h2>
+      <ul>
+        <li>Money movement is append-only. Nothing that has moved is edited; it is compensated.</li>
+        <li>Every external call that moves money carries an idempotency key supplied by us, never by the provider.</li>
+        <li>Payout state is derived from the event log, never stored as a second source of truth.</li>
+      </ul>
+      <h2>Decision: payout persistence</h2>
+      <p><strong>Status:</strong> proposed, contested in party 14:31–14:39.</p>
+      <h3>Options considered</h3>
+      <table>
+        <tr><th>Option</th><th>For</th><th>Against</th></tr>
+        <tr><td>Extend <code>billing-svc</code></td><td>No new operational surface. Two call sites, not three.</td><td><code>reconcile.ts</code> has no idempotency key; migration cannot be dry-run.</td></tr>
+        <tr><td>New ledger service + broker</td><td>Clean seam, replayable, dry-runnable.</td><td>A broker maintained for five years to serve one producer.</td></tr>
+        <tr><td><strong>Event log in Postgres, broker deferred</strong></td><td>Satisfies the UX requirement and the testing seam without new infrastructure.</td><td>Replay across services still unsolved when refunds arrive.</td></tr>
+      </table>
+      <h3>Not chosen — and why it may come back</h3>
+      <p>The broker is deferred, not rejected. When refunds need replay we will have two producers and the Rule of Three argument disappears. Amelia's objection to <code>reconcile.ts</code> stands on its own and is tracked separately.</p>`
+  },
+  "product-brief.md": {
+    title:"Falcon — Product brief",
+    sub:"_bmad/product-brief.md · owner Mary (Business Analyst) · saved 2d ago",
+    html:`
+      <h2>Summary</h2>
+      <p>Merchant payouts are correct and opaque. The opportunity is not faster money; it is legible money.</p>
+      <h2>Users</h2>
+      <ul>
+        <li><strong>Small EU merchant</strong> — checks payouts weekly, plans supplier payments around them.</li>
+        <li><strong>Support agent</strong> — currently the only interface to payout state.</li>
+      </ul>
+      <h2>Constraints</h2>
+      <ul><li>EU / SEPA / EUR only for v1.</li><li>Payouts remain scheduled, T+3.</li><li>No change to the settlement provider this quarter.</li></ul>
+      <h2>Evidence</h2>
+      <p>214 support tickets sampled, 40 merchant interviews reviewed, competitor teardown of three payout dashboards. See <code>_bmad/research/</code>.</p>`
+  },
+  "DESIGN.md": {
+    title:"Falcon — Design",
+    sub:"_bmad/ux/DESIGN.md · owner Sally (UX Designer) · saved yesterday",
+    html:`
+      <h2>Principle</h2>
+      <p>Never draw a state we cannot defend. "Processing" is a spinner with a good excuse; "in transit since Tuesday 09:14" is an answer.</p>
+      <h2>Payout row</h2>
+      <p>Amount, state, expected arrival, and one line of cause. The cause line is the whole design — everything else is already on the merchant's bank statement.</p>
+      <h2>Empty and failure states</h2>
+      <ul><li>No payouts yet → explain the schedule, not the absence.</li><li>Failed → reason in merchant language, the retry date, and one action.</li></ul>`
+  },
+  "sprint-status.yaml": {
+    title:"sprint-status.yaml",
+    sub:"_bmad/sprint-status.yaml · maintained by bmad-sprint-planning · saved 41m ago",
+    html:`
+      <h2>Current</h2>
+      <table>
+        <tr><th>Epic</th><th>Story</th><th>Status</th><th>Owner</th></tr>
+        <tr><td>E1 Payout visibility</td><td>S1.1 payout state model</td><td>done</td><td>Amelia</td></tr>
+        <tr><td>E1</td><td>S1.2 event log write path</td><td>in progress</td><td>Amelia</td></tr>
+        <tr><td>E1</td><td>S1.3 merchant payout list</td><td>blocked — FR-7</td><td>—</td></tr>
+        <tr><td>E2 Failure handling</td><td>S2.1 provider error mapping</td><td>not started</td><td>—</td></tr>
+      </table>
+      <p>Generated from <code>_bmad/epics.md</code>. Regenerated on every planning run; hand edits are overwritten.</p>`
+  },
+  "2026-09-23-payouts.md": {
+    title:"Party — payout persistence",
+    sub:"_bmad/party/2026-09-23-payouts.md · appended live while the room is open",
+    html:`
+      <h2>Participants</h2>
+      <p>Mary (Business Analyst) · John (Product Manager) · Sally (UX Designer) · Winston (System Architect) · Amelia (Senior Software Engineer) · you</p>
+      <h2>Decisions</h2>
+      <ul><li>EU-only for v1 stands — uncontested.</li><li>Event history is a requirement, not an implementation detail.</li></ul>
+      <h2>Open disagreements</h2>
+      <ul>
+        <li>Winston ↔ Amelia — retrofit <code>reconcile.ts</code> (9d, no dry run) vs new path (11d, dry-runnable).</li>
+        <li>Sally ↔ framing — payout state is UX-visible, so the persistence choice is a product choice.</li>
+      </ul>
+      <p class="fr">…transcript continues, appended as the room speaks…</p>`
+  }
+};
+const GENERIC = {
+  title:"Document", sub:"read-only preview",
+  html:`<h2>Preview</h2><p>This document exists in the mockup's fake filesystem but has no fixture content. In the real harness the window renders the file on disk and reloads it on every write.</p>`
+};
+
+/* ============================================================
+   RAIL RENDERING
+   ============================================================ */
+const tilesEl = document.getElementById("tiles");
+const filesEl = document.getElementById("files");
+let active = "john";
+
+function stateDot(kind){
+  if(kind==="live") return '<span class="dot live"></span>';
+  if(kind==="work") return '<span class="dot work pulse"></span>';
+  if(kind==="note") return '<span class="dot" style="background:#2d5db0"></span>';
+  return '<span class="dot"></span>';
+}
+function renderTiles(){
+  tilesEl.innerHTML = ORDER.map(id => {
+    const p = P[id];
+    return `<div class="ptile" data-id="${id}" aria-current="${id===active}" title="Open a 1:1 with ${p.name}">
+      <span class="pf" data-p="${id}" data-size="36"></span>
+      <div class="who">
+        <div class="nm"><b>${p.name}</b><span>${p.title}</span></div>
+        <div class="state">${stateDot(p.state.kind)}<em>${p.state.text}</em></div>
+        <div class="menu-hint">${p.menu.slice(0,6).map(m=>`<span class="code-tag">${m[0]}</span>`).join("")}${p.menu.length>6?`<span class="code-tag">+${p.menu.length-6}</span>`:""}</div>
+      </div>
+    </div>`;
+  }).join("");
+  paintPortraits(tilesEl);
+  tilesEl.querySelectorAll(".ptile").forEach(t => t.onclick = () => switchPersona(t.dataset.id));
+}
+function renderFiles(){
+  filesEl.innerHTML = FILES.map(f => {
+    if(f.group) return `<div class="fgroup">${f.group}</div>`;
+    return `<div class="frow ${f.writing?"writing":""}" data-file="${f.path}" title="Open ${f.path} in its own window">
+      <span class="fi">${fileIcon(f.writing)}</span>
+      <span class="fname">${f.path}</span>
+      <span class="fmeta">${f.writing?'<span class="dot work pulse"></span>':''}${f.meta}</span>
+    </div>`;
+  }).join("");
+  filesEl.querySelectorAll(".frow").forEach(r => r.onclick = () => openDoc(r.dataset.file));
+}
+function fileIcon(writing){
+  const c = writing ? "#8a640a" : "#716b61";
+  return `<svg width="12" height="14" viewBox="0 0 12 14" fill="none"><path d="M1 1.5A.5.5 0 0 1 1.5 1h5L11 5.2v7.3a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5z" stroke="${c}" stroke-width="1"/><path d="M6.5 1.2v4h4.3" stroke="${c}" stroke-width="1"/></svg>`;
+}
+
+/* ============================================================
+   1:1 VIEW BEHAVIOUR
+   ============================================================ */
+const skillrow = document.getElementById("skillrow");
+const thread = document.getElementById("thread");
+const soloScroll = document.getElementById("solo-scroll");
+
+function renderSkills(){
+  const p = P[active];
+  const shown = p.menu.slice(0,5);
+  skillrow.innerHTML = `<span class="lbl">${p.name} can</span>` +
+    shown.map(m => `<button class="skillbtn" data-code="${m[0]}" data-label="${m[1]}"><span class="c">${m[0]}</span>${m[1]}</button>`).join("") +
+    (p.menu.length>5 ? `<button class="skillbtn more" data-code="more" data-label="more">+${p.menu.length-5} more</button>` : "");
+  skillrow.querySelectorAll(".skillbtn").forEach(b => b.onclick = () => runSkill(b.dataset.code, b.dataset.label));
+}
+function setHeader(){
+  const p = P[active];
+  document.getElementById("ch-name").textContent = p.name;
+  document.getElementById("ch-role").textContent = p.title;
+  document.getElementById("ch-identity").textContent = p.identity;
+  const pf = document.querySelector(".chat-head .pf");
+  pf.dataset.p = active; pf.dataset.done = ""; paintPortraits(document.querySelector(".chat-head"));
+  const st = document.getElementById("ch-status");
+  st.innerHTML = stateDot(p.state.kind) + " " + p.state.text;
+  document.getElementById("solo-input").placeholder = `Reply to ${p.name}…  (⌘↵ to send)`;
+  tilesEl.querySelectorAll(".ptile").forEach(t => t.setAttribute("aria-current", t.dataset.id===active));
+}
+function stamp(){
+  const d = new Date();
+  return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
+}
+function addTurn(html){
+  const div = document.createElement("div");
+  div.innerHTML = html;
+  const node = div.firstElementChild;
+  thread.appendChild(node);
+  paintPortraits(node);
+  soloScroll.scrollTop = soloScroll.scrollHeight;
+  return node;
+}
+function sysline(text){
+  addTurn(`<div class="sysline"><span>${text}</span></div>`);
+}
+function personaTurn(id, body){
+  const p = P[id];
+  return addTurn(`<div class="turn">
+    <div class="av"><span class="pf" data-p="${id}" data-size="32"></span></div>
+    <div class="body">
+      <div class="hd"><b>${p.name}</b><span class="role">${p.title}</span><span class="t">${stamp()}</span></div>
+      ${body}
+    </div></div>`);
+}
+function userTurn(text){
+  return addTurn(`<div class="turn user">
+    <div class="av"><span class="initials">SM</span></div>
+    <div class="body">
+      <div class="hd"><b>You</b><span class="role">sherif</span><span class="t">${stamp()}</span></div>
+      <p>${escapeHtml(text)}</p>
+    </div></div>`);
+}
+function escapeHtml(s){ return s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+const HANDOFF_LINE = {
+  mary:"Caught up on the thread. Before I add anything: the market note I wrote nine days ago assumed scheduled-only payouts. If that assumption moved, my competitor comparison moved with it — say the word and I'll re-run it rather than quietly leave it stale.",
+  john:"Back with you. PRD is still open at FR-7 and I'd rather close it than write around it.",
+  winston:"I've read the PRD draft down to FR-7. My concern isn't the feature, it's that a manual trigger without an idempotency key turns a double-click into a double payment. That's a requirement, not an implementation detail — put it in the PRD and I'll design to it.",
+  sally:"Jumping in from the UX side. Whatever you decide about the manual trigger, the merchant needs to understand why they can or can't press the button — a disabled control with no explanation generates more support tickets than no control at all.",
+  amelia:"Picked up the thread. S1.2 is green on my side — <code>src/payouts/events.ts</code>, 14 tests. S1.3 is blocked on FR-7; I won't start it on a guess."
+};
+function switchPersona(id){
+  if(id === active) return;
+  const from = P[active].name, to = P[id].name;
+  active = id;
+  sysline(`handed off · ${from} → ${to} · conversation and context continue`);
+  setHeader(); renderSkills();
+  setTimeout(() => personaTurn(id, `<p>${HANDOFF_LINE[id]}</p>`), 380);
+}
+function runSkill(code, label){
+  if(code === "more"){
+    personaTurn(active, `<p>Full menu for ${P[active].name}, read from <code>customize.toml</code>:</p><p>${P[active].menu.map(m=>`<code>${m[0]}</code> ${m[1]}`).join(" · ")}</p>`);
+    return;
+  }
+  const p = P[active];
+  personaTurn(active, `<span class="runchip"><span class="dot work pulse"></span> <b>${code}</b> · ${label} · starting</span>
+    <p>Running ${label.toLowerCase()}. I'll write into <code>_bmad/</code> as I go — watch the rail, and stop me the moment you disagree with something.</p>`);
+}
+
+/* ---- live document typing in the chat ---- */
+const liveBody = document.getElementById("livebody");
+const PRE = `<span class="mut">## 4. Functional requirements</span>
+
+<span class="h">FR-1</span>  Every payout exposes a state from a closed set:
+      scheduled | in transit | paid | failed.
+<span class="h">FR-2</span>  Each state change is persisted with a timestamp and a
+      cause, and is readable by the merchant.
+<span class="h">FR-3</span>  A failed payout states its reason in merchant language,
+      not the provider's error code.
+`;
+const TYPE = `FR-4  The merchant sees an expected arrival date on every
+      payout that is not yet paid.
+FR-5  Payout history is exportable as CSV, 24 months.
+FR-6  Notify on paid and failed. No notification for
+      intermediate states.
+FR-7  `;
+let typed = 0, typing = true;
+const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+function paintLive(extra){
+  liveBody.innerHTML = PRE + TYPE.slice(0, typed) + (extra||"") + (typing ? '<span class="caret"></span>' : "");
+  liveBody.scrollTop = liveBody.scrollHeight;
+}
+if(reduce){ typed = TYPE.length; paintLive(); }
+else{
+  paintLive();
+  const t = setInterval(() => {
+    typed += 1;
+    if(typed >= TYPE.length){ typed = TYPE.length; clearInterval(t); }
+    paintLive();
+  }, 26);
+}
+
+/* ---- the decision: options → doc completes and saves ---- */
+const REPLY = {
+  A:{ user:"Option A. Scheduled only — manual trigger is a documented non-goal for v1.",
+      john:`Taken. FR-7 becomes a non-goal with the reason attached, so nobody relitigates it in review — and Sally gets told, because "you can't do this" is a design problem the moment it's a rule. Saved.`,
+      line:"— moved to §3 Non-goals: manual payout trigger,\n      with the support-ticket evidence attached.\n" },
+  B:{ user:"Option B. Manual trigger, rate-limited — one per merchant per day.",
+      john:`Good. Then it's a requirement with teeth, not a button: rate limit, idempotency key, and a visible reason when it's unavailable. I've written FR-7 and FR-8 and flagged the idempotency line for Winston. Saved.`,
+      line:"A merchant may trigger one payout per day. The\n      request is idempotent and the control states why it\n      is unavailable when it is.\n<span class=\"h\">FR-8</span>  A manually triggered payout is indistinguishable\n      from a scheduled one once it is in transit.\n" },
+  C:{ user:"Neither. My reasoning is different — let me explain.",
+      john:`Then I'll stop writing and listen. Give me the reasoning and I'll re-frame FR-7 around it; I'd rather rewrite a requirement now than defend the wrong one later.`,
+      line:"" }
+};
+document.getElementById("opts").addEventListener("click", e => {
+  const btn = e.target.closest(".opt"); if(!btn) return;
+  const k = btn.dataset.k, r = REPLY[k];
+  document.getElementById("pushback").querySelector(".options").remove();
+  userTurn(r.user);
+  setTimeout(() => {
+    personaTurn("john", `<p>${r.john}</p>`);
+    if(k !== "C"){
+      typing = false;
+      paintLive(r.line);
+      document.getElementById("livestatus").textContent = "saved · just now · 9 sections";
+      document.getElementById("livestatus").classList.add("saved");
+      const d = document.getElementById("livedot");
+      d.classList.remove("work"); d.classList.add("live");
+      const row = filesEl.querySelector('[data-file="PRD.md"]');
+      if(row){
+        row.classList.remove("writing");
+        row.querySelector(".fmeta").innerHTML = "saved · just now";
+        row.querySelector(".fi").innerHTML = fileIcon(false);
+      }
+      document.getElementById("ch-status").innerHTML = stateDot("idle") + " idle · PRD.md saved";
+      P.john.state = {kind:"idle", text:"idle · PRD.md saved"};
+      renderTiles();
+    }
+  }, 520);
+});
+document.getElementById("chip-winston").onclick = () => switchPersona("winston");
+document.getElementById("btn-handoff").onclick = () => {
+  const next = ORDER[(ORDER.indexOf(active)+1) % ORDER.length];
+  switchPersona(next);
+};
+
+/* ---- composer ---- */
+const SOLO_REPLIES = [
+  "Noted — I've put that in the PRD's assumptions rather than the body, so it's visible but not load-bearing.",
+  "That contradicts the brief. I'm not going to smooth it over: which of the two is now true?",
+  "Fine by me, but it changes Amelia's estimate. Want me to loop her in before I write it?",
+  "I'll take that as the decision. Writing it now — it'll appear in the rail in a moment."
+];
+let rIdx = 0;
+function sendSolo(){
+  const ta = document.getElementById("solo-input");
+  const v = ta.value.trim(); if(!v) return;
+  ta.value = ""; ta.style.height = "auto";
+  userTurn(v);
+  setTimeout(() => personaTurn(active, `<p>${SOLO_REPLIES[rIdx++ % SOLO_REPLIES.length]}</p>`), 620);
+}
+document.getElementById("solo-send").onclick = sendSolo;
+document.getElementById("solo-input").addEventListener("keydown", e => {
+  if(e.key === "Enter" && (e.metaKey || e.ctrlKey || !e.shiftKey)){ e.preventDefault(); sendSolo(); }
+});
+document.querySelectorAll("textarea").forEach(ta => {
+  ta.addEventListener("input", () => { ta.style.height="auto"; ta.style.height = Math.min(ta.scrollHeight,120)+"px"; });
+});
+
+/* ============================================================
+   PARTY VIEW
+   ============================================================ */
+const castEl = document.getElementById("cast");
+let speaker = "mary";
+function renderCast(){
+  castEl.innerHTML = ORDER.map(id => {
+    const p = P[id], on = id === speaker;
+    return `<div class="castcard ${on?"speaking":""}" data-id="${id}" title="${p.name} — ${p.title}">
+      <span class="pf" data-p="${id}" data-size="44"></span>
+      <div class="cinfo">
+        <b>${p.name}</b><span>${p.title}</span>
+        <span class="st">${on ? '<span class="eq"><i></i><i></i><i></i><i></i></span> speaking' : 'present · listening'}</span>
+      </div></div>`;
+  }).join("");
+  paintPortraits(castEl);
+  castEl.querySelectorAll(".castcard").forEach(c => c.onclick = () => { speaker = c.dataset.id; renderCast(); });
+}
+
+const partyScroll = document.getElementById("party-scroll");
+const ptranscript = document.getElementById("ptranscript");
+const partyLive = document.getElementById("partylive");
+const LIVE_TEXT = "Not on its own. The log answers \"what happened\"; the ticket wording asks \"when do I get paid\". Those are different questions and we keep conflating them — the history is necessary, the ETA is the thing that closes the ticket. Winston, does your Postgres-first version still give me a date I can stand behind, or only a list of things that already happened?";
+let li = 0;
+if(reduce){ partyLive.textContent = LIVE_TEXT; }
+else{
+  const lt = setInterval(() => {
+    li += 2;
+    partyLive.innerHTML = escapeHtml(LIVE_TEXT.slice(0, li)) + '<span class="caret"></span>';
+    partyScroll.scrollTop = partyScroll.scrollHeight;
+    if(li >= LIVE_TEXT.length){ clearInterval(lt); partyLive.innerHTML = escapeHtml(LIVE_TEXT); }
+  }, 34);
+}
+
+const PARTY_REPLIES = [
+  ["winston","<p>Yes — a persisted expected-arrival on the payout, recomputed on every state change. That's a column and a job, not a broker. I'd rather commit to a date we can defend than a queue we can't staff.</p>", "tag-neutral","answers"],
+  ["amelia","<p>Then I need the date in the event, not derived at read time. <code>src/payouts/events.ts</code> — one field, <code>expectedArrivalAt</code>. Otherwise two services compute it differently and support gets a third answer.</p>","tag-disagree","disagrees · Winston"],
+  ["sally","<p>If the date can move, say so before it moves. A date that silently changes is worse than a range. I'd rather show \"Thu–Fri\" and be right than \"Thursday\" and apologise.</p>","tag-neutral","builds on"],
+  ["john","<p>That's enough for me to write it down. FR-4 becomes a range with a stated confidence, and the event carries the field. Objections now, or it goes in the PRD.</p>","tag-neutral","decides"]
+];
+let pIdx = 0;
+function sendParty(){
+  const ta = document.getElementById("party-input");
+  const v = ta.value.trim(); if(!v) return;
+  ta.value = ""; ta.style.height = "auto";
+
+  const u = document.createElement("div");
+  u.className = "pturn user";
+  u.innerHTML = `<div class="av"><span class="initials">SM</span></div>
+    <div class="body"><div class="hd"><b>You</b><span class="role">sherif</span><span class="t">${stamp()}</span></div>
+    <p>${escapeHtml(v)}</p></div>`;
+  ptranscript.insertBefore(u, document.getElementById("liveturn"));
+  partyScroll.scrollTop = partyScroll.scrollHeight;
+
+  const [id, body, tag, tagtext] = PARTY_REPLIES[pIdx++ % PARTY_REPLIES.length];
+  setTimeout(() => {
+    speaker = id; renderCast();
+    const p = P[id];
+    const t = document.createElement("div");
+    t.className = "pturn";
+    t.innerHTML = `<div class="av"><span class="pf" data-p="${id}" data-size="32"></span></div>
+      <div class="body"><div class="hd"><b>${p.name}</b><span class="role">${p.title}</span><span class="t">${stamp()}</span>
+      <span class="${tag}">${tagtext}</span></div>${body}</div>`;
+    ptranscript.insertBefore(t, document.getElementById("liveturn"));
+    paintPortraits(t);
+    partyScroll.scrollTop = partyScroll.scrollHeight;
+  }, 700);
+}
+document.getElementById("party-send").onclick = sendParty;
+document.getElementById("party-input").addEventListener("keydown", e => {
+  if(e.key === "Enter" && (e.metaKey || e.ctrlKey || !e.shiftKey)){ e.preventDefault(); sendParty(); }
+});
+
+/* ============================================================
+   VIEW SWITCH + DOC WINDOW
+   ============================================================ */
+const vSolo = document.getElementById("view-solo"), vParty = document.getElementById("view-party");
+const bSolo = document.getElementById("btn-solo"), bParty = document.getElementById("btn-party");
+function setView(which){
+  const solo = which === "solo";
+  vSolo.classList.toggle("active", solo);
+  vParty.classList.toggle("active", !solo);
+  bSolo.setAttribute("aria-pressed", solo);
+  bParty.setAttribute("aria-pressed", !solo);
+}
+bSolo.onclick = () => setView("solo");
+bParty.onclick = () => setView("party");
+document.getElementById("btn-help").onclick = () =>
+  alert("Design mockup — the help section is a 'Should' in the plan and is not part of this prototype.");
+
+const win = document.getElementById("win"), scrim = document.getElementById("scrim");
+function openDoc(name){
+  const d = DOCS[name] || GENERIC;
+  document.getElementById("win-path").textContent = FILES.find(f=>f.path===name) ? pathOf(name) : name;
+  document.getElementById("win-md").innerHTML = `<h1>${d.title}</h1><div class="sub">${d.sub}</div>${d.html}`;
+  document.getElementById("win-foot").textContent = "separate window · read-only preview · reloads on write";
+  win.classList.add("open"); scrim.classList.add("open");
+}
+function pathOf(name){
+  let group = "_bmad/";
+  for(const f of FILES){ if(f.group) group = f.group; if(f.path === name) return group + name; }
+  return name;
+}
+function closeDoc(){ win.classList.remove("open"); scrim.classList.remove("open"); }
+document.getElementById("win-close").onclick = closeDoc;
+scrim.onclick = closeDoc;
+document.addEventListener("keydown", e => { if(e.key === "Escape") closeDoc(); });
+
+/* ---- boot ---- */
+renderTiles(); renderFiles(); renderSkills(); setHeader(); renderCast(); paintPortraits(document);
+requestAnimationFrame(() => {
+  soloScroll.scrollTop = soloScroll.scrollHeight;
+  partyScroll.scrollTop = partyScroll.scrollHeight;
+});
+</script>
+</body>
+</html>

@@ -37,6 +37,7 @@ Every rule below traces to a memlog decision, an architecture decision (AD-n), a
 | Banned everywhere | product-wide prohibitions |
 | State Patterns | tile, rail row, card, queued composer, roster, preflight, empty states |
 | Welcome | the window before a project: when it opens, the one action, recent projects, the five core personas |
+| Theme | light and dark, the System default, where the choice lives, and what changing it touches |
 | Dead Air | what the card does through a multi-minute silence |
 | Failure, Stopping and Contention | the stop cost, terminal states, and the no-arbitration posture |
 | Run Completion When Unattended | the notification contract for the terminal events |
@@ -48,7 +49,7 @@ Every rule below traces to a memlog decision, an architecture decision (AD-n), a
 
 ## Foundation
 
-Desktop Electron shell. **macOS only in v1** — Windows and Linux are deferred, and the two platform escapes (`open -R`, `open -a`) are macOS calls confined to one module. **One project per window**; multi-project windows are deferred. **Dark only** — the mockup defines one palette, light theme is deferred, and no high-contrast variant exists.
+Desktop Electron shell. **macOS only in v1** — Windows and Linux are deferred, and the two platform escapes (`open -R`, `open -a`) are macOS calls confined to one module. **One project per window**; multi-project windows are deferred. **Two themes, dark and light** (2026-10-08), chosen by the user as *System* (the default), *Light* or *Dark* — see *Theme*. No high-contrast variant exists.
 
 **The harness opens to a Welcome window, not to a native dialog.** It is where a project is chosen (*Welcome*, below). A project passed on the command line skips it for the first window.
 
@@ -176,6 +177,8 @@ Project **content** is untrusted because it is largely model-authored (AD-13). M
 | End session | shell | `conversation.end(projectId)` — **project-scoped**, the only way to clear a persisted conversation |
 | *Open project folder…* · `⌘O` | welcome | the native folder chooser; a choice opens that project's window |
 | Drop a folder | welcome | opens that project's window |
+| *View ▸ Theme ▸ System · Light · Dark* | application menu, every window | sets the theme for every window at once |
+| `theme · system · light · dark` | welcome, bottom edge | the same choice, from the one window with no project |
 | Recent row | welcome | opens that project's window |
 
 **Chat turns and skill invocations are both turns into the same session.** There is no second run kind, and the composer and the skill row must not read as two modes (AD-18).
@@ -362,13 +365,15 @@ Five cards under four lanes, in the order of the method: **analysis** (Mary), **
 | drop zone | `drop a project folder here` |
 | rejected drop | `not a folder · <name>` |
 | missing recent | `folder missing` |
+| theme line | `theme · system · light · dark` |
 | team meta | `the five core personas, by phase of the method · a project's own install can add more` |
 
 Lower case, mono for harness strings, `·` as the separator, no terminal punctuation — and the personas' descriptions are the one place in sans, because they are said, not stated (*Voice and Tone*, rule 4). Nothing on the Welcome tells the user what to do next: no *get started*, no *welcome back*, no *try opening…*.
 
 ### Accessibility
 
-- **Keyboard:** the Welcome's tab stops are the *Open project folder…* button and the recent list. The recent list is one tab stop; arrows move between its rows, `Enter` opens. A missing row is skipped by `Enter`, not by the arrows, so the user can read why. The drop zone has no tab stop of its own because the button beside it is its keyboard equivalent.
+- **Keyboard:** the Welcome's tab stops are the *Open project folder…* button, the recent list and the theme line (three buttons, one tab stop, arrows between them, `Enter` or `Space` chooses). The recent list is one tab stop; arrows move between its rows, `Enter` opens. A missing row is skipped by `Enter`, not by the arrows, so the user can read why. The drop zone has no tab stop of its own because the button beside it is its keyboard equivalent.
+- **The theme line:** the three words are buttons in one group; the current one carries `aria-pressed="true"` and is not a link. Choosing one changes the theme at once (*Theme*) and leaves focus where it is.
 - **Live region:** the Welcome has its own one polite region (*Accessibility Floor → 4*). It announces `not a folder · <name>` once.
 - **Focus:** on open, the button. After a cancelled dialog, the button again. Nothing moves focus when a recent row's folder turns out to be missing.
 - **Motion:** none, so there is nothing for `prefers-reduced-motion` to disable.
@@ -376,7 +381,48 @@ Lower case, mono for harness strings, `·` as the separator, no terminal punctua
 
 ### Banned on the Welcome
 
-No tour, wizard, checklist, progress, *getting started* or *what's new*; no version number; no link out; no "start with…" or any recommended persona; no badge or count on a recent row; no *clear recent*; no sound; no animation; no light variant.
+No tour, wizard, checklist, progress, *getting started* or *what's new*; no version number; no link out; no "start with…" or any recommended persona; no badge or count on a recent row; no *clear recent*; no sound; no animation. (The Welcome has a theme line and nothing else of settings: no preferences, no other option.)
+
+---
+
+## Theme
+
+*Added 2026-10-08 from the light-theme mockups (`mockups/light-theme.html`, palette A). Appearance and tokens: `DESIGN.md` → Colors → The light theme.*
+
+The product was designed in dark. It now has a light twin, and the user chooses which.
+
+### The choice
+
+| Value | Meaning |
+|---|---|
+| **System** *(default)* | follows the macOS appearance, and **changes while the app is running** when the OS does (schedule, or the user switching it) |
+| **Light** | light, whatever the OS says |
+| **Dark** | dark, whatever the OS says |
+
+One value, stored as one of `system`, `light`, `dark` in harness bookkeeping under `userData` (AD-1): never in a project, never beside a conversation. A missing, unreadable or unrecognised value is read as `system` and is not surfaced as an error. There is no per-project and no per-window theme.
+
+### Where it lives
+
+| Surface | Behaviour |
+|---|---|
+| **View ▸ Theme** | a submenu of three radio items — `System`, `Light`, `Dark` — with a check on the current one. In the application menu of **every** kind of window (project, document, Welcome). **No accelerator**: nothing in the product has a theme shortcut and none is added. **[ASSUMPTION]** — no source specifies one |
+| **The Welcome's theme line** | `theme · system · light · dark` at the bottom edge, the same choice. It exists **only on the Welcome**: a project window has no theme control in its topbar, rail or composer (the topbar stays as it is) |
+
+The topbar carries no theme control: it is the densest strip in the product, it already holds one switch and *one switch, no third view* is a rule worth keeping.
+
+### What changing it does
+
+- **Applies at once, to every open window.** The shell, the document window and the Welcome all follow, in the same moment. A change never reloads a window and **never touches a session, a run, a transcript, a card, the rail or the scroll position**: it is a repaint.
+- **No transition.** The colours change in one frame. No fade, no cross-dissolve, no animation of any kind (*Motion*, `DESIGN.md`).
+- **No first-paint flash.** A window opens in the theme in force and is never painted in the other first. Windows are created hidden and shown when ready, so the theme is set before the first frame.
+- **Native chrome agrees.** Menus, the folder chooser, scrollbars and form controls follow the same value, so no light dialog opens over a dark window.
+- **The portraits do not change.** The same faces on the same dark backdrops in both themes.
+- **Nothing is said.** No toast, no sysline, no announcement: the change is the whole feedback, and it is visible. The one live region stays for the things it already carries.
+- **Not a next step.** No place says *try light mode* or marks a theme as recommended (AD-21).
+
+### Boundaries
+
+No per-persona, per-project or per-window theme; no schedule of the product's own (System is the schedule); no high-contrast variant; no third palette; no theme shortcut; no accent-colour choice; no `prefers-color-scheme` read anywhere in a stylesheet or component — the resolved theme comes from main.
 
 ---
 
@@ -574,7 +620,8 @@ With no command palette (*Banned everywhere*) there is no `⌘K` escape hatch, s
 | Rail — Outputs half | one tab stop for the list; arrows move between rows; `Enter` opens the document window |
 | Document window | `Esc` closes. The three escapes are tab-reachable |
 | Party | cast chooser, header controls and composer all tab-reachable; no turn gate means no focus trap |
-| Welcome | *Open project folder…* and the recent list are the tab stops; arrows move between recent rows, `Enter` opens, `⌘O` opens the chooser. Persona cards are content and are not tab stops. See *Welcome → Accessibility* |
+| Welcome | *Open project folder…*, the recent list and the three theme words are the tab stops; arrows move between recent rows, `Enter` opens, `⌘O` opens the chooser. Persona cards are content and are not tab stops. See *Welcome → Accessibility* |
+| Theme | *View ▸ Theme* is a native menu, reachable as every menu is; the radio items carry the current choice. No accelerator |
 
 No shortcut layer beyond this.
 

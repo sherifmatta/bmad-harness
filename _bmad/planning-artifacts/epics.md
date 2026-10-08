@@ -176,6 +176,8 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **FR107:** The Welcome offers one action, *Open project folder…* (`⌘O`), which opens the native folder chooser, and one drop target that opens a dropped folder. Anything else dropped opens nothing and says `not a folder · <name>`. A chosen project's window opens and the Welcome closes in the same moment.
 - **FR108:** The Welcome lists recent projects: at most eight, newest first, recorded under `userData` as path and time only, for every project opened by any route including the command line. A folder that no longer exists keeps its row, shows `folder missing` and does not open. A row carries no install state, count or version, and no resolver runs for it. With none recorded the section is not rendered.
 - **FR109:** The Welcome shows the five core personas, with their curated portraits at 44px and full opacity, in four lanes by phase of the method (analysis, planning, solutioning, implementation) with one harness-written sentence about each role. It reads no project, marks no lane current and recommends no persona.
+- **FR110:** The harness has a dark and a light theme. The user chooses **System** (the default, following the macOS appearance live while the app runs), **Light** or **Dark** from *View ▸ Theme* in every window's menu and from the `theme · system · light · dark` line on the Welcome. A change applies to every open window at once and is a repaint only: it touches no session, run, transcript, card, rail row or scroll position, and has no transition.
+- **FR111:** The theme choice is one value (`system`, `light` or `dark`) stored under `userData`, never in a project. A window is never painted in the other theme first. A missing, unreadable or unrecognised stored value reads as `system` without surfacing an error. The portraits are identical in both themes.
 
 ### NonFunctional Requirements
 
@@ -193,7 +195,7 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **NFR12 (Naming and data conventions):** Domain events named `noun:verb-past`; personas addressed by BMad `agentId` everywhere internally, with display `name`/`title`/`icon` never used as keys; `kebab-case.ts` filenames with one exported concept per `fold/` module; project-relative POSIX paths in all domain events, absolute paths only inside `sources/` and `windows/`; epoch milliseconds in events, with elapsed run time derived from `run:started` rather than a per-tick field.
 - **NFR13 (Platform):** macOS only in v1. Every macOS-specific call (`open -R`, `open -a`) is confined to `src/main/windows/`; no OS branch exists elsewhere, so a later port is additive.
 - **NFR14 (Deployment):** One environment — a developer's own macOS machine. The harness runs from source (`electron-vite` dev) or as a local unsigned `electron-builder` package. No code signing, no notarization, no auto-update channel, no installer matrix, no server-side component and no network service of the harness's own; its only outbound work is the persona session, authenticating on the user's existing Claude Code login.
-- **NFR15 (Theme):** Dark only. No light palette, no `prefers-color-scheme` branch, no high-contrast variant.
+- **NFR15 (Theme):** Two themes, dark and light, chosen as System (default), Light or Dark. No `prefers-color-scheme` branch in any stylesheet or component, no high-contrast variant, no third palette. *Amended 2026-10-08 by Story 5.2; it read "Dark only. No light palette, no `prefers-color-scheme` branch, no high-contrast variant." and held for Epics 1 to 4.*
 - **NFR16 (Accessibility posture):** Stakes are hobby — no WCAG conformance target is set and none is claimed. The named floor below is nonetheless binding.
 - **NFR17 (Reduced motion):** `@media (prefers-reduced-motion: reduce)` sets `animation: none !important; transition: none !important` globally, with no exceptions and no "essential motion" carve-out. Every fact carried by motion must therefore also be legible with motion off — liveness during a run is carried by the elapsed counter, which is changing data and must keep ticking at >=1s.
 - **NFR18 (No state by motion or colour alone):** Every dot is paired with a text state string in the same row — the reduced-motion fix and the colour-blindness mitigation simultaneously.
@@ -223,7 +225,7 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **The filesystem watcher has two non-obvious configuration requirements** that will silently corrupt the run-note feed if missed: atomic temp-file rename handling (how `memlog.py` writes) and coalescing tolerance (three appends landed inside 400ms in one observed run).
 - **`bmad-party-mode` already ships and works.** CAP-9 is a surfacing problem, not orchestration to build — group conversation, user participation and joint decisions all function today.
 - **Spec amendments are outstanding.** The Architecture Spine lists eight decisions that override the source contract (runtime unit, menu entry shape, authoritative roster, resolver-only config, prerequisites, CAP-9 v1 scope, concurrency, collapsed-card form). `SPEC.md` and its companions should be updated so upstream and the spine do not diverge.
-- **Deferred, and explicitly not to be built in v1:** party mode's *Open disagreements* / *Decisions so far* / tags / *Pause room*; the Help section (Should-tier, entry point reserved only); reactive persona faces; tile hover previews; second opinion; refusal-with-handoff; idle barks; signing/notarization/auto-update/distribution; Windows and Linux; light theme; multi-project windows; long scrollback virtualization; the Agent SDK as runtime.
+- **Deferred, and explicitly not to be built in v1:** party mode's *Open disagreements* / *Decisions so far* / tags / *Pause room*; the Help section (Should-tier, entry point reserved only); reactive persona faces; tile hover previews; second opinion; refusal-with-handoff; idle barks; signing/notarization/auto-update/distribution; Windows and Linux; multi-project windows; long scrollback virtualization; the Agent SDK as runtime.
 
 ### UX Design Requirements
 
@@ -280,11 +282,13 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **UX-DR38 — The banned list, as a testable prohibition set:** no command palette / `⌘K` / launcher / global skills list; no badges, unread counts, quest markers, relevance sorting, next-step highlighting or recommended actions; no spinners anywhere, including a sentence doing a spinner's job; no per-section tick-through, progress bars, staggered reveals of an atomic commit, or per-character typewriter effects; no dialog that resolves, merges, reverts, locks, patches or restores, and no undo; no editing affordance or refresh control in a document window; no tooltips or previews derived from a resolved skill name; no sound; no refusal-with-handoff.
 - **UX-DR39 — The Welcome's anatomy and tokens** (`DESIGN.md` → Components → Welcome): a 1080 × 720 window with the topbar's brand and `no project open` only; a 560px column holding the head, the open action and the recent rows; a 960px band of four lanes (`1fr 2fr 1fr 1fr`) that stacks to one column at ≤1000px (the existing second breakpoint, no third). The open action is the composer's send button; the drop zone is the product's one dashed border. The Welcome is the one surface with breathing room, because it holds no state. Every value reaches the design system through a token (NFR23).
 - **UX-DR40 — The Welcome's copy and register** (`EXPERIENCE.md` → Welcome → Copy): harness strings lower case, mono, `·`-separated, no terminal punctuation; the five role descriptions are the harness's words about a role, in sans, with no first person, no quotation and no suggestion of who to start with; nothing says what to do next (no *get started*, *welcome back*, *try*).
-- **UX-DR41 — The Welcome's reach and prohibitions** (`EXPERIENCE.md` → Welcome → Accessibility, Banned on the Welcome): the tab stops are the open button and the recent list (one stop, arrows between rows, `Enter` opens); persona cards are content and take no focus; one polite live region announces a rejected drop once; focus lands on the open button on open and after a cancelled dialog; no motion; no tour, wizard, badge, count, version, *clear recent*, link out, sound, animation or light variant.
+- **UX-DR41 — The Welcome's reach and prohibitions** (`EXPERIENCE.md` → Welcome → Accessibility, Banned on the Welcome): the tab stops are the open button and the recent list (one stop, arrows between rows, `Enter` opens); persona cards are content and take no focus; one polite live region announces a rejected drop once; focus lands on the open button on open and after a cancelled dialog; no motion; no tour, wizard, badge, count, version, *clear recent*, link out, sound or animation.
+- **UX-DR42 — The light theme's tokens** (`DESIGN.md` → Colors → The light theme, frontmatter `colors-light`): palette A, "cool paper", one twin for every colour token in `design/tokens.css`, in a third block `:root[data-theme="light"]` carrying `color-scheme: light` after the two dark blocks, which stay byte-identical. Components name no theme. Light pairs that carry text clear 4.5:1 on their surface except `meta`, which carries no actionable fact; the state colours keep their four meanings, their halos are strengthened, and the shadows and scrim are cool and low.
+- **UX-DR43 — The theme control and its prohibitions** (`EXPERIENCE.md` → Theme): *View ▸ Theme* as three radio items in every window's menu, no accelerator; the Welcome's theme line is the only on-window control and the topbar gains none; applying is instant with no transition, no toast and no announcement; native chrome follows; no per-project or per-window theme, no high-contrast variant, no third palette, and no read of `prefers-color-scheme` outside main.
 
 ### FR Coverage Map
 
-Every one of the 109 FRs maps to exactly one epic.
+Every one of the 111 FRs maps to exactly one epic.
 
 | FR | Epic | Covers |
 |---|---|---|
@@ -397,6 +401,8 @@ Every one of the 109 FRs maps to exactly one epic.
 | FR107 | Epic 5 | The one open action, the drop target, `not a folder · <name>` |
 | FR108 | Epic 5 | Recent projects: eight, newest first, `folder missing`, no install state |
 | FR109 | Epic 5 | The five core personas by phase of the method |
+| FR110 | Epic 5 | Light and dark themes, System default, the View menu and the Welcome line, applied at once |
+| FR111 | Epic 5 | One stored value, no wrong-theme first paint, unknown reads as System, portraits unchanged |
 
 **Coverage by epic:** Epic 1 — 42 FRs · Epic 2 — 20 FRs · Epic 3 — 34 FRs · Epic 4 — 9 FRs · **Total 105.**
 
@@ -501,21 +507,22 @@ Convene a room of chosen personas in one conversation you participate in, with e
 
 ### Epic 5: Arrive — choose a project from a welcome
 
-The harness stops opening to a native dialog. It opens to a Welcome that offers one action (open a project folder, or drop one), lists the projects opened before, and shows the five core personas by phase of the method, so the first thing seen is what the product is, not an operating-system chooser.
+The harness stops opening to a native dialog. It opens to a Welcome that offers one action (open a project folder, or drop one), lists the projects opened before, and shows the five core personas by phase of the method, so the first thing seen is what the product is, not an operating-system chooser. And it can be seen in light or dark: the user chooses, and System is the default.
 
-**Standalone:** it changes how a project is chosen and nothing about what a project window does once open.
+**Standalone:** it changes how a project is chosen and how the product is painted, and nothing about what a project window does once open.
 
-**FRs covered:** FR106, FR107, FR108, FR109 (FR9 and FR17 stay true)
+**FRs covered:** FR106, FR107, FR108, FR109, FR110, FR111 (FR9 and FR17 stay true)
 
 **NFRs addressed:** NFR7, NFR13, NFR15, NFR19, NFR22, NFR23, NFR24, NFR25, NFR27
 
-**UX-DRs addressed:** UX-DR39, UX-DR40, UX-DR41
+**UX-DRs addressed:** UX-DR39, UX-DR40, UX-DR41, UX-DR42, UX-DR43
 
 **Implementation notes:**
 - The Welcome follows the document window's precedent: its own window, its own page entry and its own preload bundle, sharing no runtime module with the shell's. It has no project and no edge to the install, the CLI or a project's files.
-- The only new durable state is the recent list, under `userData` (AD-1, NFR3). It is bookkeeping and holds paths and times, never project content.
+- The only new durable state is the recent list and the theme value, both under `userData` (AD-1, NFR3). They are bookkeeping and hold paths, times and one word, never project content.
+- **The light theme reverses NFR15** (Story 5.2). Dark is unchanged to the byte; the light theme is an additional block, so Epics 1 to 4's token tests keep passing as they are.
 - The five descriptions are a static table (the one roster shown before any install is read). They are written from each agent's `role`; they are not read from a project and not attributed to a persona.
-- **Negative-surface check:** the story's own final criteria verify the UX-DR38 prohibitions on the Welcome: no badge or count, no recommended persona, no spinner or animation, no tour or wizard, no sound, no *clear recent* control.
+- **Negative-surface check:** each story's own final criteria verify the UX-DR38 prohibitions on its surfaces. The Welcome's: no badge or count, no recommended persona, no spinner or animation, no tour or wizard, no sound, no *clear recent* control.
 
 ---
 
@@ -628,7 +635,7 @@ So that independently built surfaces cannot drift into "roughly the same dark gr
 **Then** a global rule sets `animation: none !important; transition: none !important` with no exceptions and no essential-motion carve-out.
 
 **Given** the theme decision
-**Then** no light palette, no `prefers-color-scheme` branch and no high-contrast variant exists in the file.
+**Then** no light palette, no `prefers-color-scheme` branch and no high-contrast variant exists in the file. *(Superseded 2026-10-08 by Story 5.2: the file gains a light block and still has no `prefers-color-scheme` branch and no high-contrast variant.)*
 
 ### Story 1.4: The accessibility floor — focus, keyboard reach, and one live region
 
@@ -2391,11 +2398,11 @@ So that the first thing I meet is not an operating-system dialog that quits the 
 **And** the shell's and the document window's counts in the contract tests do not change, and the Welcome's own are pinned beside them, deliberately.
 
 **Given** the Welcome's styles
-**Then** every colour, dimension, radius and font stack reaches it through a token, with no literal (NFR23, `tests/tokens.test.ts`), it is dark only, and at ≤1000px the lanes stack to one column and the window scrolls, with no new breakpoint (NFR27)
+**Then** every colour, dimension, radius and font stack reaches it through a token, with no literal (NFR23, `tests/tokens.test.ts`), it takes both themes through its tokens (Story 5.2), and at ≤1000px the lanes stack to one column and the window scrolls, with no new breakpoint (NFR27)
 **And** a fact a user acts on (the drop hint, a recent row's path) is not at `faint` (NFR19).
 
 **Given** the negative surface and the audit
-**Then** the Welcome has no spinner, animation, badge, count or version on a row, tour, wizard, checklist, *clear recent*, link out, sound, light variant or sentence that tells the user what to do next
+**Then** the Welcome has no spinner, animation, badge, count or version on a row, tour, wizard, checklist, *clear recent*, link out, sound or sentence that tells the user what to do next
 **And** every harness string is lower case, mono and `·`-separated with no terminal punctuation, and the five descriptions are in sans with no first person
 **And** an audit test mounts the Welcome with recent rows present, absent and one missing, and with a rejected drop, and checks these.
 
@@ -2406,4 +2413,91 @@ So that the first thing I meet is not an operating-system dialog that quits the 
 
 **Decisions to confirm before build (defaults in brackets):** closing the Welcome quits the app [yes]; `⌘O` on the Welcome [yes]; the recent cap [8]; a project opened from the command line is recorded as recent [yes]; the age wording below a minute [`now`].
 
-**Boundaries:** no change to Preflight, to the project window, or to any conversation, session, rail or document channel; no project switcher inside a project window (one project per window, FR17); no install read for a recent row; no *clear* or *remove* for recent; no persistence beyond the recent file; no light palette and no portrait larger than 44px; the five descriptions are not read from any project and are not attributed to a persona.
+**Boundaries:** no change to Preflight, to the project window, or to any conversation, session, rail or document channel; no project switcher inside a project window (one project per window, FR17); no install read for a recent row; no *clear* or *remove* for recent; no persistence beyond the recent file; no portrait larger than 44px; the five descriptions are not read from any project and are not attributed to a persona.
+
+### Story 5.2: Choose light, dark or the system's theme
+
+*Sequencing: added 2026-10-08 from the light-theme design (`mockups/light-theme.html`, palette A; `DESIGN.md` → Colors → The light theme; `EXPERIENCE.md` → Theme). Three seams, in build order: **A** the light tokens and a window painted in the theme in force; **B** the stored choice, *System* following the OS, and *View ▸ Theme*; **C** the Welcome's theme line. **Seam C needs Story 5.1's Welcome: build A and B first, and C once 5.1 is done.** A and B are shippable without C, and each of the three can be a story of its own if the build reports this one oversized.*
+
+As someone who uses the harness in a bright room or a dark one,
+I want to choose a light or a dark look, or leave it to my Mac,
+So that the product is readable where I actually work and agrees with the rest of my desktop.
+
+**Implements:** FR110, FR111 · UX-DR42, UX-DR43 · NFR15 (amended), NFR19, NFR23, NFR25, NFR27
+
+**Evidence:** the product is dark by decision (NFR15): `design/tokens.css` opens with the mockup's dark block and states `color-scheme: dark`, `design/page.css` records that no light palette exists, and `tests/tokens.test.ts` ("the theme decision") asserts both the `color-scheme: dark` declaration and that no stylesheet names `prefers-color-scheme`, `prefers-contrast` or `forced-colors`. There is no stored preference, no theme menu and no way to ask a window for another look. The decision was a deferral, not an omission (`DESIGN.md`, before 2026-10-08); the light twins are specified and mocked up, and the measured contrast is in `DESIGN.md`.
+
+**Acceptance Criteria:**
+
+*Seam A: the light tokens*
+
+**Given** `design/tokens.css`
+**Then** its first block (the mockup's verbatim `:root`) and the promoted block after it are byte-identical to what they were, so every existing token test passes without edit
+**And** a third block, `:root[data-theme="light"]`, overrides exactly the colour tokens in `DESIGN.md`'s `colors-light` map, at the values it gives, and declares `color-scheme: light`
+**And** the dark theme still declares `color-scheme: dark`, so a window with no `data-theme` is dark as before.
+
+**Given** the two themes
+**Then** every colour token in the dark blocks has a twin in the light block and no colour token has a twin without a dark original
+**And** no dimension, radius, type size or motion value is in the light block
+**And** no component or stylesheet other than `tokens.css` names a theme or a colour literal, so NFR23's guard passes in both.
+
+**Given** the light twins
+**Then** a test computes the WCAG ratio for the pairs in `DESIGN.md`'s measured table and fails below 4.5 for `text`, `text-strong`, `dim`, `faint`, `accent`, `green`, `amber`, `red`, `note`, `ink-doc` and `disagree` on `panel`, and below 4.5 for `text` on `bg`
+**And** the same test records `meta` as the one pair allowed below 4.5.
+
+**Given** a window carrying `data-theme="light"`
+**Then** the shell, the document window and (once 5.1 has landed) the Welcome all render from tokens alone, with the halos, shadows and scrim at their light values
+**And** an audit test mounts the shell, a document card, the party view and the document window under both themes and finds no literal colour in the DOM's own styles.
+
+**Given** a portrait at each of its four sizes
+**Then** its markup is byte-identical under both themes, `ArtParams` and the portrait component's signature gain no theme field, and the tests that pin the closed parameter table pass unchanged.
+
+*Seam B: the stored choice, System, and the menu*
+
+**Given** the harness has never been told a theme
+**Then** the choice is *System*, and a window is painted in the macOS appearance in force
+**And** while the app runs, a change of the OS appearance repaints every open window, with no reload and no restart.
+
+**Given** *View ▸ Theme* in the application menu
+**Then** it is a submenu of three radio items, `System`, `Light` and `Dark`, with a check on the current one, in the menu of every kind of window (project, document, Welcome), and it has no accelerator
+**And** choosing one repaints every open window at once and changes nothing else: no session, run, transcript, card, rail row or scroll position is touched, and no window reloads.
+
+**Given** a choice has been made
+**Then** it is stored as one value (`system`, `light` or `dark`) under `userData`, and survives a relaunch
+**And** nothing about it is written into a project
+**And** a stored value that is missing, unreadable or not one of the three reads as `system`, silently, and the next choice rewrites it.
+
+**Given** a window is created
+**Then** the theme is set before it is first shown, so no frame is painted in the other theme, and a window opened after a change opens in the new one
+**And** native chrome follows the same value: menus, the folder chooser, scrollbars and form controls agree with the window.
+
+**Given** the change of theme
+**Then** it is one frame: no transition, no fade, no animation, no toast, no sysline and no live-region announcement.
+
+**Given** the renderer
+**Then** it holds no source of truth for the theme and reads no media query for it: main resolves *System* and tells each window what to paint, and a test searches `src/renderer/` for `prefers-color-scheme` and finds nothing
+**And** the new channels and preload methods are enumerated, named, spelled in `src/shared/channels.ts`, and pinned in the contract tests deliberately, with no generic `invoke(channel, …)`, and the shell's, document window's and Welcome's existing counts change only by the theme's own.
+
+*Seam C: the Welcome's theme line*
+
+**Given** the Welcome
+**Then** its bottom edge carries `theme · system · light · dark`, right-aligned, mono, with the current word in `text-strong` and not a link, and the other two as links in `accent`
+**And** the three are buttons in one group and one tab stop, arrows move between them, `Enter` or `Space` chooses, the current one carries `aria-pressed="true"`, and choosing leaves focus where it is
+**And** choosing one is exactly the choice *View ▸ Theme* makes.
+
+**Given** a project window
+**Then** it has no theme control in its topbar, rail, chat column or composer, and the line exists on the Welcome only.
+
+*Across all three*
+
+**Given** the negative surface and the audit
+**Then** nothing says or implies a recommended theme, no *try light mode*, no badge, no sound, no per-project, per-window or per-persona theme, no schedule of the product's own, no accent-colour choice, no high-contrast variant, no third palette and no theme shortcut
+**And** every harness string is lower case, mono and `·`-separated with no terminal punctuation (the menu's labels are the OS's, in its register).
+
+**Given** the evidence above
+**Then** the two assertions in `tests/tokens.test.ts` that pin dark-only (`color-scheme: dark` as the only declaration, and no theme *block*) are replaced by ones that pin what is true now (the verbatim and promoted blocks unchanged, a third `[data-theme="light"]` block, `color-scheme: light` inside it, and still no `prefers-color-scheme`, `prefers-contrast` or `forced-colors` anywhere)
+**And** the comment in `design/page.css` that records the palette as dark by decision is brought in line.
+
+**Decisions to confirm before build (defaults in brackets):** no keyboard accelerator for the theme [none]; the three labels `System`, `Light`, `Dark` in the menu and `system`, `light`, `dark` on the Welcome [as written]; applying with no transition [yes].
+
+**Boundaries:** no change to the dark values; no change to any conversation, session, run, rail or document channel beyond the theme's own; no per-window or per-project theme; no portrait change; no high-contrast variant, no third palette and no accent choice; the Welcome's line is the only on-window control and the topbar gains none.

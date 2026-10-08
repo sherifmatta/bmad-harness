@@ -1,7 +1,7 @@
 ---
 name: 'bmad-visual-harness'
 type: design-spine
-description: 'Dark, dense, hairline-ruled desktop shell whose entire restraint budget is spent on one thing: illustrated portraits of plausible colleagues.'
+description: 'Dense, hairline-ruled desktop shell in two themes, dark and light, whose entire restraint budget is spent on one thing: illustrated portraits of plausible colleagues.'
 status: final
 created: '2026-09-24'
 updated: '2026-10-08'
@@ -71,6 +71,74 @@ colors:
   legend-badge: '#c9a78a'
   legend-badge-bg: 'rgba(201,167,138,.08)'
   legend-badge-border: 'rgba(201,167,138,.3)'
+
+colors-light:
+  # ── The light theme (2026-10-08, palette A "cool paper"). One twin per colour token in
+  #    design/tokens.css, keyed by the CSS variable name without `--`. Lands in a third
+  #    block, `:root[data-theme="light"]`; the verbatim block and the promoted block above
+  #    it are the dark theme and do not change. Surfaces step UP to white as they rise.
+  bg: '#f3f5f8'
+  chrome: '#eceff3'
+  panel: '#ffffff'
+  panel-2: '#f7f8fa'
+  panel-3: '#eef1f5'
+  line: '#d9dee5'
+  line-soft: '#e6e9ee'
+  text: '#2a323c'
+  text-strong: '#10151b'
+  dim: '#556070'
+  faint: '#6c7684'
+  accent: '#2f62c0'
+  accent-bg: 'rgba(47,98,192,.10)'
+  green: '#2a7547'
+  amber: '#8f6a0a'
+  red: '#a8443b'
+  note: '#3d5bc2'
+  disagree: '#a5574c'
+  disagree-border: 'rgba(168,68,59,.35)'
+  disagree-bg: 'rgba(168,68,59,.07)'
+  accent-border: '#b9caea'
+  accent-wash: 'rgba(47,98,192,.05)'
+  accent-edge: 'rgba(47,98,192,.5)'
+  halo-live: 'rgba(42,117,71,.16)'
+  halo-work: 'rgba(143,106,10,.16)'
+  meta: '#7b8592'
+  ink-doc: '#3a4552'
+  ink-doc-strong: '#10151b'
+  ink-doc-mute: '#7b8592'
+  ink-md: '#2a323c'
+  code-bg: '#eef1f5'
+  code-ink: '#2f3b4a'
+  initials-bg: '#dfe4eb'
+  initials-line: '#c7cfd9'
+  initials-ink: '#4a5666'
+  win-line: '#cdd3dc'
+  scrim: 'rgba(20,28,40,.35)'
+  legend-badge: '#8a6a45'
+  legend-badge-bg: 'rgba(138,106,69,.08)'
+  legend-badge-border: 'rgba(138,106,69,.3)'
+  cast-speaking-border: '#8fabdc'
+  cast-speaking-ground: '#ffffff'
+  grad-cast: 'linear-gradient(180deg,#eef1f5,#e8ecf1)'
+  grad-titlebar: 'linear-gradient(180deg,#f4f6f9,#e9edf2)'
+  brand-mark-line: '#b4bfd0'
+  topbar-sep: '#b9c0cb'
+  raised: '#e3e8ef'
+  scrollbar-thumb: '#c6ccd5'
+  scrollbar-thumb-hover: '#aab2be'
+  tile-current: '#e8eef8'
+  code-tag-bg: '#eef1f5'
+  composer-focus-line: '#7d9bd4'
+  composer-placeholder: '#8a94a1'
+  send-bg: '#dbe6f8'
+  send-line: '#b3c8ee'
+  send-ink: '#1f3f7d'
+  send-hover: '#cddcf4'
+  win-light: '#c3cad4'
+  ghost-border-hover: '#b5bdc8'
+  skill-button-hover-line: '#a8b2c0'
+  shadow-window: '0 30px 70px -20px rgba(20,30,50,.35)'
+  shadow-speaking: '0 0 0 1px rgba(47,98,192,.22), 0 6px 18px -10px rgba(20,30,50,.18)'
 
 typography:
   # Two families only. No webfonts, no icon font, no display face.
@@ -335,6 +403,7 @@ components:
     persona-card: '{colors.panel} ground, 1px {colors.line}, {rounded.card}, padding 12px 12px 11px, gap 8px'
     portraitSize: 44px
     opacity: '1 — these are not a room, so nothing is dimmed'
+    theme-line: '{typography.meta} mono along the bottom edge, right-aligned: `theme · system · light · dark`; the current word {colors.text-strong}, the others {colors.accent}, hover underlines'
   document-window:
     radius: '{rounded.window}'
     background: '{colors.panel}'
@@ -377,7 +446,7 @@ The restraint is not minimalism as taste. It is a budget. Real illustrated faces
 
 Information density is high and deliberate: the densest type tier is 10.5px and it is the most-used size in the product. This is a tool for an engineer reading state, not a consumer surface. Nothing is padded to feel generous.
 
-Dark only. A light theme is a documented deferral, not an omission — do not build a light palette or write `prefers-color-scheme` branches.
+**Two themes, one design.** Dark is the theme the product was designed in; light (2026-10-08, palette A) is its twin and is chosen, not inferred: *System* (the default, following the OS), *Light* or *Dark* (EXPERIENCE.md → *Theme*). No stylesheet and no component reads `prefers-color-scheme`, and there is no high-contrast variant. Every rule in this document holds in both themes, and the restraint budget most of all: the portraits are the only thing with warmth in either one, which is why the light palette is cool.
 
 Two tonal rules govern everything below. **One accent, one friction colour.** Blue is the system's voice; the warm tone belongs to disagreement and to nothing else — friction is the one thing given its own colour, because friction is the feature most likely to be sanded off in implementation. **State is never decoration.** Four state colours exist and every one of them is driven by a real system fact.
 
@@ -427,6 +496,39 @@ The tell is: red says *something broke*, disagree says *someone is pushing back*
 ### Promoted literals
 
 The remaining tokens in the block above are not new colours. Each is a value already hardcoded in the mockup that a component would otherwise have to restate — `accent-border` (`#33455f`, shared by the option key, the skill-button code chip and the run note's `kind:decision` tag), the two dot halos, the document-card and markdown ink tiers, the initials trio, the window border and scrim, the legend badge. AD-14: *"A literal colour, dimension, radius or font stack in a component is a defect."* Naming them is how that rule is satisfied, not a palette expansion.
+
+### The light theme
+
+*Palette A, "cool paper".* The mockups are `mockups/light-theme.html` (both palettes), `light-a-shell.html` and `light-a-welcome.html`. The twins are the `colors-light` map in the frontmatter, one for every colour token in `design/tokens.css`.
+
+**How it is built.** The verbatim `:root` block and the promoted block that follows it stay as they are: they are the dark theme. The light values arrive as a **third block, `:root[data-theme="light"]`**, overriding colour tokens only, with `color-scheme: light` stated to the user agent in the same block (so form controls, scrollbars and the caret agree). No dimension, radius, type size or motion changes with theme, and **no component names a theme**: a component that takes every colour from a token is correct in both. The attribute is set by main before a window is first shown, from the stored choice and the OS appearance; the page never asks the browser which scheme is preferred.
+
+**How it is derived.**
+- **The ramp inverts.** The dark ramp lifts surfaces as they rise; the light ramp does the same toward white: `bg #f3f5f8` → `panel #ffffff`, with `panel-2` and `panel-3` the two greys between. Five near-identical greys, hairline `line` rules, no new surface tier.
+- **One accent, deepened.** `accent #2f62c0` replaces `#7fa6e8`; accent is still a line, an edge, a chip border, almost never a surface. The send button stays quiet: a pale blue ground (`send-bg #dbe6f8`) with a dark blue glyph, not a filled accent button.
+- **The four state colours keep their meaning.** Green, amber, red and `note` are darkened until each clears 4.5:1 on `panel`. The halos around the live and work dots are strengthened from `.14`/`.13` to `.16`/`.16`, because a glow reads weaker on a light ground. `disagree` stays a distinct warm tone and is not `red`.
+- **Document ink inverts with the page.** `ink-doc` `#3a4552` on `panel`, `ink-doc-strong` and `text-strong` near black, `ink-doc-mute` at the `meta` grey. The document card's mono body and the markdown window read as dark-on-white.
+- **Shadows and the scrim go cool and low.** The window shadow becomes `0 30px 70px -20px rgba(20,30,50,.35)`, the speaking cast card's shadow likewise, the scrim `rgba(20,28,40,.35)`. A black shadow at the dark theme's alpha would read as dirt on white.
+- **Portraits are identical in both themes.** Backdrops stay the dark tones in the parameter table, so on a light page the faces read as dark discs and remain the strongest thing on screen. `ArtParams` gains no theme field and a portrait's markup does not vary with theme.
+
+**Measured contrast** (WCAG ratio of the foreground against the surface it sits on, from the twins above; dark is the shipped theme):
+
+| Pair | Dark | Light |
+|---|---|---|
+| `text` on `bg` | 14.3 | 11.9 |
+| `text-strong` on `panel` | 15.7 | 18.3 |
+| `dim` on `panel` | 6.5 | 6.4 |
+| `faint` on `panel` | 3.6 | 4.6 |
+| `meta` on `bg` | 3.1 | 3.4 |
+| `accent` on `panel` | 7.0 | 5.8 |
+| `green` on `panel` | 6.2 | 5.6 |
+| `amber` on `panel` | 7.2 | 5.0 |
+| `red` on `panel` | 5.3 | 5.9 |
+| `note` on `panel` | 6.4 | 6.0 |
+| `ink-doc` on `panel` | 9.8 | 9.8 |
+| `disagree` on `panel` | 6.9 | 5.2 |
+
+Every light pair that carries text clears 4.5 except `meta` (3.4), which holds only timestamps and micro-labels and, as in dark, never an actionable fact. The "no actionable fact at `faint` or `meta`" rule is unchanged and is *easier* to keep in light, where `faint` reaches 4.6.
 
 ### What has no colour
 
@@ -753,6 +855,8 @@ A window of its own, opened by main when the harness starts without a project an
 | Winston · System Architect | solutioning | Converts the PRD and UX into the technical decisions that keep implementation on track. |
 | Amelia · Senior Software Engineer | implementation | Implements approved stories test-first and ships code that has been run and verified. |
 
+**The theme line** sits on the bottom edge of the window, right-aligned, in `meta` mono: `theme · system · light · dark`. The current choice is `text-strong` and is not a link; the other two are `accent` and underline on hover, as every link does. It exists only on the Welcome, where no state competes with it; once a project is open, the theme is reached from *View ▸ Theme* alone.
+
 There is **no motion** on this window: no entrance, no hover transition on a card, no animated drop feedback. The page is at rest.
 
 ### Document window
@@ -819,4 +923,8 @@ Streaming prose arrives in frame-sized bursts, with the caret at the tail. **A p
 | Show a drop target with a 1px dashed `line` border | Use a dashed border for anything but the welcome's drop zone |
 | Keep the five welcome portraits at 44px and full opacity | Render a larger "hero" face, or dim a face that is not in a room |
 | State a missing recent folder as `folder missing` | Show an install chip, agent count or version on a recent row, or run a resolver to fill one |
-| Ship dark only | Add a light palette, a `prefers-color-scheme` branch, or a high-contrast variant |
+| Take every colour from a token, so both themes resolve through the same component | Name a theme in a component, or write a literal that is right in one theme only |
+| Set the theme from the stored choice and the OS appearance in main, before a window is first shown | Read `prefers-color-scheme` in a stylesheet or a component, or paint a window in one theme and then switch it |
+| Keep the portraits identical in both themes, on their dark backdrops | Give a portrait a theme-dependent backdrop, or a theme field in `ArtParams` |
+| Strengthen the state-dot halos in light (`.16`) | Reuse the dark alpha, which fades on white |
+| Ship the two themes and nothing else | Add a high-contrast variant, or a third palette |

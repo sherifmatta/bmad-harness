@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Light theme mockups</title>
+<style>
+  :root{--bg:#101317;--chrome:#14181d;--panel:#171b21;--panel-2:#1b2027;--panel-3:#20262e;--line:#272d36;--line-soft:#1f242c;--text:#dce2ea;--text-strong:#f1f4f8;--dim:#96a0ad;--faint:#6b7480;--accent:#7fa6e8;--accent-bg:rgba(127,166,232,.12);--accent-border:#33455f;--green:#6aa87f;--amber:#c6a350;--red:#c47c72;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;color-scheme:dark}
+  *{box-sizing:border-box;margin:0}
+  body{background:#0b0d10;color:var(--text);font:13px/1.55 var(--sans);padding:32px 24px 90px}
+  .wrap{max-width:1120px;margin:0 auto}
+  h1{font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--text-strong)}
+  .lede{color:var(--dim);max-width:80ch;margin:6px 0 30px}
+  .opt{margin-bottom:60px}
+  .opt-head{display:flex;align-items:baseline;gap:12px;margin-bottom:10px}
+  .key{font:600 10.5px var(--mono);letter-spacing:.09em;color:var(--accent);border:1px solid var(--accent-border);background:var(--accent-bg);border-radius:3px;padding:1px 7px}
+  h2{font-size:14.5px;font-weight:600;color:var(--text-strong)}
+  .opt-head p{color:var(--faint);font-size:11.5px}
+  .label{font:600 10.5px var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--faint);margin:18px 0 8px}
+  .frame{position:relative;overflow:hidden;border:1px solid #333b46;border-radius:8px;box-shadow:0 30px 70px -20px rgba(0,0,0,.85)}
+  .frame iframe{position:absolute;border:0;transform-origin:0 0;background:#fff}
+  .shell{width:1075px;height:756px}.shell iframe{width:1280px;height:900px;left:0;top:0;transform:scale(.84)}
+  .welc{width:1064px;height:690px}.welc iframe{width:1280px;height:900px;left:-57px;top:-123px;transform:scale(.95)}
+  .open{display:inline-block;margin-top:8px;font:10.5px var(--mono);color:var(--accent)}
+  .notes{display:grid;grid-template-columns:1fr 1fr;gap:12px 32px;margin-top:16px;color:var(--dim);font-size:11.5px}
+  .notes b{color:var(--text);font-weight:600}
+  .mono{font-family:var(--mono);font-size:10.5px;color:var(--text)}
+  table{border-collapse:collapse;width:100%;max-width:1075px;font-size:11.5px}
+  th,td{padding:5px 10px;text-align:left;border-bottom:1px solid var(--line-soft)}
+  th{font:600 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--faint);border-bottom:1px solid var(--line)}
+  td.n{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .sw{display:inline-block;width:11px;height:11px;border-radius:3px;border:1px solid var(--line);vertical-align:-1px;margin-right:6px}
+  .ok{color:var(--green)}.lo{color:var(--amber)}
+  /* switch placement, drawn in light A */
+  .lt{--bg:#f3f5f8;--chrome:#eceff3;--panel:#fff;--panel-2:#f7f8fa;--line:#d9dee5;--line-soft:#e6e9ee;--text:#2a323c;--strong:#10151b;--dim:#556070;--faint:#6c7684;--accent:#2f62c0;--pressed:#e3e8ef}
+  .mini{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:1075px}
+  .mini figure:first-child{grid-column:1 / -1}
+  .mini figure{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px;margin:0}
+  .mini figcaption{font-size:11.5px;color:var(--dim);margin-top:10px}
+  .mini figcaption b{color:var(--text);font-weight:600}
+  .lt .bar{height:42px;background:var(--chrome);border:1px solid var(--line);border-radius:4px;display:flex;align-items:center;gap:10px;padding:0 10px;color:var(--text);font-size:12px}
+  .lt .seg{display:inline-flex;border:1px solid var(--line);border-radius:5px;background:var(--panel-2);overflow:hidden;font-size:12px}
+  .lt .seg span{padding:4px 10px;color:var(--dim);border-left:1px solid var(--line-soft)}
+  .lt .seg span:first-child{border-left:0}
+  .lt .seg span.on{background:var(--pressed);color:var(--strong);box-shadow:inset 0 -2px 0 var(--accent)}
+  .lt .sp{flex:1}
+  .lt .brand{font-weight:600;color:var(--strong)}
+  .menu{background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:0 8px 24px -10px rgba(20,30,50,.35);padding:4px;font-size:12px;color:var(--text);width:230px;font-family:var(--sans)}
+  .menu div{padding:3px 10px;border-radius:3px;display:flex;justify-content:space-between}
+  .menu div.hl{background:#2f62c0;color:#fff}
+  .menu hr{border:0;border-top:1px solid var(--line-soft);margin:4px 0}
+  .menu .k{color:var(--faint)}.menu .hl .k{color:#dbe6f8}
+  .foot{display:flex;justify-content:space-between;font:10.5px var(--mono);color:var(--faint);padding-top:60px}
+  .foot b{font-weight:400;color:var(--dim)}.foot .on{color:var(--accent);text-decoration:underline}
+  .list{max-width:90ch;color:var(--dim);font-size:12px;padding-left:18px}.list li{margin:4px 0}.list b{color:var(--text);font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Light theme — two palettes</h1>
+  <p class="lede">The same real surfaces in two light palettes: the full 1:1 shell (from the approved <span class="mono">harness-mockup.html</span>, every colour literal re-mapped by role) and the Welcome. Dark is untouched. The frames below are live pages; open any at full size from its link.</p>
+
+  <!-- A -->
+  <section class="opt">
+    <div class="opt-head"><span class="key">A</span><h2>Cool paper</h2><p>the dark ramp, inverted · faces unchanged</p></div>
+    <div class="label">1:1 shell, a run in progress</div>
+    <div class="frame shell"><iframe src="light-a-shell.html" title="Light A shell"></iframe></div>
+    <a class="open" href="light-a-shell.html">open full size →</a>
+    <div class="label">Welcome</div>
+    <div class="frame welc"><iframe src="light-a-welcome.html" title="Light A welcome"></iframe></div>
+    <a class="open" href="light-a-welcome.html">open full size →</a>
+    <div class="notes">
+      <div><b>What it is.</b> Surfaces step <i>up</i> to white as they rise (bg <span class="mono">#f3f5f8</span> → panel <span class="mono">#ffffff</span>), hairlines <span class="mono">#d9dee5</span>, one accent in a deeper blue <span class="mono">#2f62c0</span>. Same five-grey structure as the dark ramp, so every component keeps its meaning.</div>
+      <div><b>Faces.</b> The portraits keep their dark backdrops, so they read as dark discs on a light page. They stay the strongest thing on screen, which is the whole premise of the design: the faces are the only warmth.</div>
+    </div>
+  </section>
+
+  <!-- B -->
+  <section class="opt">
+    <div class="opt-head"><span class="key">B</span><h2>Warm paper</h2><p>cream ground · pastel portrait backdrops</p></div>
+    <div class="label">1:1 shell, a run in progress</div>
+    <div class="frame shell"><iframe src="light-b-shell.html" title="Light B shell"></iframe></div>
+    <a class="open" href="light-b-shell.html">open full size →</a>
+    <div class="label">Welcome</div>
+    <div class="frame welc"><iframe src="light-b-welcome.html" title="Light B welcome"></iframe></div>
+    <a class="open" href="light-b-welcome.html">open full size →</a>
+    <div class="notes">
+      <div><b>What it is.</b> A cream ground (<span class="mono">#f5f2ec</span>, panels <span class="mono">#fffdf9</span>) with warm greys and the same blue accent. Softer and more like a page than a tool.</div>
+      <div><b>Faces, and the cost.</b> Backdrops are lifted to pastels so the faces sit <i>in</i> the page. It is the gentler look, but the ground now carries warmth too, which spends the budget the faces are meant to have to themselves, and the pale backdrops lower the contrast of lighter-haired faces (John). It also means a portrait's backdrop becomes theme-dependent, which today's closed parameter table does not allow.</div>
+    </div>
+  </section>
+
+  <!-- contrast -->
+  <section class="opt">
+    <div class="opt-head"><h2>Contrast, measured</h2><p>WCAG ratios against the surface each text sits on · the locked dark ramp for comparison</p></div>
+    <table id="ct"></table>
+    <div class="notes"><div><b>Reading it.</b> Every pair that carries text clears 4.5 except <span class="mono">meta</span>. The dark ramp's <span class="mono">faint</span> tier (3.6) is lifted to 4.6 in A and 5.2 in B, so the "no actionable fact at faint" rule is easier to keep in light. <span class="mono">meta</span> stays low in both (3.4, 3.7, as in dark at 3.1): it holds only timestamps and micro-labels. Several accents and state colours sit lower than their dark twins (accent 5.8 vs 7.0, amber 5.0 vs 7.2) because they were darkened to hold ≥5 on white; none falls below it.</div><div><b>State colours.</b> Green, amber, red and note stay four, mean the same things, and are driven by the same facts. Their halos are strengthened slightly (<span class="mono">.14 → .16</span>) because a glow reads weaker on a light ground.</div></div>
+  </section>
+
+  <!-- switch -->
+  <section class="opt">
+    <div class="opt-head"><h2>Where the switch lives</h2><p>independent of which palette you pick</p></div>
+    <div class="mini lt">
+      <figure>
+        <div class="bar"><b style="font-weight:600;color:var(--strong)">BMad Harness</b><span class="sp"></span>
+          <span class="seg"><span class="on">1:1 Conversation</span><span>Party Mode</span></span>
+          <span class="seg"><span>auto</span><span class="on">light</span><span>dark</span></span></div>
+        <figcaption><b>1 · Topbar control.</b> A second segmented control, the existing component, three states. Always visible. Adds a control to the densest strip in the product and a second switch beside <i>the</i> view switch.</figcaption>
+      </figure>
+      <figure>
+        <div class="menu"><div><span>Reload</span><span class="k">⌘R</span></div><hr><div><span>Zoom In</span><span class="k">⌘+</span></div><div><span>Zoom Out</span><span class="k">⌘−</span></div><hr><div class="hl"><span>Theme</span><span class="k">▸</span></div><div style="padding-left:22px;color:var(--dim)"><span>✓ System</span></div><div style="padding-left:22px;color:var(--dim)"><span>Light</span></div><div style="padding-left:22px;color:var(--dim)"><span>Dark</span></div></div>
+        <figcaption><b>2 · View ▸ Theme.</b> Zero chrome. System / Light / Dark in the View menu, <b>System by default</b>, applies to every window at once. Not discoverable from the window itself.</figcaption>
+      </figure>
+      <figure>
+        <div class="foot"><span><b>no project open</b></span><span>theme · <b>system</b> · <span class="on">light</span> · <b>dark</b></span></div>
+        <figcaption><b>3 · On the Welcome only.</b> A mono line at the bottom edge, shown where no state competes with it. Visible before a project is open, absent once one is.</figcaption>
+      </figure>
+    </div>
+    <div class="notes"><div><b>My recommendation.</b> 2, plus 3 as a courtesy. It keeps the topbar as it is, and "follow the system" is the right default for a desktop tool.</div><div><b>What gets stored.</b> One value (<span class="mono">system | light | dark</span>) in harness bookkeeping under <span class="mono">userData</span>, never in a project.</div></div>
+  </section>
+
+  <!-- implementation -->
+  <section class="opt" style="margin-bottom:0">
+    <div class="opt-head"><h2>What this changes in the spec</h2></div>
+    <ul class="list">
+      <li><b>NFR15 (dark only) is reversed.</b> It also bans a <span class="mono">prefers-color-scheme</span> branch and a high-contrast variant. A light theme needs the first two lifted and the third left banned.</li>
+      <li><b>tokens.css keeps its verbatim dark block untouched.</b> The light values arrive as a second <span class="mono">:root[data-theme="light"]</span> block, so the byte-for-byte test on the first block still holds. Main sets the attribute from the stored choice and the OS appearance; no component reads a media query.</li>
+      <li><b>About seventy colour literals</b> in DESIGN.md need a light twin each (the mapping used here is the starting table). The tokens test needs to cover both blocks.</li>
+      <li><b>Portraits.</b> Palette A needs no portrait change. Palette B makes <span class="mono">bg</span> theme-dependent and reopens the closed parameter table (FR77).</li>
+      <li><b>Document window, scrim and shadows</b> flip too: the window's shadow becomes a cool low-alpha one, and the scrim lightens.</li>
+    </ul>
+  </section>
+</div>
+<script>
+const P={"dark": {"bg": "#101317", "panel": "#171b21", "text": "#dce2ea", "strong": "#f1f4f8", "dim": "#96a0ad", "faint": "#6b7480", "meta": "#5b636e", "accent": "#7fa6e8", "green": "#6aa87f", "amber": "#c6a350", "red": "#c47c72", "note": "#7f9ce8", "docink": "#b9c4d1", "disagree": "#d0968c"}, "a": {"bg": "#f3f5f8", "panel": "#ffffff", "text": "#2a323c", "strong": "#10151b", "dim": "#556070", "faint": "#6c7684", "meta": "#7b8592", "accent": "#2f62c0", "green": "#2a7547", "amber": "#8f6a0a", "red": "#a8443b", "note": "#3d5bc2", "docink": "#3a4552", "disagree": "#a5574c"}, "b": {"bg": "#f5f2ec", "panel": "#fffdf9", "text": "#2d2a25", "strong": "#15130f", "dim": "#5d5850", "faint": "#716b61", "meta": "#827b70", "accent": "#2d5db0", "green": "#2b7347", "amber": "#8a640a", "red": "#a5453a", "note": "#3d5bc2", "docink": "#3d3932", "disagree": "#a5574c"}};
+const L=h=>{h=h.replace('#','');const c=[0,2,4].map(i=>parseInt(h.slice(i,i+2),16)/255).map(v=>v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4));return .2126*c[0]+.7152*c[1]+.0722*c[2]};
+const R=(a,b)=>{let x=L(a),y=L(b);if(x<y)[x,y]=[y,x];return(x+.05)/(y+.05)};
+const rows=[['text','bg','body text on the ground'],['strong','panel','strong text on a card'],['dim','panel','dim: secondary text'],['faint','panel','faint tier'],['meta','bg','meta tier (timestamps)'],['accent','panel','accent: links, option keys'],['green','panel','green: live'],['amber','panel','amber: working'],['red','panel','red: failure'],['note','panel','note: edited elsewhere'],['docink','panel','document-card prose'],['disagree','panel','disagree: friction tone']];
+const cell=(p,a,b)=>{const r=R(p[a],p[b]);return `<td class="n ${r>=4.5?'ok':'lo'}"><span class="sw" style="background:${p[a]}"></span>${r.toFixed(1)}</td>`};
+document.getElementById('ct').innerHTML='<tr><th>pair</th><th>dark (shipped)</th><th>light A</th><th>light B</th></tr>'+rows.map(([a,b,n])=>`<tr><td>${n}</td>${cell(P.dark,a,b)}${cell(P.a,a,b)}${cell(P.b,a,b)}</tr>`).join('');
+</script>
+</body>
+</html>
