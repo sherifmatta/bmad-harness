@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 
+import type { ThemeChoice } from '../../../shared/theme'
 import type { RecentRow } from '../../../shared/welcome'
 import { Announcer } from '../a11y/announcer'
 import { WelcomeView } from './welcome-app'
@@ -15,7 +16,12 @@ const row = (over: Partial<RecentRow> = {}): RecentRow => ({
   ...over
 })
 
-function render(rows: readonly RecentRow[] = [], notice: string | null = null, dragging = false): string {
+function render(
+  rows: readonly RecentRow[] = [],
+  notice: string | null = null,
+  dragging = false,
+  theme: ThemeChoice = 'system'
+): string {
   const none = (): void => {}
   return renderToStaticMarkup(
     <WelcomeView
@@ -23,8 +29,10 @@ function render(rows: readonly RecentRow[] = [], notice: string | null = null, d
       now={NOW}
       notice={notice}
       dragging={dragging}
+      theme={theme}
       onChoose={none}
       onOpenRecent={none}
+      onTheme={none}
       onDragEnter={none}
       onDragOver={none}
       onDragLeave={none}
@@ -35,6 +43,11 @@ function render(rows: readonly RecentRow[] = [], notice: string | null = null, d
 }
 
 const count = (text: string, pattern: RegExp): number => (text.match(pattern) ?? []).length
+
+/** The page above its foot: the theme line is the one control beside the page's own, counted on its own below. */
+const aboveFoot = (markup: string): string => markup.slice(0, markup.indexOf('<div class="welcome-foot">'))
+/** The foot, through the end of its line. */
+const foot = (markup: string): string => markup.slice(markup.indexOf('<div class="welcome-foot">'))
 
 describe('the topbar and the head', () => {
   const markup = render()
@@ -55,7 +68,7 @@ describe('the one action', () => {
   it('is a single button labelled `open project folder…` with the chord ⌘O, beside the drop hint', () => {
     const markup = render()
 
-    expect(count(markup, /<button/g)).toBe(1)
+    expect(count(aboveFoot(markup), /<button/g)).toBe(1)
     expect(markup).toMatch(/<button type="button" class="welcome-open">.*open project folder…<span class="welcome-open-chord">⌘O<\/span><\/button>/)
     expect(markup).toContain('<span class="welcome-drop-hint">drop a project folder here</span>')
     expect(markup.indexOf('welcome-drop-hint')).toBeLessThan(markup.indexOf('welcome-open"'))
@@ -103,8 +116,8 @@ describe('recent', () => {
   it('is one tab stop: the first row holds tabindex 0 and the rest -1', () => {
     const markup = render([row(), row({ path: '/b', name: 'b' }), row({ path: '/c', name: 'c' })])
 
-    expect(count(markup, /tabindex="0"/g)).toBe(1)
-    expect(count(markup, /tabindex="-1"/g)).toBe(2)
+    expect(count(aboveFoot(markup), /tabindex="0"/g)).toBe(1)
+    expect(count(aboveFoot(markup), /tabindex="-1"/g)).toBe(2)
   })
 
   it('keeps a missing folder’s row, says `folder missing` where the age was, and marks it unavailable', () => {
@@ -120,7 +133,7 @@ describe('recent', () => {
   it('has no control to remove a row, no count, no badge and no install state on one', () => {
     const markup = render([row(), row({ exists: false, path: '/gone', name: 'gone' })])
 
-    expect(count(markup, /<button/g)).toBe(3)
+    expect(count(aboveFoot(markup), /<button/g)).toBe(3)
     expect(markup).not.toMatch(/remove|clear|delete|forget|×|aria-label="[^"]*(?:agent|install|version)/i)
   })
 })
@@ -158,7 +171,7 @@ describe('the team', () => {
   it('carries the meta line, and no card is focusable, interactive or highlighted', () => {
     // The static markup escapes the apostrophe; the page's text node does not.
     expect(markup).toContain('the five core personas, by phase of the method · a project&#x27;s own install can add more')
-    const cards = markup.slice(markup.indexOf('welcome-lanes'))
+    const cards = aboveFoot(markup).slice(markup.indexOf('welcome-lanes'))
     expect(cards).not.toMatch(/tabindex|<button|<a[\s>]|onclick|aria-current|aria-selected|aria-pressed|recommended|current/i)
   })
 })
@@ -170,5 +183,44 @@ describe('the page as a whole', () => {
 
   it('has no link, input, dialog, spinner or progress element', () => {
     expect(render([row()])).not.toMatch(/<a[\s>]|<input|<select|<textarea|<dialog|<progress|role=\W?(?:progressbar|alert|status)/)
+  })
+})
+
+describe('the theme line', () => {
+  it('is the page’s foot, after the stage, in a div: `theme · system · light · dark`, three buttons and the words only', () => {
+    const markup = render()
+
+    expect(markup.indexOf('</main>')).toBeLessThan(markup.indexOf('welcome-foot'))
+    expect(markup).not.toMatch(/<footer/)
+    expect(foot(markup)).toContain('<span class="welcome-theme-label" id="welcome-theme-label">theme</span>')
+    expect(count(foot(markup), /<button/g)).toBe(3)
+    expect([...foot(markup).matchAll(/class="welcome-theme-word"[^>]*>([^<]+)</g)].map(([, word]) => word)).toEqual([
+      'system',
+      'light',
+      'dark'
+    ])
+    expect(count(foot(markup), /<span class="welcome-theme-sep" aria-hidden="true">·<\/span>/g)).toBe(3)
+  })
+
+  it.each([
+    ['system', ['true', 'false', 'false']],
+    ['light', ['false', 'true', 'false']],
+    ['dark', ['false', 'false', 'true']]
+  ] as const)('marks %s as the pressed word, and it alone', (choice, pressed) => {
+    const markup = render([], null, false, choice)
+
+    expect([...foot(markup).matchAll(/aria-pressed="(\w+)"/g)].map(([, value]) => value)).toEqual(pressed)
+  })
+
+  it('makes the pressed word the one tab stop, and the other two -1', () => {
+    const markup = render([], null, false, 'dark')
+
+    expect([...foot(markup).matchAll(/tabindex="(-?\d)"/g)].map(([, value]) => value)).toEqual(['-1', '-1', '0'])
+  })
+
+  it('has no theme control anywhere else on the page, and no word of one', () => {
+    const markup = aboveFoot(render([row()]))
+
+    expect(markup).not.toMatch(/theme|aria-pressed|\blight\b|\bdark\b/i)
   })
 })

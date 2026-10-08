@@ -1,5 +1,6 @@
-import { readFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { createHash } from 'node:crypto'
+import { readFileSync, readdirSync } from 'node:fs'
+import { join, relative, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -11,7 +12,8 @@ import {
   literalsIn,
   allMediaConditions,
   mediaConditionsIn,
-  withoutComments
+  withoutComments,
+  withoutLightTheme
 } from './literal-guard'
 
 /**
@@ -42,7 +44,15 @@ const DESIGN = join(
   '_bmad/planning-artifacts/ux-designs/ux-bmad-harness-2026-09-24/DESIGN.md'
 )
 
-const tokensCss = readFileSync(TOKENS, 'utf8')
+/** The file as it is on disk: the two dark blocks, the light twin block, the keyframes. */
+const fullCss = readFileSync(TOKENS, 'utf8')
+/**
+ * The dark theme's file: everything but the light block (Story 5.2). The light
+ * block restates the colour tokens, and `customProperties` below throws on a
+ * token declared twice, so every suite that reads a token's one value reads
+ * this, and the light block is read by its own suite.
+ */
+const tokensCss = withoutLightTheme(fullCss)
 
 /** The mockup's `:root` block, located in the mockup itself — never transcribed. */
 function verbatimBlock(): string {
@@ -707,22 +717,26 @@ describe('the motion inventory', () => {
 })
 
 describe('the theme decision', () => {
-  it('declares the dark colour scheme, so the UA paints its own chrome dark', () => {
-    // NFR15 is dark only, and a dark palette alone does not reach form
-    // controls, scrollbars, caret or text selection — the user agent paints
-    // those, and without this declaration it paints them light on top of a
-    // #101317 ground. Distinct from a theme *branch*, which line 496 forbids.
+  it('declares the dark colour scheme in the dark theme, so the UA paints its own chrome dark with no data-theme', () => {
+    // A dark palette alone does not reach form controls, scrollbars, caret or
+    // text selection — the user agent paints those, and without this
+    // declaration it paints them light on top of a #101317 ground. A window
+    // that carries no `data-theme` is dark, as it was before Story 5.2.
     expect(withoutComments(tokensCss)).toMatch(/\bcolor-scheme\s*:\s*dark\b/)
+    expect(withoutComments(tokensCss)).not.toMatch(/\bcolor-scheme\s*:\s*light\b/)
+    expect(withoutComments(tokensCss)).not.toMatch(/data-theme/)
   })
 
-  it('branches on no theme media query at all', () => {
+  it('branches on no theme media query at all: the choice is main\u2019s, not the browser\u2019s', () => {
     for (const branch of ['prefers-color-scheme', 'prefers-contrast', 'forced-colors']) {
-      expect(tokensCss, `${branch} must not appear: NFR15 is dark only`).not.toContain(branch)
+      expect(fullCss, `${branch} must not appear: main resolves the theme and tells the window`).not.toContain(
+        branch
+      )
     }
   })
 
-  it('styles no component: the only rules are :root, the keyframes and the media block', () => {
-    const structural = withoutComments(tokensCss)
+  it('styles no component: the only rules are the two dark :root blocks, the light one, the keyframes and the media block', () => {
+    const structural = withoutComments(fullCss)
       .replace(/@keyframes[\s\S]*?\}\s*\}/g, '')
       .replace(/@media[\s\S]*?\}\s*\}/g, '')
 
@@ -730,7 +744,7 @@ describe('the theme decision', () => {
       selector.trim()
     )
 
-    expect(selectors).toEqual([':root', ':root'])
+    expect(selectors).toEqual([':root', ':root', ':root[data-theme="light"]'])
   })
 
   it('declares the focus ring\u2019s values and still styles nothing with them', () => {
@@ -775,13 +789,229 @@ describe('the theme decision', () => {
     // ring is drawn just inside a clipped row's edge with its width unchanged.
     expect(tokens.get('--focus-ring-offset-inset')).toBe(`-${width}`)
 
-    // Values only. A rule here would break the `[':root', ':root']` assertion
-    // above, and — worse — would sit in the one file the NFR23 literal guard
+    // Values only. A rule here would break the selector assertion above, and — worse — would sit in the one file the NFR23 literal guard
     // exempts, where the ring could be written in literals. It lives in
     // design/focus.css instead, and tests/accessibility.test.ts guards it.
     const structural = withoutComments(tokensCss)
     expect(structural).not.toMatch(/outline/)
     expect(structural).not.toMatch(/:focus/)
+  })
+})
+
+/** The second `:root` block, exactly as it stands: the promoted literals and everything after the verbatim block. */
+function promotedBlock(): string {
+  const start = fullCss.indexOf('\n:root {\n') + 1
+  const end = fullCss.indexOf('\n}\n', start) + 3
+  expect(start, 'tokens.css must hold the promoted `:root {` block').toBeGreaterThan(0)
+  return fullCss.slice(start, end)
+}
+
+/** The third block, `:root[data-theme="light"]`, as a map; it is declared once and holds nothing twice. */
+function lightBlock(): string {
+  const found = [...fullCss.matchAll(/:root\[data-theme="light"\]\s*\{[^}]*\}/g)]
+  expect(found, 'tokens.css must hold exactly one light block').toHaveLength(1)
+  return found[0][0]
+}
+
+/**
+ * The colour tokens of the dark theme: every custom property whose value spells
+ * a colour, found in the dark blocks by what the value is rather than by a list
+ * somebody keeps. A shadow that carries a colour is one; a shadow that only
+ * refers to a colour token through `var()` (the halos, the inset rules) is not.
+ */
+function darkColourTokens(): string[] {
+  return [...tokens.entries()]
+    .filter(([, value]) => /#[0-9a-fA-F]{3,8}\b|\brgba?\(/.test(value))
+    .map(([name]) => name)
+}
+
+/** The ratio of two sRGB colours, as WCAG 2.x defines it. */
+function contrast(foreground: string, background: string): number {
+  const channels = (hex: string): number[] => {
+    expect(hex, 'a measured colour must be a six-digit hex').toMatch(/^#[0-9a-f]{6}$/i)
+    return [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16) / 255)
+  }
+  const luminance = (hex: string): number => {
+    const [r, g, b] = channels(hex).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+  }
+  const [light, dark] = [luminance(foreground), luminance(background)].sort((a, b) => b - a)
+  return (light + 0.05) / (dark + 0.05)
+}
+
+describe('the light theme (Story 5.2, seam A)', () => {
+  const light = customProperties(lightBlock().replace(/^[^{]*\{/, '').replace(/\}$/, ''))
+  const mockup = readFileSync(
+    join(ROOT, '_bmad/planning-artifacts/ux-designs/ux-bmad-harness-2026-09-24/mockups/light-a-shell.html'),
+    'utf8'
+  )
+
+  it('arrives as a third block, after the promoted block and before the keyframes', () => {
+    const at = fullCss.search(/^:root\[data-theme="light"\]\s*\{/m)
+
+    expect(at).toBeGreaterThan(fullCss.indexOf('\n:root {\n'))
+    expect(at).toBeLessThan(fullCss.indexOf('@keyframes'))
+    expect(fullCss.slice(0, at).match(/^:root\s*\{/gm)).toHaveLength(1)
+  })
+
+  it('leaves the dark theme as it was: the verbatim block byte-identical to the mockup, the promoted block to what it was', () => {
+    expect(firstDifferingLine(verbatimBlock(), fullCss)).toBeNull()
+    expect(fullCss.startsWith(verbatimBlock())).toBe(true)
+    // The promoted block as it stood before Story 5.2, held by its digest: any
+    // byte moved in it, a value or a comment, changes the dark theme's source.
+    expect(createHash('sha256').update(promotedBlock()).digest('hex')).toBe(
+      '318af75e636c4a855bb38b7efa91e3de399ddd86cce0eaffae6ce3f5dbc4c1b6'
+    )
+  })
+
+  it('states color-scheme: light in its own block, and the dark theme still states dark', () => {
+    expect(withoutComments(lightBlock())).toMatch(/\bcolor-scheme\s*:\s*light\b/)
+    expect(withoutComments(lightBlock())).not.toMatch(/\bcolor-scheme\s*:\s*dark\b/)
+    expect(withoutComments(promotedBlock())).toMatch(/\bcolor-scheme\s*:\s*dark\b/)
+  })
+
+  it('holds a twin for each of the 62 dark colour tokens, and no colour token without a dark original', () => {
+    const dark = darkColourTokens()
+
+    expect(dark).toHaveLength(62)
+    expect([...light.keys()].sort()).toEqual([...dark].sort())
+    expect(light.size).toBe(62)
+  })
+
+  it('holds colour tokens only: no dimension, radius, type size, line height, tracking or motion value', () => {
+    for (const [name, value] of light) {
+      // The two shadows are colour tokens whose value is geometry and a colour:
+      // their offsets are part of the twin, and are the dark ones' own.
+      if (name === '--shadow-window' || name === '--shadow-speaking') {
+        expect(value, name).toMatch(/rgba\(/)
+        continue
+      }
+      expect(value, name).toMatch(/^(?:#[0-9a-fA-F]{3,8}|rgba\([\d., ]+\)|linear-gradient\(180deg,#[0-9a-f]{6},#[0-9a-f]{6}\))$/)
+      expect(value, name).not.toMatch(/\d(?:px|em|rem|ch|vh|vw|%|s)\b/)
+    }
+    for (const name of light.keys()) {
+      expect(name, name).not.toMatch(/^--(?:fs|lh|track|weight|radius|space|motion|z|opacity)-/)
+    }
+    // And no var(): a twin is a value, not a pointer back into the dark theme.
+    expect(withoutComments(lightBlock())).not.toContain('var(')
+  })
+
+  it('takes every value from DESIGN.md’s colors-light map, and the four it omits from the light mockup', () => {
+    const omitted = ['--ghost-border-hover', '--skill-button-hover-line', '--shadow-window', '--shadow-speaking']
+    const mapped = [...light.keys()].filter((name) => !omitted.includes(name))
+
+    expect(mapped).toHaveLength(58)
+    expect(mapped.filter((name) => light.get(name) !== designValue('colors-light', name.slice(2)))).toEqual([])
+
+    expect(light.get('--ghost-border-hover')).toBe('#b5bdc8')
+    expect(light.get('--skill-button-hover-line')).toBe('#a8b2c0')
+    expect(light.get('--shadow-window')).toBe('0 30px 70px -20px rgba(20,30,50,.35)')
+    expect(light.get('--shadow-speaking')).toBe(
+      '0 0 0 1px rgba(47,98,192,.22), 0 6px 18px -10px rgba(20,30,50,.18)'
+    )
+    // Each of the four as the mockup spells it.
+    expect(mockup).toContain('border-color:#b5bdc8')
+    expect(mockup).toContain('border-color:#a8b2c0')
+    expect(mockup).toContain('box-shadow:0 30px 70px -20px rgba(20,30,50,.35)')
+    expect(mockup).toContain('box-shadow:0 0 0 1px rgba(47,98,192,.22), 0 6px 18px -10px rgba(20,30,50,.18)')
+  })
+
+  it('keeps the four state colours’ meanings, with stronger halos and a cool, low scrim', () => {
+    expect(light.get('--halo-live')).toBe('rgba(42,117,71,.16)')
+    expect(light.get('--halo-work')).toBe('rgba(143,106,10,.16)')
+    expect(light.get('--scrim')).toBe('rgba(20,28,40,.35)')
+    // `disagree` is a distinct warm tone and is not `red`.
+    expect(light.get('--disagree')).not.toBe(light.get('--red'))
+    // The surfaces step up to white as they rise.
+    expect(light.get('--panel')).toBe('#ffffff')
+  })
+
+  describe('contrast', () => {
+    /** The pairs DESIGN.md measures: a text colour on the surface it sits on. */
+    const PAIRS: [string, string][] = [
+      ['text', 'bg'],
+      ['text-strong', 'panel'],
+      ['text', 'panel'],
+      ['dim', 'panel'],
+      ['faint', 'panel'],
+      ['meta', 'bg'],
+      ['accent', 'panel'],
+      ['green', 'panel'],
+      ['amber', 'panel'],
+      ['red', 'panel'],
+      ['note', 'panel'],
+      ['ink-doc', 'panel'],
+      ['disagree', 'panel']
+    ]
+    const ratio = (foreground: string, background: string): number =>
+      contrast(light.get(`--${foreground}`)!, light.get(`--${background}`)!)
+
+    it('clears 4.5 for text on bg and for text, text-strong, dim, faint, accent, green, amber, red, note, ink-doc and disagree on panel', () => {
+      for (const [foreground, background] of PAIRS.filter(([name]) => name !== 'meta')) {
+        expect(ratio(foreground, background), `${foreground} on ${background}`).toBeGreaterThanOrEqual(4.5)
+      }
+    })
+
+    it('lets meta alone fall below 4.5: it holds timestamps and micro-labels, never an actionable fact', () => {
+      const below = PAIRS.filter(([foreground, background]) => ratio(foreground, background) < 4.5)
+
+      expect(below).toEqual([['meta', 'bg']])
+      expect(ratio('meta', 'bg')).toBeCloseTo(3.4, 1)
+    })
+
+    it('reproduces the figures DESIGN.md prints, to one place', () => {
+      expect(ratio('text', 'bg')).toBeCloseTo(11.9, 1)
+      expect(ratio('text-strong', 'panel')).toBeCloseTo(18.3, 1)
+      expect(ratio('dim', 'panel')).toBeCloseTo(6.4, 1)
+      expect(ratio('faint', 'panel')).toBeCloseTo(4.6, 1)
+      expect(ratio('accent', 'panel')).toBeCloseTo(5.8, 1)
+      expect(ratio('green', 'panel')).toBeCloseTo(5.6, 1)
+      expect(ratio('amber', 'panel')).toBeCloseTo(5.0, 1)
+      expect(ratio('red', 'panel')).toBeCloseTo(5.9, 1)
+      expect(ratio('note', 'panel')).toBeCloseTo(6.0, 1)
+      expect(ratio('ink-doc', 'panel')).toBeCloseTo(9.8, 1)
+      expect(ratio('disagree', 'panel')).toBeCloseTo(5.2, 1)
+    })
+
+    it('measures what it says: a pair below the bar is seen to be below it', () => {
+      expect(contrast('#000000', '#ffffff')).toBeCloseTo(21, 5)
+      expect(contrast('#ffffff', '#ffffff')).toBeCloseTo(1, 5)
+      expect(contrast('#767676', '#ffffff')).toBeGreaterThan(4.5)
+      expect(contrast('#777777', '#ffffff')).toBeLessThan(4.5)
+    })
+  })
+
+  /** Every file under src/renderer/, tests and test support included. */
+  function everyRendererFile(dir = join(ROOT, 'src/renderer')): string[] {
+    return readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+      entry.isDirectory() ? everyRendererFile(join(dir, entry.name)) : [join(dir, entry.name)]
+    )
+  }
+
+  it('is named by no stylesheet or component but tokens.css', () => {
+    const sources = [...allStylesheets(), ...componentsUnder()].filter(
+      (path) => path !== 'src/renderer/design/tokens.css' && !/\.test\.tsx?$/.test(path)
+    )
+
+    expect(sources.length).toBeGreaterThan(20)
+    expect(
+      sources.filter((path) => /data-theme|color-scheme/.test(readFileSync(join(ROOT, path), 'utf8')))
+    ).toEqual([])
+  })
+
+  it('has no prefers-color-scheme anywhere under src/renderer/, and no component asks the browser for a media query', () => {
+    const files = everyRendererFile()
+
+    expect(files.length).toBeGreaterThan(100)
+    expect(
+      files.filter((path) => readFileSync(path, 'utf8').includes('prefers-color-scheme')).map((path) => relative(ROOT, path))
+    ).toEqual([])
+    expect(
+      files
+        .filter((path) => /\.(?:ts|tsx)$/.test(path) && !/\.test\.tsx?$/.test(path) && !path.includes('/testing/'))
+        .filter((path) => /matchMedia/.test(readFileSync(path, 'utf8')))
+        .map((path) => relative(ROOT, path))
+    ).toEqual([])
   })
 })
 

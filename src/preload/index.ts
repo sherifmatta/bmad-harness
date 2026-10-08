@@ -30,6 +30,7 @@ import type { ContractEvent } from '../shared/events'
 import type { RunId } from '../shared/ids'
 import type { InstallReply, InstallSnapshot } from '../shared/install'
 import type { RailReply, RailSnapshot } from '../shared/rail'
+import { followTheme, pageDocument } from '../shared/theme'
 import type { HarnessApi } from './harness-api'
 
 // The channels are spelled once, in src/shared/channels.ts, and the build
@@ -222,5 +223,10 @@ const harness: HarnessApi = {
     }
   }
 }
+
+// The window is painted in the theme main says is in force, before its first
+// frame and again on every change. Nothing is exposed for it: the page holds no
+// theme and has no way to ask for one.
+followTheme(ipcRenderer, pageDocument())
 
 contextBridge.exposeInMainWorld('harness', harness)

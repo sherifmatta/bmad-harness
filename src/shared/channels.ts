@@ -58,3 +58,13 @@ export const WELCOME_RECENT_CHANNEL = 'welcome:recent'
 export const WELCOME_CHOOSE_CHANNEL = 'welcome:choose'
 export const WELCOME_OPEN_RECENT_CHANNEL = 'welcome:open-recent'
 export const WELCOME_OPEN_DROPPED_CHANNEL = 'welcome:open-dropped'
+
+/**
+ * The theme's three: the state a window asks for (synchronously, so the page is
+ * painted before its first frame), the state main pushes to every window when
+ * the choice or the OS appearance changes, and the one choice the Welcome makes.
+ * The first two reach every kind of window; only the Welcome's choose is heard.
+ */
+export const THEME_STATE_CHANNEL = 'theme:state'
+export const THEME_CHANGED_CHANNEL = 'theme:changed'
+export const THEME_CHOOSE_CHANNEL = 'theme:choose'

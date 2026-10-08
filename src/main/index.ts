@@ -8,6 +8,7 @@ import { registerProjectBridge } from './project-bridge'
 import { createTranscriptRegistry } from './projections/transcript'
 import { registerRailBridge } from './rail-bridge'
 import { registerSessionBridge } from './session-bridge'
+import { createThemeStore, registerThemeBridge } from './theme-bridge'
 import { createRecentList, registerWelcomeBridge } from './welcome-bridge'
 import { installApplicationMenu } from './windows/app-menu'
 import { ProjectPathError, resolveProjectPath } from './windows/choose-project'
@@ -124,11 +125,25 @@ registerDocBridge()
 // The recent list is the app's own bookkeeping under `userData`, read on first use.
 const recent = createRecentList({ userDataPath: () => app.getPath('userData') })
 const welcome = registerWelcomeBridge({ recent, openProject })
+// The theme is main's alone: one stored choice, read on start and told to every
+// window. The menu and the Welcome's line both choose through this controller.
+const theme = registerThemeBridge({ store: createThemeStore({ userDataPath: () => app.getPath('userData') }) })
 
 app.on('before-quit', () => {
   quitting = true
   transcripts.flushAll()
 })
+
+/**
+ * What the Welcome's *Open Project Folder…* does. Not a startup failure when it
+ * fails: the app is running, so a chooser that failed is said on stderr, in one
+ * line, and the Welcome stays as it was.
+ */
+function chooseFolderFromMenu(): void {
+  welcome.chooseFolder().catch((error: unknown) => {
+    process.stderr.write(`welcome/choose-failed \u00b7 ${String(error)}\n`)
+  })
+}
 
 /**
  * Anything startup did not expect. It is attached at every call site: a
@@ -143,14 +158,11 @@ function reportStartupFailure(error: unknown): void {
 app
   .whenReady()
   .then(() => {
+    // The stored theme is applied before any window or menu exists, so no window
+    // is ever painted in the other theme first and the menu's check starts right.
+    theme.start()
     // Before the first window, so no window ever has Electron's default menu.
-    installApplicationMenu(app.isPackaged, () => {
-      // Not a startup failure: the app is running, so a chooser that failed is said on
-      // stderr, in one line, and the Welcome stays as it was.
-      welcome.chooseFolder().catch((error: unknown) => {
-        process.stderr.write(`welcome/choose-failed \u00b7 ${String(error)}\n`)
-      })
-    })
+    installApplicationMenu(app.isPackaged, chooseFolderFromMenu, theme)
     openFirstWindow()
   })
   .catch(reportStartupFailure)

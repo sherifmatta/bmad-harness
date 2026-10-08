@@ -37,9 +37,14 @@
  * NFR23: a literal colour, dimension, radius or font stack anywhere else under
  * src/renderer/ is a defect, and tests/tokens.test.ts is what detects one.
  *
- * Dark only — NFR15. One palette, one theme, no branch on any theme media
- * query and no high-contrast variant. The focus ring's *values* live below
- * (Story 1.4, UX-DR23); the rule that draws it lives in design/focus.css,
+ * Two themes (Story 5.2, reversing the dark-only decision of NFR15). The two
+ * blocks above are the dark theme: the verbatim block and the promoted block
+ * that follows it, and a window that carries no `data-theme` is dark. The light
+ * theme is a third block, `:root[data-theme="light"]`, after the promoted one:
+ * one twin for every colour token and nothing else, set on `<html>` by the
+ * preload from what main tells the window. There is no branch on any theme
+ * media query and no high-contrast variant. The focus ring's *values* live
+ * below (Story 1.4, UX-DR23); the rule that draws it lives in design/focus.css,
  * because this file styles no component.
  */
 :root {
@@ -620,6 +625,89 @@
   --welcome-row-padding:3px 0;
   --welcome-icon-size:15px;
   --welcome-icon-stroke:1.4;
+}
+
+/*
+ * The light theme (Story 5.2): palette A, "cool paper", from DESIGN.md's
+ * `colors-light` map and mockups/light-a-shell.html. A twin for every colour
+ * token in the two dark blocks above, and nothing else: no dimension, radius,
+ * type size or motion changes with the theme, so a component that takes every
+ * colour from a token is correct in both and names neither. The four colour
+ * tokens the map leaves out (the two hover lines and the two shadows) take the
+ * mockup's values. The surfaces step up to white as they rise; the portraits
+ * are not here, and are the same in both themes.
+ *
+ * `color-scheme: light` is said to the user agent in this block, so form
+ * controls, scrollbars and the caret agree with the palette.
+ */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg:#f3f5f8;
+  --chrome:#eceff3;
+  --panel:#ffffff;
+  --panel-2:#f7f8fa;
+  --panel-3:#eef1f5;
+  --line:#d9dee5;
+  --line-soft:#e6e9ee;
+  --text:#2a323c;
+  --text-strong:#10151b;
+  --dim:#556070;
+  --faint:#6c7684;
+  --accent:#2f62c0;
+  --accent-bg:rgba(47,98,192,.10);
+  --green:#2a7547;
+  --amber:#8f6a0a;
+  --red:#a8443b;
+
+  --note:#3d5bc2;
+  --disagree:#a5574c;
+  --disagree-border:rgba(168,68,59,.35);
+  --disagree-bg:rgba(168,68,59,.07);
+
+  --accent-border:#b9caea;
+  --accent-wash:rgba(47,98,192,.05);
+  --accent-edge:rgba(47,98,192,.5);
+  --halo-live:rgba(42,117,71,.16);
+  --halo-work:rgba(143,106,10,.16);
+  --meta:#7b8592;
+  --ink-doc:#3a4552;
+  --ink-doc-strong:#10151b;
+  --ink-doc-mute:#7b8592;
+  --ink-md:#2a323c;
+  --code-bg:#eef1f5;
+  --code-ink:#2f3b4a;
+  --initials-bg:#dfe4eb;
+  --initials-line:#c7cfd9;
+  --initials-ink:#4a5666;
+  --win-line:#cdd3dc;
+  --scrim:rgba(20,28,40,.35);
+  --legend-badge:#8a6a45;
+  --legend-badge-bg:rgba(138,106,69,.08);
+  --legend-badge-border:rgba(138,106,69,.3);
+
+  --cast-speaking-border:#8fabdc;
+  --cast-speaking-ground:#ffffff;
+  --grad-cast:linear-gradient(180deg,#eef1f5,#e8ecf1);
+  --grad-titlebar:linear-gradient(180deg,#f4f6f9,#e9edf2);
+  --brand-mark-line:#b4bfd0;
+  --topbar-sep:#b9c0cb;
+  --raised:#e3e8ef;
+  --scrollbar-thumb:#c6ccd5;
+  --scrollbar-thumb-hover:#aab2be;
+  --tile-current:#e8eef8;
+  --code-tag-bg:#eef1f5;
+  --composer-focus-line:#7d9bd4;
+  --composer-placeholder:#8a94a1;
+  --send-bg:#dbe6f8;
+  --send-line:#b3c8ee;
+  --send-ink:#1f3f7d;
+  --send-hover:#cddcf4;
+  --win-light:#c3cad4;
+  --ghost-border-hover:#b5bdc8;
+  --skill-button-hover-line:#a8b2c0;
+  --shadow-window:0 30px 70px -20px rgba(20,30,50,.35);
+  --shadow-speaking:0 0 0 1px rgba(47,98,192,.22), 0 6px 18px -10px rgba(20,30,50,.18);
 }
 
 /* The three keyframes the inventory names, copied from the mockup. `blink` is

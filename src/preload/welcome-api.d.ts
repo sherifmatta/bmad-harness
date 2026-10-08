@@ -1,3 +1,4 @@
+import type { ThemeChoice, ThemeState } from '../shared/theme'
 import type { OpenAck, RecentRow } from '../shared/welcome'
 
 /**
@@ -16,6 +17,12 @@ export interface WelcomeApi {
   openRecent(path: string): Promise<OpenAck>
   /** Open what was dropped: only exactly one folder opens, anything else says its name. */
   openDropped(files: readonly File[]): Promise<OpenAck>
+  /** The theme main holds: the choice, and what it resolves to now. */
+  getTheme(): ThemeState
+  /** Choose a theme: exactly the choice *View ▸ Theme* makes. Resolves once main has heard it. */
+  chooseTheme(choice: ThemeChoice): Promise<void>
+  /** Calls back with each pushed state; returns the way to stop listening. */
+  onThemeChanged(listener: (state: ThemeState) => void): () => void
 }
 
 declare global {

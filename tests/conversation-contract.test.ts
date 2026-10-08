@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-import { guardedStylesheets, literalsIn, withoutComments } from './literal-guard'
+import { guardedStylesheets, literalsIn, withoutComments, withoutLightTheme } from './literal-guard'
 
 /**
  * Story 2.3's turn and composer, asserted from the stylesheets and sources as
@@ -28,7 +28,8 @@ const DESIGN_MD = '_bmad/planning-artifacts/ux-designs/ux-bmad-harness-2026-09-2
 const turnCss = withoutComments(read(TURN_CSS))
 const composerCss = withoutComments(read(COMPOSER_CSS))
 const shellCss = withoutComments(read(SHELL_CSS))
-const tokensCss = withoutComments(read(TOKENS_CSS))
+// The dark theme's declarations: the light twins restate them and are the theme tests' own.
+const tokensCss = withoutLightTheme(withoutComments(read(TOKENS_CSS)))
 
 /** The declaration block of the first rule whose selector list holds exactly `selector`. */
 function ruleBody(css: string, selector: string): string {

@@ -7,6 +7,7 @@ import {
   DOC_REVEAL_CHANNEL
 } from '../shared/channels'
 import type { DocAck, DocReply, DocSnapshot } from '../shared/document'
+import { followTheme, pageDocument } from '../shared/theme'
 import type { DocWindowApi } from './doc-api'
 
 // The document window's own bundle, sharing no file with the shell's preload.
@@ -51,5 +52,8 @@ const docWindow: DocWindowApi = {
   openInEditor: () => command(DOC_EDIT_CHANNEL),
   close: () => command(DOC_CLOSE_CHANNEL)
 }
+
+// Painted in the theme in force, as the shell is: nothing is exposed for it.
+followTheme(ipcRenderer, pageDocument())
 
 contextBridge.exposeInMainWorld('docWindow', docWindow)

@@ -362,11 +362,13 @@ describe("the document window has no refresh, edit or save", () => {
   // Story 5.1 adds the one other file main writes: the recent list, a path and a
   // time per project under `userData`. It is held by the Welcome's own contract.
   const RECENT_STORE = "src/main/sources/persistence/recent-file.ts";
+  // Story 5.2 adds the last: the theme choice, one word under `userData`.
+  const THEME_STORE = "src/main/sources/persistence/theme-file.ts";
 
-  it("forces no reload, saves and writes nothing in main but the transcript store and the recent list", () => {
+  it("forces no reload, saves and writes nothing in main but the transcript store, the recent list and the theme choice", () => {
     expect(
       offenders(
-        MAIN_CODE.filter((path) => !path.endsWith(TRANSCRIPT_STORE) && !path.endsWith(RECENT_STORE)),
+        MAIN_CODE.filter((path) => !path.endsWith(TRANSCRIPT_STORE) && !path.endsWith(RECENT_STORE) && !path.endsWith(THEME_STORE)),
         /\bforceReload\b|\breloadIgnoringCache\b|\.reload\(|CommandOrControl|\bsaveAs\b|\bshowSaveDialog\b|\bsave\b|\bwriteFile(?:Sync)?\b|\bappendFile(?:Sync)?\b|\bcreateWriteStream\b/,
       ),
     ).toEqual([]);
@@ -1247,9 +1249,11 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
 
   describe("a persona's turn carries no tooltip and no chrome derived from a skill", () => {
     it("has no `title=`, `data-*`, `aria-describedby`, tooltip, popover or CSS `attr(` anywhere in the renderer", () => {
+      // `tokens.css` alone names an attribute: the light theme's `data-theme` (Story 5.2), which is
+      // written by the preload and read by no component.
       expect(
         offenders(
-          RENDERER_ALL,
+          RENDERER_ALL.filter((path) => path !== "src/renderer/design/tokens.css"),
           /(?<![\w-])title\s*=|(?<![\w-])data-[a-z]|aria-describedby|role=["']tooltip|\btooltip\b|\bpopover\b|\battr\(|\bdataset\b|\bsetAttribute\(/i,
         ),
       ).toEqual([]);
@@ -1962,7 +1966,7 @@ describe("two writers, one file: the rail reports it and nothing arbitrates (Sto
     expect(offenders([OWNER_LABEL], /§|\bof\b|\btotal\b|\bcount\b/)).toEqual([]);
   });
 
-  it("adds no command, event, channel or bridge method: the counts stay seven, fifteen, twenty-six and seventeen", () => {
+  it("adds no command, event, channel or bridge method: the counts stay seven, fifteen, twenty-nine and seventeen", () => {
     const commands = [...(code.get(COMMANDS) ?? "").matchAll(/^\s+'([a-z]+\.[a-z]+)':\s*CommandSpec/gm)].map(([, name]) => name);
     const events = [...(code.get(EVENTS) ?? "").matchAll(/^\s+'([a-z]+:[a-z-]+)':\s*EventSpec/gm)].map(([, name]) => name);
     const channels = [...(code.get(CHANNELS) ?? "").matchAll(/^export const (\w+) = '/gm)].map(([, name]) => name);
@@ -1973,10 +1977,11 @@ describe("two writers, one file: the rail reports it and nothing arbitrates (Sto
 
     // Story 3.9 left the counts at seven, fifteen, twenty-one and sixteen; Story 3.10 added
     // the one channel and the one method a window hears a revealed run on, and no event.
-    // Story 5.1 added the Welcome's four channels (twenty-six) and no method to the shell's.
+    // Story 5.1 added the Welcome's four channels (twenty-six) and no method to the shell's;
+    // Story 5.2 added the theme's three (twenty-nine) and none to the shell's.
     expect(commands).toHaveLength(7);
     expect(events).toHaveLength(15);
-    expect(channels).toHaveLength(26);
+    expect(channels).toHaveLength(29);
     expect(methods).toHaveLength(17);
     // And none of them is named for it.
     expect(offenders(CONTRACT, /contend|contention|\bowners\b|arbitrat/i)).toEqual([]);
@@ -2035,7 +2040,8 @@ describe("two writers, one file: the rail reports it and nothing arbitrates (Sto
   });
 
   it("writes nothing to the project: no write-capable filesystem call in main outside the harness's own transcript, which refuses the project", () => {
-    const others = MAIN_CODE.filter((path) => path !== TRANSCRIPT_STORE && path !== RECENT_STORE);
+    const THEME_STORE = "src/main/sources/persistence/theme-file.ts";
+    const others = MAIN_CODE.filter((path) => path !== TRANSCRIPT_STORE && path !== RECENT_STORE && path !== THEME_STORE);
     const WRITES = /^(?:write|append|mkdir|mkdtemp|rename|unlink|rm|rmdir|copy|cp|truncate|ftruncate|symlink|link|chmod|chown|utimes|lutimes|createWriteStream)/;
 
     // What main takes from the filesystem is read-only: every name imported from `node:fs` outside the store.
@@ -2061,6 +2067,14 @@ describe("two writers, one file: the rail reports it and nothing arbitrates (Sto
     const recent = code.get(RECENT_STORE) ?? "";
     expect(recent).toMatch(/export function recentFilePath\(userDataDir: string\)/);
     expect(recent).not.toMatch(/projectPath|projectRoot/);
+    // So is the theme choice (Story 5.2): one word, given a path under `userData` and no project at all.
+    const theme = code.get(THEME_STORE) ?? "";
+    expect(theme).toMatch(/export function themeFilePath\(userDataDir: string\)/);
+    expect(theme).not.toMatch(/projectPath|projectRoot/);
+    expect(offenders(MAIN_CODE, /themeFilePath\(/).map((hit) => hit.split(":")[0]).sort()).toEqual([
+      "src/main/sources/persistence/theme-file.ts",
+      "src/main/theme-bridge.ts",
+    ]);
     expect(offenders(MAIN_CODE, /recentFilePath\(/).map((hit) => hit.split(":")[0]).sort()).toEqual([
       "src/main/sources/persistence/recent-file.ts",
       "src/main/welcome-bridge.ts",
@@ -2176,7 +2190,7 @@ describe("told once, quietly, when you are elsewhere: one silent banner, one scr
     expect(revealing).not.toMatch(/setCurrentId|setComposerFocus|openDoc|activate\(|send\(|runSkill|stopRun|close\(/);
   });
 
-  it("gives the preload and the shared contract no word of it, and no new command or event: seven, fifteen, twenty-six channels, seventeen methods", () => {
+  it("gives the preload and the shared contract no word of it, and no new command or event: seven, fifteen, twenty-nine channels, seventeen methods", () => {
     expect(
       offenders(
         [...sources("src/preload/"), ...sources("src/shared/")],
@@ -2192,7 +2206,7 @@ describe("told once, quietly, when you are elsewhere: one silent banner, one scr
     );
     expect(commands).toHaveLength(7);
     expect(events).toHaveLength(15);
-    expect(channels).toHaveLength(26);
+    expect(channels).toHaveLength(29);
     expect(channels).toContain("RUN_REVEALED_CHANNEL");
     expect(methods).toHaveLength(17);
     expect(methods).toContain("onRunRevealed");
@@ -2334,13 +2348,13 @@ describe("nothing this epic promised not to do: the audit's static half (Story 3
     expect((code.get(ROW) ?? "").match(/<button\b/g)).toHaveLength(1);
   });
 
-  it("holds the contract at seven commands, fifteen events, twenty-six channels and seventeen bridge methods", () => {
+  it("holds the contract at seven commands, fifteen events, twenty-nine channels and seventeen bridge methods", () => {
     const commands = [...(code.get(COMMANDS) ?? "").matchAll(/^\s+'([a-z]+\.[a-z]+)':\s*CommandSpec/gm)];
     const events = [...(code.get(EVENTS) ?? "").matchAll(/^\s+'([a-z]+:[a-z-]+)':\s*EventSpec/gm)];
     const channels = [...(code.get(CHANNELS) ?? "").matchAll(/^export const (\w+) = '/gm)];
     const preload = code.get(PRELOAD) ?? "";
     const methods = [...preload.slice(preload.indexOf("const harness: HarnessApi = {"), preload.indexOf("contextBridge.exposeInMainWorld")).matchAll(/^ {2}(\w+):/gm)];
-    expect([commands.length, events.length, channels.length, methods.length]).toEqual([7, 15, 26, 17]);
+    expect([commands.length, events.length, channels.length, methods.length]).toEqual([7, 15, 29, 17]);
   });
 
   it("says what carried on after a stop in lower case, `·`-separated, unpunctuated, and offers nothing: no resume, continue, retry or guidance word", () => {
@@ -2563,13 +2577,13 @@ describe("nothing this epic promised not to do: the audit's static half (Story 4
     expect(offenders(PARTY_CSS, /spinner|skeleton|shimmer|loader|badge|@keyframes\s+(?!eq\b)/i)).toEqual([]);
   });
 
-  it("holds the contract at seven commands, fifteen events, twenty-six channels and seventeen bridge methods", () => {
+  it("holds the contract at seven commands, fifteen events, twenty-nine channels and seventeen bridge methods", () => {
     const commands = [...(code.get(COMMANDS) ?? "").matchAll(/^\s+'([a-z]+\.[a-z]+)':\s*CommandSpec/gm)];
     const events = [...(code.get(EVENTS) ?? "").matchAll(/^\s+'([a-z]+:[a-z-]+)':\s*EventSpec/gm)];
     const channels = [...(code.get(CHANNELS) ?? "").matchAll(/^export const (\w+) = '/gm)];
     const preload = code.get(PRELOAD) ?? "";
     const methods = [...preload.slice(preload.indexOf("const harness: HarnessApi = {"), preload.indexOf("contextBridge.exposeInMainWorld")).matchAll(/^ {2}(\w+):/gm)];
-    expect([commands.length, events.length, channels.length, methods.length]).toEqual([7, 15, 26, 17]);
+    expect([commands.length, events.length, channels.length, methods.length]).toEqual([7, 15, 29, 17]);
   });
 
   it("says a refused message once, as a fact, in the window's own register, and never sends, queues or retries it (Story 4.8)", () => {

@@ -43,7 +43,8 @@ vi.mock('electron', () => {
       isPackaged: false
     },
     dialog: { showOpenDialog, showErrorBox },
-    ipcMain: { handle: vi.fn() },
+    ipcMain: { handle: vi.fn(), on: vi.fn() },
+    nativeTheme: { themeSource: 'system', shouldUseDarkColors: true, on: vi.fn() },
     Menu: { buildFromTemplate: (template: unknown) => template, setApplicationMenu: vi.fn() }
   }
 })

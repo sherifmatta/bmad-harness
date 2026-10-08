@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { tabStopId, tileMove } from '../src/renderer/ui/team/tile-nav'
-import { guardedStylesheets, literalsIn, withoutComments } from './literal-guard'
+import { guardedStylesheets, literalsIn, withoutComments, withoutLightTheme } from './literal-guard'
 
 /**
  * Story 1.10's team, status dot and chat header, asserted from the stylesheets
@@ -284,7 +284,7 @@ describe('the promoted tokens', () => {
   it('are all declared, once, in the second :root', () => {
     for (const name of NAMES) {
       expect(declared.has(name), name).toBe(true)
-      expect(read(TOKENS_CSS).match(new RegExp(`${name}\\s*:`, 'g')), name).toHaveLength(1)
+      expect(withoutLightTheme(read(TOKENS_CSS)).match(new RegExp(`${name}\\s*:`, 'g')), name).toHaveLength(1)
     }
   })
 

@@ -389,6 +389,53 @@
   color: var(--dim);
 }
 
+/* ---------- the theme line: the bottom edge, and the page's only setting ---------- */
+
+.welcome-foot {
+  display: flex;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  padding: var(--space-md) var(--space-xl);
+}
+
+.welcome-theme {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  font-family: var(--mono);
+  font-size: var(--fs-meta);
+  color: var(--dim);
+}
+
+.welcome-theme-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+}
+
+/* A word is a link in the accent, and underlines on hover as every link does. */
+.welcome-theme-word {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  font-family: var(--mono);
+  font-size: var(--fs-meta);
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.welcome-theme-word:hover {
+  text-decoration: underline;
+}
+
+/* The current word is the state, not a link: strong text, no pointer, no underline. */
+.welcome-theme-word[aria-pressed='true'] {
+  color: var(--text-strong);
+  cursor: default;
+  text-decoration: none;
+}
+
 /* The second breakpoint only: the lanes stack to one column and the window scrolls. */
 @media (max-width: 1000px) {
   .welcome-lanes {

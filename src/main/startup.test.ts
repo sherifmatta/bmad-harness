@@ -1,5 +1,5 @@
 import { tmpdir } from 'node:os'
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { afterAll, expect, it, vi } from 'vitest'
 
@@ -21,6 +21,12 @@ type Handler = (...args: never[]) => unknown
 
 const appHandlers = new Map<string, () => void>()
 const ipcHandlers = new Map<string, (event: { sender: { id: number } }, ...args: unknown[]) => unknown>()
+const ipcListeners = new Map<string, (event: { returnValue?: unknown }) => void>()
+const nativeUpdated: (() => void)[] = []
+/** What main pushed to a window, as the window would hear it. */
+const pushes: { window: FakeWindow; channel: string; payload: unknown }[] = []
+/** What the OS says it is painting in; the stored choice below is what main must apply over it. */
+const native = { source: 'system', dark: true }
 const windows: FakeWindow[] = []
 const choosesMade: unknown[] = []
 const quits: string[] = []
@@ -35,11 +41,21 @@ let nextWebContentsId = 1
 let menusAtLaunch = 0
 
 const userData = mkdtempSync(join(tmpdir(), 'harness-startup-userdata-'))
+// A choice stored by an earlier run: it must be applied before anything is shown.
+writeFileSync(join(userData, 'theme.json'), JSON.stringify({ theme: 'light' }))
 
 /** A window as Electron has it: open until it is closed, and `closed` fires when it goes. */
 class FakeWindow {
   options: { title: string; webPreferences: Record<string, unknown> }
-  webContents = { id: nextWebContentsId++, on() {}, setWindowOpenHandler() {} }
+  webContents = {
+    id: nextWebContentsId++,
+    on() {},
+    setWindowOpenHandler() {},
+    isDestroyed: () => !this.open,
+    send: (channel: string, payload: unknown) => {
+      pushes.push({ window: this, channel, payload })
+    }
+  }
   handlers = new Map<string, Handler[]>()
   open = true
   raised = 0
@@ -113,7 +129,23 @@ vi.mock('electron', () => ({
   },
   ipcMain: {
     handle: (channel: string, handler: (event: { sender: { id: number } }, ...args: unknown[]) => unknown) =>
-      ipcHandlers.set(channel, handler)
+      ipcHandlers.set(channel, handler),
+    on: (channel: string, listener: (event: { returnValue?: unknown }) => void) =>
+      ipcListeners.set(channel, listener)
+  },
+  nativeTheme: {
+    get themeSource() {
+      return native.source
+    },
+    set themeSource(source: string) {
+      callOrder.push('theme')
+      native.source = source
+      native.dark = source === 'dark' || (source === 'system' && native.dark)
+    },
+    get shouldUseDarkColors() {
+      return native.dark
+    },
+    on: (_event: string, listener: () => void) => nativeUpdated.push(listener)
   },
   Menu: {
     buildFromTemplate: (template: unknown) => template,
@@ -374,6 +406,69 @@ it('refuses a project window as a sender: the real check answers `{ok:false}` an
   expect(welcomes()).toEqual([welcome])
 })
 
+it('applies the stored theme to native chrome before the menu or any window, and answers a window what to paint', () => {
+  expect(callOrder.indexOf('theme')).toBe(0)
+  expect(callOrder.indexOf('theme')).toBeLessThan(callOrder.indexOf('menu'))
+
+  const reply: { returnValue?: unknown } = {}
+  ipcListeners.get('theme:state')?.(reply)
+
+  // The stored `light` over an OS that is dark: native chrome and the answer agree.
+  expect(reply.returnValue).toEqual({ choice: 'light', applied: 'light' })
+  expect(JSON.stringify(menusInstalled[0])).toMatch(/"label":"Light","type":"radio","checked":true/)
+})
+
+it('lets the Welcome choose a theme: stored, applied to native chrome, pushed to every window, and the menu rebuilt', async () => {
+  const { project: other, welcome } = await projectBesideWelcome()
+  const menusBefore = menusInstalled.length
+  pushes.length = 0
+
+  await ask('theme:choose', welcome, 'dark')
+
+  expect(JSON.parse(readFileSync(join(userData, 'theme.json'), 'utf8'))).toEqual({ theme: 'dark' })
+  expect(native.source).toBe('dark')
+  const told = pushes.filter(({ channel }) => channel === 'theme:changed')
+  expect(told.map(({ window }) => window).sort((a, b) => a.webContents.id - b.webContents.id)).toEqual(
+    open().sort((a, b) => a.webContents.id - b.webContents.id)
+  )
+  for (const { payload } of told) {
+    expect(payload).toEqual({ choice: 'dark', applied: 'dark' })
+  }
+  // The menu now in force checks Dark, and is rebuilt for the kind of window that has focus.
+  expect(menusInstalled.length).toBe(menusBefore + 1)
+  expect(JSON.stringify(menusInstalled.at(-1))).toMatch(/"label":"Dark","type":"radio","checked":true/)
+  expect(told.some(({ window }) => window === other)).toBe(true)
+})
+
+it('ignores a choice from a window that is not the Welcome, and a word that is not a choice', async () => {
+  const { project, welcome } = await projectBesideWelcome()
+  pushes.length = 0
+
+  await ask('theme:choose', project, 'light')
+  await ask('theme:choose', welcome, 'sepia')
+  await ask('theme:choose', welcome, { theme: 'light' })
+
+  expect(pushes.filter(({ channel }) => channel === 'theme:changed')).toEqual([])
+  expect(JSON.parse(readFileSync(join(userData, 'theme.json'), 'utf8'))).toEqual({ theme: 'dark' })
+})
+
+it('repaints every window when the OS appearance changes while the choice is System, with no choice made', async () => {
+  const { welcome } = await projectBesideWelcome()
+  await ask('theme:choose', welcome, 'system')
+  pushes.length = 0
+  native.dark = false
+
+  for (const listener of nativeUpdated) {
+    listener()
+  }
+
+  const told = pushes.filter(({ channel }) => channel === 'theme:changed')
+  expect(told.length).toBe(open().length)
+  for (const { payload } of told) {
+    expect(payload).toEqual({ choice: 'system', applied: 'light' })
+  }
+})
+
 it('quits when the user closes the Welcome', () => {
   const welcome = openWelcomeAgain()
   expect(welcome).toBeDefined()
@@ -388,7 +483,8 @@ it('quits when the user closes the Welcome', () => {
 
 it('installs the application menu once, before the first window, for the unpackaged build', () => {
   expect(menusAtLaunch).toBe(1)
-  expect(callOrder.indexOf('menu')).toBe(0)
+  // After the stored theme, which is applied before anything is installed or shown.
+  expect(callOrder.indexOf('menu')).toBe(1)
   expect(callOrder.indexOf('window')).toBeGreaterThan(callOrder.indexOf('menu'))
   // The mock says `isPackaged: false`, so the developer's DevTools item is in.
   expect(JSON.stringify(menusInstalled[0])).toContain('toggleDevTools')

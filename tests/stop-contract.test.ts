@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-import { guardedStylesheets, literalsIn, withoutComments } from './literal-guard'
+import { guardedStylesheets, literalsIn, withoutComments, withoutLightTheme } from './literal-guard'
 
 /**
  * Story 3.7's stop, asserted from its sources: what only a contract test can
@@ -42,7 +42,7 @@ const rel = (path: string): string => relative(ROOT, path)
 const STOP = join(SRC, 'main/session-stop.ts')
 const RUN_STOP_TSX = join(SRC, 'renderer/ui/chat/run-stop.tsx')
 const RUN_STOP_CSS = 'src/renderer/ui/chat/run-stop.css'
-const tokens = readFileSync(join(SRC, 'renderer/design/tokens.css'), 'utf8')
+const tokens = withoutLightTheme(readFileSync(join(SRC, 'renderer/design/tokens.css'), 'utf8'))
 
 describe('the in-band interrupt', () => {
   it('is never a signal: no SIGINT is named anywhere in main, and the one kill is the group’s SIGKILL', () => {
@@ -110,6 +110,7 @@ describe('what a stop never touches', () => {
     // Story 5.1's recent list is the one other: a path and a time under `userData`, written atomically.
     expect(writers.map(rel).sort()).toEqual([
       'src/main/sources/persistence/recent-file.ts',
+      'src/main/sources/persistence/theme-file.ts',
       'src/main/sources/persistence/transcript-file.ts'
     ])
   })

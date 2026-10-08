@@ -2,12 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DragEvent, JSX, Ref } from 'react'
 
 import './welcome.css'
+import type { ThemeChoice } from '../../../shared/theme'
 import type { RecentRow } from '../../../shared/welcome'
 import { Announcer } from '../a11y/announcer'
 import { LiveRegion } from '../a11y/live-region'
 import { notFolderLine, refusedName } from './drop'
 import { Lanes } from './lanes'
 import { RecentList } from './recent-list'
+import { ThemeLine } from './theme-line'
 
 /** The folder glyph, drawn the way the rail row's file icon is: one inline stroked path. */
 function FolderGlyph(): JSX.Element {
@@ -24,6 +26,9 @@ function FolderGlyph(): JSX.Element {
  * so every state of it is a thing a test can render; `WelcomeApp` is what
  * connects it to the bridge.
  *
+ * The theme line is the page's bottom edge and its only setting; it is handed
+ * the choice and says nothing of what it means.
+ *
  * The drop hint and the line that refuses a drop are one place: `notice`
  * stands where `drop a project folder here` does, and nothing else on the page
  * says a drop went wrong. The page tells the user nothing about what to do next.
@@ -33,9 +38,11 @@ export function WelcomeView({
   now,
   notice,
   dragging,
+  theme,
   openRef,
   onChoose,
   onOpenRecent,
+  onTheme,
   onDragEnter,
   onDragOver,
   onDragLeave,
@@ -46,9 +53,11 @@ export function WelcomeView({
   now: number
   notice: string | null
   dragging: boolean
+  theme: ThemeChoice
   openRef?: Ref<HTMLButtonElement>
   onChoose: () => void
   onOpenRecent: (row: RecentRow) => void
+  onTheme: (choice: ThemeChoice) => void
   onDragEnter: (event: DragEvent<HTMLElement>) => void
   onDragOver: (event: DragEvent<HTMLElement>) => void
   onDragLeave: (event: DragEvent<HTMLElement>) => void
@@ -94,6 +103,9 @@ export function WelcomeView({
         </div>
         <Lanes />
       </main>
+      <div className="welcome-foot">
+        <ThemeLine choice={theme} onChoose={onTheme} />
+      </div>
       <LiveRegion announcer={announcer} />
     </div>
   )
@@ -119,12 +131,24 @@ export function WelcomeApp(): JSX.Element {
     typeof window.welcome?.getRecent === 'function' &&
     typeof window.welcome?.chooseFolder === 'function' &&
     typeof window.welcome?.openRecent === 'function' &&
-    typeof window.welcome?.openDropped === 'function'
+    typeof window.welcome?.openDropped === 'function' &&
+    typeof window.welcome?.getTheme === 'function' &&
+    typeof window.welcome?.chooseTheme === 'function' &&
+    typeof window.welcome?.onThemeChanged === 'function'
 
   const [rows, setRows] = useState<RecentRow[]>([])
   const [now, setNow] = useState(() => Date.now())
   const [notice, setNotice] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
+  // Main's choice, as it was when the page opened and as each push has left it.
+  const [theme, setTheme] = useState<ThemeChoice>(() => {
+    try {
+      return available ? window.welcome.getTheme().choice : 'system'
+    } catch {
+      // A bridge that cannot say leaves the line on System, and the page drawn.
+      return 'system'
+    }
+  })
   const [announcer] = useState(() => new Announcer())
   const openButton = useRef<HTMLButtonElement>(null)
 
@@ -147,6 +171,23 @@ export function WelcomeApp(): JSX.Element {
     }
   }, [available, refresh])
 
+  // The line follows main: a choice made in the menu moves it as one made here.
+  useEffect(() => {
+    if (!available) {
+      return undefined
+    }
+    const unsubscribe = window.welcome.onThemeChanged((state) => setTheme(state.choice))
+    // A push between the first read and this subscription would otherwise be lost.
+    queueMicrotask(() => {
+      try {
+        setTheme(window.welcome.getTheme().choice)
+      } catch {
+        // Left as it was.
+      }
+    })
+    return unsubscribe
+  }, [available])
+
   // A preload that failed to load leaves no bridge at all.
   if (!available) {
     return <p className="welcome-unavailable">bridge/unavailable · the preload did not load</p>
@@ -157,6 +198,11 @@ export function WelcomeApp(): JSX.Element {
     // A cancelled chooser leaves the page as it was, with the focus on the button.
     const back = (): void => openButton.current?.focus()
     window.welcome.chooseFolder().then((ack) => (ack.ok ? undefined : back()), back)
+  }
+
+  function chooseTheme(choice: ThemeChoice): void {
+    // Nothing else changes: not the focus, and not the line until main says so.
+    window.welcome.chooseTheme(choice).catch(() => {})
   }
 
   function openRecent(row: RecentRow): void {
@@ -210,9 +256,11 @@ export function WelcomeApp(): JSX.Element {
       now={now}
       notice={notice}
       dragging={dragging}
+      theme={theme}
       openRef={openButton}
       onChoose={choose}
       onOpenRecent={openRecent}
+      onTheme={chooseTheme}
       onDragEnter={onDragOver}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}

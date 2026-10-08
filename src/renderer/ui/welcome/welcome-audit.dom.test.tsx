@@ -2,6 +2,7 @@
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ThemeChoice, ThemeState } from '../../../shared/theme'
 import type { OpenAck, RecentRow } from '../../../shared/welcome'
 import { SPINNER_MARKUP, spoken } from '../testing/audit-patterns'
 import { mount } from '../testing/render-hook'
@@ -31,18 +32,48 @@ const row = (name: string, over: Partial<RecentRow> = {}): RecentRow => ({
   ...over
 })
 
-/** The Welcome's four methods, as spies. */
-type Bridge = Record<'getRecent' | 'chooseFolder' | 'openRecent' | 'openDropped', ReturnType<typeof vi.fn>>
+/** The Welcome's seven methods, as spies. */
+type Bridge = Record<
+  'getRecent' | 'chooseFolder' | 'openRecent' | 'openDropped' | 'getTheme' | 'chooseTheme' | 'onThemeChanged',
+  ReturnType<typeof vi.fn>
+>
 
 let mounted: Mounted | null = null
 let bridge: Bridge
+/** What main holds, and who is listening for it to change: the fake bridge's whole theme. */
+let theme: ThemeState
+let themeListeners: ((state: ThemeState) => void)[]
+
+/** Main pushes a state to the page, as it does to every window on a choice. */
+function pushTheme(choice: ThemeChoice, applied: 'light' | 'dark' = choice === 'light' ? 'light' : 'dark'): void {
+  theme = { choice, applied }
+  act(() => {
+    for (const listener of themeListeners) {
+      listener(theme)
+    }
+  })
+}
 
 function install(rows: RecentRow[] | Error, overrides: Partial<Bridge> = {}): void {
+  theme = { choice: 'system', applied: 'dark' }
+  themeListeners = []
   bridge = {
     getRecent: vi.fn(() => (rows instanceof Error ? Promise.reject(rows) : Promise.resolve(rows))),
     chooseFolder: vi.fn((): Promise<OpenAck> => Promise.resolve({ ok: false })),
     openRecent: vi.fn((): Promise<OpenAck> => Promise.resolve({ ok: true })),
     openDropped: vi.fn((): Promise<OpenAck> => Promise.resolve({ ok: true })),
+    getTheme: vi.fn(() => theme),
+    // Main answers a choice by telling every window, this one included.
+    chooseTheme: vi.fn((choice: ThemeChoice) => {
+      pushTheme(choice)
+      return Promise.resolve()
+    }),
+    onThemeChanged: vi.fn((listener: (state: ThemeState) => void) => {
+      themeListeners.push(listener)
+      return () => {
+        themeListeners = themeListeners.filter((one) => one !== listener)
+      }
+    }),
     ...overrides
   }
   ;(window as unknown as { welcome: Bridge }).welcome = bridge
@@ -107,14 +138,18 @@ describe('opening', () => {
     expect(bridge.openDropped).not.toHaveBeenCalled()
   })
 
-  it('has the button and the recent list as its only tab stops, and the cards as none', async () => {
+  it('has the button, the recent list and the theme line as its only tab stops, and the cards as none', async () => {
     const container = await open([row('a'), row('b'), row('c')])
 
     const stops = all(container, 'button, a, input, select, textarea, [tabindex]').filter(
       (element) => element.getAttribute('tabindex') !== '-1'
     )
 
-    expect(stops.map((element) => element.className.split(' ')[0])).toEqual(['welcome-open', 'welcome-recent-row'])
+    expect(stops.map((element) => element.className.split(' ')[0])).toEqual([
+      'welcome-open',
+      'welcome-recent-row',
+      'welcome-theme-word'
+    ])
     expect(all(container, '.welcome-card, .welcome-card *').filter((element) => element.hasAttribute('tabindex'))).toEqual([])
     expect(all(container, '.welcome-card button, .welcome-card a')).toEqual([])
   })
@@ -191,7 +226,8 @@ describe('recent rows present', () => {
   it('has no control to remove a row, and no count, badge, version or install state on one', async () => {
     const container = await open([row('a'), row('b', { exists: false })])
 
-    expect(all(container, 'button')).toHaveLength(3)
+    // The open button and the two rows: the theme line is the page's only other control, and not a row's.
+    expect(all(container, 'button:not(.welcome-theme-word)')).toHaveLength(3)
     expect(spoken(container)).not.toMatch(/remove|clear|forget|delete|\d+ (?:agents?|projects?)|version|installed|\bv\d/i)
     expect(all(container, '.welcome-recent-row *').filter((element) => element.tagName === 'BUTTON')).toEqual([])
   })
@@ -424,5 +460,224 @@ describe('the negative surface, on what is drawn', () => {
       expect(text, text).not.toMatch(/[.!?]$/)
     }
     expect(all(container, '.welcome-card-description')).toHaveLength(5)
+  })
+})
+
+describe('the theme line (Story 5.2, seam C)', () => {
+  // Spelt apart: arrows belong to a11y/, and the sweep that says so reads tests too.
+  const RIGHT = 'Arrow' + 'Right'
+  const LEFT = 'Arrow' + 'Left'
+  const DOWN = 'Arrow' + 'Down'
+  const words = (container: HTMLElement): HTMLButtonElement[] =>
+    all(container, '.welcome-theme-word') as HTMLButtonElement[]
+  const key = (target: HTMLElement, name: string): void => {
+    act(() => void target.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true })))
+  }
+
+  it('says `theme · system · light · dark` on the bottom edge, after everything else on the page', async () => {
+    const container = await open([row('a')])
+    const line = q(container, '.welcome-theme') as HTMLElement
+
+    expect(line.textContent).toBe('theme·system·light·dark')
+    expect(line.textContent?.replace(/·/g, ' · ')).toBe('theme · system · light · dark')
+    expect(words(container).map((word) => word.textContent)).toEqual(['system', 'light', 'dark'])
+    // The foot of the page, after the stage that holds the team, and in a div of its own: no footer element ships.
+    expect(q(container, 'main')?.nextElementSibling?.className).toBe('welcome-foot')
+    expect(q(container, '.welcome-foot')?.contains(line)).toBe(true)
+    expect(q(container, '.welcome-team')?.compareDocumentPosition(line)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+  })
+
+  it('is three buttons in one group, named by its label, with the separators hidden from assistive technology', async () => {
+    const container = await open()
+    const group = q(container, '.welcome-theme') as HTMLElement
+
+    expect(group.getAttribute('role')).toBe('group')
+    expect(q(container, `#${group.getAttribute('aria-labelledby')}`)?.textContent).toBe('theme')
+    expect(all(group, 'button')).toHaveLength(3)
+    for (const button of all(group, 'button')) {
+      expect(button.getAttribute('type')).toBe('button')
+    }
+    expect(all(group, '.welcome-theme-sep').map((sep) => [sep.textContent, sep.getAttribute('aria-hidden')])).toEqual([
+      ['·', 'true'],
+      ['·', 'true'],
+      ['·', 'true']
+    ])
+  })
+
+  it('marks the current word pressed and no other, and follows main’s state, not its own', async () => {
+    const container = await open()
+    const pressed = (): (string | null)[] => words(container).map((word) => word.getAttribute('aria-pressed'))
+
+    expect(pressed()).toEqual(['true', 'false', 'false'])
+
+    // A choice made elsewhere, in View ▸ Theme: main pushes and the line follows.
+    pushTheme('dark')
+    expect(pressed()).toEqual(['false', 'false', 'true'])
+    pushTheme('light')
+    expect(pressed()).toEqual(['false', 'true', 'false'])
+  })
+
+  it('starts from the choice main holds, whatever it is', async () => {
+    install([])
+    theme = { choice: 'light', applied: 'light' }
+    await act(async () => {
+      mounted = mount(<WelcomeApp />)
+    })
+
+    expect(words(mounted!.container).map((word) => word.getAttribute('aria-pressed'))).toEqual(['false', 'true', 'false'])
+  })
+
+  it('is one tab stop: the current word, until an arrow moves it', async () => {
+    const container = await open()
+
+    expect(words(container).map((word) => word.getAttribute('tabindex'))).toEqual(['0', '-1', '-1'])
+    pushTheme('dark')
+    expect(words(container).map((word) => word.getAttribute('tabindex'))).toEqual(['-1', '-1', '0'])
+  })
+
+  it('puts the one tab stop back on the current word when the choice changes elsewhere, after an arrow or a click', async () => {
+    const container = await open()
+    const [system, light] = words(container)
+    const stops = (): (string | null)[] => words(container).map((word) => word.getAttribute('tabindex'))
+    act(() => system.focus())
+
+    key(system, RIGHT)
+    expect(stops()).toEqual(['-1', '0', '-1'])
+    // View ▸ Theme ▸ Dark: main pushes, and the stop follows the current word.
+    pushTheme('dark')
+    expect(stops()).toEqual(['-1', '-1', '0'])
+
+    // A click moves the stop to the word chosen; a later choice elsewhere moves it again.
+    act(() => light.click())
+    expect(stops()).toEqual(['-1', '0', '-1'])
+    pushTheme('system')
+    expect(stops()).toEqual(['0', '-1', '-1'])
+  })
+
+  it('draws the page when the bridge cannot say the theme, and catches up on one pushed after the first read', async () => {
+    install([])
+    bridge.getTheme.mockImplementationOnce(() => {
+      throw new Error('no bridge')
+    })
+    await act(async () => {
+      mounted = mount(<WelcomeApp />)
+    })
+    // The effect re-read after subscribing, so the page holds main's choice at once.
+    expect(words(mounted!.container).map((word) => word.getAttribute('aria-pressed'))).toEqual(['true', 'false', 'false'])
+
+    pushTheme('light')
+    expect(words(mounted!.container).map((word) => word.getAttribute('aria-pressed'))).toEqual(['false', 'true', 'false'])
+  })
+
+  it('moves focus between the three with the arrows, clamped, and chooses nothing', async () => {
+    const container = await open()
+    const [system, light, dark] = words(container)
+    act(() => system.focus())
+
+    key(system, RIGHT)
+    expect(document.activeElement).toBe(light)
+    key(light, RIGHT)
+    expect(document.activeElement).toBe(dark)
+    key(dark, RIGHT)
+    expect(document.activeElement).toBe(dark)
+    key(dark, LEFT)
+    key(light, LEFT)
+    key(system, LEFT)
+    expect(document.activeElement).toBe(system)
+
+    expect(bridge.chooseTheme).not.toHaveBeenCalled()
+    // The vertical arrows are the browser's, and the stop followed the focus.
+    key(system, DOWN)
+    expect(document.activeElement).toBe(system)
+    expect(words(container).map((word) => word.getAttribute('tabindex'))).toEqual(['0', '-1', '-1'])
+  })
+
+  it('chooses the word that is clicked (which is what Enter and Space are on a button), exactly as the menu does: through the bridge, once', async () => {
+    const container = await open()
+    const [, light] = words(container)
+
+    act(() => light.click())
+
+    expect(bridge.chooseTheme.mock.calls).toEqual([['light']])
+    expect(words(container).map((word) => word.getAttribute('aria-pressed'))).toEqual(['false', 'true', 'false'])
+  })
+
+  it('does not choose on an arrow, a letter or a modified key, and does not take Enter or Space away from the button', async () => {
+    const container = await open()
+    const [system] = words(container)
+    act(() => system.focus())
+
+    for (const name of ['a', 'Tab', 'Escape', 'Home', 'End']) {
+      key(system, name)
+    }
+    const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+    const space = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true })
+    act(() => void system.dispatchEvent(enter))
+    act(() => void system.dispatchEvent(space))
+
+    expect(bridge.chooseTheme).not.toHaveBeenCalled()
+    // Left alone, so the browser's own button activation is what chooses.
+    expect(enter.defaultPrevented).toBe(false)
+    expect(space.defaultPrevented).toBe(false)
+  })
+
+  it('leaves focus exactly where it was when a choice is made, here or in the menu', async () => {
+    const container = await open([row('a')])
+    const recent = q(container, '.welcome-recent-row') as HTMLButtonElement
+    act(() => recent.focus())
+
+    pushTheme('light')
+    expect(document.activeElement).toBe(recent)
+
+    const [, , dark] = words(container)
+    act(() => dark.focus())
+    act(() => dark.click())
+    expect(document.activeElement).toBe(dark)
+    expect(bridge.chooseTheme).toHaveBeenCalledWith('dark')
+  })
+
+  it('announces nothing, toasts nothing and animates nothing when the theme changes', async () => {
+    const container = await open()
+    const markup = (): string => container.innerHTML
+    const before = markup()
+
+    pushTheme('light')
+    pushTheme('dark')
+    expect(await announced(container)).toBe('')
+    expect(container.textContent).not.toMatch(/theme (?:changed|set)|now (?:light|dark)|switched/i)
+    expect(markup()).not.toMatch(SPINNER_MARKUP)
+    expect(markup()).not.toMatch(/style=|transition|animation/)
+    // Only what the pressed state moved.
+    expect(markup().replace(/aria-pressed="\w+"|tabindex="-?\d"/g, '')).toBe(
+      before.replace(/aria-pressed="\w+"|tabindex="-?\d"/g, '')
+    )
+  })
+
+  it('stops listening when the page goes', async () => {
+    await open()
+    expect(themeListeners).toHaveLength(1)
+
+    mounted?.unmount()
+    mounted = null
+
+    expect(themeListeners).toEqual([])
+  })
+
+  it('has the current word as text and the others as links: the current is no link and the rest are in the accent', async () => {
+    const container = await open()
+
+    // Colour is the stylesheet's, through the pressed state; the markup carries no colour of its own.
+    for (const word of words(container)) {
+      expect(word.hasAttribute('style')).toBe(false)
+      expect(word.className).toBe('welcome-theme-word')
+    }
+    expect(all(container, 'a, [href]')).toEqual([])
+  })
+
+  it('recommends nothing: no theme is marked, suggested or described beyond its own name', async () => {
+    const container = await open()
+
+    expect(spoken(container)).not.toMatch(/recommend|try |light mode|dark mode|suggest|best|preferred/i)
+    expect(all(container, '.welcome-theme *').filter((element) => element.hasAttribute('title'))).toEqual([])
   })
 })

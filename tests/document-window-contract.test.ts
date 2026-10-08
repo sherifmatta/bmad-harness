@@ -240,12 +240,20 @@ describe('the trust boundary', () => {
     expect(pipeline).toMatch(/return ''/)
   })
 
-  it('has no openExternal, openPath, ipcMain.on or generic send passthrough anywhere in the product', () => {
+  it('has no openExternal, openPath, ipcMain.on or generic send passthrough anywhere in the product, bar the theme’s one synchronous state', () => {
     for (const path of allSources) {
       const text = code(path)
 
       expect(text, path).not.toMatch(/openExternal|shell\.openPath|\bopenPath\(/)
-      expect(text, path).not.toMatch(/ipcMain\.on\b|ipcMain\.once\b/)
+      expect(text, path).not.toMatch(/ipcMain\.once\b/)
+      if (path === 'src/main/theme-bridge.ts') {
+        // Story 5.2: a window must know what to paint before its first frame, so
+        // the state is answered synchronously: one listener, one channel.
+        expect(text.match(/ipcMain\.on\(/g)).toHaveLength(1)
+        expect(text).toContain('ipcMain.on(THEME_STATE_CHANNEL,')
+      } else {
+        expect(text, path).not.toMatch(/ipcMain\.on\b/)
+      }
     }
   })
 
@@ -325,7 +333,11 @@ describe('the document window stands apart from the shell', () => {
 
       for (const [, isType, specifier] of imports) {
         expect(
-          isType !== undefined || specifier === 'electron' || specifier === '../shared/channels',
+          isType !== undefined ||
+            specifier === 'electron' ||
+            specifier === '../shared/channels' ||
+            // Story 5.2: the one shared behaviour, `followTheme`, which paints the window.
+            specifier === '../shared/theme',
           `${path} imports ${specifier}`
         ).toBe(true)
       }

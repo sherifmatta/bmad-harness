@@ -61,6 +61,17 @@ describe('the three preload entries, built', () => {
     for (const channel of ['welcome:recent', 'welcome:choose', 'welcome:open-recent', 'welcome:open-dropped']) {
       expect(code('welcome.js'), channel).toContain(`"${channel}"`)
     }
+    // Story 5.2: every window follows the theme, so each bundle holds its own copy of the two
+    // channels it paints from, and `data-theme` is written by it and by nothing it imports a file for.
+    for (const name of ['index.js', 'doc.js', 'welcome.js']) {
+      expect(code(name), name).toContain('"theme:state"')
+      expect(code(name), name).toContain('"theme:changed"')
+      expect(code(name), name).toContain('"data-theme"')
+    }
+    // Only the Welcome may choose.
+    expect(code('welcome.js')).toContain('"theme:choose"')
+    expect(code('index.js')).not.toContain('"theme:choose"')
+    expect(code('doc.js')).not.toContain('"theme:choose"')
     // Each bundle holds its own channels and none of another window's.
     expect(code('welcome.js')).not.toMatch(/"(?:doc|project|install|rail|session):/)
     expect(code('doc.js')).not.toContain('"welcome:')

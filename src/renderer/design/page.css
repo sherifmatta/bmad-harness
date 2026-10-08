@@ -1,11 +1,12 @@
 /*
  * The page ground, shared by every surface.
  *
- * The palette is dark by decision — UX-DR: dark theme only, no light palette
- * and no scheme branch — so every colour token is chosen against `--bg`. With
- * no rule here the window keeps the browser's own light default, and `--dim`
- * text at `--fs-body-ui` renders pale-on-pale: the tokens are all correct and
- * the surface is still unreadable.
+ * Every colour token is chosen against `--bg`, in both themes (the dark one,
+ * and the light twin that tokens.css holds). With no rule here the window
+ * keeps the browser's own default ground, and `--dim` text at `--fs-body-ui`
+ * renders pale-on-pale in one theme or the other: the tokens are all correct
+ * and the surface is still unreadable. This file names no theme: the ground
+ * follows the token.
  *
  * Global rules only: the ground, the reset the shell relies on, and the
  * scrollbars (UX-DR28). No component selector belongs here — the shell's own

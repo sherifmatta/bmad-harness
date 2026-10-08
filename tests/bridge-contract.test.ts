@@ -17,7 +17,14 @@ type InvokeEvent = { sender: { id: number } }
 
 const registeredHandlers = new Map<string, (event: InvokeEvent) => unknown>()
 const exposedApis = new Map<string, Record<string, unknown>>()
+const registeredListeners = new Map<string, (event: { returnValue?: unknown }) => void>()
 const invoke = vi.fn()
+// Recorded in plain arrays: Vitest clears `vi.fn()` call counts between the import and the first test.
+const syncAsked: unknown[][] = []
+const sendSync = vi.fn((...args: unknown[]) => {
+  syncAsked.push(args)
+  return { choice: 'system', applied: 'dark' }
+})
 const listeners = new Map<string, Set<unknown>>()
 const removed: [string, unknown][] = []
 let nextWebContentsId = 1
@@ -48,11 +55,15 @@ vi.mock('electron', () => {
     dialog: { showOpenDialog: vi.fn(), showErrorBox: vi.fn() },
     ipcMain: {
       handle: (channel: string, handler: (event: InvokeEvent) => unknown) =>
-        registeredHandlers.set(channel, handler)
+        registeredHandlers.set(channel, handler),
+      on: (channel: string, listener: (event: { returnValue?: unknown }) => void) =>
+        registeredListeners.set(channel, listener)
     },
+    nativeTheme: { themeSource: 'system', shouldUseDarkColors: true, on() {} },
     webUtils: { getPathForFile: (file: { path: string }) => file.path },
     ipcRenderer: {
       invoke: (...args: unknown[]) => invoke(...args),
+      sendSync: (...args: unknown[]) => sendSync(...args),
       on: (channel: string, listener: unknown) => {
         listeners.set(channel, (listeners.get(channel) ?? new Set()).add(listener))
       },
@@ -67,12 +78,19 @@ vi.mock('electron', () => {
   }
 })
 
+// Each preload paints its own window as it loads: a page with a root element to write on.
+const painted: [string, string][] = []
+vi.stubGlobal('document', {
+  documentElement: { setAttribute: (name: string, value: string) => painted.push([name, value]) }
+})
+
 const main = await import('../src/main/index')
 const installBridge = await import('../src/main/install-bridge')
 const projectBridge = await import('../src/main/project-bridge')
 const railBridge = await import('../src/main/rail-bridge')
 const docBridge = await import('../src/main/doc-bridge')
 const welcomeBridge = await import('../src/main/welcome-bridge')
+const themeBridge = await import('../src/main/theme-bridge')
 const sessionBridge = await import('../src/main/session-bridge')
 const preload = await import('../src/preload/index')
 const docPreload = await import('../src/preload/doc')
@@ -159,6 +177,51 @@ it('answers the Welcome channels on the same literals from both sides', () => {
   }
 })
 
+it('answers the theme channels on the same literals from both sides', () => {
+  for (const preloaded of [welcomePreload]) {
+    expect(preloaded.THEME_STATE_CHANNEL).toBe(themeBridge.THEME_STATE_CHANNEL)
+    expect(preloaded.THEME_CHANGED_CHANNEL).toBe(themeBridge.THEME_CHANGED_CHANNEL)
+    expect(preloaded.THEME_CHOOSE_CHANNEL).toBe(themeBridge.THEME_CHOOSE_CHANNEL)
+  }
+  expect([
+    themeBridge.THEME_STATE_CHANNEL,
+    themeBridge.THEME_CHANGED_CHANNEL,
+    themeBridge.THEME_CHOOSE_CHANNEL
+  ]).toEqual(['theme:state', 'theme:changed', 'theme:choose'])
+  // The state is answered synchronously and the choice is a request; the push has no handler.
+  expect(registeredListeners.has(themeBridge.THEME_STATE_CHANNEL)).toBe(true)
+  expect(registeredHandlers.has(themeBridge.THEME_CHOOSE_CHANNEL)).toBe(true)
+  expect(registeredHandlers.has(themeBridge.THEME_CHANGED_CHANNEL)).toBe(false)
+  expect(registeredHandlers.has(themeBridge.THEME_STATE_CHANNEL)).toBe(false)
+})
+
+it('paints each of the three windows from main’s state as its preload loads, and again on every push, with nothing exposed for it', () => {
+  // Three preloads, each asking the one state channel synchronously, and each writing `data-theme`.
+  expect(syncAsked).toEqual([
+    [themeBridge.THEME_STATE_CHANNEL],
+    [themeBridge.THEME_STATE_CHANNEL],
+    [themeBridge.THEME_STATE_CHANNEL]
+  ])
+  expect(painted).toEqual([['data-theme', 'dark'], ['data-theme', 'dark'], ['data-theme', 'dark']])
+
+  // Each listens for the push, and a push repaints without any call back to main.
+  const heard = [...(listeners.get(themeBridge.THEME_CHANGED_CHANNEL) ?? [])]
+  expect(heard).toHaveLength(3)
+  painted.length = 0
+  for (const listener of heard) {
+    ;(listener as (event: unknown, state: unknown) => void)({}, { choice: 'light', applied: 'light' })
+  }
+  expect(painted).toEqual([['data-theme', 'light'], ['data-theme', 'light'], ['data-theme', 'light']])
+  // Anything that is not a state is ignored.
+  ;(heard[0] as (event: unknown, state: unknown) => void)({}, { choice: 'sepia', applied: 'sepia' })
+  expect(painted).toHaveLength(3)
+
+  // None of the three exposes a theme method but the Welcome's own.
+  for (const key of ['harness', 'docWindow']) {
+    expect(Object.keys(exposedApis.get(key) ?? {}).filter((name) => /theme/i.test(name)), key).toEqual([])
+  }
+})
+
 it('exposes exactly seventeen named methods, and no channel passthrough', () => {
   const harness = exposedApis.get('harness')
 
@@ -206,11 +269,19 @@ it('exposes the document window exactly five named methods, none of which takes 
   expect(exposedApis.get('harness')?.getDocument).toBeUndefined()
 })
 
-it('exposes the Welcome exactly four named methods, and no channel passthrough', () => {
+it('exposes the Welcome exactly seven named methods, four of them its own and three the theme’s, and no channel passthrough', () => {
   const welcome = exposedApis.get('welcome')
 
   expect(welcome).toBeDefined()
-  expect(Object.keys(welcome ?? {})).toEqual(['getRecent', 'chooseFolder', 'openRecent', 'openDropped'])
+  expect(Object.keys(welcome ?? {})).toEqual([
+    'getRecent',
+    'chooseFolder',
+    'openRecent',
+    'openDropped',
+    'getTheme',
+    'chooseTheme',
+    'onThemeChanged'
+  ])
   expect(welcome?.invoke).toBeUndefined()
   expect(welcome?.send).toBeUndefined()
   // Each speaks only its own channel, so no method of the Welcome is another window's.
@@ -246,6 +317,36 @@ it('sends each Welcome method down its own channel, with only the path or paths 
     // The file-path lookup is the preload's: the page hands over Files and main hears paths.
     [welcomeBridge.WELCOME_OPEN_DROPPED_CHANNEL, ['/work/a', '/work/b']]
   ])
+})
+
+it('sends the Welcome’s theme choice down its own channel, reads the state synchronously, and hands a subscriber the state and never the event', async () => {
+  const welcome = exposedApis.get('welcome') as {
+    getTheme: () => unknown
+    chooseTheme: (choice: string) => Promise<unknown>
+    onThemeChanged: (listener: (state: unknown) => void) => () => void
+  }
+  invoke.mockClear()
+  invoke.mockResolvedValue(undefined)
+  sendSync.mockClear()
+
+  expect(welcome.getTheme()).toEqual({ choice: 'system', applied: 'dark' })
+  expect(sendSync).toHaveBeenCalledWith(themeBridge.THEME_STATE_CHANNEL)
+  await expect(welcome.chooseTheme('light')).resolves.toBeUndefined()
+  expect(invoke.mock.calls).toEqual([[themeBridge.THEME_CHOOSE_CHANNEL, 'light']])
+
+  const received: unknown[] = []
+  const before = [...(listeners.get(themeBridge.THEME_CHANGED_CHANNEL) ?? [])]
+  const unsubscribe = welcome.onThemeChanged((state) => received.push(state))
+  const added = [...(listeners.get(themeBridge.THEME_CHANGED_CHANNEL) ?? [])].filter((one) => !before.includes(one))
+  expect(added).toHaveLength(1)
+  ;(added[0] as (event: unknown, state: unknown) => void)({ sender: 'raw event' }, { choice: 'dark', applied: 'dark' })
+  ;(added[0] as (event: unknown, state: unknown) => void)({ sender: 'raw event' }, 'not a state')
+  expect(received).toEqual([{ choice: 'dark', applied: 'dark' }])
+
+  removed.length = 0
+  unsubscribe()
+  expect(removed).toEqual([[themeBridge.THEME_CHANGED_CHANNEL, added[0]]])
+  removed.length = 0
 })
 
 it('turns a refused install:get into a rejection carrying the envelope', async () => {

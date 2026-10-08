@@ -26,6 +26,9 @@ const { buildMenuTemplate, installApplicationMenu } = await import('./app-menu')
 type Item = { role?: string; label?: string; accelerator?: string; click?: () => void; submenu?: Item[] }
 type Focus = 'project' | 'document' | 'welcome'
 
+/** A template as data: a click is a closure made at each build, so builds are compared by shape. */
+const shape = (value: unknown): unknown => JSON.parse(JSON.stringify(value))
+
 function items(packaged: boolean, focus: Focus): Item[] {
   return (buildMenuTemplate({ packaged, focus }) as Item[]).flatMap((menu) => [menu, ...(menu.submenu ?? [])])
 }
@@ -150,9 +153,9 @@ describe('installing the menu', () => {
     installApplicationMenu(true)
 
     expect(setApplicationMenu).toHaveBeenCalledTimes(1)
-    expect(setApplicationMenu).toHaveBeenCalledWith({
-      template: buildMenuTemplate({ packaged: true, focus: 'project' })
-    })
+    expect(shape(setApplicationMenu.mock.lastCall?.[0])).toEqual(
+      shape({ template: buildMenuTemplate({ packaged: true, focus: 'project' }) })
+    )
   })
 
   it('rebuilds with no reload when the document window gains focus, and restores it when the project window does', () => {
@@ -161,14 +164,14 @@ describe('installing the menu', () => {
     isDocWindow.mockImplementation(({ id }) => id === 2)
 
     focusHandlers[0]({}, { webContents: { id: 2 } })
-    expect(setApplicationMenu).toHaveBeenLastCalledWith({
-      template: buildMenuTemplate({ packaged: true, focus: 'document' })
-    })
+    expect(shape(setApplicationMenu.mock.lastCall?.[0])).toEqual(
+      shape({ template: buildMenuTemplate({ packaged: true, focus: 'document' }) })
+    )
 
     focusHandlers[0]({}, { webContents: { id: 1 } })
-    expect(setApplicationMenu).toHaveBeenLastCalledWith({
-      template: buildMenuTemplate({ packaged: true, focus: 'project' })
-    })
+    expect(shape(setApplicationMenu.mock.lastCall?.[0])).toEqual(
+      shape({ template: buildMenuTemplate({ packaged: true, focus: 'project' }) })
+    )
     expect(setApplicationMenu).toHaveBeenCalledTimes(3)
   })
 
@@ -186,9 +189,9 @@ describe('installing the menu', () => {
     expect(openProjectFolder).toHaveBeenCalledTimes(1)
 
     focusHandlers[0]({}, { webContents: { id: 1 } })
-    expect(setApplicationMenu).toHaveBeenLastCalledWith({
-      template: buildMenuTemplate({ packaged: true, focus: 'project' })
-    })
+    expect(shape(setApplicationMenu.mock.lastCall?.[0])).toEqual(
+      shape({ template: buildMenuTemplate({ packaged: true, focus: 'project' }) })
+    )
   })
 
   it('does not rebuild when focus moves between windows of the same kind', () => {
@@ -198,5 +201,98 @@ describe('installing the menu', () => {
     focusHandlers[0]({}, { webContents: { id: 3 } })
 
     expect(setApplicationMenu).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('View ▸ Theme', () => {
+  const themeMenu = (focus: Focus, choice: 'system' | 'light' | 'dark' = 'system', choose = vi.fn()): Item[] => {
+    const view = (buildMenuTemplate({ packaged: true, focus, theme: { choice, choose } }) as Item[]).find(
+      ({ label }) => label === 'View'
+    )
+    return view?.submenu?.find(({ label }) => label === 'Theme')?.submenu ?? []
+  }
+
+  it.each(['project', 'document', 'welcome'] as const)(
+    'is a submenu of three radio items, System, Light and Dark, in the %s window’s menu',
+    (focus) => {
+      const items = themeMenu(focus) as (Item & { type?: string })[]
+
+      expect(items.map(({ label, type }) => [label, type])).toEqual([
+        ['System', 'radio'],
+        ['Light', 'radio'],
+        ['Dark', 'radio']
+      ])
+    }
+  )
+
+  it.each(['system', 'light', 'dark'] as const)('puts the check on %s alone when that is the choice', (choice) => {
+    const items = themeMenu('project', choice) as (Item & { checked?: boolean })[]
+
+    expect(items.filter(({ checked }) => checked).map(({ label }) => label?.toLowerCase())).toEqual([choice])
+  })
+
+  it('carries no accelerator and no role: nothing in the product has a theme shortcut', () => {
+    for (const focus of ['project', 'document', 'welcome'] as const) {
+      const view = (buildMenuTemplate({ packaged: true, focus }) as Item[]).find(({ label }) => label === 'View')
+      const theme = view?.submenu?.find(({ label }) => label === 'Theme')
+
+      expect(JSON.stringify(theme), focus).not.toMatch(/accelerator|role/)
+    }
+  })
+
+  it('sits after the zooms, behind a separator, and leaves the other items of View as they were', () => {
+    const view = (buildMenuTemplate({ packaged: true, focus: 'project' }) as (Item & { type?: string })[]).find(
+      ({ label }) => label === 'View'
+    )
+
+    expect((view?.submenu as (Item & { type?: string })[]).map((item) => item.role ?? item.type ?? item.label)).toEqual([
+      'reload',
+      'separator',
+      'zoomIn',
+      'zoomOut',
+      'resetZoom',
+      'separator',
+      'Theme'
+    ])
+  })
+
+  it('makes the choice it is handed when an item is chosen', () => {
+    const choose = vi.fn()
+    const items = themeMenu('welcome', 'system', choose)
+
+    items[1].click?.()
+    items[2].click?.()
+    items[0].click?.()
+
+    expect(choose.mock.calls).toEqual([['light'], ['dark'], ['system']])
+  })
+
+  it('is read from main’s choice when installed, and rebuilt for the window kind in force whenever a choice is made', () => {
+    let choice: 'system' | 'light' | 'dark' = 'light'
+    const listeners: ((choice: 'system' | 'light' | 'dark') => void)[] = []
+    installApplicationMenu(true, undefined, {
+      choice: () => choice,
+      choose: vi.fn(),
+      onChosen: (listener) => listeners.push(listener)
+    })
+    const checked = (): string[] => {
+      const template = buildFromTemplate.mock.lastCall?.[0] as Item[]
+      const view = template.find(({ label }) => label === 'View')
+      const theme = view?.submenu?.find(({ label }) => label === 'Theme')?.submenu as (Item & { checked?: boolean })[]
+      return theme.filter(({ checked }) => checked).map(({ label }) => label ?? '')
+    }
+
+    expect(checked()).toEqual(['Light'])
+    isDocWindow.mockImplementation(({ id }) => id === 2)
+    focusHandlers[0]({}, { webContents: { id: 2 } })
+    const builds = buildFromTemplate.mock.calls.length
+
+    choice = 'dark'
+    listeners[0](choice)
+
+    // One more build, for the document window's menu (no reload), with the check moved.
+    expect(buildFromTemplate.mock.calls.length).toBe(builds + 1)
+    expect(checked()).toEqual(['Dark'])
+    expect(JSON.stringify(buildFromTemplate.mock.lastCall?.[0])).not.toContain('"reload"')
   })
 })

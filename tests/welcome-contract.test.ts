@@ -118,6 +118,20 @@ describe('the Welcome stylesheet', () => {
     expect(css).toMatch(/\.welcome-open:hover \{\s*background: var\(--send-hover\)/)
   })
 
+  it('draws the theme line along the bottom edge, right-aligned, in meta mono: the current word text-strong, the others accent, and underlined on hover', () => {
+    const rule = (selector: string): string => css.match(new RegExp(`${selector.replace(/[.[\]']/g, '\\$&')} \\{[^}]*\\}`))?.[0] ?? ''
+
+    expect(rule('.welcome-foot')).toMatch(/justify-content: flex-end/)
+    expect(rule('.welcome-theme')).toMatch(/font-family: var\(--mono\)/)
+    expect(rule('.welcome-theme')).toMatch(/font-size: var\(--fs-meta\)/)
+    expect(rule('.welcome-theme-word')).toMatch(/color: var\(--accent\)/)
+    expect(rule('.welcome-theme-word:hover')).toMatch(/text-decoration: underline/)
+    expect(rule(".welcome-theme-word[aria-pressed='true']")).toMatch(/color: var\(--text-strong\)/)
+    expect(rule(".welcome-theme-word[aria-pressed='true']")).toMatch(/text-decoration: none/)
+    // The line is text and nothing paints it: no ground, border, shadow or radius of its own.
+    expect(rule('.welcome-theme-word')).not.toMatch(/box-shadow|border-radius|border: var/)
+  })
+
   it('draws the drop zone as the product’s one dashed border, and nothing else is dashed', () => {
     expect(css.match(/dashed/g)).toHaveLength(1)
     expect(css).toMatch(/\.welcome-drop \{[^}]*border: var\(--rule-width\) dashed var\(--line\)/)
@@ -148,7 +162,7 @@ describe('the Welcome stylesheet', () => {
 
 describe('the Welcome stands apart from the shell', () => {
   it('imports the design, the a11y and persona modules and its own, and nothing of the shell', () => {
-    const allowed = /^(?:\.\/[\w-]+(?:\.css)?|\.\.\/\.\.\/design\/[\w-]+\.css|\.\.\/a11y\/[\w-]+|\.\.\/persona\/[\w-]+|\.\.\/\.\.\/\.\.\/shared\/welcome|react|react-dom\/client)$/
+    const allowed = /^(?:\.\/[\w-]+(?:\.css)?|\.\.\/\.\.\/design\/[\w-]+\.css|\.\.\/a11y\/[\w-]+|\.\.\/persona\/[\w-]+|\.\.\/\.\.\/\.\.\/shared\/(?:welcome|theme)|react|react-dom\/client)$/
 
     for (const path of pageSources) {
       const specifiers = [...code(path).matchAll(/from\s+'([^']+)'|import\s+'([^']+)'/g)].map(
@@ -222,23 +236,46 @@ describe('the Welcome’s preload', () => {
     expect(imports.length).toBeGreaterThan(2)
     for (const [, isType, specifier] of imports) {
       expect(
-        isType !== undefined || specifier === 'electron' || specifier === '../shared/channels',
+        isType !== undefined ||
+          specifier === 'electron' ||
+          specifier === '../shared/channels' ||
+          // Story 5.2: `followTheme` and the state's reader, inlined like the channels.
+          specifier === '../shared/theme',
         `imports ${specifier}`
       ).toBe(true)
     }
   })
 
-  it('exposes exactly four named methods, each on a channel from shared/channels, and no generic send or invoke', () => {
+  it('exposes exactly seven named methods, each on a channel from shared/channels, and no generic send or invoke', () => {
     const api = preload.slice(preload.indexOf('const welcome: WelcomeApi = {'), preload.indexOf('contextBridge.exposeInMainWorld'))
     const methods = [...api.matchAll(/^ {2}(\w+):/gm)].map(([, name]) => name)
 
-    expect(methods).toEqual(['getRecent', 'chooseFolder', 'openRecent', 'openDropped'])
+    expect(methods).toEqual([
+      'getRecent',
+      'chooseFolder',
+      'openRecent',
+      'openDropped',
+      'getTheme',
+      'chooseTheme',
+      'onThemeChanged'
+    ])
     expect(preload).toContain("contextBridge.exposeInMainWorld('welcome', welcome)")
-    expect(preload).not.toMatch(/exposeInMainWorld\('welcome',\s*ipcRenderer|invoke:\s|send:\s|\.send\(|\.on\(|sendSync/)
-    expect(preload.match(/ipcRenderer\.invoke\(/g)).toHaveLength(4)
-    expect(preload).not.toMatch(/ipcRenderer\.invoke\(\s*['"`]/)
+    expect(preload).not.toMatch(/exposeInMainWorld\('welcome',\s*ipcRenderer|invoke:\s|send:\s|\.send\(/)
+    // The theme's three: one synchronous read of the state, one request, one listener on the push.
+    expect(preload.match(/ipcRenderer\.sendSync\(/g)).toHaveLength(1)
+    expect(preload.match(/ipcRenderer\.on\(/g)).toHaveLength(1)
+    expect(preload.match(/ipcRenderer\.invoke\(/g)).toHaveLength(5)
+    expect(preload).not.toMatch(/ipcRenderer\.(?:invoke|sendSync|on)\(\s*['"`]/)
     const channels = read('src/shared/channels.ts')
-    for (const channel of ['welcome:recent', 'welcome:choose', 'welcome:open-recent', 'welcome:open-dropped']) {
+    for (const channel of [
+      'welcome:recent',
+      'welcome:choose',
+      'welcome:open-recent',
+      'welcome:open-dropped',
+      'theme:state',
+      'theme:changed',
+      'theme:choose'
+    ]) {
       expect(channels).toContain(`'${channel}'`)
       expect(preload, channel).not.toContain(channel)
     }
@@ -252,7 +289,8 @@ describe('the Welcome’s preload', () => {
   it('declares a bridge that no method of takes a path but the two it was handed', () => {
     const api = code('src/preload/welcome-api.d.ts')
 
-    expect(api.match(/^ {2}\w+\(/gm)).toHaveLength(4)
+    expect(api.match(/^ {2}\w+\(/gm)).toHaveLength(7)
+    expect(api).toContain('chooseTheme(choice: ThemeChoice): Promise<void>')
     expect(api).toContain('openRecent(path: string)')
     expect(api).toContain('openDropped(files: readonly File[])')
     expect(api).not.toMatch(/invoke|send\(/)
@@ -363,10 +401,22 @@ describe('the negative surface, in source', () => {
     }
   })
 
-  it('has no theme line, no preferences and no setting: that is Story 5.2’s', () => {
+  it('has the theme line and nothing else of settings: no preferences, no other option, no theme anywhere but its own file and the page that mounts it', () => {
+    const themed = pageSources.filter((path) => /\btheme\b/i.test(code(path))).sort()
+
+    expect(themed).toEqual([APP, `${DIR}/theme-line.tsx`].sort())
     for (const path of pageSources) {
-      expect(code(path), path).not.toMatch(/\btheme\b|prefers|preferences|\bsettings?\b/i)
+      expect(code(path), path).not.toMatch(/prefers|preferences|\bsettings?\b/i)
     }
+  })
+
+  it('has a theme line that recommends nothing, announces nothing and names no theme in a colour: three words, one group', () => {
+    const line = code(`${DIR}/theme-line.tsx`)
+
+    expect(line).not.toMatch(/recommend|\btry\b|announce|<LiveRegion|aria-live|title=|data-theme|dataset|setAttribute|matchMedia|prefers/i)
+    expect(line).toContain('THEME_CHOICES')
+    expect(line.match(/role="group"/g)).toHaveLength(1)
+    expect(line.match(/<button/g)).toHaveLength(1)
   })
 
   it('has no sound, animation, timer, spinner, badge, count or link, in source or in style', () => {

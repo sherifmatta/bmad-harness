@@ -23,6 +23,19 @@ export function withoutComments(css: string): string {
 }
 
 /**
+ * The light theme's block, the third in `tokens.css` (Story 5.2). The two blocks
+ * before it are the dark theme and each token is declared once in them; the
+ * light block restates the colour tokens, so a test that reads a token's value,
+ * or counts its declarations, reads the dark theme through this.
+ */
+export const LIGHT_BLOCK = /:root\[data-theme="light"\]\s*\{[^}]*\}\n/
+
+/** `tokens.css` as the dark theme has it: the light block removed, comments untouched. */
+export function withoutLightTheme(css: string): string {
+  return css.replace(LIGHT_BLOCK, '')
+}
+
+/**
  * NFR23's enforcement arm. Scoped to stylesheets on purpose: scanning `.tsx`
  * would fire on Story 1.6's portrait palettes, which are literal hex in source
  * by design. Every `.css` under `src/renderer/` except `design/tokens.css` —
