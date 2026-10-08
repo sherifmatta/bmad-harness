@@ -2315,3 +2315,201 @@ describe("nothing this epic promised not to do: the audit's static half (Story 3
     expect(sentences.filter((text) => /\bresum\w*\b/i.test(text) && /\s/.test(text.split(": ").slice(1).join(": ")))).toEqual([]);
   });
 });
+
+describe("nothing this epic promised not to do: the audit's static half (Story 4.6, UX-DR21, UX-DR36, UX-DR38)", () => {
+  const PARTY = "src/renderer/ui/party/";
+  const VIEW = `${PARTY}party-view.tsx`;
+  const HEADER = `${PARTY}party-header.tsx`;
+  const TURN = `${PARTY}party-turn.tsx`;
+  const STRIP = `${PARTY}cast-strip.tsx`;
+  const PANEL = `${PARTY}room-panel.tsx`;
+  const CHOOSER = "src/renderer/ui/party/cast-chooser.tsx";
+  const STRIP_CSS = `${PARTY}cast-strip.css`;
+  const PANEL_CSS = `${PARTY}room-panel.css`;
+  const SHELL_CSS = "src/renderer/ui/shell/shell.css";
+  const TOKENS = "src/renderer/design/tokens.css";
+  const COMPOSER = "src/renderer/ui/chat/composer.tsx";
+  const TURN_SHARED = "src/renderer/ui/chat/turn.tsx";
+  const VOICE = "src/main/session-voice.ts";
+  const BRIDGE = "src/main/session-bridge.ts";
+  const STATE = "src/renderer/ui/chat/conversation-state.ts";
+  const FOLD = "src/main/fold/transcript.ts";
+  const COMMANDS = "src/shared/commands.ts";
+  const EVENTS = "src/shared/events.ts";
+  const CHANNELS = "src/shared/channels.ts";
+  const PRELOAD = "src/preload/index.ts";
+  const PARTY_TSX = [VIEW, HEADER, TURN, STRIP, PANEL, CHOOSER];
+  const PARTY_CSS = RENDERER_ALL.filter((path) => path.startsWith(PARTY) && path.endsWith(".css"));
+  const PARTY_ALL = [...PARTY_TSX, ...PARTY_CSS];
+  // Words are string and template literals and JSX text, including the text a `{expression}` sits beside.
+  const WORDS = /(["'`])(?:(?!\1)[^\n\\]|\\.)*\1|[>}][^<>{}\n]+[<{]/g;
+  const css = (path: string): string => (code.get(path) ?? "").replace(/\s+/g, " ");
+  /** The body of the first rule whose selector is exactly `selector`. */
+  const ruleBody = (path: string, selector: string): string | undefined => {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return css(path).match(new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`))?.[1];
+  };
+  const wordsOf = (paths: string[]): string[] =>
+    paths.flatMap((path) => [...(code.get(path) ?? "").matchAll(WORDS)].map(([text]) => `${path}: ${text}`));
+
+  it("reads the sources it claims to sweep", () => {
+    for (const path of [...PARTY_TSX, STRIP_CSS, PANEL_CSS, SHELL_CSS, TOKENS, COMPOSER, TURN_SHARED, "src/renderer/ui/chat/turn.css", "src/shared/room-summary.ts", VOICE, BRIDGE, STATE, FOLD, COMMANDS, EVENTS, CHANNELS, PRELOAD]) {
+      expect(code.get(path)?.length ?? 0, path).toBeGreaterThan(200);
+    }
+    expect(PARTY_CSS.length).toBeGreaterThanOrEqual(5);
+  });
+
+  it("names no deferred section in any party source or stylesheet, and the panel reserves no slot for one", () => {
+    expect(offenders(RENDERER_ALL, /Open disagreements|Decisions so far/i)).toEqual([]);
+    expect(offenders(PARTY_ALL, /disagree|decision|unresolved|evidence|\bso far\b/i)).toEqual([]);
+    const panel = code.get(PANEL) ?? "";
+    // One aside, one heading, four rows: nothing is drawn, mapped or reserved beside them, not even behind a condition.
+    expect(panel.match(/<aside\b/g)).toHaveLength(1);
+    expect(panel.match(/<h[1-6]\b/g)).toHaveLength(1);
+    expect(panel.match(/className="room-panel-row"/g)).toHaveLength(4);
+    expect(panel).not.toMatch(/<(?:section|details|summary|ul|ol|li|button|a|input|textarea)\b|hidden|\bslot\b|placeholder|reserve|\.map\(\(?section|sections\b/i);
+    expect(code.get(PANEL_CSS) ?? "").not.toMatch(/(?<![\w-])content\s*:|\bvisibility\s*:|\[hidden\]|(?:slot|reserve)/i);
+    const sideRule = ruleBody(PANEL_CSS, ".party-side");
+    expect(sideRule ?? "").not.toBe("");
+    expect(sideRule).not.toMatch(/\bdisplay\s*:/);
+    expect([...(code.get(PANEL) ?? "").matchAll(/>\s*([A-Za-z][^<>{}\n]*?)\s*</g)].map(([, text]) => text)).toEqual(["Room", "topic", "opened", "context", "writes to"]);
+  });
+
+  it("draws no tag, chip, quote or reply in a party turn, and none of those words anywhere a party turn is made", () => {
+    for (const path of [VIEW, HEADER, TURN, STRIP, PANEL]) {
+      expect(code.get(path) ?? "", path).not.toMatch(/disagrees|evidence|unresolved|<blockquote|<q\b|<cite|\bquot(?:e|ed|ing)\b|\breply\b|\bresponding[- ]to\b|\bin reply\b|\bre:/i);
+    }
+    // The party turn is the shared head and words around a portrait, and takes no decision, queue or cancel of its own.
+    const turn = code.get(TURN) ?? "";
+    expect(turn).toMatch(/import \{ Head, Words \} from '\.\.\/chat\/turn'/);
+    expect(turn).not.toMatch(/DecisionBlock|PersonaTurn|queuedFor|onCancel|onChoose|<button|<a\b|onClick/);
+    expect([...turn.matchAll(/<div className=\{?['"]?[^>]*>/g)].length).toBeGreaterThan(0);
+    // No stylesheet gives a turn a tag or a quote: the shared turn and the party's own say none of those words.
+    expect(offenders([TURN_SHARED, "src/renderer/ui/chat/turn.css", ...PARTY_ALL], /disagrees|evidence|unresolved|blockquote|\.turn-(?:tag|quote|reply|chip)\b/i)).toEqual([]);
+    // Neither friction nor failure is spent on party chrome: the party stylesheets read neither colour.
+    expect(offenders(PARTY_CSS, /var\(--(?:disagree|red)\b/)).toEqual([]);
+  });
+
+  it("gives the room one stop and one summary button and no pause, gate, queue or speaker list", () => {
+    expect(offenders(PARTY_ALL, /pause|resume|\bmute\b|\bskip\b|\bqueue\w*|\bspeakers?List\b|\bnextSpeaker\b|\bwhoIsNext\b|\bturnGate\b|\bgate\w*/i)).toEqual([]);
+    expect(offenders(PARTY_TSX, /Pause room/i)).toEqual([]);
+    expect(offenders(PARTY_TSX, /<(?:ol|li|table|select|dialog)\b|aria-modal|role=/)).toEqual([`${CHOOSER}: <li`]);
+    expect((code.get(HEADER) ?? "").match(/<button\b/g)).toHaveLength(2);
+    expect(code.get(HEADER) ?? "").toContain("stop room");
+    expect(code.get(HEADER) ?? "").toContain("Write summary to _bmad/");
+    // The composer is the room's only other control in a live room, and nothing the room does can switch it off.
+    const view = code.get(VIEW) ?? "";
+    expect(view.match(/<Composer\b[^>]*>/g)).toEqual(['<Composer agentName="the room" onSend={onSend} />']);
+    expect(view).not.toMatch(/disabled|readOnly|aria-disabled|aria-busy/);
+    expect(code.get(COMPOSER) ?? "").not.toMatch(/\bdisabled\b|readOnly|aria-disabled/);
+    expect(offenders(PARTY_TSX.filter((path) => path !== CHOOSER && path !== HEADER), /\bdisabled\b/)).toEqual([]);
+    // The only disabled controls in party code are the summary button without a handler and *Open the room* with nobody ticked.
+    expect((code.get(HEADER) ?? "").match(/\bdisabled=\{[^}]*\}/g)).toEqual(["disabled={onWriteSummary === undefined}"]);
+    expect((code.get(CHOOSER) ?? "").match(/\bdisabled=\{[^}]*\}/g)).toEqual(["disabled={cast.length === 0}"]);
+  });
+
+  it("holds the panel at 240px, no 288 anywhere, and hides it at the shell's one 1180px rule and nowhere else", () => {
+    expect(css(TOKENS)).toMatch(/--party-side:\s*240px;/);
+    expect(css(TOKENS).match(/--party-side:/g)).toHaveLength(1);
+    expect(offenders(sources("src/", [".ts", ".tsx", ".html", ".css"]), /(?<![\d.#a-fA-F_-])288(?![\d])/)).toEqual([]);
+    expect(css(PANEL_CSS)).toMatch(/\.party-side \{[^}]*flex: 0 0 var\(--party-side\);[^}]*width: var\(--party-side\);/);
+    // One rule at 1180px, in the shell, which hides the panel and does nothing else; the other breakpoint is 1000px; there are no more.
+    const queries = RENDERER_ALL.filter((path) => path.endsWith(".css")).flatMap((path) =>
+      [...css(path).matchAll(/@media\s*([^{]*)\{/g)].map(([, query]) => `${path}: ${query.trim()}`),
+    );
+    expect(queries.filter((query) => /width/.test(query))).toEqual([`${SHELL_CSS}: (max-width: 1180px)`, `${SHELL_CSS}: (max-width: 1000px)`]);
+    expect(css(SHELL_CSS)).toMatch(/@media \(max-width: 1180px\) \{ \.party-side \{ display: none; \} \}/);
+    expect(RENDERER_ALL.filter((path) => path.endsWith(".css") && /\.party-side\b/.test(code.get(path) ?? "")).sort()).toEqual([PANEL_CSS, SHELL_CSS]);
+    expect(css(SHELL_CSS).match(/\.party-side/g)).toHaveLength(1);
+    expect(css(SHELL_CSS).match(/1180px/g)).toHaveLength(1);
+    expect(offenders([...PARTY_TSX, ...PARTY_CSS], /innerWidth|matchMedia|ResizeObserver|clientWidth/)).toEqual([]);
+  });
+
+  it("dims a card from the idle token and never hides one: tokens ordered, no display, visibility or hidden rule", () => {
+    const tokens = css(TOKENS);
+    const token = (name: string): number => Number(tokens.match(new RegExp(`--opacity-${name}:\\s*(\\.?\\d*\\.?\\d+)\\s*;`))?.[1]);
+    expect(token("idle")).toBeGreaterThan(0);
+    expect(token("idle")).toBeLessThan(token("hover"));
+    expect(token("hover")).toBeLessThan(token("speaking"));
+    expect(token("speaking")).toBe(1);
+    const card = ruleBody(STRIP_CSS, ".cast-card") ?? "";
+    expect(card).toMatch(/\bopacity: var\(--opacity-idle\);/);
+    expect(ruleBody(STRIP_CSS, ".cast-card:hover")).toMatch(/\bopacity: var\(--opacity-hover\);/);
+    expect(ruleBody(STRIP_CSS, ".cast-card--speaking, .cast-card--speaking:hover")).toMatch(/\bopacity: var\(--opacity-speaking\);/);
+    // Nothing takes a card, its strip or its parts off the page: no `display: none`, visibility, zero opacity or hidden clip, anywhere.
+    expect(css(STRIP_CSS)).not.toMatch(/display\s*:\s*none|visibility\s*:|\[hidden\]|\bopacity\s*:\s*(?:0(?:\.0*)?|\.0+)\s*[;}]|\bclip(?:-path)?\s*:|\bscale\(\s*0|(?<![-\w])width\s*:\s*0\b|(?<![-\w])height\s*:\s*0\b/);
+    expect(offenders(RENDERER_ALL.filter((path) => path.endsWith(".css")).filter((path) => path !== STRIP_CSS), /\.cast-(?:card|strip|portrait|info|status)\b/)).toEqual([]);
+    // The strip draws a card for each id of the cast and filters none, and the speaker only adds a class.
+    const strip = code.get(STRIP) ?? "";
+    expect(strip).toMatch(/\{cast\.map\(\(id\) => \{/);
+    expect(strip).not.toMatch(/\.filter\(|\.slice\(|\.splice\(|\.pop\(|\.shift\(|\.sort\(|\.reverse\(|(?<![-\w])hidden\b|style=/);
+    expect(strip).toContain("speaking ? 'cast-card cast-card--speaking' : 'cast-card'");
+    // Only the speaker's card carries the equaliser, and only the strip's own stylesheet knows it.
+    expect(strip.match(/<span className="cast-eq"/g)).toHaveLength(1);
+    expect(strip).toContain("{speaking && (");
+  });
+
+  it("says nothing of the room that is guidance or a wait in any party word: no start another, try, next, you can, loading or progress", () => {
+    const words = wordsOf(PARTY_TSX);
+    expect(words.length).toBeGreaterThan(20);
+    expect(words.filter((text) => /\b(?:start another|another room|try|next|you can|you could|you should|please|why not|loading|waiting|thinking|processing|spinner|skeleton|shimmer|progress|unread|new messages?)\b/i.test(text))).toEqual([]);
+    expect(words.filter((text) => /\b(?:rank\w*|strongest|winner|agree\w*|conflict\w*|tension|consensus|majority|heated)\b/i.test(text))).toEqual([]);
+    expect(words.filter((text) => /\bof\b\s*(?:\d|\$|[mn]\b)|\/\s*\$\{|\/\s*\d|\btotal\b|%/i.test(text))).toEqual([]);
+    expect(offenders(PARTY_TSX, /aria-live|aria-busy|role=["']?(?:status|alert|log|progressbar)|<progress\b|<meter\b/)).toEqual([]);
+  });
+
+  it("holds the room's own harness lines to two, in the harness's register, and says them from one place each", () => {
+    const voice = code.get(VOICE) ?? "";
+    const rooms = [...voice.matchAll(/^\s+(room\w+):/gm)].map(([, name]) => name);
+    expect(rooms).toEqual(["roomOpened", "roomStopped"]);
+    const opened = voice.match(/roomOpened:[^\n`]*`([^`]*)`/)?.[1] ?? "";
+    const stopped = voice.match(/roomStopped:\s*'([^']*)'/)?.[1] ?? "";
+    expect(opened).toBe("room opened by you · present · ${names.join(' · ')}");
+    expect(stopped).toBe("room stopped · session released");
+    for (const line of [opened.replace("${names.join(' · ')}", "Mary"), stopped]) {
+      expect(line.startsWith("room ")).toBe(true);
+      expect(line).not.toMatch(/[.!?:;,]$/);
+      // Facts and no guidance; the one name in the sample is the roster's, the rest is lower case.
+      expect(line.replace("Mary", "")).toBe(line.replace("Mary", "").toLowerCase());
+      expect(line).not.toMatch(/\b(?:try|next|again|another|please|should|can|could|press|click|resume|continue|restart|start|new)\b/);
+    }
+    // Said by the bridge, once each, through the registry's own `say`, and by nothing else in main.
+    const bridge = code.get(BRIDGE) ?? "";
+    expect(bridge.match(/registry\.say\(/g)).toHaveLength(2);
+    expect(bridge).toMatch(/registry\.say\(sender, entry, LINES\.roomOpened\(/);
+    expect(bridge).toMatch(/registry\.say\(sender, entry, LINES\.roomStopped\)/);
+    expect(offenders(MAIN_CODE, /\bLINES\.room(?:Opened|Stopped)\b/)).toEqual([`${BRIDGE}: LINES.roomOpened`]);
+    expect(MAIN_CODE.reduce((count, path) => count + (code.get(path)?.match(/\bLINES\.roomOpened\b/g)?.length ?? 0), 0)).toBe(1);
+    expect(MAIN_CODE.reduce((count, path) => count + (code.get(path)?.match(/\bLINES\.roomStopped\b/g)?.length ?? 0), 0)).toBe(1);
+  });
+
+  it("makes a persona's entry only from the session's own text: three constructors, each given the text the session sent", () => {
+    const makers = ALL_CODE.flatMap((path) => [...(code.get(path) ?? "").matchAll(/kind:\s*'persona'/g)].map(() => path));
+    expect(makers.sort()).toEqual([FOLD, STATE, STATE, "src/renderer/ui/chat/transcript-entry.ts", "src/shared/conversation.ts"].sort());
+    // The renderer's two: the stored record's text, and the streamed delta's; the main fold's: the delta's. None writes a literal.
+    const state = code.get(STATE) ?? "";
+    expect([...state.matchAll(/kind:\s*'persona',[\s\S]{0,200}?\btext(?::\s*([\w.]+))?,/g)].map(([, from]) => from ?? "text")).toEqual(["record.text", "text"]);
+    expect([...(code.get(FOLD) ?? "").matchAll(/kind:\s*'persona',[\s\S]{0,200}?\btext,/g)]).toHaveLength(1);
+    // Nothing the room draws or sends is shaped as a persona's words: no entry is made in the party view, and the summary ask is a user's turn.
+    expect(offenders(PARTY_TSX, /kind:\s*['"](?:persona|user)['"]/)).toEqual([]);
+    expect(offenders(PARTY_TSX, /\.text\s*=|summar(?:y|ise|ize)\w*\(|classif\w*|\brank\w*|\bamplif\w*|\bstage\w*/i)).toEqual([]);
+    const summary = code.get("src/shared/room-summary.ts") ?? "";
+    expect(summary).not.toMatch(/kind:|persona|agentId/);
+  });
+
+  it("plays no sound, posts no notification or badge, and draws no toast, from any party code or the room's lines", () => {
+    expect(offenders([...PARTY_ALL, COMPOSER], /\bnew Audio\b|<audio\b|\bAudioContext\b|\bNotification\b|\bnew Notification\b|\bsetBadge\w*|\btoast\w*|[Bb]adge|\bunread\w*|\bsnackbar\b|\.beep\(|\.play\(/)).toEqual([]);
+    expect(offenders([VOICE, BRIDGE], /\bNotification\b|\bAudio\w*|\bbeep\b|\bsetBadge\w*|\bdock\./)).toEqual([]);
+    expect(offenders(PARTY_TSX, /<(?:progress|meter|audio|video|canvas)\b|spinner|skeleton|shimmer|loader/i)).toEqual([]);
+    expect(offenders(PARTY_CSS, /spinner|skeleton|shimmer|loader|badge|@keyframes\s+(?!eq\b)/i)).toEqual([]);
+  });
+
+  it("holds the contract at seven commands, fifteen events, twenty-two channels and seventeen bridge methods", () => {
+    const commands = [...(code.get(COMMANDS) ?? "").matchAll(/^\s+'([a-z]+\.[a-z]+)':\s*CommandSpec/gm)];
+    const events = [...(code.get(EVENTS) ?? "").matchAll(/^\s+'([a-z]+:[a-z-]+)':\s*EventSpec/gm)];
+    const channels = [...(code.get(CHANNELS) ?? "").matchAll(/^export const (\w+) = '/gm)];
+    const preload = code.get(PRELOAD) ?? "";
+    const methods = [...preload.slice(preload.indexOf("const harness: HarnessApi = {"), preload.indexOf("contextBridge.exposeInMainWorld")).matchAll(/^ {2}(\w+):/gm)];
+    expect([commands.length, events.length, channels.length, methods.length]).toEqual([7, 15, 22, 17]);
+  });
+});
