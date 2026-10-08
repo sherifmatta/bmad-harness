@@ -24,6 +24,8 @@ export type PersonaRecord = {
   agentId: AgentId
   messageId: MessageId
   text: string
+  /** Set on what a persona said in a room (Story 4.2): it belongs to the party thread. Absent otherwise. */
+  room?: true
 }
 
 /** What the user sent into a session, at the moment main wrote it. */
@@ -32,6 +34,8 @@ export type UserRecord = {
   id: string
   at: EpochMs
   text: string
+  /** Set on what the user sent into the room (Story 4.2): it belongs to the party thread. Absent otherwise. */
+  room?: true
 }
 
 /**

@@ -18,6 +18,8 @@ export type PersonaEntry = {
   text: string
   /** The model's id for the message these words belong to, when a session gave one. */
   messageId?: string
+  /** Said in the room (Story 4.2): the party thread draws it and a 1:1 thread never does. */
+  room?: true
 }
 
 export type UserEntry = {
@@ -31,6 +33,8 @@ export type UserEntry = {
    * is queued, absent once it is sent; it is the only thing that differs.
    */
   queuedFor?: string
+  /** Sent into the room (Story 4.2): the party thread draws it and a 1:1 thread never does. */
+  room?: true
 }
 
 /**

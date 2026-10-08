@@ -9,7 +9,9 @@ import type { TranscriptRecord } from '../../shared/conversation'
  * `messageId`: the text is appended as it came, never trimmed, joined with a
  * separator or edited. Anything else starts a record of its own. Ids are
  * `m-<n>`, assigned here, continuing past the highest a loaded transcript holds.
- * A `persona:said` without an `agentId` belongs to the room and is not recorded.
+ * A `persona:said` without an `agentId` is no one's and is not recorded. One the room
+ * said (`room`, with the `agentId` its turn's marker named) is recorded like any other,
+ * with the flag kept on the record; so is the user's turn into the room.
  * A sysline is the harness's own line and is always a record of its own: it ends
  * whatever persona message came before it, so later words open a new one.
  */
@@ -40,7 +42,7 @@ function withRecord(state: TranscriptState, record: TranscriptRecord): Transcrip
 }
 
 export function foldPersonaSaid(state: TranscriptState, said: PersonaSaid): TranscriptState {
-  const { agentId, messageId, text, at } = said
+  const { agentId, messageId, text, at, room } = said
   if (agentId === undefined) {
     return state
   }
@@ -51,11 +53,25 @@ export function foldPersonaSaid(state: TranscriptState, said: PersonaSaid): Tran
       entries: [...state.entries.slice(0, -1), { ...last, text: last.text + text }]
     }
   }
-  return withRecord(state, { kind: 'persona', id: `m-${state.nextId}`, at, agentId, messageId, text })
+  return withRecord(state, {
+    kind: 'persona',
+    id: `m-${state.nextId}`,
+    at,
+    agentId,
+    messageId,
+    text,
+    ...(room === true ? { room: true as const } : {})
+  })
 }
 
-export function foldUserTurn(state: TranscriptState, text: string, at: number): TranscriptState {
-  return withRecord(state, { kind: 'user', id: `m-${state.nextId}`, at, text })
+export function foldUserTurn(state: TranscriptState, text: string, at: number, room?: true): TranscriptState {
+  return withRecord(state, {
+    kind: 'user',
+    id: `m-${state.nextId}`,
+    at,
+    text,
+    ...(room === true ? { room: true as const } : {})
+  })
 }
 
 /**

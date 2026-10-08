@@ -87,6 +87,8 @@ function isRecord(value: unknown): value is TranscriptRecord {
   ) {
     return false
   }
+  // The room's flag is `true` or not there at all: a record that says otherwise is not one this build wrote.
+  if (record.room !== undefined && record.room !== true) return false
   if (record.kind === 'user' || record.kind === 'sysline') return true
   return (
     record.kind === 'persona' &&

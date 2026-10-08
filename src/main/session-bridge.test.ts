@@ -9,6 +9,7 @@ import { forgetInstall, rememberInstall } from './install-model'
 import { railAnnotatorFor } from './rail-annotations'
 import type { InstallProjection } from './projections/install'
 import { createTranscriptRegistry } from './projections/transcript'
+import { STOP_ACK_MS, STOP_RESULT_MS } from './session-stop'
 import type { TranscriptRegistry, TranscriptRegistryDeps } from './projections/transcript'
 import { transcriptFilePath, writeTranscript as writeThrough } from './sources/persistence/transcript-file'
 import type { SessionProcess, SpawnOutcome, SpawnSessionOptions } from './sources/session/session-process'
@@ -2331,5 +2332,197 @@ describe('the room (Story 4.1)', () => {
     const persona = await opened(sender, 'bmad-agent-pm')
 
     expect(snapshotOf()).toMatchObject({ sessions: [{ sessionId: persona.reply.sessionId }], busy: [persona.reply.sessionId] })
+  })
+})
+
+describe('a send into the room (Story 4.2)', () => {
+  const FIVE = {
+    'bmad-agent-analyst': 'Mary',
+    'bmad-agent-pm': 'John'
+  }
+  let spent: { run: () => void; ms: number; cancelled: boolean }[]
+  const live = () => spent.filter((timer) => !timer.cancelled)
+  const flush = async () => {
+    for (let at = 0; at < 6; at += 1) await Promise.resolve()
+  }
+  const lines = (sender: FakeSender) =>
+    sender.events.flatMap((event) => (event.name === 'harness:said' ? [event.payload.text] : []))
+  async function room(sender = new FakeSender(1)) {
+    const pending = open(sender, { room: Object.keys(FIVE) })
+    await processes[processes.length - 1].up()
+    const reply = (await pending) as { ok: true; sessionId: string }
+    return { sender, reply, proc: processes[processes.length - 1] }
+  }
+  const speech = (messageId: string, text: string) => [messageStart(messageId), textStart, delta(text)]
+  const transcriptOf = (sender: FakeSender) => registry.forProject(`/project-${sender.id}`).entries()
+
+  beforeEach(() => {
+    names = { ...FIVE }
+    spent = []
+    launch({}, false, {
+      schedule: (run, ms) => {
+        const timer = {
+          run: () => {
+            timer.cancelled = true
+            run()
+          },
+          ms,
+          cancelled: false
+        }
+        spent.push(timer)
+        return () => void (timer.cancelled = true)
+      }
+    })
+  })
+
+  it('attributes the room’s speech to the persona its marker names, with the room flag', async () => {
+    const { sender, proc } = await room()
+    for (const frame of speech('msg_1', '🧙 **Mary:** Hi.\n📋 **John:** No.')) proc.frame(frame)
+    proc.frame({ type: 'stream_event', parent_tool_use_id: null, event: { type: 'content_block_stop', index: 0 } })
+
+    const said = sender.events.flatMap((event) => (event.name === 'persona:said' ? [event.payload] : []))
+    expect(said.map(({ agentId, messageId, text, room: flag }) => [agentId, messageId, text, flag])).toEqual([
+      ['bmad-agent-analyst', 'msg_1#1', 'Hi.\n', true],
+      ['bmad-agent-pm', 'msg_1#2', 'No.', true]
+    ])
+    expect(transcriptOf(sender).map((entry) => (entry.kind === 'persona' ? [entry.agentId, entry.text, entry.room] : []))).toEqual([
+      [],
+      ['bmad-agent-analyst', 'Hi.\n', true],
+      ['bmad-agent-pm', 'No.', true]
+    ])
+  })
+
+  it('writes a send at once when the room is idle, and records the user’s turn with the room flag', async () => {
+    const { sender, reply, proc } = await room()
+    proc.frame(result())
+
+    expect(await send(sender, reply.sessionId, 'hello room')).toEqual({ ok: true })
+    expect(proc.writes).toEqual(['/bmad-party-mode', 'hello room'])
+    expect(transcriptOf(sender).filter((entry) => entry.kind === 'user')).toEqual([
+      { kind: 'user', id: expect.any(String), at: expect.any(Number), text: 'hello room', room: true }
+    ])
+  })
+
+  it('interrupts a speaker mid-turn, waits for the turn to end and writes, with no failure line and no queue', async () => {
+    const { sender, reply, proc } = await room()
+    let asked = 0
+    proc.session.interrupt = () => {
+      asked += 1
+      return Promise.resolve(true)
+    }
+    for (const frame of speech('msg_1', '🧙 **Mary:** long speech')) proc.frame(frame)
+
+    const sending = send(sender, reply.sessionId, 'wait, I have a question')
+    await flush()
+    expect(asked).toBe(1)
+    // Nothing is written until the interrupted turn has ended.
+    expect(proc.writes).toEqual(['/bmad-party-mode'])
+
+    proc.frame(result('error_during_execution', true))
+    expect(await sending).toEqual({ ok: true })
+
+    expect(proc.writes).toEqual(['/bmad-party-mode', 'wait, I have a question'])
+    expect(proc.killed).toBe(false)
+    expect(lines(sender).filter((text) => text.startsWith('turn failed'))).toEqual([])
+    expect(sender.names).not.toContain('turn:failed')
+    expect(sender.events.filter((event) => event.name === 'session:closed')).toEqual([])
+    // Neither the acknowledgement's timer nor the turn's is left running.
+    expect(live().filter((timer) => timer.ms === STOP_ACK_MS || timer.ms === STOP_RESULT_MS)).toEqual([])
+  })
+
+  it('says a later failed result is a failure again: the interrupt’s allowance is spent with the turn', async () => {
+    const { sender, reply, proc } = await room()
+    proc.frame(result())
+    expect(await send(sender, reply.sessionId, 'one')).toEqual({ ok: true })
+    proc.frame(result('error_during_execution', true))
+
+    expect(lines(sender).some((text) => text.startsWith('turn failed'))).toBe(true)
+  })
+
+  it('refuses as busy, kills nothing and says nothing when the interrupt is not acknowledged', async () => {
+    const { sender, reply, proc } = await room()
+    proc.session.interrupt = () => Promise.resolve(false)
+    const before = lines(sender)
+
+    expect(await send(sender, reply.sessionId, 'x')).toMatchObject({ ok: false, error: { code: 'session/busy' } })
+    expect(proc.killed).toBe(false)
+    expect(proc.writes).toEqual(['/bmad-party-mode'])
+    expect(lines(sender)).toEqual(before)
+    // `interrupting` is cleared: a failed result now is a failure.
+    proc.frame(result('error_during_execution', true))
+    expect(lines(sender).some((text) => text.startsWith('turn failed'))).toBe(true)
+  })
+
+  it('refuses as busy when the CLI never answers the interrupt within STOP_ACK_MS', async () => {
+    const { sender, reply, proc } = await room()
+    proc.session.interrupt = () => new Promise<boolean>(() => {})
+    const sending = send(sender, reply.sessionId, 'x')
+    await flush()
+    expect(live().map((timer) => timer.ms)).toContain(STOP_ACK_MS)
+    live().find((timer) => timer.ms === STOP_ACK_MS)?.run()
+
+    expect(await sending).toMatchObject({ ok: false, error: { code: 'session/busy' } })
+    expect(proc.killed).toBe(false)
+  })
+
+  it('refuses as busy when the acknowledged turn does not end within STOP_RESULT_MS', async () => {
+    const { sender, reply, proc } = await room()
+    const sending = send(sender, reply.sessionId, 'x')
+    await flush()
+    live().find((timer) => timer.ms === STOP_RESULT_MS)?.run()
+
+    expect(await sending).toMatchObject({ ok: false, error: { code: 'session/busy' } })
+    expect(proc.killed).toBe(false)
+    expect(proc.writes).toEqual(['/bmad-party-mode'])
+    expect(sender.events.filter((event) => event.name === 'session:closed')).toEqual([])
+  })
+
+  it('writes two overlapping sends into a busy room both, in the order made, each after its own interrupt', async () => {
+    const { sender, reply, proc } = await room()
+    let asked = 0
+    proc.session.interrupt = () => {
+      asked += 1
+      return Promise.resolve(true)
+    }
+    const first = send(sender, reply.sessionId, 'first')
+    const second = send(sender, reply.sessionId, 'second')
+    await flush()
+    expect(proc.writes).toEqual(['/bmad-party-mode'])
+
+    proc.frame(result('error_during_execution', true))
+    expect(await first).toEqual({ ok: true })
+    await flush()
+    // The second waits for the first to be written, then interrupts that turn in its turn.
+    expect(proc.writes).toEqual(['/bmad-party-mode', 'first'])
+    expect(asked).toBe(2)
+
+    proc.frame(result('error_during_execution', true))
+    expect(await second).toEqual({ ok: true })
+    expect(proc.writes).toEqual(['/bmad-party-mode', 'first', 'second'])
+    expect(transcriptOf(sender).filter((entry) => entry.kind === 'user').map((entry) => entry.text)).toEqual(['first', 'second'])
+    expect(lines(sender).filter((text) => text.startsWith('turn failed'))).toEqual([])
+  })
+
+  it('refuses as busy, without an interrupt, when the session is a persona’s', async () => {
+    const sender = new FakeSender(1)
+    const { reply, proc } = await opened(sender, 'bmad-agent-pm')
+    let asked = 0
+    proc.session.interrupt = () => {
+      asked += 1
+      return Promise.resolve(true)
+    }
+
+    expect(await send(sender, reply.sessionId, 'x')).toMatchObject({ error: { code: 'session/busy' } })
+    expect(asked).toBe(0)
+  })
+
+  it('releases a send waiting for the turn when the session closes, and answers it as not found', async () => {
+    const { sender, reply, proc } = await room()
+    const sending = send(sender, reply.sessionId, 'x')
+    await flush()
+    proc.exit()
+
+    expect(await sending).toMatchObject({ ok: false })
+    expect(proc.writes).toEqual(['/bmad-party-mode'])
   })
 })

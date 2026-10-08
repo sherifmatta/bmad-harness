@@ -3,21 +3,25 @@ import type { JSX } from 'react'
 
 import './party-view.css'
 import type { AgentView } from '../../../shared/install'
+import { Composer } from '../chat/composer'
 import { Sysline } from '../chat/sysline'
 import { orderEntries } from '../chat/transcript'
-import type { SyslineEntry, TranscriptEntry } from '../chat/transcript-entry'
+import type { TranscriptEntry } from '../chat/transcript-entry'
+import { UserTurn } from '../chat/turn'
 import { CastChooser } from './cast-chooser'
+import { CastStrip } from './cast-strip'
+import { PartyTurn } from './party-turn'
 
-/** A line the harness said about a room: the only entries the party thread draws. */
-function isRoomLine(entry: TranscriptEntry): entry is SyslineEntry & { room: true } {
-  return entry.kind === 'sysline' && entry.room === true
+/** The entries the party thread draws: what the room said, what the user said into it, and the harness's lines about it. */
+function isRoomEntry(entry: TranscriptEntry): boolean {
+  return entry.kind !== 'run' && entry.room === true
 }
 
 /**
- * The party view (Story 4.1): the cast chooser while the window has no live room, and
- * the party thread while it has one. The thread draws only the lines the harness wrote
- * about the room, in the one `Sysline` component, with no portrait, name or time: the
- * room's own words, its cast strip, header and composer are the stories after this one.
+ * The party view: the cast chooser while the window has no live room (Story 4.1), and while it
+ * has one the cast strip, the party thread and the composer (Story 4.2). The thread draws only the
+ * room's entries, in time order: a persona's turn as a party turn, the user's own words as the user
+ * turn (never queued: the room has no gate), and the harness's lines about the room as syslines.
  *
  * When the room opens, the button the user pressed goes with the chooser, so the thread
  * takes focus (it is focusable by script only) if focus was inside this view and has
@@ -29,18 +33,31 @@ function isRoomLine(entry: TranscriptEntry): entry is SyslineEntry & { room: tru
 export function PartyView({
   agents,
   room,
+  roomCast,
+  speaker,
   entries,
-  onOpen
+  onOpen,
+  onSend
 }: {
   agents: readonly AgentView[]
   /** The window's live room session, or `undefined` while there is none. */
   room: string | undefined
-  /** The whole transcript; only the room's sysline entries are drawn. */
+  /** The agent ids chosen for the room, in roster order; the strip has a card for each. */
+  roomCast: readonly string[]
+  /** The agent id of the persona speaking now, or `undefined`. */
+  speaker: string | undefined
+  /** The whole transcript; only the room's entries are drawn. */
   entries: readonly TranscriptEntry[]
   /** Called with the ticked agent ids when *Open the room* is pressed. */
   onOpen: (cast: readonly string[]) => void
+  /** Called with the user's message for the room; the composer is never gated. */
+  onSend: (text: string) => void
 }): JSX.Element {
-  const lines = orderEntries(entries.filter(isRoomLine))
+  const turns = orderEntries(entries.filter(isRoomEntry))
+  let lastSpoken = -1
+  turns.forEach((entry, index) => {
+    if (entry.kind === 'persona') lastSpoken = index
+  })
   const live = room !== undefined
   const focusInside = useRef(false)
   const wasLive = useRef(live)
@@ -62,17 +79,41 @@ export function PartyView({
         if (event.relatedTarget !== null) focusInside.current = false
       }}
     >
-      <div className="party-column">
-        {room === undefined ? (
-          <CastChooser agents={agents} onOpen={onOpen} />
-        ) : (
-          <div className="party-thread" ref={thread} tabIndex={-1}>
-            {lines.map((entry) => (
-              <Sysline key={entry.id} text={entry.text} />
-            ))}
+      {room === undefined ? (
+        <div className="party-scroll">
+          <div className="party-column">
+            <CastChooser agents={agents} onOpen={onOpen} />
           </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <>
+          <CastStrip agents={agents} cast={roomCast} speaker={speaker} />
+          <div className="party-scroll">
+            <div className="party-column">
+              <div className="party-thread" ref={thread} tabIndex={-1}>
+                {turns.map((entry, index) => {
+                  if (entry.kind === 'persona') {
+                    return (
+                      <PartyTurn
+                        key={entry.id}
+                        agent={entry.agent}
+                        at={entry.at}
+                        text={entry.text}
+                        live={index === lastSpoken && speaker === entry.agent.id}
+                      />
+                    )
+                  }
+                  if (entry.kind === 'user') {
+                    return <UserTurn key={entry.id} at={entry.at} text={entry.text} user={entry.user} />
+                  }
+                  return entry.kind === 'sysline' ? <Sysline key={entry.id} text={entry.text} /> : null
+                })}
+              </div>
+            </div>
+          </div>
+          <Composer agentName="the room" onSend={onSend} />
+        </>
+      )}
     </div>
   )
 }

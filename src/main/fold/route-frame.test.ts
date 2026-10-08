@@ -98,9 +98,9 @@ describe('routeFrame', () => {
     expect(names(run([messageStart('m'), textStart(0), bare]).events)).toEqual(['persona:said'])
   })
 
-  it('leaves agentId off for a session that has none', () => {
-    const { events } = run([messageStart('m'), textStart(0), textDelta(0, 'hi')], { ...CTX, agentId: undefined })
-    expect(events[0].payload).not.toHaveProperty('agentId')
+  it('says nothing for the speech of a session that has no persona and no marker', () => {
+    const { events } = run([messageStart('m'), textStart(0), textDelta(0, 'hi'), stop(0)], { ...CTX, agentId: undefined })
+    expect(events).toEqual([])
   })
 
   it('says nothing for the complete message that repeats what already streamed', () => {
@@ -605,5 +605,207 @@ describe('routeFrame against the recorded corpus', () => {
         : []
     })
     expect(said.map((event) => event.payload.text)).toEqual(deltas.filter((text) => text !== ''))
+  })
+})
+
+describe('routeFrame in a room (Story 4.2)', () => {
+  const ROOM: RouteContext = {
+    sessionId: 'r',
+    projectRoot: ROOT,
+    now: 42,
+    roster: [
+      { id: 'bmad-agent-analyst', name: 'Mary' },
+      { id: 'bmad-agent-pm', name: 'John' }
+    ]
+  }
+  const said = (events: ContractEvent[]) =>
+    events.flatMap((event) => (event.name === 'persona:said' ? [event.payload] : []))
+  /** Each turn's words, joined, keyed by the message id they carry. */
+  const turns = (events: ContractEvent[]) => {
+    const joined = new Map<string, { agentId: string | undefined; text: string }>()
+    for (const payload of said(events)) {
+      const held = joined.get(payload.messageId)
+      joined.set(payload.messageId, { agentId: payload.agentId, text: (held?.text ?? '') + payload.text })
+    }
+    return [...joined.entries()]
+  }
+  const room = (...deltas: string[]) =>
+    run([messageStart('m'), textStart(0), ...deltas.map((text) => textDelta(0, text)), stop(0)], ROOM)
+
+  it('attributes each marker’s words to its persona, as a turn of its own, with no marker text', () => {
+    const { events } = room('🧙 **Mary:** Hi.\n📋 **John:** No.')
+    expect(turns(events)).toEqual([
+      ['m#1', { agentId: 'bmad-agent-analyst', text: 'Hi.\n' }],
+      ['m#2', { agentId: 'bmad-agent-pm', text: 'No.' }]
+    ])
+    expect(said(events).every((payload) => payload.room === true && payload.sessionId === 'r' && payload.at === 42)).toBe(true)
+    expect(JSON.stringify(events)).not.toContain('**')
+  })
+
+  it('reads a marker split across deltas as one turn', () => {
+    const { events } = room('🧙 **Ma', 'ry:** hel', 'lo')
+    expect(turns(events)).toEqual([['m#1', { agentId: 'bmad-agent-analyst', text: 'hello' }]])
+  })
+
+  it('reads `**Name**:` as well, and a name in any case', () => {
+    expect(turns(room('**john**: yes').events)).toEqual([['m#1', { agentId: 'bmad-agent-pm', text: 'yes' }]])
+  })
+
+  it('starts a turn for every marker, even the same persona’s again', () => {
+    const { events } = room('🧙 **Mary:** a\n📋 **John:** b\n🧙 **Mary:** c')
+    expect(turns(events).map(([id, turn]) => [id, turn.agentId])).toEqual([
+      ['m#1', 'bmad-agent-analyst'],
+      ['m#2', 'bmad-agent-pm'],
+      ['m#3', 'bmad-agent-analyst']
+    ])
+  })
+
+  it('counts turns through the session, so a later message never reuses an id', () => {
+    const first = run([messageStart('m1'), textStart(0), textDelta(0, '🧙 **Mary:** a'), stop(0)], ROOM)
+    const second = run(
+      [messageStart('m2'), textStart(0), textDelta(0, '🧙 **Mary:** b'), stop(0)],
+      ROOM,
+      first.state
+    )
+    expect(turns(second.events).map(([id]) => id)).toEqual(['m2#2'])
+  })
+
+  it('drops the words of a name the roster does not have, until a known marker', () => {
+    const { events } = room('🎭 **Zed:** hi\n🧙 **Mary:** there')
+    expect(turns(events)).toEqual([['m#2', { agentId: 'bmad-agent-analyst', text: 'there' }]])
+  })
+
+  it.each([
+    ['a bold label with a colon inside', '**Pros:** fast'],
+    ['a bold label with the colon outside', '**Note**: slow'],
+    ['a bold label in a list', '- **Risk:** big'],
+    ['a numbered bold label', '1. **Cost:** low']
+  ])('reads %s as the speaker’s own words, with no change of speaker and no new turn', (_name, label) => {
+    const { events, state } = room(`🧙 **Mary:** Intro\n${label}\nafter`)
+    expect(turns(events)).toEqual([['m#1', { agentId: 'bmad-agent-analyst', text: `Intro\n${label}\nafter` }]])
+    expect(state.party.turns).toBe(1)
+  })
+
+  it('reads a label split across deltas the same way, blanks after it kept', () => {
+    const { events } = room('🧙 **Mary:** a\n**Pros:**', ' fast')
+    expect(turns(events)).toEqual([['m#1', { agentId: 'bmad-agent-analyst', text: 'a\n**Pros:** fast' }]])
+  })
+
+  it('still reads a known roster name as a marker with or without an icon, and an unknown name behind an icon as one', () => {
+    expect(turns(room('**John:** yes\n- **Mary:** hm').events).map(([id, turn]) => [id, turn.agentId])).toEqual([
+      ['m#1', 'bmad-agent-pm'],
+      ['m#2', 'bmad-agent-analyst']
+    ])
+    // `🎭 **Zed:**` names no one: Mary's turn ends there and Zed's words are dropped.
+    const { events, state } = room('🧙 **Mary:** a\n🎭 **Zed:** hi')
+    expect(turns(events)).toEqual([['m#1', { agentId: 'bmad-agent-analyst', text: 'a\n' }]])
+    expect(state.party.turns).toBe(2)
+  })
+
+  it('says a short held line of the speaker when the block stops: `Ok` after a marker line', () => {
+    const { events } = room('🧙 **Mary:** hi\nOk')
+    expect(said(events).map((payload) => [payload.agentId, payload.text])).toEqual([
+      ['bmad-agent-analyst', 'hi\n'],
+      ['bmad-agent-analyst', 'Ok']
+    ])
+  })
+
+  it('says the held line when a new message starts instead of a block stop', () => {
+    const { events } = run(
+      [messageStart('m'), textStart(0), textDelta(0, '🧙 **Mary:** hi\nOk'), messageStart('n')],
+      ROOM
+    )
+    expect(said(events).map((payload) => [payload.agentId, payload.messageId, payload.text])).toEqual([
+      ['bmad-agent-analyst', 'm#1', 'hi\n'],
+      ['bmad-agent-analyst', 'm#1', 'Ok']
+    ])
+  })
+
+  it('reads a marker at the start of a second text block, with no marker text in either turn', () => {
+    const { events } = run(
+      [
+        messageStart('m'),
+        textStart(0),
+        textDelta(0, '🧙 **Mary:** a'),
+        stop(0),
+        textStart(1),
+        textDelta(1, '📋 **John:** b'),
+        stop(1)
+      ],
+      ROOM
+    )
+    expect(turns(events)).toEqual([
+      ['m#1', { agentId: 'bmad-agent-analyst', text: 'a' }],
+      ['m#2', { agentId: 'bmad-agent-pm', text: 'b' }]
+    ])
+    expect(JSON.stringify(events)).not.toContain('**')
+  })
+
+  it('drops the text before the first marker of a message', () => {
+    const { events } = room('Welcome!\n🧙 **Mary:** hi')
+    expect(turns(events)).toEqual([['m#1', { agentId: 'bmad-agent-analyst', text: 'hi' }]])
+  })
+
+  it('drops the text of a message that has no marker, and holds nothing back across a block stop', () => {
+    expect(said(room('plain prose, no marker').events)).toEqual([])
+    expect(said(room('**bold', ' text but never a marker').events)).toEqual([])
+  })
+
+  it('carries the speaker through the later blocks of a message, and forgets it at a new message', () => {
+    const frames = [
+      messageStart('m'),
+      textStart(0),
+      textDelta(0, '🧙 **Mary:** one'),
+      stop(0),
+      textStart(1),
+      textDelta(1, ' two'),
+      stop(1),
+      messageStart('n'),
+      textStart(0),
+      textDelta(0, 'orphaned words'),
+      stop(0)
+    ]
+    const { events } = run(frames, ROOM)
+    expect(turns(events)).toEqual([['m#1', { agentId: 'bmad-agent-analyst', text: 'one two' }]])
+  })
+
+  it('takes each turn’s time from the delta that carried its marker', () => {
+    let state = initialRouteState
+    const events: ContractEvent[] = []
+    const frames: [unknown, number][] = [
+      [messageStart('m'), 1],
+      [textStart(0), 1],
+      [textDelta(0, '🧙 **Mary:** a\n'), 10],
+      [textDelta(0, 'more\n'), 20],
+      [textDelta(0, '📋 **John:** b'), 30]
+    ]
+    for (const [frame, now] of frames) {
+      const routed = routeFrame(state, frame, { ...ROOM, now })
+      state = routed.state
+      events.push(...routed.events)
+    }
+    expect(said(events).map((payload) => [payload.agentId, payload.at])).toEqual([
+      ['bmad-agent-analyst', 10],
+      ['bmad-agent-analyst', 10],
+      ['bmad-agent-pm', 30]
+    ])
+  })
+
+  it('attributes nothing when the window has no roster', () => {
+    const { roster: _roster, ...bare } = ROOM
+    void _roster
+    const { events } = run([messageStart('m'), textStart(0), textDelta(0, '🧙 **Mary:** hi'), stop(0)], bare)
+    expect(events).toEqual([])
+  })
+
+  it('leaves a persona’s session as it was: no marker is read, no room flag set', () => {
+    const { events, state } = run(
+      [messageStart('m'), textStart(0), textDelta(0, '🧙 **Mary:** hi'), stop(0)],
+      { ...CTX, roster: ROOM.roster }
+    )
+    expect(events).toEqual([
+      { name: 'persona:said', payload: { sessionId: 's1', agentId: 'bmad-agent-pm', messageId: 'm', text: '🧙 **Mary:** hi', at: CTX.now } }
+    ])
+    expect(state.party).toEqual(initialRouteState.party)
   })
 })

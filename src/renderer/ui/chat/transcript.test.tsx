@@ -229,3 +229,26 @@ describe('Turns with a run revealed from elsewhere (Story 3.10)', () => {
     expect(scrolled).toEqual([])
   })
 })
+
+describe('Turns and the room (Story 4.2)', () => {
+  const mary = { id: PM, module: 'bmm', name: 'Mary', title: 'Analyst', icon: 'i', description: 'd' }
+  const entries: TranscriptEntry[] = [
+    { kind: 'user', id: 'u1', at: 1, text: 'to one' },
+    { kind: 'persona', id: 'p1', at: 2, agent: mary, text: 'one to one' },
+    { kind: 'user', id: 'u2', at: 3, text: 'to the room', room: true },
+    { kind: 'persona', id: 'p2', at: 4, agent: mary, text: 'said in the room', room: true },
+    { kind: 'sysline', id: 's1', at: 5, text: 'room opened by you', room: true },
+    { kind: 'sysline', id: 's2', at: 6, text: 'handed off · A → B' }
+  ]
+
+  it('draws none of the room’s turns or lines, and every 1:1 one', () => {
+    const markup = renderToStaticMarkup(<Turns entries={entries} />)
+
+    expect(markup).toContain('to one')
+    expect(markup).toContain('one to one')
+    expect(markup).toContain('handed off')
+    expect(markup).not.toContain('to the room')
+    expect(markup).not.toContain('said in the room')
+    expect(markup).not.toContain('room opened by you')
+  })
+})

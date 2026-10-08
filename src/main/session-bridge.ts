@@ -253,6 +253,9 @@ function openSession(ctx: Context) {
 type Refusal = ReturnType<typeof failure>
 type Writable = { ok: true; service: Service; entry: Entry; arg: string } | { ok: false; error: Refusal }
 
+/** The refusal for a session whose turn is in flight (a room's send interrupts it instead). */
+const BUSY = failure({ code: 'session/busy', message: 'session · a turn is already in flight' })
+
 /** The session a turn is for: open, idle, and the argument a string. Checked in this order. */
 function writableSession(ctx: Context, sender: Sender, sessionId: unknown, arg: unknown): Writable {
   const service = ctx.registry.serviceOf(sender.id)
@@ -261,7 +264,7 @@ function writableSession(ctx: Context, sender: Sender, sessionId: unknown, arg: 
     return { ok: false, error: NOT_FOUND }
   }
   if (entry.turn.busy || entry.session === undefined) {
-    return { ok: false, error: failure({ code: 'session/busy', message: 'session · a turn is already in flight' }) }
+    return { ok: false, error: BUSY }
   }
   if (typeof arg !== 'string') {
     return { ok: false, error: failure({ code: 'session/invalid-turn', message: 'session · a turn is text' }) }
@@ -294,12 +297,48 @@ async function writeTurn(entry: Entry, text: string): Promise<{ ok: true } | Ref
   return { ok: true }
 }
 
+/**
+ * A send into a room whose turn is in flight: the room's speaker is interrupted and, once the turn has
+ * ended, the session is writable. `undefined` when this is not that case (refused for another reason,
+ * or a persona's session, whose busy refusal is unchanged); a refusal when the interrupt was not
+ * acknowledged or the turn did not end in time, with nothing killed and nothing said.
+ */
+async function interruptedRoom(
+  ctx: Context,
+  sender: Sender,
+  sessionId: unknown,
+  arg: unknown,
+  refusal: Refusal
+): Promise<Writable | undefined> {
+  if (refusal !== BUSY || typeof arg !== 'string') {
+    return undefined
+  }
+  const entry = ctx.registry.serviceOf(sender.id)?.bySession.get(sessionId as string)
+  if (entry === undefined || entry.agentId !== undefined || entry.closed || entry.session === undefined) {
+    return undefined
+  }
+  if (!(await ctx.registry.interruptTurn(entry))) {
+    return { ok: false, error: BUSY }
+  }
+  // The turn ended while the send waited: the session may have gone, or another send may have got in first.
+  return writableSession(ctx, sender, sessionId, arg)
+}
+
 function sendTurn(ctx: Context) {
-  return async (event: IpcMainInvokeEvent, sessionId: unknown, text: unknown): Promise<SendReply> => {
+  const sendNow = async (event: IpcMainInvokeEvent, sessionId: unknown, text: unknown): Promise<SendReply> => {
     const sender = senderOf(event)
-    const target = writableSession(ctx, sender, sessionId, text)
+    let target = writableSession(ctx, sender, sessionId, text)
     if (!target.ok) {
-      return target.error
+      // A room has no gate (Story 4.2): a send into its turn in flight interrupts the speaker and is
+      // written once the turn has ended. Any other refusal, and a persona's busy session, stand.
+      const room = await interruptedRoom(ctx, sender, sessionId, text, target.error)
+      if (room === undefined) {
+        return target.error
+      }
+      if (!room.ok) {
+        return room.error
+      }
+      target = room
     }
     const { service, entry } = target
     const reply = await writeTurn(entry, target.arg)
@@ -308,7 +347,12 @@ function sendTurn(ctx: Context) {
     }
     // The user's turn is recorded once it is written, at the instant it started.
     const at = ctx.now()
-    ctx.transcripts.forProject(entry.projectRoot).recordUserTurn(target.arg, at)
+    const transcript = ctx.transcripts.forProject(entry.projectRoot)
+    if (entry.agentId === undefined) {
+      transcript.recordUserTurn(target.arg, at, true)
+    } else {
+      transcript.recordUserTurn(target.arg, at)
+    }
     // A finished run's `live` ends when the next turn starts.
     service.personas.detach(entry.sessionId)
     service.personas.apply({
@@ -317,6 +361,18 @@ function sendTurn(ctx: Context) {
     })
     ctx.registry.watch(sender, service, entry)
     return { ok: true }
+  }
+  return (event: IpcMainInvokeEvent, sessionId: unknown, text: unknown): Promise<SendReply> => {
+    const entry =
+      typeof sessionId === 'string' ? ctx.registry.serviceOf(senderOf(event).id)?.bySession.get(sessionId) : undefined
+    if (entry === undefined || entry.agentId !== undefined) {
+      return sendNow(event, sessionId, text)
+    }
+    // The room's sends are one at a time (Story 4.2): each interrupts and writes after the one before it is
+    // done, so none is refused as busy by another of the user's own, and they are written in the order made.
+    const run = entry.roomSends.then(() => sendNow(event, sessionId, text))
+    entry.roomSends = run.catch(() => undefined)
+    return run
   }
 }
 
@@ -532,6 +588,7 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): SessionBrid
       now,
       newSessionId: deps.newSessionId ?? (() => randomUUID()),
       newRunId,
+      roster: deps.roster ?? rosterFor,
       transcripts,
       userDataDir: deps.userDataDir ?? (() => app.getPath('userData')),
       homeDir: deps.homeDir ?? homedir(),

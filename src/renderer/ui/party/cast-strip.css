@@ -1,0 +1,124 @@
+/*
+ * The cast strip (Story 4.2): DESIGN.md's `cast-card`, from harness-mockup.html's `.cast`,
+ * `.castcard` and `.eq` rules. A horizontally scrolling strip of cards that stay for the room's
+ * whole life: presence is opacity, never removal. The speaker is lit by border, ground, glow, a
+ * ring on the portrait, an accent status and the equaliser. The single global reduced-motion
+ * block in design/tokens.css switches the transitions and the equaliser off; there is none here.
+ * Every value reaches the design system through `var()`.
+ */
+
+.cast-strip {
+  flex: 0 0 auto;
+  display: flex;
+  gap: var(--space-lg);
+  padding: var(--cast-strip-padding);
+  background: var(--grad-cast);
+  overflow-x: auto;
+}
+
+.cast-card {
+  flex: 1 1 0;
+  min-width: var(--cast-card-min);
+  display: flex;
+  gap: var(--space-lg);
+  align-items: center;
+  padding: var(--cast-card-padding);
+  border: var(--rule-width) solid var(--line-soft);
+  border-radius: var(--radius-card);
+  background: var(--panel);
+  opacity: var(--opacity-idle);
+  transition:
+    opacity var(--motion-cast),
+    border-color var(--motion-cast),
+    background var(--motion-cast);
+}
+
+.cast-card:hover {
+  opacity: var(--opacity-hover);
+}
+
+.cast-card--speaking,
+.cast-card--speaking:hover {
+  opacity: var(--opacity-speaking);
+  border-color: var(--cast-speaking-border);
+  background: var(--cast-speaking-ground);
+  box-shadow: var(--shadow-speaking);
+}
+
+.cast-portrait {
+  flex: 0 0 auto;
+  display: block;
+  width: var(--cast-portrait);
+  height: var(--cast-portrait);
+  border-radius: var(--radius-full);
+}
+
+.cast-card--speaking .cast-portrait {
+  box-shadow: 0 0 0 var(--cast-ring) var(--accent);
+}
+
+.cast-info {
+  min-width: 0;
+}
+
+.cast-name,
+.cast-title {
+  display: block;
+}
+
+.cast-name {
+  font-family: var(--sans);
+  font-size: var(--fs-name);
+  font-weight: var(--weight-strong);
+  color: var(--text-strong);
+}
+
+.cast-title {
+  font-family: var(--sans);
+  font-size: var(--fs-label);
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cast-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-top: var(--cast-status-top);
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  color: var(--faint);
+}
+
+.cast-card--speaking .cast-status {
+  color: var(--accent);
+}
+
+.cast-eq {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: var(--eq-gap);
+  height: var(--eq-height);
+}
+
+.cast-eq-bar {
+  display: block;
+  width: var(--eq-bar-width);
+  height: var(--eq-bar-rest);
+  background: var(--accent);
+  animation: var(--motion-eq);
+}
+
+.cast-eq-bar:nth-child(1) {
+  animation-delay: var(--eq-delay-1);
+}
+
+.cast-eq-bar:nth-child(2) {
+  animation-delay: var(--eq-delay-2);
+}
+
+.cast-eq-bar:nth-child(3) {
+  animation-delay: var(--eq-delay-3);
+}

@@ -15,7 +15,8 @@ import { createRunProjection } from './projections/runs'
 import type { RunProjection } from './projections/runs'
 import { createMemlogCounts, createRunKit, deliver, endRun, observeMemlog, startRun } from './session-run'
 import type { ActiveRun, MemlogCounts, RunKit, StoppedRun } from './session-run'
-import { stopRun } from './session-stop'
+import { interruptTurn, stopRun } from './session-stop'
+import type { RosterMember } from './install-model'
 import type { TranscriptRegistry } from './projections/transcript'
 import { initialRouteState, routeFrame } from './fold/route-frame'
 import type { RouteState } from './fold/route-frame'
@@ -75,6 +76,16 @@ export type Entry = {
    * a run ending another way each clear it. Memory only, never persisted.
    */
   afterStop: StoppedRun | undefined
+  /**
+   * A send into a busy room is interrupting its turn (Story 4.2): set from the interrupt's ask
+   * until the turn ends, or the send gives up. The failed `result` such an interrupt ends the
+   * turn with is the user's own doing, so it says nothing and is no failure. Memory only.
+   */
+  interrupting: boolean
+  /** Whoever is waiting for this session's turn to end: released when it does, and when the session closes. */
+  idleWaiters: (() => void)[]
+  /** The last send into this room still running (Story 4.2): the next waits for it, so sends are written in the order made. */
+  roomSends: Promise<unknown>
 }
 
 export type Service = {
@@ -116,6 +127,11 @@ export type SessionRegistryDeps = {
   newSessionId: () => SessionId
   /** The id of a run main starts itself: the continuation of a stopped run. */
   newRunId: () => RunId
+  /**
+   * The roster of the window with this id, in roster order: what a room's turn markers are read
+   * against (Story 4.2). Left out, a room attributes nothing.
+   */
+  roster?: (webContentsId: number) => readonly RosterMember[]
   transcripts: TranscriptRegistry
   /** Run `run` after `ms`; returns the way to cancel it. Replaceable by a test that holds time still. */
   schedule?: (run: () => void, ms: number) => () => void
@@ -155,6 +171,13 @@ export type SessionRegistry = {
    * flight; stop it for one whose turn is not. Called when a turn begins.
    */
   watch(sender: Sender, service: Service, entry: Entry): void
+  /**
+   * The user sent into a room whose turn is in flight (Story 4.2): ask the CLI to end the turn
+   * (`STOP_ACK_MS`) and wait for it to (`STOP_RESULT_MS`). True when the session is idle and the
+   * send may be written; false when the CLI did not answer or the turn did not end in time, with
+   * nothing killed, nothing said and `interrupting` cleared.
+   */
+  interruptTurn(entry: Entry): Promise<boolean>
   /** A dispatch was written into a session: its run begins. */
   startRun(sender: Sender, service: Service, entry: Entry, runId: RunId, code: string, plan?: TemplatePlan): void
   /**
@@ -185,6 +208,14 @@ type FrameSinks = {
   roomWrote: (service: Service, paths: readonly string[]) => void
   runs: RunKit
   newRunId: () => RunId
+  /** The roster of the window, which a room's turn markers are read against. */
+  roster: (sender: Sender) => readonly RosterMember[]
+}
+
+/** The session's turn is over, or the session is: an interrupt asked for it is spent, and whoever waits for it is released. */
+function turnOver(entry: Entry): void {
+  entry.interrupting = false
+  for (const release of entry.idleWaiters.splice(0)) release()
 }
 
 /** What one raw frame from a session does: end its turn, or say something, or write a file. */
@@ -195,7 +226,7 @@ function foldFrame(
   entry: Entry,
   frame: unknown
 ): void {
-  const { now, announce, say, roomWrote, runs, newRunId } = sinks
+  const { now, announce, say, roomWrote, runs, newRunId, roster } = sinks
   if (entry.closed) {
     return
   }
@@ -208,9 +239,12 @@ function foldFrame(
   const failedResult =
     signal?.kind === 'failed-while-pending' || (signal?.kind === 'ended' && signal.failed)
   const stopped = failedResult && entry.run?.stopping === true
+  // A room's turn the user's own send interrupted ends on a failed `result` as well, and that is no
+  // failure either: the send is what the user asked for.
+  const interrupted = failedResult && entry.interrupting
   // A failed result is told whether or not it freed the session: a line in the
   // transcript, and the persona reads `error` once it is no longer working.
-  if (failedResult && !stopped) {
+  if (failedResult && !stopped && !interrupted) {
     say(sender, entry, LINES.failed(signal.subtype))
     service.personas.apply({ name: 'turn:failed', payload: { sessionId: entry.sessionId, at: now() } })
   }
@@ -225,6 +259,8 @@ function foldFrame(
       name: 'session:awaiting-turn',
       payload: { sessionId: entry.sessionId, at: now() }
     })
+    // The turn is over, so a send waiting for it can be written.
+    turnOver(entry)
     return
   }
   if (signal?.kind === 'resumed') {
@@ -247,7 +283,9 @@ function foldFrame(
     ...(entry.agentId === undefined ? {} : { agentId: entry.agentId }),
     ...(entry.run === undefined ? {} : { runId: entry.run.runId }),
     projectRoot: entry.projectRoot,
-    now: now()
+    now: now(),
+    // Only a room reads the roster: a persona's session is its own speaker.
+    ...(entry.agentId === undefined ? { roster: roster(sender) } : {})
   })
   entry.route = routed.state
   const wrote = foldWrittenPaths(entry.written, frame, entry.projectRoot)
@@ -371,7 +409,10 @@ function newEntry(sessionId: SessionId, projectRoot: string, agentId: AgentId | 
     ready: Promise.resolve(NOT_FOUND),
     stopQuietClock: undefined,
     run: undefined,
-    afterStop: undefined
+    afterStop: undefined,
+    interrupting: false,
+    idleWaiters: [],
+    roomSends: Promise.resolve()
   }
 }
 
@@ -405,8 +446,7 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
     onQuiet: (sender, entry) => say(sender, entry, LINES.quiet(deps.quietMs ?? QUIET_MS))
   })
   const watch = (sender: Sender, _service: Service, entry: Entry): void => clock(sender, entry)
-  const schedule = deps.schedule ?? defaultSchedule
-  const runs = createRunKit({ now, schedule, emit, transcripts, readText: deps.readText, ...(deps.told === undefined ? {} : { told: deps.told }) })
+  const runs = createRunKit({ now, schedule: deps.schedule ?? defaultSchedule, emit, transcripts, readText: deps.readText, ...(deps.told === undefined ? {} : { told: deps.told }) })
   const decide = (projectRoot: string, ask: PermissionAsk): PermissionAnswer =>
     decidePermission(ask, {
       projectRoot,
@@ -474,6 +514,7 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
     // was asked for ends as that stop, whichever way the session went.
     endRun(runs, sender, service, entry, entry.run?.stopping === true ? 'stopped' : 'session-ended')
     discard(service, entry)
+    turnOver(entry)
     announce(sender, service, {
       name: 'session:closed',
       payload: {
@@ -486,7 +527,7 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
   }
 
   function onFrame(sender: Sender, service: Service, entry: Entry, frame: unknown): void {
-    foldFrame({ now, announce, say, roomWrote, runs, newRunId }, sender, service, entry, frame)
+    foldFrame({ now, announce, say, roomWrote, runs, newRunId, roster: (sender) => deps.roster?.(sender.id) ?? [] }, sender, service, entry, frame)
     watch(sender, service, entry)
   }
 
@@ -519,6 +560,7 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
     watch,
     startRun: (sender, service, entry, runId, code, plan) => startRun(runs, sender, service, entry, runId, code, plan),
     stop: (sender, service, entry) => stopRun({ runs, say, finish }, sender, service, entry),
+    interruptTurn: (entry) => interruptTurn(runs, entry),
     observe: (sender, projectRoot, observation) =>
       observeMemlog(runs, sender, () => serviceFor(sender, projectRoot), projectRoot, observation),
     closeSessions,

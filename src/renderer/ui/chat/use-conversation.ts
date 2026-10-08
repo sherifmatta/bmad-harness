@@ -17,10 +17,12 @@ import {
   initialConversation,
   orphansOf,
   roomReady,
+  roomSent,
   runCardOf,
   sendMessage,
   sessionOf,
   sessionReady,
+  speakerOf,
   withHandoff
 } from './conversation-state'
 import type { ConversationState, Delivery, PersonaStateEntry } from './conversation-state'
@@ -58,6 +60,12 @@ export type Conversation = {
    * settled; never rejects, and a refusal is the failure line. One open at a time.
    */
   openRoom(cast: readonly string[]): Promise<void>
+  /**
+   * The user sent `text` into the room (Story 4.2): one room entry, the room busy, and the text sent
+   * with no gate. Main interrupts a speaker. A refusal as busy leaves the room busy and the entry kept;
+   * any other clears the busy mark and is the failure line.
+   */
+  sendToRoom(text: string): void
   /** The user sent `text` to a persona. */
   send(agentId: string, text: string): void
   /** The user took a queued message back, by its transcript entry's id. */
@@ -271,7 +279,7 @@ export function createConversation(deps: ConversationDeps): Conversation {
         if (generation !== endings) {
           return
         }
-        commit(roomReady(state, sessionId))
+        commit(roomReady(state, sessionId, cast))
       })
       .catch((reason: unknown) => {
         if (generation !== endings) {
@@ -358,6 +366,24 @@ export function createConversation(deps: ConversationDeps): Conversation {
     },
 
     openRoom: openTheRoom,
+
+    sendToRoom(text) {
+      onFailure(null)
+      const sent = roomSent(state, now(), text)
+      if (sent.sessionId === undefined) {
+        return
+      }
+      const sessionId = sent.sessionId
+      commit(sent.state)
+      bridge.sendTurn(sessionId, text).catch((reason: unknown) => {
+        // Busy: main could not interrupt in time and the turn goes on; the entry stays, the room stays busy.
+        if (asHarnessError(reason).code === 'session/busy') {
+          return
+        }
+        commit(dispatchFailed(state, sessionId))
+        fail(reason)
+      })
+    },
 
     send(agentId, text) {
       onFailure(null)
@@ -464,6 +490,12 @@ export function useConversation(
   openRoom: (cast: readonly string[]) => Promise<void>
   /** The window's room session, while one is live; the room is no persona's session. */
   room: string | undefined
+  /** The agent ids chosen for the room, in roster order, while it is live (Story 4.2). */
+  roomCast: readonly string[]
+  /** The agent id of the room's current speaker, or none (Story 4.2). */
+  speaker: string | undefined
+  /** Send text into the room, with no gate; main interrupts the speaker. */
+  sendToRoom: (text: string) => void
   send: (agentId: string, text: string) => void
   cancel: (entryId: string) => void
   end: (projectId: string) => Promise<boolean>
@@ -537,6 +569,7 @@ export function useConversation(
     async (cast: readonly string[]) => void (await conversation.current?.openRoom(cast)),
     []
   )
+  const sendToRoom = useCallback((text: string) => conversation.current?.sendToRoom(text), [])
   const send = useCallback(
     (agentId: string, text: string) => conversation.current?.send(agentId, text),
     []
@@ -581,6 +614,9 @@ export function useConversation(
     activate,
     openRoom,
     room: state.room,
+    roomCast: state.roomCast,
+    speaker: speakerOf(state),
+    sendToRoom,
     send,
     cancel,
     end,

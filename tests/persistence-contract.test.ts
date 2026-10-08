@@ -133,6 +133,57 @@ describe('the transcript main keeps and the one the window folds', () => {
   })
 })
 
+describe('a room’s words in main’s transcript and in the window’s (Story 4.2)', () => {
+  const room = (agentId: string | undefined, messageId: string, text: string, at: number): ContractEvent => ({
+    name: 'persona:said',
+    payload: { sessionId: 'r1', ...(agentId === undefined ? {} : { agentId }), messageId, text, at, room: true }
+  })
+  const sequence: ContractEvent[] = [
+    room(mary.id, 'm#1', 'Hi', 10),
+    room(mary.id, 'm#1', '.', 11),
+    room(undefined, 'm#1', 'no persona', 12),
+    room('bmad-agent-pm', 'm#2', 'No.', 13),
+    room(mary.id, 'm#3', 'Again', 14)
+  ]
+
+  it('hold the same turns with the same flag, an agentless piece dropped by both', () => {
+    let main = EMPTY_TRANSCRIPT
+    let window = initialConversation
+    for (const event of sequence) {
+      if (event.name === 'persona:said') main = foldPersonaSaid(main, event.payload)
+      window = foldEvent(window, event, agentOf).state
+    }
+    const fromMain = main.entries.map((entry) => (entry.kind === 'persona' ? [entry.agentId, entry.messageId, entry.text, entry.room] : []))
+    const fromWindow = window.entries.map((entry) => (entry.kind === 'persona' ? [entry.agent.id, entry.messageId, entry.text, entry.room] : []))
+
+    expect(fromMain).toEqual(fromWindow)
+    expect(fromMain).toEqual([
+      [mary.id, 'm#1', 'Hi.', true],
+      ['bmad-agent-pm', 'm#2', 'No.', true],
+      [mary.id, 'm#3', 'Again', true]
+    ])
+  })
+
+  it('hydrates into the same room entries, user turns included', () => {
+    let main = foldUserTurn(EMPTY_TRANSCRIPT, 'what now', 9, true)
+    for (const event of sequence) {
+      if (event.name === 'persona:said') main = foldPersonaSaid(main, event.payload)
+    }
+    const { state } = hydrate(
+      initialConversation,
+      { entries: [...main.entries], sessions: [], busy: [], personas: [], runs: [] },
+      agentOf
+    )
+
+    expect(state.entries.map((entry) => [entry.kind, 'room' in entry ? entry.room : undefined])).toEqual([
+      ['user', true],
+      ['persona', true],
+      ['persona', true],
+      ['persona', true]
+    ])
+  })
+})
+
 describe('a sysline in main’s transcript and in the window’s', () => {
   const line = 'handed off · Mary → John · picking up from a.md'
 

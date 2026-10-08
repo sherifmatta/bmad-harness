@@ -564,6 +564,12 @@ describe("motion", () => {
       "design/tokens.css: *,*::before,*::after",
       // Story 3.1: the run card's caret, at the tail of prose being written.
       "ui/chat/run-card.css: .run-card-caret",
+      // Story 4.2: the cast card's transition when the speaker changes, and the equaliser's three bars.
+      "ui/party/cast-strip.css: .cast-card",
+      "ui/party/cast-strip.css: .cast-eq-bar",
+      "ui/party/cast-strip.css: .cast-eq-bar:nth-child(1)",
+      "ui/party/cast-strip.css: .cast-eq-bar:nth-child(2)",
+      "ui/party/cast-strip.css: .cast-eq-bar:nth-child(3)",
       "ui/status/status-dot.css: .status-dot--work",
       "ui/team/team.css: .menu-hint",
     ]);
@@ -671,6 +677,10 @@ describe("the text ramp", () => {
     "ui/chat/sysline.css: .sysline": {
       kind: "restated",
       why: "the handoff is announced once through the live region in the same words, and the header, the tile and aria-current already name who the work moved to",
+    },
+    "ui/party/cast-strip.css: .cast-status": {
+      kind: "restated",
+      why: "a cast card's `in the room` line; the card being there at all says it, and the speaking card turns the line to the accent",
     },
     "ui/chat/composer.css: .composer-hint": {
       kind: "restated",
@@ -1138,6 +1148,8 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
         "src/renderer/ui/chat/use-conversation.ts: asHarnessError(reason).code",
         "src/renderer/ui/chat/use-conversation.ts: asHarnessError(reason).code",
         "src/renderer/ui/chat/use-conversation.ts: asHarnessError(reason).code",
+        // Story 4.2: the room's send is refused as busy or not, as a persona's is.
+        "src/renderer/ui/chat/use-conversation.ts: asHarnessError(reason).code",
       ]);
       const descriptions = rest.flatMap((path) =>
         [...(code.get(path) ?? "").matchAll(/[\w.]*\.description\b/g)].map(
@@ -1325,6 +1337,7 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
         "queue",
         "personas",
         "room",
+        "roomCast",
         "nextId",
       ]);
       for (const path of [

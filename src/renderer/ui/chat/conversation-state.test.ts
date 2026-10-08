@@ -13,10 +13,13 @@ import {
   hydrate,
   initialConversation,
   orphansOf,
+  roomReady,
+  roomSent,
   runCardOf,
   sendMessage,
   sessionOf,
   sessionReady,
+  speakerOf,
   withHandoff
 } from './conversation-state'
 import type { ConversationState, Delivery } from './conversation-state'
@@ -903,5 +906,147 @@ describe('a run’s card (Story 3.1)', () => {
   it('holds the session busy from a dispatch, and goes with the conversation when it ends', () => {
     expect(dispatchStarted(initialConversation, 's1').busy.has('s1')).toBe(true)
     expect(ended(fold([started])).entries).toEqual([])
+  })
+})
+
+describe('the room’s cast, turns and speaker (Story 4.2)', () => {
+  const opened = (sessionId: string): ContractEvent => ({ name: 'session:opened', payload: { sessionId, at: 1 } })
+  const awaiting = (sessionId: string): ContractEvent => ({ name: 'session:awaiting-turn', payload: { sessionId, at: 2 } })
+  const closed = (sessionId: string): ContractEvent => ({
+    name: 'session:closed',
+    payload: { sessionId, reason: 'process-exited', at: 9 }
+  })
+  const spoke = (agentId: string, messageId: string, text: string, at = 3, room = true): ContractEvent => ({
+    name: 'persona:said',
+    payload: { sessionId: 'r1', agentId, messageId, text, at, ...(room ? { room: true as const } : {}) }
+  })
+  const fold = (state: ConversationState, ...events: ContractEvent[]): ConversationState =>
+    events.reduce((held, event) => foldEvent(held, event, agentOf).state, state)
+  const live = (): ConversationState => roomReady(fold(initialConversation, opened('r1')), 'r1', [mary.id, john.id])
+
+  it('keeps the cast the open’s reply made, and drops it with the room or the conversation', () => {
+    expect(live().roomCast).toEqual([mary.id, john.id])
+    expect(fold(live(), closed('r1')).roomCast).toEqual([])
+    expect(fold(live(), closed('r1')).room).toBeUndefined()
+    expect(ended(live()).roomCast).toEqual([])
+  })
+
+  it('keeps the cast when the event is met after the reply, and sets none from the event alone', () => {
+    expect(fold(initialConversation, opened('r1')).roomCast).toEqual([])
+    expect(fold(live(), opened('r1')).roomCast).toEqual([mary.id, john.id])
+  })
+
+  it('has the room busy for its activation turn, until it is awaiting', () => {
+    expect(fold(initialConversation, opened('r1')).busy.has('r1')).toBe(true)
+    expect(fold(initialConversation, opened('r1'), awaiting('r1')).busy.has('r1')).toBe(false)
+  })
+
+  it('folds a room persona:said into a persona entry with the room flag, joined by message id', () => {
+    const state = fold(live(), spoke(mary.id, 'm#1', 'Hi'), spoke(mary.id, 'm#1', '.'), spoke(john.id, 'm#2', 'No.'))
+
+    expect(state.entries.map((entry) => (entry.kind === 'persona' ? [entry.agent.id, entry.messageId, entry.text, entry.room] : []))).toEqual([
+      [mary.id, 'm#1', 'Hi.', true],
+      [john.id, 'm#2', 'No.', true]
+    ])
+  })
+
+  it('makes a turn nobody sent put the room busy, and leaves a persona’s own busy set alone', () => {
+    const idle = fold(live(), awaiting('r1'))
+    expect(idle.busy.has('r1')).toBe(false)
+
+    expect(fold(idle, spoke(mary.id, 'm#1', 'Hi')).busy.has('r1')).toBe(true)
+    expect(fold(idle, spoke(mary.id, 'm#1', 'Hi', 3, false)).busy.has('r1')).toBe(false)
+  })
+
+  it('still ignores a persona:said with neither an agent nor the room flag', () => {
+    const state = fold(live(), { name: 'persona:said', payload: { sessionId: 'r1', messageId: 'm', text: 'x', at: 1 } })
+    expect(state.entries).toEqual([])
+  })
+
+  it('names the speaker: the last room persona entry while the room is busy, else no one', () => {
+    const idle = fold(live(), awaiting('r1'))
+    expect(speakerOf(idle)).toBeUndefined()
+
+    const mary1 = fold(idle, spoke(mary.id, 'm#1', 'Hi'))
+    expect(speakerOf(mary1)).toBe(mary.id)
+    expect(speakerOf(fold(mary1, spoke(john.id, 'm#2', 'No.')))).toBe(john.id)
+    // Mary again: three turns, the latest is hers.
+    expect(speakerOf(fold(mary1, spoke(john.id, 'm#2', 'No.'), spoke(mary.id, 'm#3', 'Hm')))).toBe(mary.id)
+    expect(speakerOf(fold(mary1, awaiting('r1')))).toBeUndefined()
+    expect(speakerOf(fold(mary1, closed('r1')))).toBeUndefined()
+  })
+
+  it('lights no one after the user sends into an idle room that has earlier turns', () => {
+    const earlier = fold(live(), spoke(mary.id, 'm#1', 'Hi'), awaiting('r1'))
+    expect(speakerOf(roomSent(earlier, 50, 'next').state)).toBeUndefined()
+  })
+
+  it('lights no one in a new room while old turns are still held, until someone speaks in it', () => {
+    const old = fold(live(), spoke(mary.id, 'm#1', 'Hi'), closed('r1'))
+    const again = fold(roomReady(fold(old, opened('r2')), 'r2', [mary.id]), {
+      name: 'harness:said',
+      payload: { sessionId: 'r2', id: 'm-9', text: 'room opened by you · present · Mary', at: 20, room: true }
+    })
+    expect(again.busy.has('r2')).toBe(true)
+    expect(speakerOf(again)).toBeUndefined()
+
+    const spoken = fold(again, { name: 'persona:said', payload: { sessionId: 'r2', agentId: john.id, messageId: 'n#1', text: 'Hm', at: 21, room: true } })
+    expect(speakerOf(spoken)).toBe(john.id)
+  })
+
+  it('lights no one after a send mid-speech, until a persona speaks again', () => {
+    const mid = roomSent(fold(live(), spoke(mary.id, 'm#1', 'Hi')), 50, 'wait').state
+    expect(speakerOf(mid)).toBeUndefined()
+    expect(speakerOf(fold(mid, spoke(john.id, 'm#2', 'Yes')))).toBe(john.id)
+  })
+
+  it('lights no one for a persona’s own 1:1 words, even in a busy room', () => {
+    const state = fold(live(), spoke(mary.id, 'msg_1', 'one to one', 3, false))
+    expect(speakerOf(state)).toBeUndefined()
+  })
+
+  it('records a send into the room as one unqueued room entry and marks the room busy', () => {
+    const idle = fold(live(), awaiting('r1'))
+    const sent = roomSent(idle, 50, 'hello room')
+
+    expect(sent.sessionId).toBe('r1')
+    expect(sent.state.entries).toEqual([{ kind: 'user', id: 'entry-0', at: 50, text: 'hello room', room: true }])
+    expect(sent.state.busy.has('r1')).toBe(true)
+    expect(sent.state.queue.size).toBe(0)
+  })
+
+  it('sends into a busy room as well, with no gate and no queue', () => {
+    const sent = roomSent(fold(live(), spoke(mary.id, 'm#1', 'Hi')), 50, 'wait')
+
+    expect(sent.sessionId).toBe('r1')
+    expect(sent.state.entries.filter((entry) => entry.kind === 'user')).toHaveLength(1)
+    expect(sent.state.queue.size).toBe(0)
+    expect(sent.state.entries.every((entry) => entry.kind !== 'user' || entry.queuedFor === undefined)).toBe(true)
+  })
+
+  it('has nothing to send into without a live room', () => {
+    expect(roomSent(initialConversation, 1, 'x')).toEqual({ state: initialConversation })
+  })
+
+  it('clears the room’s busy mark when its send is refused for another reason', () => {
+    const sent = roomSent(fold(live(), awaiting('r1')), 50, 'x')
+    expect(dispatchFailed(sent.state, 'r1').busy.has('r1')).toBe(false)
+  })
+
+  it('hydrates the room flag of stored persona and user records', () => {
+    const snapshot: ConversationSnapshot = {
+      entries: [
+        { kind: 'user', id: 'm-0', at: 1, text: 'q', room: true },
+        { kind: 'persona', id: 'm-1', at: 2, agentId: mary.id, messageId: 'm#1', text: 'a', room: true },
+        { kind: 'user', id: 'm-2', at: 3, text: 'plain' }
+      ],
+      sessions: [],
+      busy: [],
+      personas: [],
+      runs: []
+    }
+    const { state } = hydrate(initialConversation, snapshot, agentOf)
+
+    expect(state.entries.map((entry) => ('room' in entry ? entry.room : undefined))).toEqual([true, true, undefined])
   })
 })

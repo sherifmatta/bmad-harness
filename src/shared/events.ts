@@ -61,6 +61,11 @@ export type PersonaSaid = {
   messageId: MessageId
   text: string
   at: EpochMs
+  /**
+   * Set on what a persona said in a room (Story 4.2), where `agentId` is the one the turn's marker
+   * named: the words belong to the party thread and never to the persona's 1:1 thread.
+   */
+  room?: true
 }
 
 /**

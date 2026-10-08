@@ -495,6 +495,24 @@ describe('the layout constants', () => {
     expect(tile['currentEdge']).toContain('{colors.accent}')
     expect(tokens.get('--status-dot-size')).toBe(dot['size'])
   })
+
+  it('carries the cast card’s dimensions and colours, read from DESIGN.md (Story 4.2)', () => {
+    const card = componentBlock('cast-card')
+
+    expect(tokens.get('--cast-card-min')).toBe(card['minWidth'])
+    expect(tokens.get('--cast-portrait')).toBe(card['portraitSize'])
+    expect(tokens.get('--cast-speaking-border')).toBe(card['speakingBorder'])
+    expect(tokens.get('--cast-speaking-ground')).toBe(card['speakingBackground'])
+    expect(tokens.get('--shadow-speaking')).toBe(card['speakingShadow'])
+    // The ring on the portrait is 2px in the accent (DESIGN.md: `0 0 0 2px accent`); the equaliser
+    // is the motion block's `3px→8px` with the three delays it names.
+    expect(tokens.get('--cast-ring')).toBe('2px')
+    expect(tokens.get('--eq-bar-rest')).toBe('3px')
+    expect(tokens.get('--eq-height')).toBe('8px')
+    expect([1, 2, 3].map((n) => tokens.get(`--eq-delay-${n}`))).toEqual(['.15s', '.3s', '.45s'])
+    // The speaker's party turn takes the accent itself where the user's takes `--accent-edge`.
+    expect(tokens.get('--inset-turn-party-live')).toBe('inset 2px 0 0 var(--accent)')
+  })
 })
 
 describe('the files in the rail (Story 1.11)', () => {

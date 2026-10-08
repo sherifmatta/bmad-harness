@@ -56,7 +56,7 @@ export type StopKit = {
 }
 
 /** Whether the CLI accepted the interrupt: false for a refusal, a failed write, a closed process or `STOP_ACK_MS` of silence. */
-function acknowledged(kit: RunKit, entry: Entry): Promise<boolean> {
+export function acknowledged(kit: Pick<RunKit, 'schedule'>, entry: Entry): Promise<boolean> {
   return new Promise<boolean>((resolve) => {
     const cancel = kit.schedule(() => resolve(false), STOP_ACK_MS)
     const settle = (answer: boolean): void => {
@@ -110,4 +110,46 @@ function endWithSession(kit: StopKit, sender: Sender, service: Service, entry: E
   endRun(kit.runs, sender, service, entry, 'stopped')
   kit.say(sender, entry, line)
   kit.finish(sender, service, entry, 'closed')
+}
+
+/**
+ * The user sent into a room whose turn is in flight (Story 4.2): the speaker is interrupted and the
+ * send waits for the turn to end, so what it writes is the next turn and nothing is queued or refused.
+ *
+ * The entry is marked `interrupting` first, for the reason `stopRun` marks its run: the turn ends on a
+ * failed `result`, and the mark is what lets the registry's fold treat that as the user's own doing and
+ * say nothing of a failure. The interrupt is asked as a stop's is (`acknowledged`, `STOP_ACK_MS`); once
+ * the CLI accepts it, the turn has `STOP_RESULT_MS` to end, and the registry releases the entry's
+ * `idleWaiters` when it does (or when the session goes). True means idle: the caller may write.
+ *
+ * Anything else gives up and leaves no trace: a refused or unanswered interrupt, a turn that does not end
+ * in time. Nothing is killed, nothing is said, `interrupting` is cleared, and the caller refuses the send
+ * as busy, as it always did.
+ */
+export async function interruptTurn(kit: Pick<RunKit, 'schedule'>, entry: Entry): Promise<boolean> {
+  entry.interrupting = true
+  const accepted = await acknowledged(kit, entry)
+  if (!accepted || entry.closed) {
+    entry.interrupting = false
+    return false
+  }
+  // The turn may have ended while the answer was awaited.
+  if (!entry.turn.busy) {
+    return true
+  }
+  const idle = await new Promise<boolean>((resolve) => {
+    const release = (): void => settle(true)
+    const cancel = kit.schedule(() => settle(false), STOP_RESULT_MS)
+    function settle(answer: boolean): void {
+      cancel()
+      const at = entry.idleWaiters.indexOf(release)
+      if (at !== -1) entry.idleWaiters.splice(at, 1)
+      resolve(answer)
+    }
+    entry.idleWaiters.push(release)
+  })
+  if (!idle) {
+    entry.interrupting = false
+  }
+  return idle
 }

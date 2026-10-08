@@ -103,6 +103,31 @@ describe('writeTranscript and loadTranscript', () => {
     expect(loaded.kind === 'loaded' && 'room' in loaded.entries[1]).toBe(false)
   })
 
+  it('keeps the `room` flag of a persona turn and a user turn through a write and a read (Story 4.2)', () => {
+    const file = transcriptFilePath(userData, project)
+    const held: TranscriptRecord[] = [
+      { kind: 'user', id: 'm-0', at: 1, text: 'what do you think', room: true },
+      { kind: 'persona', id: 'm-1', at: 2, agentId: 'a', messageId: 'msg#1', text: 'Hi.', room: true },
+      { kind: 'persona', id: 'm-2', at: 3, agentId: 'a', messageId: 'msg_2', text: 'plain' }
+    ]
+    writeTranscript(file, project, held)
+
+    const loaded = loadTranscript(file, project)
+    expect(loaded).toEqual({ kind: 'loaded', entries: held, runs: [], dropped: 0 })
+    expect(loaded.kind === 'loaded' && 'room' in loaded.entries[2]).toBe(false)
+  })
+
+  it('counts a record whose `room` is anything but true as left out', () => {
+    const file = join(userData, 'odd-room.json')
+    const good = { kind: 'user', id: 'm-0', at: 1, text: 'kept' }
+    writeFileSync(
+      file,
+      JSON.stringify({ version: 1, projectPath: project, entries: [good, { ...good, id: 'm-1', room: 'yes' }] })
+    )
+
+    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', entries: [good], runs: [], dropped: 1 })
+  })
+
   it('reports the errno code and throws nothing when the write cannot happen', () => {
     // The conversations directory is where a regular file lies.
     writeFileSync(join(userData, 'conversations'), 'in the way')

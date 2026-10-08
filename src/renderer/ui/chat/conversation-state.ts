@@ -36,6 +36,11 @@ export type ConversationState = {
    * has no agent id, so it is in none of the maps above and has no persona state.
    */
   room: string | undefined
+  /**
+   * The agent ids chosen for the room, in roster order (Story 4.2): set when the open's reply is
+   * ok and cleared when the room closes or the conversation ends. The cast strip draws one card for each.
+   */
+  roomCast: readonly string[]
   /** The next entry's key. */
   nextId: number
 }
@@ -47,6 +52,7 @@ export const initialConversation: ConversationState = {
   queue: new Map(),
   personas: new Map(),
   room: undefined,
+  roomCast: [],
   nextId: 0
 }
 
@@ -284,17 +290,63 @@ export function ended(state: ConversationState): ConversationState {
     sessions: new Map(),
     busy: new Set(),
     queue: new Map(),
-    room: undefined
+    room: undefined,
+    roomCast: []
   }
 }
 
 /**
  * The reply to opening the room: the session it answered with is the room, whether the
- * events announced it already or it was live before this window loaded. Nothing else
- * changes: the room has no turn state here and no queue.
+ * events announced it already or it was live before this window loaded. The cast, when the
+ * reply is the window's own (`cast`, which the chooser sends in roster order), is kept; a room met only through
+ * an event keeps the cast it had. The room has no queue.
  */
-export function roomReady(state: ConversationState, sessionId: string): ConversationState {
-  return state.room === sessionId ? state : { ...state, room: sessionId }
+export function roomReady(
+  state: ConversationState,
+  sessionId: string,
+  cast?: readonly string[]
+): ConversationState {
+  const roomCast = cast === undefined ? state.roomCast : [...cast]
+  return state.room === sessionId && roomCast === state.roomCast ? state : { ...state, room: sessionId, roomCast }
+}
+
+/**
+ * The user sent `text` into the room (Story 4.2): one room entry, never queued and never labelled,
+ * and the room busy from now. There is no gate: the send is made whatever the room is doing, and main
+ * interrupts the speaker. Without a live room there is nothing to send into.
+ */
+export function roomSent(
+  state: ConversationState,
+  at: number,
+  text: string
+): { state: ConversationState; sessionId?: string } {
+  if (state.room === undefined) {
+    return { state }
+  }
+  const entry: UserEntry = { kind: 'user', id: `entry-${state.nextId}`, at, text, room: true }
+  return { state: withBusy(withEntry(state, entry), state.room, true), sessionId: state.room }
+}
+
+/**
+ * Who is speaking in the room: the agent of the last room persona entry while the room has a turn in
+ * flight, else no one. Only a persona entry after the last room user entry or room sysline counts: what
+ * the user sent, or a line about a new room, ends whoever spoke before it. A pure function of the state;
+ * nothing else lights a card.
+ */
+export function speakerOf(state: ConversationState): string | undefined {
+  if (state.room === undefined || !state.busy.has(state.room)) {
+    return undefined
+  }
+  for (let at = state.entries.length - 1; at >= 0; at -= 1) {
+    const entry = state.entries[at]
+    if (entry.kind === 'persona' && entry.room === true) {
+      return entry.agent.id
+    }
+    if ((entry.kind === 'user' || entry.kind === 'sysline') && entry.room === true) {
+      return undefined
+    }
+  }
+  return undefined
 }
 
 /**
@@ -455,7 +507,8 @@ export function hydrate(
           at: record.at,
           agent: agentOf(record.agentId) ?? unknownAgent(record.agentId),
           text: record.text,
-          messageId: record.messageId
+          messageId: record.messageId,
+          ...(record.room === true ? { room: true as const } : {})
         }
       : record.kind === 'sysline'
         ? {
@@ -465,7 +518,13 @@ export function hydrate(
             text: record.text,
             ...(record.room === true ? { room: true as const } : {})
           }
-        : { kind: 'user', id: record.id, at: record.at, text: record.text }
+        : {
+            kind: 'user',
+            id: record.id,
+            at: record.at,
+            text: record.text,
+            ...(record.room === true ? { room: true as const } : {})
+          }
   )
   const cards = snapshot.runs.map(runEntryOf)
   let next: ConversationState = {
@@ -505,8 +564,9 @@ export function foldEvent(
       const { agentId, sessionId } = event.payload
       // The room has no agent id: it is the window's room, and nothing else of it is kept (Story 4.1).
       // The activation turn of a persona is in flight until the session says it is awaiting.
+      // The room's activation turn is in flight until the session says it is awaiting.
       return agentId === undefined
-        ? { state: roomReady(state, sessionId) }
+        ? { state: withBusy(roomReady(state, sessionId), sessionId, true) }
         : {
             state: withBusy(withSession(state, agentId, sessionId), sessionId, true)
           }
@@ -516,7 +576,7 @@ export function foldEvent(
       const { sessionId, reason } = event.payload
       let next = withBusy(state, sessionId, false)
       if (next.room === sessionId) {
-        next = { ...next, room: undefined }
+        next = { ...next, room: undefined, roomCast: [] }
       }
       for (const [agentId, live] of state.sessions) {
         if (live === sessionId) {
@@ -549,17 +609,22 @@ export function foldEvent(
     }
 
     case 'persona:said': {
-      const { agentId, messageId, text, at: time } = event.payload
+      const { agentId, messageId, text, at: time, room } = event.payload
       if (agentId === undefined) {
         return { state }
       }
+      // A turn in the room nobody sent still has the room mid-turn.
+      const held =
+        room === true && state.room === event.payload.sessionId
+          ? withBusy(state, event.payload.sessionId, true)
+          : state
       // Messages queued while this one streams sit below it in the list; they
       // do not end it.
-      let at = state.entries.length - 1
-      while (at >= 0 && isQueued(state.entries[at])) {
+      let at = held.entries.length - 1
+      while (at >= 0 && isQueued(held.entries[at])) {
         at -= 1
       }
-      const last = at >= 0 ? state.entries[at] : undefined
+      const last = at >= 0 ? held.entries[at] : undefined
       if (
         last !== undefined &&
         last.kind === 'persona' &&
@@ -567,18 +632,19 @@ export function foldEvent(
         last.messageId === messageId
       ) {
         const joined: TranscriptEntry = { ...last, text: last.text + text }
-        const entries = [...state.entries]
+        const entries = [...held.entries]
         entries[at] = joined
-        return { state: { ...state, entries } }
+        return { state: { ...held, entries } }
       }
       return {
-        state: withEntry(state, {
+        state: withEntry(held, {
           kind: 'persona',
-          id: `entry-${state.nextId}`,
+          id: `entry-${held.nextId}`,
           at: time,
           agent: agentOf(agentId) ?? unknownAgent(agentId),
           text,
-          messageId
+          messageId,
+          ...(room === true ? { room: true as const } : {})
         })
       }
     }

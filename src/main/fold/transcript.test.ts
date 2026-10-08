@@ -49,6 +49,30 @@ describe('the transcript fold', () => {
     expect(state).toBe(EMPTY_TRANSCRIPT)
   })
 
+  it('records what a persona said in a room with the flag, and joins its pieces by the turn’s message id (Story 4.2)', () => {
+    const turn = (messageId: string, text: string, agentId = 'a'): PersonaSaid => ({ ...said(messageId, text, 5, agentId), room: true })
+    const state = foldAll([turn('m#1', 'Hi'), turn('m#1', '.'), turn('m#2', 'No.', 'b'), turn('m#3', 'Again', 'a')])
+
+    expect(state.entries).toEqual([
+      { kind: 'persona', id: 'm-0', at: 5, agentId: 'a', messageId: 'm#1', text: 'Hi.', room: true },
+      { kind: 'persona', id: 'm-1', at: 5, agentId: 'b', messageId: 'm#2', text: 'No.', room: true },
+      { kind: 'persona', id: 'm-2', at: 5, agentId: 'a', messageId: 'm#3', text: 'Again', room: true }
+    ])
+  })
+
+  it('still drops a room’s words that name no persona, flag or not', () => {
+    expect(foldAll([{ ...said('m1', 'x', 1, null), room: true }])).toBe(EMPTY_TRANSCRIPT)
+  })
+
+  it('records the user’s turn into the room with the flag, and a plain one without it', () => {
+    const state = foldUserTurn(foldUserTurn(EMPTY_TRANSCRIPT, 'to the room', 1, true), 'to one', 2)
+
+    expect(state.entries).toEqual([
+      { kind: 'user', id: 'm-0', at: 1, text: 'to the room', room: true },
+      { kind: 'user', id: 'm-1', at: 2, text: 'to one' }
+    ])
+  })
+
   it('records the user’s turn, which ends a message so the next piece starts afresh', () => {
     let state = foldAll([said('m1', 'a')])
     state = foldUserTurn(state, 'hi', 20)

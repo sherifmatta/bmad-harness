@@ -1906,11 +1906,62 @@ describe('the party view (Story 4.1)', () => {
     expect([...party().querySelectorAll('.sysline')].map((line) => line.textContent)).toEqual([
       'room opened by you · present · Mary · John'
     ])
-    expect(party().querySelector('.turn, .portrait, .persona-tile')).toBeNull()
+    expect(party().querySelector('.turn, .persona-tile')).toBeNull()
+    // The cast the user chose is in the strip, one card each, nobody lit while the room awaits.
+    expect([...party().querySelectorAll('.cast-card .cast-name')].map((name) => name.textContent)).toEqual(['Mary', 'John'])
+    expect(party().querySelector('.cast-card--speaking')).toBeNull()
     expect(mounted.container.querySelector('.view-conversation')?.textContent).not.toContain('room opened by you')
     // The room has no tile, no state and no entry among the persona sessions.
     expect(mounted.container.querySelectorAll('.persona-tile')).toHaveLength(2)
     expect(opened).toEqual([])
+  })
+
+  it('lights the speaker’s card while the room is mid-turn, draws party turns for the room only, and takes a message with no gate (Story 4.2)', async () => {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    click(partyButton())
+    click(openButton())
+    await settle()
+    push({ name: 'session:opened', payload: { sessionId: 'session-of-the-room', at: 1 } })
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 'session-of-the-room', at: 2 } })
+    expect(party().querySelector('.cast-card--speaking')).toBeNull()
+
+    push({
+      name: 'persona:said',
+      payload: { sessionId: 'session-of-the-room', agentId: john.id, messageId: 'm#1', text: 'No.', at: 3, room: true }
+    })
+
+    expect([...party().querySelectorAll('.cast-card--speaking .cast-name')].map((name) => name.textContent)).toEqual(['John'])
+    expect(party().querySelectorAll('.cast-card')).toHaveLength(2)
+    expect(party().querySelector('.cast-eq')).not.toBeNull()
+    expect([...party().querySelectorAll('.turn-name')].map((name) => name.textContent)).toEqual(['John'])
+    expect(party().querySelector('.turn--party-live')).not.toBeNull()
+    // The 1:1 thread shows none of the room.
+    expect(mounted.container.querySelector('.view-conversation')?.textContent ?? '').not.toContain('No.')
+
+    // No gate: the composer takes a message mid-turn, and it goes to the room.
+    const field = party().querySelector('textarea') as HTMLTextAreaElement
+    expect(field.disabled).toBe(false)
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
+      setter?.call(field, 'hold on')
+      field.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    act(() => {
+      field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    })
+    await settle()
+
+    expect(sent).toEqual([['session-of-the-room', 'hold on']])
+    expect([...party().querySelectorAll('.turn--user .turn-words')].map((words) => words.textContent)).toEqual(['hold on'])
+    expect(party().querySelector('.turn--queued')).toBeNull()
+
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 'session-of-the-room', at: 4 } })
+    expect(party().querySelector('.cast-card--speaking')).toBeNull()
+    expect(party().querySelector('.cast-eq')).toBeNull()
+    expect(party().querySelector('.turn--party-live')).toBeNull()
+    expect(party().querySelectorAll('.cast-card')).toHaveLength(2)
   })
 
   it('returns the chooser when the room closes, and leaves the old line where it fell', async () => {

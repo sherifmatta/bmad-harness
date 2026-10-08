@@ -30,7 +30,7 @@ function paragraphsOf(text: string): string[] {
   return text.split(PARAGRAPH_BREAK).filter((paragraph) => paragraph.trim() !== '')
 }
 
-function Words({ text }: { text: string }): JSX.Element {
+export function Words({ text }: { text: string }): JSX.Element {
   return (
     <div className="turn-words">
       {paragraphsOf(text).map((paragraph, index) => (
@@ -40,7 +40,7 @@ function Words({ text }: { text: string }): JSX.Element {
   )
 }
 
-function Head({ name, ident, at }: { name: string; ident: string; at: number }): JSX.Element {
+export function Head({ name, ident, at }: { name: string; ident: string; at: number }): JSX.Element {
   return (
     <div className="turn-head">
       <span className="turn-name">{name}</span>

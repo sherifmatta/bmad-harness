@@ -5,13 +5,17 @@ import { readFrame } from './frame'
 import type { ToolResult } from './frame'
 import { feedFields, initialFieldDecoder } from './json-string-fields'
 import type { FieldDecoder, FieldOp } from './json-string-fields'
+import { flushScan, initialScan, scanText, speakerNamed } from './party-speech'
+import type { Piece, Scan } from './party-speech'
 import { sectionHeadings } from './section-headings'
 
 /**
  * Where a raw frame's content goes. Five rules, all decided here and nowhere
  * else, so that the renderer never has to parse a frame:
  *
- * - main-thread speech outside a tool call is what the persona said;
+ * - main-thread speech outside a tool call is what the persona said; in a room, which has
+ *   no persona of its own, it is what the persona named by the turn's marker said
+ *   (`party-speech`), and speech with no such marker is no one's and goes nowhere;
  * - the text of a run's `Write` to a file in the project is document prose,
  *   and replaces the run's buffer of that path as it streams; an `Edit` streams
  *   nothing, and its `old_string` and `new_string` are held whole. Either call
@@ -43,6 +47,11 @@ export type RouteContext = {
   projectRoot: string
   /** Epoch milliseconds, injected so the fold never reads a clock. */
   now: number
+  /**
+   * The window's resolved roster, which a room's markers are read against (Story 4.2).
+   * Read only when `agentId` is absent; a persona's session never looks at it.
+   */
+  roster?: readonly { id: string; name: string }[]
 }
 
 /** The routed outcome of one frame. */
@@ -80,6 +89,23 @@ type Block = { kind: 'text' } | { kind: 'other' } | ToolBlock
  */
 export type PendingWrite = { path: string; tool: string; text: string; old: string }
 
+/**
+ * What the room's turn markers have told so far (Story 4.2). Held in every state and
+ * touched only for a session with no `agentId`: a persona's session never changes it.
+ */
+export type PartyState = {
+  /** The scan's memory: text held back at a line start, and whether the next character begins a line. */
+  scan: Scan
+  /** Who the current message's speech is, by roster id; none before its first marker and after one that named no one. */
+  speaker: AgentId | undefined
+  /** How many markers this session has seen: each starts a turn, and the count is the turn's ordinal. */
+  turns: number
+  /** The instant of the delta that carried the current turn's marker. */
+  turnAt: number
+}
+
+export const initialParty: PartyState = { scan: initialScan, speaker: undefined, turns: 0, turnAt: 0 }
+
 export type RouteState = {
   /** The main thread's current message; a new one resets its blocks. */
   messageId: string | undefined
@@ -99,9 +125,18 @@ export type RouteState = {
    * a `Write` starts one; the end of the run drops them all.
    */
   docs: Readonly<Record<string, string>>
+  /** The room's turn markers: who is speaking, and the turn they are in (Story 4.2). */
+  party: PartyState
 }
 
-export const initialRouteState: RouteState = { messageId: undefined, blocks: {}, unnamed: 0, writes: {}, docs: {} }
+export const initialRouteState: RouteState = {
+  messageId: undefined,
+  blocks: {},
+  unnamed: 0,
+  writes: {},
+  docs: {},
+  party: initialParty
+}
 
 /**
  * The state with every pending write and every document buffer dropped: the
@@ -305,6 +340,54 @@ function personaSaid(state: RouteState, text: string, ctx: RouteContext): Contra
 }
 
 /**
+ * What the scan found in a room's text, as the party's memory and the events it yields: a marker
+ * starts a turn (its name read against the roster, its ordinal the marker count, its instant the
+ * delta that carried it), and speech is the current speaker's, one `persona:said` per piece with the
+ * turn's own `messageId`. Speech with no known speaker is dropped: nothing is attributed that no
+ * marker named.
+ */
+function foldPieces(
+  state: RouteState,
+  party: PartyState,
+  pieces: readonly Piece[],
+  ctx: RouteContext
+): { party: PartyState; events: ContractEvent[] } {
+  let next = party
+  const events: ContractEvent[] = []
+  for (const piece of pieces) {
+    if (piece.kind === 'marker') {
+      next = {
+        ...next,
+        speaker: speakerNamed(piece.name, ctx.roster ?? []),
+        turns: next.turns + 1,
+        turnAt: ctx.now
+      }
+    } else if (next.speaker !== undefined) {
+      events.push({
+        name: 'persona:said',
+        payload: {
+          sessionId: ctx.sessionId,
+          agentId: next.speaker,
+          messageId: `${state.messageId ?? ''}#${next.turns}`,
+          text: piece.text,
+          at: next.turnAt,
+          room: true
+        }
+      })
+    }
+  }
+  return { party: next, events }
+}
+
+/** A room's held text is speech from here on: the block it belongs to ended, or a new message began. */
+function flushParty(state: RouteState, ctx: RouteContext): RouteResult {
+  if (ctx.agentId !== undefined || state.party.scan.held === '') return { state, events: [] }
+  const flushed = flushScan(state.party.scan)
+  const folded = foldPieces(state, state.party, flushed.pieces, ctx)
+  return { state: { ...state, party: { ...folded.party, scan: flushed.scan } }, events: folded.events }
+}
+
+/**
  * Fold one raw frame into the next state and the domain events it yields.
  * Never throws: an unfamiliar or malformed frame yields no events and leaves
  * the state as it was.
@@ -320,7 +403,13 @@ export function routeFrame(state: RouteState, frame: unknown, ctx: RouteContext)
       const unnamed = input.messageId === '' ? state.unnamed + 1 : state.unnamed
       const messageId =
         input.messageId === '' ? `unnamed-${ctx.sessionId}-${unnamed}` : input.messageId
-      return { state: { ...state, messageId, blocks: {}, unnamed }, events: [] }
+      // A room's held text is the old message's; a new one has no speaker until its first marker.
+      const flushed = flushParty(state, ctx)
+      const party =
+        ctx.agentId === undefined
+          ? { ...flushed.state.party, scan: initialScan, speaker: undefined }
+          : state.party
+      return { state: { ...flushed.state, messageId, blocks: {}, unnamed, party }, events: flushed.events }
     }
 
     // The turn's end and the background tasks are the turn fold's, not a routing concern.
@@ -333,7 +422,12 @@ export function routeFrame(state: RouteState, frame: unknown, ctx: RouteContext)
 
     case 'block-start': {
       const head = input.block
-      if (head.type === 'text') return { state: withBlock(state, input.index, { kind: 'text' }), events: [] }
+      if (head.type === 'text') {
+        // A text block begins at the start of a line.
+        const begun =
+          ctx.agentId === undefined ? { ...state, party: { ...state.party, scan: { ...state.party.scan, lineStart: true } } } : state
+        return { state: withBlock(begun, input.index, { kind: 'text' }), events: [] }
+      }
       const textField = head.type === 'tool' ? WRITE_FIELDS[head.name] : undefined
       if (head.type !== 'tool' || textField === undefined || ctx.runId === undefined) {
         return { state: withBlock(state, input.index, { kind: 'other' }), events: [] }
@@ -360,7 +454,17 @@ export function routeFrame(state: RouteState, frame: unknown, ctx: RouteContext)
       if (block === undefined || block.kind !== 'text' || input.text === '') {
         return { state, events: [] }
       }
-      return { state, events: [personaSaid(state, input.text, ctx)] }
+      if (ctx.agentId !== undefined) return { state, events: [personaSaid(state, input.text, ctx)] }
+      // A room has no persona of its own: its text is read for the markers that name who speaks.
+      // A name the roster does not have is a marker only behind an icon; a bold label is the speaker's own words.
+      const roster = ctx.roster ?? []
+      const scanned = scanText(
+        state.party.scan,
+        input.text,
+        (name, icon) => icon || speakerNamed(name, roster) !== undefined
+      )
+      const folded = foldPieces(state, state.party, scanned.pieces, ctx)
+      return { state: { ...state, party: { ...folded.party, scan: scanned.scan } }, events: folded.events }
     }
 
     case 'json-delta': {
@@ -374,7 +478,10 @@ export function routeFrame(state: RouteState, frame: unknown, ctx: RouteContext)
       return { state: withBlock(written, input.index, applied.block), events: applied.events }
     }
 
-    case 'block-stop':
-      return { state: withoutBlock(state, input.index), events: [] }
+    case 'block-stop': {
+      // What a room's text block still held is speech: the block is over.
+      const flushed = state.blocks[input.index]?.kind === 'text' ? flushParty(state, ctx) : { state, events: [] }
+      return { state: withoutBlock(flushed.state, input.index), events: flushed.events }
+    }
   }
 }

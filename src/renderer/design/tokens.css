@@ -227,6 +227,27 @@
   --initials-size-user:32px;
   --initials-overlap:-5px;
 
+  /* ── The cast strip's card (Story 4.2), read off DESIGN.md's `components.cast-card` block
+     and harness-mockup.html's `.cast`, `.castcard` and `.eq` rules (:277-300). Component
+     dimensions and the two literal colours of the speaking card, here for the reason the run
+     note's are: NFR23 allows no literal in a component stylesheet. The equaliser's three bars
+     are the mockup's four reduced to the three the story draws, each one real element. */
+  --cast-card-min:148px;
+  --cast-portrait:44px;
+  --cast-strip-padding:12px 16px;
+  --cast-card-padding:9px 11px;
+  --cast-status-top:3px;
+  --cast-speaking-border:#41597e;
+  --cast-speaking-ground:#1b222c;
+  --cast-ring:2px;
+  --eq-height:8px;
+  --eq-bar-width:2px;
+  --eq-bar-rest:3px;
+  --eq-gap:1.5px;
+  --eq-delay-1:.15s;
+  --eq-delay-2:.3s;
+  --eq-delay-3:.45s;
+
   /* ── Elevation (UX-DR10). Depth is tonal, not cast: the five-step surface
      ramp *is* the elevation system. There is no elevation scale, no z1/z2/z3,
      and no hover-lift. Exactly two z-indexes exist, and a surface that needs a
@@ -412,6 +433,9 @@
   --turn-avatar-top:1px;
   --turn-head-bottom:3px;
   --inset-turn-user:inset 2px 0 0 var(--accent-edge);
+  /* The party turn of the persona speaking now (Story 4.2): the same inset edge as the user's
+     turn, in the accent itself, drawn only while that persona is the room's current speaker. */
+  --inset-turn-party-live:inset 2px 0 0 var(--accent);
 
   /* The sysline (Story 2.9): `.sysline` (:191) sits 14px under what precedes it,
      2px in from either side and 10px over what follows; DESIGN.md's `sysline`

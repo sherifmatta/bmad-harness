@@ -1431,14 +1431,16 @@ describe('openRoom (Story 4.1)', () => {
     expect(roomOf(last())).toBeUndefined()
   })
 
-  it('leaves the persona maps alone: the room is in no session, queue or busy set', async () => {
+  it('leaves the persona maps alone: the room is in no session or queue, and only its activation turn is busy', async () => {
     const { conversation, last } = build()
     await connected(conversation)
     bridge.push(roomOpened('r1'))
 
     const state = last() as unknown as { sessions: ReadonlyMap<string, string>; busy: ReadonlySet<string> }
     expect(state.sessions.size).toBe(0)
-    expect(state.busy.size).toBe(0)
+    expect([...state.busy]).toEqual(['r1'])
+    bridge.push({ name: 'session:awaiting-turn', payload: { sessionId: 'r1', at: 2 } })
+    expect((last() as unknown as { busy: ReadonlySet<string> }).busy.size).toBe(0)
   })
 
   it('keeps a persona’s session when the room closes, and the room when a persona’s closes', async () => {
@@ -1514,5 +1516,92 @@ describe('openRoom (Story 4.1)', () => {
     await conversation.end('/project')
 
     expect(roomOf(last())).toBeUndefined()
+  })
+})
+
+describe('sendToRoom (Story 4.2)', () => {
+  const CAST = [mary.id, john.id]
+  const spoke = (agentId: string, messageId: string, text: string): ContractEvent => ({
+    name: 'persona:said',
+    payload: { sessionId: 'r1', agentId, messageId, text, at: 3, room: true }
+  })
+  type Held = { room?: string; roomCast: readonly string[]; busy: ReadonlySet<string>; entries: readonly { kind: string; room?: true; queuedFor?: string; text?: string }[] }
+  const held = (published: object | undefined): Held => published as unknown as Held
+
+  async function live() {
+    const made = build()
+    await connected(made.conversation)
+    void made.conversation.openRoom(CAST)
+    bridge.openResult[0].resolve('r1')
+    await settle()
+    bridge.push({ name: 'session:awaiting-turn', payload: { sessionId: 'r1', at: 2 } })
+    return made
+  }
+
+  it('keeps the cast the room was opened with', async () => {
+    const { last } = await live()
+    expect(held(last()).roomCast).toEqual(CAST)
+  })
+
+  it('shows one unqueued room entry, marks the room busy and sends the text to the room session, verbatim', async () => {
+    const { conversation, last } = await live()
+    conversation.sendToRoom('@john what about  this?')
+
+    expect(bridge.sends).toEqual([['r1', '@john what about  this?']])
+    const state = held(last())
+    expect(state.busy.has('r1')).toBe(true)
+    expect(state.entries).toEqual([
+      expect.objectContaining({ kind: 'user', room: true, text: '@john what about  this?' })
+    ])
+    expect(state.entries[0].queuedFor).toBeUndefined()
+  })
+
+  it('sends into a room mid-turn with no gate: no queue, one transmit per send', async () => {
+    const { conversation, last } = await live()
+    bridge.push(spoke(mary.id, 'm#1', 'Hi'))
+    conversation.sendToRoom('one')
+    conversation.sendToRoom('two')
+
+    expect(bridge.sends).toEqual([['r1', 'one'], ['r1', 'two']])
+    expect(held(last()).entries.filter((entry) => entry.kind === 'user' && entry.queuedFor !== undefined)).toEqual([])
+  })
+
+  it('keeps the entry and the busy mark when main refuses as busy, and says nothing', async () => {
+    const { conversation, last, failures } = await live()
+    bridge.sendResults.push(busy())
+    conversation.sendToRoom('x')
+    await settle()
+
+    expect(held(last()).busy.has('r1')).toBe(true)
+    expect(held(last()).entries).toHaveLength(1)
+    expect(failures.filter((failure) => failure !== null)).toEqual([])
+  })
+
+  it('clears the busy mark, keeps the entry and shows the failure for any other refusal', async () => {
+    const { conversation, last, failures } = await live()
+    bridge.sendResults.push(Promise.reject({ code: 'session/write-failed', message: 'session · the turn could not be written' }))
+    conversation.sendToRoom('x')
+    await settle()
+
+    expect(held(last()).busy.has('r1')).toBe(false)
+    expect(held(last()).entries).toHaveLength(1)
+    expect(failures[failures.length - 1]).toMatchObject({ code: 'session/write-failed' })
+  })
+
+  it('sends nothing when there is no live room', async () => {
+    const { conversation, last } = build()
+    await connected(conversation)
+    conversation.sendToRoom('x')
+
+    expect(bridge.sends).toEqual([])
+    expect(last()?.entries ?? []).toEqual([])
+  })
+
+  it('is cleared with the conversation: no cast, no room', async () => {
+    const { conversation, last } = await live()
+    await conversation.end('/project')
+
+    expect(held(last()).roomCast).toEqual([])
+    expect(held(last()).room).toBeUndefined()
   })
 })

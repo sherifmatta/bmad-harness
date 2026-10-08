@@ -57,7 +57,7 @@ describe('the party view’s files', () => {
   const sources = filesUnder(PARTY).filter((path) => /\.(?:ts|tsx)$/.test(path) && !/\.test\.tsx?$/.test(path))
 
   it('exist, so the sweep below is not over nothing', () => {
-    expect(sources.map((path) => path.split('/').pop()).sort()).toEqual(['cast-chooser.tsx', 'party-view.tsx'])
+    expect(sources.map((path) => path.split('/').pop()).sort()).toEqual(['cast-chooser.tsx', 'cast-strip.tsx', 'party-turn.tsx', 'party-view.tsx'])
   })
 
   it('reach outside the renderer only into `shared/`: never main, preload or the bridge', () => {
@@ -86,7 +86,27 @@ describe('the party view’s files', () => {
     for (const path of filesUnder(PARTY).filter((held) => held.endsWith('.css'))) {
       const css = stripped(read(path))
       expect(css, path).not.toMatch(/#[0-9a-fA-F]{3,8}\b|\b\d+(?:\.\d+)?(?:px|rem|em)\b|rgba?\(|font-family:\s*(?!var\()\S/)
-      expect(css, path).not.toMatch(/@keyframes|animation|transition|spinner|skeleton/)
+      expect(css, path).not.toMatch(/@keyframes|spinner|skeleton/)
+      // Story 4.2: the cast strip spends the two motion tokens the design names and nothing else:
+      // the equaliser's and the speaker change's. A second declaration of motion is not allowed here.
+      const motion = [...css.matchAll(/(?<![\w-])(?:animation|transition)(?:-[a-z-]+)?\s*:\s*([^;]*);/g)]
+      for (const [, value] of motion) {
+        const spent = value.replace(/\s+/g, ' ').trim()
+        expect(
+          path.endsWith('cast-strip.css') &&
+            (spent === 'var(--motion-eq)' ||
+              /^var\(--eq-delay-[123]\)$/.test(spent) ||
+              /^(?:opacity|border-color|background) var\(--motion-cast\)(?:, (?:opacity|border-color|background) var\(--motion-cast\))*$/.test(spent)),
+          `${path}: ${spent}`
+        ).toBe(true)
+      }
     }
+  })
+
+  it('draw no disagreement, evidence or unresolved chrome, and nothing in the cast strip announces', () => {
+    for (const path of sources) {
+      expect(stripped(read(path)), path).not.toMatch(/disagrees|evidence|unresolved/i)
+    }
+    expect(stripped(read(`${PARTY}/cast-strip.tsx`))).not.toMatch(/aria-live|role=|role:/)
   })
 })

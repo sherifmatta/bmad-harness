@@ -268,8 +268,11 @@ export function App(): JSX.Element | null {
           <PartyView
             agents={snapshot.agents}
             room={conversation.room}
+            roomCast={conversation.roomCast}
+            speaker={conversation.speaker}
             entries={conversation.entries}
             onOpen={(cast) => void conversation.openRoom(cast)}
+            onSend={conversation.sendToRoom}
           />
         }
         composer={(agent, items) => (

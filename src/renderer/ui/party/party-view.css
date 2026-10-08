@@ -1,5 +1,5 @@
 /*
- * The party view (Story 4.1): a scrolling region holding one centred column, at the party
+ * The party view (Stories 4.1, 4.2): the cast strip, a scrolling region holding one centred column, at the party
  * thread's own measure (--party-thread-max). The side panel (--party-side) is a later
  * story's and is not drawn here. Every value reaches the design system through `var()`.
  */
@@ -7,12 +7,28 @@
 .party-view {
   flex: 1 1 auto;
   min-height: 0;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   background: var(--bg);
+}
+
+/* The only part of the view that scrolls: the strip above it and the composer below it stay. */
+.party-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .party-column {
   max-width: var(--party-thread-max);
   margin: 0 auto;
   padding: var(--thread-padding);
+}
+
+/*
+ * The latest turn of the persona speaking now (Story 4.2): an accent edge down its left side, in
+ * the way the user's turn has its own. It is on that turn only while that persona is the speaker.
+ */
+.turn--party-live {
+  box-shadow: var(--inset-turn-party-live);
 }

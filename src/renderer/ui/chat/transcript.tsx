@@ -120,8 +120,9 @@ export function Turns({
   /** Handed to each run card and line as it is, for the control it draws while its run is in flight. */
   onStop?: (runId: string) => void
 }): JSX.Element {
-  // A room's line belongs to the party thread (Story 4.1): a persona's thread never draws one.
-  const ordered = orderEntries(entries.filter((entry) => entry.kind !== 'sysline' || entry.room !== true))
+  // What the room said, or the user said into it, belongs to the party thread (Stories 4.1, 4.2):
+  // a persona's thread never draws it. A run's card carries no room flag and stays.
+  const ordered = orderEntries(entries.filter((entry) => entry.kind === 'run' || entry.room !== true))
   const last = ordered.length - 1
   return (
     <>

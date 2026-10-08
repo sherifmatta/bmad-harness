@@ -23,7 +23,7 @@ function mount(room: string | undefined): void {
 }
 
 function update(room: string | undefined): void {
-  act(() => root.render(createElement(PartyView, { agents: [mary], room, entries: [LINE], onOpen: () => {} })))
+  act(() => root.render(createElement(PartyView, { agents: [mary], room, roomCast: [mary.id], speaker: undefined, entries: [LINE], onOpen: () => {}, onSend: () => {} })))
 }
 
 afterEach(() => {
