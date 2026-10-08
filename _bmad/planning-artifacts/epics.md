@@ -405,7 +405,7 @@ Every one of the 112 FRs maps to exactly one epic.
 | FR109 | Epic 5 | The five core personas by phase of the method |
 | FR110 | Epic 5 | Light and dark themes, System default, the View menu and the Welcome line, applied at once |
 | FR111 | Epic 5 | One stored value, no wrong-theme first paint, unknown reads as System, portraits unchanged |
-| FR112 | Epic 6 | A thread follows its newest line, pauses when the user scrolls up, and has one way back |
+| FR112 | Epic 5 | A thread follows its newest line, pauses when the user scrolls up, and has one way back |
 
 **Coverage by epic:** Epic 1 — 42 FRs · Epic 2 — 20 FRs · Epic 3 — 34 FRs · Epic 4 — 9 FRs · **Total 105.**
 
@@ -510,40 +510,24 @@ Convene a room of chosen personas in one conversation you participate in, with e
 
 ### Epic 5: Arrive — choose a project from a welcome
 
-The harness stops opening to a native dialog. It opens to a Welcome that offers one action (open a project folder, or drop one), lists the projects opened before, and shows the five core personas by phase of the method, so the first thing seen is what the product is, not an operating-system chooser. And it can be seen in light or dark: the user chooses, and System is the default.
+The harness stops opening to a native dialog. It opens to a Welcome that offers one action (open a project folder, or drop one), lists the projects opened before, and shows the five core personas by phase of the method, so the first thing seen is what the product is, not an operating-system chooser. And it can be seen in light or dark: the user chooses, and System is the default. And a conversation, in a persona's thread or in the room, follows what is being said and holds still when you scroll up to reread.
 
-**Standalone:** it changes how a project is chosen and how the product is painted, and nothing about what a project window does once open.
+**Standalone:** it changes how a project is chosen, how the product is painted and how a thread scrolls, and nothing about what a project window or a thread contains.
 
-**FRs covered:** FR106, FR107, FR108, FR109, FR110, FR111 (FR9 and FR17 stay true)
+**FRs covered:** FR106, FR107, FR108, FR109, FR110, FR111, FR112 (FR9 and FR17 stay true)
 
-**NFRs addressed:** NFR7, NFR13, NFR15, NFR19, NFR22, NFR23, NFR24, NFR25, NFR27
+**NFRs addressed:** NFR7, NFR13, NFR15, NFR19, NFR20, NFR22, NFR23, NFR24, NFR25, NFR26, NFR27
 
-**UX-DRs addressed:** UX-DR39, UX-DR40, UX-DR41, UX-DR42, UX-DR43
+**UX-DRs addressed:** UX-DR39, UX-DR40, UX-DR41, UX-DR42, UX-DR43, UX-DR44
 
 **Implementation notes:**
 - The Welcome follows the document window's precedent: its own window, its own page entry and its own preload bundle, sharing no runtime module with the shell's. It has no project and no edge to the install, the CLI or a project's files.
 - The only new durable state is the recent list and the theme value, both under `userData` (AD-1, NFR3). They are bookkeeping and hold paths, times and one word, never project content.
+- The renderer's one scroll call today is the reveal of a run's card (`use-reveal.ts`, Story 3.10). Story 5.3 adds the thread's own following beside it, and the reveal now also pauses following. The follow state is a fact about the scroller's position: nothing is persisted and there is no setting.
 - **The light theme reverses NFR15** (Story 5.2). Dark is unchanged to the byte; the light theme is an additional block, so Epics 1 to 4's token tests keep passing as they are.
 - The five descriptions are a static table (the one roster shown before any install is read). They are written from each agent's `role`; they are not read from a project and not attributed to a persona.
 - **Negative-surface check:** each story's own final criteria verify the UX-DR38 prohibitions on its surfaces. The Welcome's: no badge or count, no recommended persona, no spinner or animation, no tour or wizard, no sound, no *clear recent* control.
 
-
-### Epic 6: Read along — a conversation that holds its place
-
-A thread follows what is being said, in a persona's conversation and in the party room, and stops the moment the reader scrolls up to reread, with one quiet way back.
-
-**Standalone:** it changes how a thread scrolls and nothing about what a thread contains.
-
-**FRs covered:** FR112
-
-**NFRs addressed:** NFR19, NFR20, NFR22, NFR23, NFR25, NFR26, NFR27
-
-**UX-DRs addressed:** UX-DR44
-
-**Implementation notes:**
-- The renderer's one scroll call today is the reveal of a run's card (`use-reveal.ts`, Story 3.10). This epic adds the thread's own following beside it; the reveal now also pauses following.
-- The follow state is a fact about the scroller's position, not stored state: nothing is persisted, nothing is remembered across a switch, and there is no setting.
-- **Negative-surface check:** the story's own final criteria verify the UX-DR38 prohibitions on the control: no count or unread marker, no badge, no animated scroll, no sound, no preference to turn it off.
 
 ---
 
@@ -2336,7 +2320,7 @@ So that what is on screen as sent is what the room received.
 
 ## Epic 5: Arrive — choose a project from a welcome
 
-The harness opens to a Welcome in place of a native folder dialog: one action, the projects opened before, and the five core personas by phase of the method.
+The harness opens to a Welcome in place of a native folder dialog: one action, the projects opened before, and the five core personas by phase of the method. It can be seen in light or dark, and a conversation follows what is being said.
 
 ### Story 5.1: Choose a project from a welcome, not a dialog
 
@@ -2523,15 +2507,9 @@ So that the product is readable where I actually work and agrees with the rest o
 
 **Boundaries:** no change to the dark values; no change to any conversation, session, run, rail or document channel beyond the theme's own; no per-window or per-project theme; no portrait change; no high-contrast variant, no third palette and no accent choice; the Welcome's line is the only on-window control and the topbar gains none.
 
----
+### Story 5.3: The thread follows what is being said
 
-## Epic 6: Read along — a conversation that holds its place
-
-A thread follows what is being said and holds still when the reader scrolls up.
-
-### Story 6.1: The thread follows what is being said
-
-*Sequencing: added 2026-10-08 from the follow-the-thread design (`mockups/follow-the-thread.html`; `DESIGN.md` → Follow control; `EXPERIENCE.md` → Following the thread). Independent of Stories 5.1 and 5.2; it touches the thread's scroller in the shell and in the party view, and `use-reveal.ts`.*
+*Sequencing: added 2026-10-08 from the follow-the-thread design (`mockups/follow-the-thread.html`; `DESIGN.md` → Follow control; `EXPERIENCE.md` → Following the thread). Independent of Stories 5.1 and 5.2, and buildable before or after either; it touches the thread's scroller in the shell and in the party view, and `use-reveal.ts`.*
 
 As someone watching a persona or the room write,
 I want the thread to stay on the newest line, and to hold still when I scroll up to reread,

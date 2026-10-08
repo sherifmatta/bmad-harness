@@ -100,11 +100,8 @@ development_status:
   epic-5: backlog
   5-1-choose-a-project-from-a-welcome-not-a-dialog: backlog
   5-2-choose-light-dark-or-the-systems-theme: backlog
+  5-3-the-thread-follows-what-is-being-said: backlog
   epic-5-retrospective: optional
-
-  epic-6: backlog
-  6-1-the-thread-follows-what-is-being-said: backlog
-  epic-6-retrospective: optional
 action_items:
   - id: "epic-1-retro-item-1-make-the-packaged-app-find-claude-and-uv"
     epic: 1
