@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Output folder</title>
+<style>
+  :root{--bg:#101317;--chrome:#14181d;--panel:#171b21;--panel-2:#1b2027;--panel-3:#20262e;--line:#272d36;--line-soft:#1f242c;--text:#dce2ea;--text-strong:#f1f4f8;--dim:#96a0ad;--faint:#6b7480;--meta:#5b636e;--accent:#7fa6e8;--accent-bg:rgba(127,166,232,.12);--accent-border:#33455f;--green:#6aa87f;--amber:#c6a350;--win-line:#333b46;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;color-scheme:dark}
+  *{box-sizing:border-box;margin:0}
+  body{background:#0b0d10;color:var(--text);font:13px/1.55 var(--sans);padding:32px 24px 80px}
+  .wrap{max-width:1120px;margin:0 auto}
+  h1{font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--text-strong)}
+  h2{font-size:14.5px;font-weight:600;color:var(--text-strong);margin:38px 0 12px}
+  .lede{color:var(--dim);max-width:80ch;margin:6px 0 8px}
+  .mono{font-family:var(--mono);font-size:10.5px;color:var(--text)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:26px 28px}
+  .card{display:flex;gap:18px;align-items:flex-start}
+  .cap{font-size:11.5px;color:var(--dim);line-height:1.55;padding-top:2px}
+  .cap b{color:var(--text);font-weight:600}
+  .cap .st{display:block;font:600 10.5px var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--faint);margin-bottom:4px}
+  /* the Outputs half, as the shell draws it */
+  .rail{flex:0 0 348px;width:348px;background:var(--panel);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+  .head{height:30px;display:flex;align-items:center;gap:10px;padding:0 11px;background:var(--chrome);border-bottom:1px solid var(--line);font:600 10.5px var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
+  .head .sp{flex:1}
+  .head .where{font:10.5px var(--mono);letter-spacing:.02em;text-transform:none;color:var(--dim);font-weight:400}
+  .head .chg{font:10.5px var(--mono);letter-spacing:.02em;text-transform:none;color:var(--accent);font-weight:400;background:none;border:0;cursor:pointer;padding:0}
+  .head .chg:hover{text-decoration:underline}
+  .state{padding:5px 11px;border-bottom:1px solid var(--line-soft);font:10.5px var(--mono);color:var(--dim);background:var(--panel)}
+  .grp{padding:8px 11px 3px;font:10px var(--mono);color:var(--meta);letter-spacing:.04em}
+  .row{display:flex;align-items:center;gap:9px;padding:6px 11px;border-top:1px solid var(--line-soft);font:11.5px var(--mono);color:var(--text)}
+  .row .s{margin-left:auto;font-size:10px;color:var(--faint)}
+  .row i{width:10px;height:12px;border:1px solid var(--faint);border-radius:2px;opacity:.75;flex:0 0 auto}
+  .empty{padding:14px 11px 16px}
+  .empty p:first-child{font:11.5px var(--mono);color:var(--dim)}
+  .empty p:last-child{font:10.5px var(--mono);color:var(--faint);margin-top:3px}
+  /* menu */
+  .menubar{display:flex;gap:16px;background:var(--chrome);border:1px solid var(--line);border-radius:5px 5px 0 0;padding:5px 12px;font-size:12px;color:var(--dim);max-width:520px}
+  .menubar b{color:var(--text-strong);font-weight:600}
+  .menu{background:var(--panel-2);border:1px solid var(--line);border-top:0;border-radius:0 0 6px 6px;padding:4px;font-size:12px;color:var(--text);width:300px;margin-left:46px;box-shadow:0 12px 30px -14px rgba(0,0,0,.8)}
+  .menu div{padding:3px 10px;border-radius:3px;display:flex;justify-content:space-between}
+  .menu .k{color:var(--faint)}.menu .off{color:var(--faint)}.menu .hl{background:#2c3a52;color:#cfe0f8}
+  .menu hr{border:0;border-top:1px solid var(--line-soft);margin:4px 0}
+  table{border-collapse:collapse;width:100%;font-size:11.5px}
+  th,td{padding:6px 10px;text-align:left;border-bottom:1px solid var(--line-soft);vertical-align:top}
+  th{font:600 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--faint);border-bottom:1px solid var(--line)}
+  td:first-child{font-family:var(--mono);font-size:10.5px;color:var(--text);white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Choosing the output folder</h1>
+  <p class="lede">The Outputs half of the rail, in the four states the choice can leave it in, and the menu that changes it. The install (<span class="mono">_bmad/config.toml</span>, the resolver scripts) stays at <span class="mono">_bmad/</span>: only the folder the harness <i>watches</i> for a project's output is chosen.</p>
+
+  <h2>The Outputs head, four states</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="rail"><div class="head"><span>outputs</span><span class="sp"></span><span class="where">_bmad/</span><button class="chg">change…</button></div>
+        <div class="grp">_bmad/</div><div class="row"><i></i>product-brief.md<span class="s">saved · 2d</span></div><div class="row"><i></i>PRD.md<span class="s">saved · 41m</span></div><div class="row"><i></i>architecture.md<span class="s">saved · 41m</span></div></div>
+      <div class="cap"><span class="st">1 · derived</span><b>Nothing chosen.</b> The folder is BMad's own <span class="mono">output_folder</span>, read through its resolver. Here it is <span class="mono">_bmad/</span>. No second line: nothing disagrees.</div>
+    </div>
+    <div class="card">
+      <div class="rail"><div class="head"><span>outputs</span><span class="sp"></span><span class="where">docs/bmad/</span><button class="chg">change…</button></div>
+        <div class="state">bmad writes to · _bmad/</div>
+        <div class="grp">docs/bmad/</div><div class="row"><i></i>PRD.md<span class="s">saved · 3d</span></div><div class="row"><i></i>architecture.md<span class="s">saved · 3d</span></div></div>
+      <div class="cap"><span class="st">2 · chosen, and different</span><b>Chosen <span class="mono">docs/bmad/</span>; BMad writes to <span class="mono">_bmad/</span>.</b> The harness says both folders and stops. New work will land where BMad's config sends it, not where the rail is looking. No advice, no warning colour.</div>
+    </div>
+    <div class="card">
+      <div class="rail"><div class="head"><span>outputs</span><span class="sp"></span><span class="where">_bmad/</span><button class="chg">change…</button></div>
+        <div class="state">docs/bmad/ · folder missing</div>
+        <div class="grp">_bmad/</div><div class="row"><i></i>product-brief.md<span class="s">saved · 2d</span></div><div class="row"><i></i>PRD.md<span class="s">saved · 41m</span></div></div>
+      <div class="cap"><span class="st">3 · chosen folder gone</span><b>The choice is remembered, not applied.</b> The rail falls back to BMad's folder and says which folder is missing. If it comes back, the rail returns to it.</div>
+    </div>
+    <div class="card">
+      <div class="rail"><div class="head"><span>outputs</span><span class="sp"></span><span class="where">_bmad/</span><button class="chg">change…</button></div>
+        <div class="state">not changed · outside this project</div>
+        <div class="grp">_bmad/</div><div class="row"><i></i>product-brief.md<span class="s">saved · 2d</span></div><div class="row"><i></i>PRD.md<span class="s">saved · 41m</span></div></div>
+      <div class="cap"><span class="st">4 · refused</span><b>A choice that cannot be used.</b> Outside the project, or the project folder itself. The line is announced once, nothing changes, and it clears at the next choice.</div>
+    </div>
+  </div>
+
+  <h2>The menu</h2>
+  <div style="display:flex;gap:28px;align-items:flex-start">
+    <div><div class="menubar"><span>bmad-harness</span><b>File</b><span>Edit</span><span>View</span><span>Window</span></div>
+      <div class="menu"><div><span>Output Folder…</span><span class="k"></span></div><div><span>Use BMad's Output Folder</span><span class="k"></span></div><hr><div class="off"><span>Close Window</span><span class="k">⌘W</span></div></div></div>
+    <div class="cap" style="max-width:56ch"><b>File ▸ Output Folder…</b> opens the same chooser as <span class="mono">change…</span>, starting in the folder now watched. <b>Use BMad's Output Folder</b> forgets the project's choice and is dimmed while there is none. No accelerators. In a project window only; the Welcome and the document window have no project to ask about.</div>
+  </div>
+
+  <h2>What follows the folder</h2>
+  <table>
+    <tr><th>thing</th><th>with a chosen or derived folder <span class="mono">F</span></th></tr>
+    <tr><td>the rail's rows and groups</td><td>every file under <span class="mono">F</span>; paths stay project-relative (<span class="mono">docs/bmad/PRD.md</span>); the top group is <span class="mono">F</span> itself</td></tr>
+    <tr><td>the document window</td><td>new documents open only from under <span class="mono">F</span>; a window already open keeps its file</td></tr>
+    <tr><td>the empty state</td><td><span class="mono">no files under F yet</span> and the full path beneath</td></tr>
+    <tr><td>a party summary</td><td>asked to land at <span class="mono">F/party/&lt;date&gt;-&lt;slug&gt;.md</span> — the one write the harness names, so the one place it follows the choice exactly; the button reads <span class="mono">Write summary to F</span></td></tr>
+    <tr><td>the install, preflight, the resolvers</td><td>unchanged at <span class="mono">_bmad/</span></td></tr>
+    <tr><td>skills run from a persona's buttons</td><td>write where BMad's own config says; the harness neither moves nor redirects them</td></tr>
+    <tr><td>stored</td><td>one folder per project, under <span class="mono">userData</span>, never in the project</td></tr>
+  </table>
+</div>
+</body>
+</html>

@@ -179,6 +179,8 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **FR110:** The harness has a dark and a light theme. The user chooses **System** (the default, following the macOS appearance live while the app runs), **Light** or **Dark** from *View ▸ Theme* in every window's menu and from the `theme · system · light · dark` line on the Welcome. A change applies to every open window at once and is a repaint only: it touches no session, run, transcript, card, rail row or scroll position, and has no transition.
 - **FR111:** The theme choice is one value (`system`, `light` or `dark`) stored under `userData`, never in a project. A window is never painted in the other theme first. A missing, unreadable or unrecognised stored value reads as `system` without surfacing an error. The portraits are identical in both themes.
 - **FR112:** A persona's thread and the party room's thread follow what is being said. While a thread is at its bottom (within one line), anything that lengthens it keeps its newest line in view in the same frame, instantly and without animation. A user scroll away from the bottom pauses following, and while paused nothing moves the thread. Scrolling back to the bottom, pressing `↓ latest`, or sending a message resumes it. A thread opened, reloaded or switched to lands at its bottom, following. The control carries no count or sign of what is below.
+- **FR113:** The folder the harness watches for a project's BMad output (the *output folder*) is, in order, the first usable of: the user's stored choice for that project (a folder inside the project, not the project folder itself, that exists); BMad's own `output_folder` from its resolved configuration (a usable folder inside the project); `_bmad/`. It is derived and never asked: no prompt at open or at first run. The user chooses it from `change…` in the Outputs head or *File ▸ Output Folder…* (the native folder chooser, opening in the folder now watched); a choice whose real path is outside the project, is the project folder, or is `.git` or `node_modules` or inside either, is refused and changes nothing. *File ▸ Use BMad's Output Folder* forgets the choice. The choice is stored per project under `userData`, never in the project, and is remembered while its folder is missing.
+- **FR114:** The output folder is what the rail's rows and groups, the document window's boundary for new opens, the Outputs empty state and the party summary's destination (ask, panel and header button) follow. The install, preflight and the resolvers stay at `_bmad/`, and no skill's writes are redirected. The Outputs head names the folder and says one fact beneath it when there is one: `bmad writes to · <folder>` when the choice differs from BMad's, `<chosen> · folder missing` when the choice is gone (the rail then uses BMad's folder), `not changed · <reason>` once when a choice is refused. A change repaints the rail in one frame and touches no session, run, transcript or open document window.
 
 ### NonFunctional Requirements
 
@@ -287,10 +289,11 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **UX-DR42 — The light theme's tokens** (`DESIGN.md` → Colors → The light theme, frontmatter `colors-light`): palette A, "cool paper", one twin for every colour token in `design/tokens.css`, in a third block `:root[data-theme="light"]` carrying `color-scheme: light` after the two dark blocks, which stay byte-identical. Components name no theme. Light pairs that carry text clear 4.5:1 on their surface except `meta`, which carries no actionable fact; the state colours keep their four meanings, their halos are strengthened, and the shadows and scrim are cool and low.
 - **UX-DR43 — The theme control and its prohibitions** (`EXPERIENCE.md` → Theme): *View ▸ Theme* as three radio items in every window's menu, no accelerator; the Welcome's theme line is the only on-window control and the topbar gains none; applying is instant with no transition, no toast and no announcement; native chrome follows; no per-project or per-window theme, no high-contrast variant, no third palette, and no read of `prefers-color-scheme` outside main.
 - **UX-DR44 — The follow control** (`DESIGN.md` → Components → Follow control, `EXPERIENCE.md` → Following the thread): one literal string, `↓ latest`, in `label` mono at `dim` on `panel-2` with a 1px `line` border and `control` radius, centred above the composer, present only while a thread is not following, in one frame in and out, one tab stop between the thread and the composer. No count, dot, *new*, pulse, shadow or sound, and no animated scroll anywhere.
+- **UX-DR45 — The Outputs head and the output-folder control** (`DESIGN.md` → Components → Outputs head, `EXPERIENCE.md` → Output folder): the head shows the watched folder in `meta` mono at `dim` and `change…` in `accent`; one state line beneath it only while there is a state, in `dim` mono with no colour and no icon; a File menu in a project window with *Output Folder…* and *Use BMad's Output Folder* and no accelerators; refusals announced politely once; no prompt, no recommendation, no second folder.
 
 ### FR Coverage Map
 
-Every one of the 112 FRs maps to exactly one epic.
+Every one of the 114 FRs maps to exactly one epic.
 
 | FR | Epic | Covers |
 |---|---|---|
@@ -406,6 +409,8 @@ Every one of the 112 FRs maps to exactly one epic.
 | FR110 | Epic 5 | Light and dark themes, System default, the View menu and the Welcome line, applied at once |
 | FR111 | Epic 5 | One stored value, no wrong-theme first paint, unknown reads as System, portraits unchanged |
 | FR112 | Epic 5 | A thread follows its newest line, pauses when the user scrolls up, and has one way back |
+| FR113 | Epic 5 | Output folder: stored choice, else BMad's `output_folder`, else `_bmad/`; chosen from the head or the File menu; remembered per project |
+| FR114 | Epic 5 | What follows the folder, what stays at `_bmad/`, and the head's three facts |
 
 **Coverage by epic:** Epic 1 — 42 FRs · Epic 2 — 20 FRs · Epic 3 — 34 FRs · Epic 4 — 9 FRs · **Total 105.**
 
@@ -510,20 +515,21 @@ Convene a room of chosen personas in one conversation you participate in, with e
 
 ### Epic 5: Arrive — choose a project from a welcome
 
-The harness stops opening to a native dialog. It opens to a Welcome that offers one action (open a project folder, or drop one), lists the projects opened before, and shows the five core personas by phase of the method, so the first thing seen is what the product is, not an operating-system chooser. And it can be seen in light or dark: the user chooses, and System is the default. And a conversation, in a persona's thread or in the room, follows what is being said and holds still when you scroll up to reread.
+The harness stops opening to a native dialog. It opens to a Welcome that offers one action (open a project folder, or drop one), lists the projects opened before, and shows the five core personas by phase of the method, so the first thing seen is what the product is, not an operating-system chooser. And it can be seen in light or dark: the user chooses, and System is the default. And a conversation, in a persona's thread or in the room, follows what is being said and holds still when you scroll up to reread. And the folder the rail watches for a project's output is BMad's own by default, and the user's to choose.
 
 **Standalone:** it changes how a project is chosen, how the product is painted and how a thread scrolls, and nothing about what a project window or a thread contains.
 
-**FRs covered:** FR106, FR107, FR108, FR109, FR110, FR111, FR112 (FR9 and FR17 stay true)
+**FRs covered:** FR106, FR107, FR108, FR109, FR110, FR111, FR112, FR113, FR114 (FR1, FR9 and FR17 stay true)
 
 **NFRs addressed:** NFR7, NFR13, NFR15, NFR19, NFR20, NFR22, NFR23, NFR24, NFR25, NFR26, NFR27
 
-**UX-DRs addressed:** UX-DR39, UX-DR40, UX-DR41, UX-DR42, UX-DR43, UX-DR44
+**UX-DRs addressed:** UX-DR39, UX-DR40, UX-DR41, UX-DR42, UX-DR43, UX-DR44, UX-DR45
 
 **Implementation notes:**
 - The Welcome follows the document window's precedent: its own window, its own page entry and its own preload bundle, sharing no runtime module with the shell's. It has no project and no edge to the install, the CLI or a project's files.
 - The only new durable state is the recent list and the theme value, both under `userData` (AD-1, NFR3). They are bookkeeping and hold paths, times and one word, never project content.
 - The renderer's one scroll call today is the reveal of a run's card (`use-reveal.ts`, Story 3.10). Story 5.3 adds the thread's own following beside it, and the reveal now also pauses following. The follow state is a fact about the scroller's position: nothing is persisted and there is no setting.
+- **The output folder and the install are two folders** (Story 5.4). The code reads `_bmad/` for both; BMad's installer fixes the install, and its own configuration chooses the output. Only the output follows the choice. The default is derived from BMad's resolved `output_folder` (FR1, AD-19), so the choice is an override and never a setup step.
 - **The light theme reverses NFR15** (Story 5.2). Dark is unchanged to the byte; the light theme is an additional block, so Epics 1 to 4's token tests keep passing as they are.
 - The five descriptions are a static table (the one roster shown before any install is read). They are written from each agent's `role`; they are not read from a project and not attributed to a persona.
 - **Negative-surface check:** each story's own final criteria verify the UX-DR38 prohibitions on its surfaces. The Welcome's: no badge or count, no recommended persona, no spinner or animation, no tour or wizard, no sound, no *clear recent* control.
@@ -2577,3 +2583,90 @@ So that I never lose the end of a conversation I am watching and never lose my p
 **Decisions to confirm before build (defaults in brackets):** the tolerance for *at the bottom* [24px, one line]; focus lands in the composer after `↓ latest` [yes]; a thread opened or switched to is at its bottom, never at a remembered position [yes]; no following at ≤1000px [yes].
 
 **Boundaries:** no new command, event, channel or preload method; no change to the document card's own tailing, to the pinned card, to the reveal beyond pausing following, or to any copy; no stored state and no setting; the control is the only new element.
+
+### Story 5.4: Choose the folder that holds the output
+
+*Sequencing: added 2026-10-08 from the output-folder design (`mockups/output-folder.html`; `EXPERIENCE.md` → Output folder; `DESIGN.md` → Outputs head). Independent of Stories 5.1 to 5.3. If 5.1's recent store or 5.2's theme store has landed, store the choice beside them in the same `userData` module; if not, the choice has its own small file and they can adopt it later. Three seams, in build order: **A** deriving the folder (BMad's `output_folder`, else `_bmad/`) and making the rail, the document boundary, the empty state and the party summary follow it; **B** choosing it, remembering it, and the Outputs head's states; **C** the File menu. A is valuable alone: a project installed with another output folder starts showing its files. Split there if the build reports it oversized.*
+
+As someone whose BMad output does not live in `_bmad/`,
+I want the harness to look where my project's output is, and to let me say where when it cannot tell,
+So that the rail shows my files without my doing anything the first time, and the right folder for me is remembered for the project.
+
+**Implements:** FR113, FR114 · UX-DR45 · FR1, FR3, FR4, FR9 (stay true) · NFR3, NFR8, NFR19, NFR20, NFR22, NFR23, NFR24, NFR25, NFR27
+
+**Evidence:** `_bmad/` is spelled out as both the BMad install and the output tree. As the output tree it is read at `src/main/sources/project/watch-artifacts.ts:39` (`WATCHED_DIR`), `src/renderer/ui/outputs/row-groups.ts:7` (`ROOT_DIR`), `src/renderer/ui/outputs/outputs.tsx:90-91` (the empty state), `src/main/sources/project/resolve-document.ts:41,86` and `watch-document.ts:140` (the document boundary and its `realpath` check), `src/main/doc-bridge.ts:82,112,188` (the refusal text and boundary), `src/renderer/ui/doc/foot-text.ts:11`, `src/shared/room-destination.ts:16` (`PARTY_DIR`) and `src/renderer/ui/party/party-header.tsx:67` (*Write summary to _bmad/*). As the install it is read at `src/main/sources/install/resolvers.ts:90` and `watch-install.ts:66`, and those stay. BMad's own resolver already reports `core.output_folder` (here `{project-root}/_bmad`), and the harness reads no such value: a project installed with another output folder shows an empty rail. The harness also names one write location itself, the room summary's destination, in the text it sends the room (`src/shared/room-summary.ts`).
+
+**Acceptance Criteria:**
+
+*Seam A: derive it, and follow it*
+
+**Given** a project with no stored choice
+**Then** the folder watched is BMad's `output_folder` from its resolved configuration, with `{project-root}` replaced, when that is an existing folder inside the project and not the project folder itself, and `_bmad/` otherwise
+**And** BMad's value comes through its resolver and its output is validated as every resolver's is (FR3, FR4), a failure or a value of the wrong shape leaving `_bmad/` with no new error
+**And** a change of BMad's configuration is re-resolved as FR5 says and moves the watched folder in the same frame, touching no live session.
+
+**Given** the watched folder `F`
+**Then** the rail's rows and groups are the files under `F`, with project-relative paths, the first group headed by `F` itself, and no row of any other folder
+**And** the empty state reads `no files under <F> yet` with the full path beneath it
+**And** `src/renderer/` and `src/main/` carry no other spelling of the output tree: `_bmad` appears only where it means the install.
+
+**Given** the document window
+**Then** a document opens only if its real path is inside `F`'s real path, with the same refusals as today, and a symlink out of `F` is refused as it is now
+**And** a document window already open keeps its file and keeps reloading it when the folder changes.
+
+**Given** the room's summary
+**Then** the ask sent to the room, the destination in the header and the Room panel, and the button label (*Write summary to <F>*) all read `<F>party/<date>-<slug>.md`, and the filename rules are unchanged
+**And** the tests that pin the `_bmad/party` literal are replaced by ones that pin it for the default folder and a chosen one.
+
+**Given** the install, preflight and the resolvers
+**Then** they read `_bmad/` exactly as before, whatever the output folder is.
+
+*Seam B: choose it, remember it, say it*
+
+**Given** the Outputs head
+**Then** it shows `F` and `change…`, and `change…` is one tab stop before the list's
+**And** pressing it opens the native folder chooser, titled `choose the bmad output folder`, button `choose`, folders only, *create folder* allowed, opening in `F`.
+
+**Given** a folder chosen
+**Then** its real path is checked before it is kept: it must be inside the project's real path, not the project folder itself, and not `.git`, `node_modules` or inside either
+**And** a refused choice changes nothing, and the head says once `not changed · outside this project`, `not changed · the project folder itself`, `not changed · inside .git` or `not changed · inside node_modules`, announced politely, and clears at the next choice
+**And** an accepted choice re-points the rail in one frame, touches no session, run, transcript, card or open document window, and is stored.
+
+**Given** a stored choice
+**Then** it is kept per project, keyed by the project's path, under `userData`, and survives a relaunch
+**And** nothing is written into the project to record it, not into `_bmad/`, `_bmad/custom/` or a dotfile, and a test asserts the project tree is byte-identical after a choice
+**And** a stored value that is missing, unreadable or not a usable folder reads as no choice, silently.
+
+**Given** a stored choice that differs from BMad's folder
+**Then** a state line beneath the head reads `bmad writes to · <BMad's folder>`, one line, in `dim` mono, with no colour and no icon
+**And** the line is absent when the two are the same or BMad's folder is not known.
+
+**Given** a stored choice whose folder is missing
+**Then** the choice is kept and not applied, the rail watches BMad's folder (or `_bmad/`), the line reads `<chosen> · folder missing`, and the rail returns to the choice if the folder returns.
+
+*Seam C: the menu*
+
+**Given** a project window
+**Then** its menu has a File menu with *Output Folder…* (the same chooser) and *Use BMad's Output Folder*, and neither has an accelerator
+**And** *Use BMad's Output Folder* forgets the project's choice, is dimmed while there is none, and the rail returns to BMad's folder in one frame
+**And** the Welcome's and the document window's menus gain neither item.
+
+*Across all three*
+
+**Given** the harness is opened on any project
+**Then** nothing asks about the folder, no banner suggests choosing one, and no state line appears unless a choice has been made or has gone missing.
+
+**Given** a persona's skill button or a chat turn
+**Then** the harness writes, moves and redirects nothing: the skill writes where BMad's own configuration says.
+
+**Given** the negative surface and the audit
+**Then** the head and the state line have no colour, icon, badge or sound, no second watched folder exists, no folder outside the project can be chosen, nothing recommends a folder or says one is right, and every harness string is lower case, mono and `·`-separated with no terminal punctuation
+**And** the audit tests mount the head in each of its four states, built from the resolution function's output and not by hand.
+
+**Given** the evidence above
+**Then** the resolution is a pure function of the stored choice, BMad's resolved value and what is on disk, tested over its table (derived, chosen and same, chosen and different, chosen and missing, BMad's value unusable, resolver failed)
+**And** a bridge-level test opens a project whose BMad configuration names another output folder and asserts the rail's rows come from it with no choice made, then makes a choice and asserts the rows move, an open document keeps reloading, and the install's resolvers are still invoked at `_bmad/scripts`.
+
+**Decisions to confirm before build (defaults in brackets):** `.git` and `node_modules` are refused [yes]; a document window already open keeps its file [yes]; the chooser allows creating a folder [yes]; a project window gains a File menu with no accelerators [yes]; the party summary follows the output folder [yes].
+
+**Boundaries:** no first-launch prompt and no setup step; nothing written into the project, BMad's configuration included; one watched folder per project, inside it; the install stays at `_bmad/`; no redirection of any skill's writes; the new channels and preload methods are enumerated, spelled in `src/shared/channels.ts` and pinned in the contract tests deliberately, with no generic `invoke(channel, …)`; no change to the persona, session, conversation or run channels.

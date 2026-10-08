@@ -15,6 +15,7 @@ sources:
   - mockups/welcome-screen-chosen.html
   - mockups/light-theme.html
   - mockups/follow-the-thread.html
+  - mockups/output-folder.html
 companions:
   - DESIGN.md
 ---
@@ -41,6 +42,7 @@ Every rule below traces to a memlog decision, an architecture decision (AD-n), a
 | Welcome | the window before a project: when it opens, the one action, recent projects, the five core personas |
 | Theme | light and dark, the System default, where the choice lives, and what changing it touches |
 | Following the thread | what a thread does as it grows: follow, pause, and the way back |
+| Output folder | which folder the rail watches, how it is derived and chosen, and what follows it |
 | Dead Air | what the card does through a multi-minute silence |
 | Failure, Stopping and Contention | the stop cost, terminal states, and the no-arbitration posture |
 | Run Completion When Unattended | the notification contract for the terminal events |
@@ -182,6 +184,8 @@ Project **content** is untrusted because it is largely model-authored (AD-13). M
 | Drop a folder | welcome | opens that project's window |
 | *View ▸ Theme ▸ System · Light · Dark* | application menu, every window | sets the theme for every window at once |
 | `↓ latest` | thread, only while it is not following | scrolls to the newest line and resumes following |
+| `change…` · *File ▸ Output Folder…* | Outputs head · project window menu | the native folder chooser for this project's output folder |
+| *File ▸ Use BMad's Output Folder* | project window menu | forgets this project's choice |
 | `theme · system · light · dark` | welcome, bottom edge | the same choice, from the one window with no project |
 | Recent row | welcome | opens that project's window |
 
@@ -300,7 +304,7 @@ CAP-1 promises zero *configuration*, not zero *prerequisites*. Any failure is re
 
 | Surface | Copy | Rule |
 |---|---|---|
-| Outputs half, fresh project | `no files under _bmad/ yet` with the watched path beneath it | **states the situation and stops.** It reads as watching, not as broken. It must **not** suggest a next step, name a skill, or point at a persona (AD-21) |
+| Outputs half, fresh project | `no files under <folder> yet` with the watched path beneath it (`_bmad/` unless the output folder is another) | **states the situation and stops.** It reads as watching, not as broken. It must **not** suggest a next step, name a skill, or point at a persona (AD-21) |
 | Document card | — | **there is no empty card body.** See *Dead Air* |
 | Subagent region (`system/task_progress`) | — | optional, not primary. It may be permanently empty on a given run; nothing may depend on it |
 | Party side panel | — | the two deferred sections are **not rendered at all**, not even as empty states |
@@ -483,6 +487,66 @@ Following is not announced and is not a live region (the policy in *Accessibilit
 ### Banned here
 
 No count, badge, dot, toast, sound, pulse or shadow on the control; no animated scroll; no preference to turn following off; no per-thread remembered position; no *new messages* line, divider or marker in the thread.
+
+---
+
+## Output folder
+
+*Added 2026-10-08. Appearance: `DESIGN.md` → Components → Outputs head. Mockup: `mockups/output-folder.html`.*
+
+**Two folders were one.** The code treated `_bmad/` as both the BMad **install** (`config.toml`, the resolver scripts) and the place BMad's **output** lands. They are different things: BMad's installer fixes the first, and its own configuration chooses the second (`output_folder`, and the `planning_artifacts` and `implementation_artifacts` that sit under it by default). This section is about the second. **Wherever this document says `_bmad/` of the rail, the document window, the empty state or the party summary, it means *the output folder*, which is `_bmad/` unless this section says otherwise.** The install, preflight and the resolvers stay at `_bmad/`.
+
+### Which folder is watched
+
+In order, the first that is usable:
+
+| # | Source | Usable when |
+|---|---|---|
+| 1 | **the user's choice for this project**, stored by the harness | it is a folder inside the project, not the project folder itself, and it exists |
+| 2 | **BMad's own `output_folder`**, from its resolved configuration (FR3: through its resolver, never by reading its files) | it names a folder inside the project that exists, not the project folder itself |
+| 3 | `_bmad/` | always |
+
+That is what keeps *pointing at a project is the whole setup* (FR1) true: **the folder is derived and never asked.** A project BMad installed with another output folder shows its files with no choice made. The choice is an **override**, offered and never prompted: no first-launch question, no banner suggesting a change (AD-19, FR9).
+
+A resolver that fails or answers in the wrong shape leaves rule 2 unusable, and the rail uses `_bmad/`; the failure is already named by the install's own error (FR4), and this adds none.
+
+### The head says it
+
+The Outputs head shows the folder being watched and `change…` (`DESIGN.md`). One state line may sit beneath it, always a fact:
+
+| State | Line | Rail |
+|---|---|---|
+| derived, or chosen and the same as BMad's | none | the folder |
+| chosen, and different from BMad's | `bmad writes to · <BMad's folder>` | the chosen folder |
+| a chosen folder that is gone | `<chosen> · folder missing` | BMad's folder (rule 2 or 3) |
+| a choice just refused | `not changed · <reason>` | unchanged |
+
+- **The difference is stated, not judged.** New work lands where BMad's configuration sends it, and the rail looks where the user pointed it. The line names the two places and stops: no *warning*, no colour, no *you should…* (AD-21).
+- **A missing choice is remembered, not applied**, and not cleared. If the folder returns, the rail returns to it.
+- **Refusals**, each said once, announced politely, cleared by the next choice: `not changed · outside this project`, `not changed · the project folder itself`, `not changed · inside .git`, `not changed · inside node_modules`.
+
+### Choosing it
+
+`change…` in the head and *File ▸ Output Folder…* open the same native folder chooser: title `choose the bmad output folder`, button `choose`, folders only, *create folder* allowed, **opening in the folder now watched**. *File ▸ Use BMad's Output Folder* forgets the project's choice and is dimmed while there is none. **A File menu is new in a project window**; it carries those two items and the OS's own *Close Window*, and neither has an accelerator.
+
+The chooser may be pointed anywhere, so the **choice is checked before it is kept**: its real path must be inside the project's real path, so a symlink out of the project is refused as *outside this project*. A choice of the project folder, `.git` or `node_modules` (or anything inside them) is refused for the reasons above. A refused choice changes nothing.
+
+### What happens when it changes
+
+- **At once, in one frame.** The rail re-points: rows of the old folder leave and rows of the new one arrive, as when a roster changes mid-use (no arrival or removal animation). It is disk truth (AD-1); no row is kept for a file the rail no longer watches.
+- **Nothing live is touched.** No session, run, transcript, card, scroll position or persona changes. A run in flight keeps its card whatever its file's folder.
+- **Document windows already open keep their file** and keep reloading it. The boundary of what may be opened, the rule that every read stays inside the real path of the watched tree, moves to the new folder for everything opened afterwards.
+- **The empty state** names the folder (`no files under <folder> yet`) and the full path beneath it.
+- **A room's summary** is the one write the harness names: the ask, the destination in the room panel and the header button all follow the folder (`<folder>/party/<date>-<slug>.md`, *Write summary to <folder>*). The runtime still does the writing.
+- **A persona's skill** writes where BMad's configuration says. The harness neither moves nor redirects it, and says nothing about it beyond the head's state line.
+
+### Remembered for the project
+
+One folder per project, stored by the harness under `userData` beside its other bookkeeping and keyed by the project's path (AD-1). **Never in the project**: not in `_bmad/custom/config.toml`, not in `config.user.toml`, not in a dotfile. The harness writes nothing into the project to remember anything. A stored value that is missing, unreadable or not a usable folder reads as *no choice* and is not surfaced as an error, except for the one that names a folder now gone (above). The project's recent entry and the output folder are separate records.
+
+### Banned here
+
+No prompt at open or at first run; no suggestion that the user should choose or change; no colour, icon or *warning* on the state line; no second watched folder; no folder outside the project; no folder per persona or per document type; no redirection of any skill's writes; no write into the project to record the choice.
 
 ---
 
@@ -681,6 +745,7 @@ With no command palette (*Banned everywhere*) there is no `⌘K` escape hatch, s
 | Document window | `Esc` closes. The three escapes are tab-reachable |
 | Party | cast chooser, header controls and composer all tab-reachable; no turn gate means no focus trap |
 | Welcome | *Open project folder…*, the recent list and the three theme words are the tab stops; arrows move between recent rows, `Enter` opens, `⌘O` opens the chooser. Persona cards are content and are not tab stops. See *Welcome → Accessibility* |
+| Outputs head | `change…` is one tab stop, before the list's. *File ▸ Output Folder…* is a native menu item, no accelerator |
 | Thread | the scroller is scrolled by the browser's own keys (`PageUp`, `PageDown`, `End`); `↓ latest` is one tab stop between the thread and the composer, present only while the thread is not following. No new tab stop otherwise |
 | Theme | *View ▸ Theme* is a native menu, reachable as every menu is; the radio items carry the current choice. No accelerator |
 
@@ -707,6 +772,7 @@ A single card streams **69,031 characters across 5,795 deltas** in one write. Ne
 | run lifecycle — started, `doc:committed`, finished, stopped, failed | **announced politely**, one announcement per event. A 15-section commit is **one** event and gets **one** announcement naming the count |
 | rail changes (`rail:changed`) | **not announced.** Filesystem churn is asynchronous and constant; the rail is a status region read on demand |
 | preflight failures, resolver errors, malformed entries | **announced politely**, once |
+| an output-folder choice refused (`not changed · …`) | **announced politely**, once |
 | anything | **`aria-live="assertive"` is used nowhere in the product.** Nothing here is urgent enough to interrupt what the user is reading |
 
 Exactly one polite live region per window. Announcements are throttled to **at most one every 2 s** — **[ASSUMPTION]**, no source specifies an interval; 2 s is longer than a screen reader takes to finish any string announced here and far shorter than the run-note feed's minutes-apart cadence, so nothing in the policy above is actually delayed by it. Announcements that arrive inside one interval are queued and read in event order, never merged into a count.

@@ -16,6 +16,7 @@ sources:
   - mockups/welcome-screen-chosen.html
   - mockups/light-theme.html
   - mockups/follow-the-thread.html
+  - mockups/output-folder.html
 companions:
   - EXPERIENCE.md
 
@@ -417,6 +418,14 @@ components:
     position: 'centred on the thread, 12px above the composer, floating over the text it covers'
     motion: 'none — it appears and goes in one frame'
     opacity: '1'
+  outputs-head:
+    height: '{spacing.rail-head}'
+    label: '`outputs` — the head every rail half already has'
+    where: '{typography.meta} mono (10.5px), {colors.dim}, right-aligned: the watched folder, project-relative, trailing slash'
+    change: '`change…` — {typography.meta} mono, {colors.accent}, no border, underline on hover; sits right of the folder'
+    state-line: '{typography.meta} mono, {colors.dim}, on {colors.panel}, padding 5px 11px, a 1px {colors.line-soft} rule below; present only while there is a state to say, one line, never two'
+    group-label: 'the first group in the list is the watched folder itself, `{typography.badge}`-tier as every group label'
+    colour: 'none — every state is text; no amber, no red, no icon'
   document-window:
     radius: '{rounded.window}'
     background: '{colors.panel}'
@@ -872,6 +881,14 @@ A window of its own, opened by main when the harness starts without a project an
 
 There is **no motion** on this window: no entrance, no hover transition on a card, no animated drop feedback. The page is at rest.
 
+### Outputs head
+
+The head the Outputs half already has (30px, `chrome`, `label` mono): `outputs` on the left, and on the right **the folder the rail is watching** in `meta` mono at `dim`, project-relative with a trailing slash (`_bmad/`, `docs/bmad/`), then `change…` in `accent`, an unbordered mono link that underlines on hover and takes the shared focus ring. Both are text the user reads or acts on, so neither sits at `faint`.
+
+Below the head, **a state line appears only while there is a state to say** and is one line: `meta` mono at `dim` on `panel` with a 1px `line-soft` rule under it, padding `5px 11px`. It carries `bmad writes to · <folder>`, `<chosen> · folder missing` or `not changed · <reason>` (EXPERIENCE.md → *Output folder*) and nothing else. **It has no colour**: not amber, not red, no icon, no dot. A difference between two folders is a fact, and the product's four state colours are reserved for things happening.
+
+The first group label in the list is the watched folder itself, so a file directly under it is headed by the same path the head shows; paths in every row stay project-relative.
+
 ### Follow control
 
 `↓ latest`, in `label` mono at `dim` on `panel-2`, a 1px `line` border and `{rounded.control}` radius, centred along the bottom edge of the thread and 12px above the composer. It floats over the lines it covers, so its ground is opaque. It appears only while the thread is not following, and goes in the same frame as the thread returns to the bottom. **It has no count, no dot, no *new*, and no state of its own**: one literal string, always. Hover raises the ground to `panel-3` and the text to `text-strong`; focus takes the shared ring. The text is an action a user takes, so it sits at `dim` and not at `faint`. It is the same control, drawn the same way, in a persona's thread and in the party room, and in both themes through tokens alone.
@@ -946,5 +963,6 @@ Streaming prose arrives in frame-sized bursts, with the caret at the tail. **A p
 | Set the theme from the stored choice and the OS appearance in main, before a window is first shown | Read `prefers-color-scheme` in a stylesheet or a component, or paint a window in one theme and then switch it |
 | Keep the portraits identical in both themes, on their dark backdrops | Give a portrait a theme-dependent backdrop, or a theme field in `ArtParams` |
 | Strengthen the state-dot halos in light (`.16`) | Reuse the dark alpha, which fades on white |
+| Say a folder disagreement as one mono line, in `dim`, with both folders named | Colour it, add an icon or a warning treatment, or recommend which folder is right |
 | Show `↓ latest` as one literal string over a thread that is not following | Add a count, a dot, a *new* label, a pulse, or a shadow to it |
 | Ship the two themes and nothing else | Add a high-contrast variant, or a third palette |
