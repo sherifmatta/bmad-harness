@@ -215,6 +215,8 @@ export function App(): JSX.Element | null {
   // flight: drawn in the shell's pinned slot and skipped in the thread (Story 3.14).
   const viewed = currentAgent(displayOrder(groupAgents(snapshot.agents)), currentId)
   const pinnedEntry = pinnedRun(conversation.entries, viewed?.id)
+  // The user's own turns outside the room: a rise is a send, and the thread goes to its bottom (Story 5.3).
+  const sends = conversation.entries.filter((entry) => entry.kind === 'user' && entry.room !== true).length
   // A card names its persona as the lifecycle line does: the roster's name, an orphan's, else the id.
   const collapse: RunCollapse = {
     viewedId: viewed?.id,
@@ -282,7 +284,8 @@ export function App(): JSX.Element | null {
             onStop={() => void conversation.stopRoom()}
           />
         }
-        composer={(agent, items) => (
+        sends={sends}
+        composer={(agent, items, fieldRef) => (
           // Keyed apart from the chat header, which carries the same agent id in the same list.
           <Composer
             key={`composer-${agent.id}`}
@@ -299,6 +302,7 @@ export function App(): JSX.Element | null {
                 />
               )
             }
+            fieldRef={fieldRef}
             focusOnMount={composerFocus?.id === agent.id}
             refocus={composerFocus?.id === agent.id ? composerFocus.n : 0}
             onSend={(text) => {

@@ -1,0 +1,51 @@
+/*
+ * The thread's frame and its one control (Story 5.3), from DESIGN.md's
+ * `follow-control`: `↓ latest` in `label` mono at `dim` on `panel-2`, a 1px
+ * `line` border and the control radius, centred along the thread's bottom edge
+ * and 12px above the composer, floating over the lines it covers (so its ground
+ * is opaque). Hover raises the ground to `panel-3` and the text to
+ * `text-strong`; focus takes the shared ring from design/focus.css.
+ *
+ * It appears and goes in one frame: no transition, no animation, no shadow,
+ * and nothing else on it. Every value reaches the design system through
+ * `var()`.
+ */
+
+/* The frame takes the place the scroller had in its column; the scroller fills it. */
+.follow {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.follow-edge {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--follow-offset);
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.follow-latest {
+  pointer-events: auto;
+  margin: 0;
+  padding: var(--follow-padding);
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--panel-2);
+  color: var(--dim);
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  line-height: inherit;
+  cursor: pointer;
+}
+
+.follow-latest:hover {
+  background: var(--panel-3);
+  color: var(--text-strong);
+}

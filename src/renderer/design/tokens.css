@@ -625,6 +625,14 @@
   --welcome-row-padding:3px 0;
   --welcome-icon-size:15px;
   --welcome-icon-stroke:1.4;
+
+  /* ── The follow control (Story 5.3), read off DESIGN.md's `components.follow-control`
+     block: it floats 12px above the thread's bottom edge (`position`) and is padded
+     `3px 11px` (`padding`). Its colours, type, border and radius are tokens that
+     already exist (--panel-2, --panel-3, --dim, --text-strong, --fs-label, --line,
+     --rule-width, --radius-control), so the two dimensions are all that was missing. */
+  --follow-offset:12px;
+  --follow-padding:3px 11px;
 }
 
 /*

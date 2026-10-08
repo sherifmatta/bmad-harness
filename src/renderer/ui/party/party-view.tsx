@@ -9,6 +9,7 @@ import { Sysline } from '../chat/sysline'
 import { orderEntries } from '../chat/transcript'
 import type { TranscriptEntry } from '../chat/transcript-entry'
 import { UserTurn } from '../chat/turn'
+import { FollowScroller } from '../follow/follow-scroller'
 import { CastChooser } from './cast-chooser'
 import { CastStrip } from './cast-strip'
 import { PartyHeader } from './party-header'
@@ -91,6 +92,9 @@ export function PartyView({
   const focusInside = useRef(false)
   const wasLive = useRef(live)
   const thread = useRef<HTMLDivElement>(null)
+  // The room's composer field, which the thread's `↓ latest` puts focus in (Story 5.3).
+  const fieldRef = useRef<HTMLTextAreaElement | null>(null)
+  const sends = ordered.filter((entry) => entry.kind === 'user').length
   /** The party thread, live or read-only; a stopped room has the same turns, none of them speaking. */
   const threadOf = (
     <div className="party-thread" ref={thread} tabIndex={-1}>
@@ -151,12 +155,16 @@ export function PartyView({
           <div className="party-body">
             <div className="party-main">
               <CastStrip agents={agents} cast={roomCast} speaker={speaker} />
-              <div className="party-scroll">
-                <div className="party-column">
-                  {threadOf}
-                </div>
-              </div>
-              <Composer agentName="the room" onSend={onSend} returned={returned} />
+              <FollowScroller
+                className="party-scroll"
+                contentClassName="party-column"
+                resetKey={room}
+                sends={sends}
+                fieldRef={fieldRef}
+              >
+                {threadOf}
+              </FollowScroller>
+              <Composer agentName="the room" onSend={onSend} returned={returned} fieldRef={fieldRef} />
             </div>
             <RoomPanel topic={topic} openedAt={openedAt} rows={rows} />
           </div>

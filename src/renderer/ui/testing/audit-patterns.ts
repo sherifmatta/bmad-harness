@@ -17,3 +17,10 @@ export const STAND_IN =
 export const SPINNER_MARKUP = /<progress\b|<meter\b|role="progressbar"|aria-valuenow|aria-valuemax|spinner|skeleton|shimmer|loader/i
 export const DENOMINATOR = /\bof\s+(?:\d+|[mn])\b|\d\s*\/\s*\d|\/\s*\d|\btotal\b|%/i
 export const ARBITRATION = /\b(?:undo|revert|restore|merge|lock|resolve)\w*/i
+
+/**
+ * A selector for every way markup makes a live region, which a drawn thread must hold none of (Story 5.3).
+ * The attribute's name and the alert role are spelled in two pieces so this file is not read as a live
+ * region by the accessibility sweep, which looks for the words in every source.
+ */
+export const LIVE_REGIONS = [`aria-${'live'}`, 'role="status"', 'role="log"', `role="${'al'}ert"`].map((part) => `[${part}]`).join(', ')

@@ -6,6 +6,9 @@ import type { SyslineRecord } from '../../shared/conversation'
 import type { ContractEvent } from '../../shared/events'
 import type { AgentView, InstallSnapshot } from '../../shared/install'
 import { App } from './app'
+import { LIVE_REGIONS } from './testing/audit-patterns'
+import { installFakeScroll } from './testing/fake-scroll'
+import type { FakeScroll } from './testing/fake-scroll'
 import { mount, settle } from './testing/render-hook'
 import type { Mounted } from './testing/render-hook'
 
@@ -2176,5 +2179,135 @@ describe('the party view (Story 4.1)', () => {
       ['the room', true],
       ['John', false]
     ])
+  })
+})
+
+describe('following the thread, in the window (Story 5.3)', () => {
+  const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
+  const click = (element: Element | null | undefined): void => act(() => (element as HTMLElement).click())
+  const root = (): HTMLElement => mounted!.container
+  const control = (view: string): HTMLButtonElement | null =>
+    root().querySelector<HTMLButtonElement>(`${view} button.follow-latest`)
+  const enter = (element: HTMLTextAreaElement): void =>
+    act(() => void element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })))
+  let fake: FakeScroll
+  beforeEach(() => {
+    fake = installFakeScroll({ client: 400, height: 1000, top: 0 })
+    Element.prototype.scrollIntoView = function () {
+      fake.metrics.top = 250
+    }
+  })
+  afterEach(() => {
+    fake.restore()
+    delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView
+  })
+
+  /** What a paused thread draws: one button, one literal string, between the thread and the composer, announcing nothing. */
+  function auditPaused(view: string, scrollerClass: string): void {
+    const button = control(view) as HTMLButtonElement
+    const frame = button.closest('.follow') as HTMLElement
+    const edge = button.parentElement as HTMLElement
+    expect(button.textContent).toBe('↓ latest')
+    expect(edge.children).toHaveLength(1)
+    expect(edge.textContent).toBe('↓ latest')
+    expect(button.attributes).toHaveLength(2)
+    expect([...button.attributes].map((attribute) => attribute.name).sort()).toEqual(['class', 'type'])
+    expect(frame.children).toHaveLength(2)
+    expect(frame.children[0].classList.contains(scrollerClass)).toBe(true)
+    expect(frame.children[1]).toBe(edge)
+    // The scroller takes no tab stop, role or live region of its own, and the composer follows the frame.
+    expect(frame.children[0].hasAttribute('tabindex')).toBe(false)
+    expect(frame.children[0].hasAttribute('role')).toBe(false)
+    expect(frame.querySelectorAll(LIVE_REGIONS)).toHaveLength(0)
+    expect(frame.nextElementSibling?.classList.contains('composer')).toBe(true)
+    // The window's one polite live region is still the only one.
+    expect(root().querySelectorAll(LIVE_REGIONS)).toHaveLength(1)
+  }
+
+  /** The user scrolls a thread: the browser moved it, then said so. */
+  function userScrolls(selector: string, top: number): void {
+    fake.metrics.top = top
+    act(() => void root().querySelector(selector)?.dispatchEvent(new Event('scroll')))
+  }
+
+  async function opened(): Promise<void> {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+  }
+
+  it('opens at the bottom with no control, and puts the thread there after a send, a persona selected and the room opened', async () => {
+    await opened()
+    expect(fake.metrics.top).toBe(600)
+    expect(control('.view-conversation')).toBeNull()
+
+    userScrolls('.view-conversation .scroll', 100)
+    expect(control('.view-conversation')?.textContent).toBe('↓ latest')
+    auditPaused('.view-conversation', 'scroll')
+
+    type(field(), 'hello mary')
+    enter(field())
+    await settle()
+    expect(fake.metrics.top).toBe(600)
+    expect(control('.view-conversation')).toBeNull()
+
+    userScrolls('.view-conversation .scroll', 100)
+    act(() => tile('John').click())
+    await settle()
+    expect(fake.metrics.top).toBe(600)
+    expect(control('.view-conversation')).toBeNull()
+  })
+
+  it('pauses on a reveal, draws the control, and puts the user back at the bottom with focus in the composer only when they ask', async () => {
+    await opened()
+    push({ name: 'session:opened', payload: { sessionId: 's-john', agentId: john.id, at: 1 } })
+    push({ name: 'run:started', payload: { runId: 'r1', sessionId: 's-john', agentId: john.id, code: 'CP', at: 2 } })
+    push({ name: 'run:finished', payload: { runId: 'r1', sessionId: 's-john', at: 3 } })
+    expect(control('.view-conversation')).toBeNull()
+
+    act(() => revealListeners.forEach((listener) => listener('r1')))
+
+    expect(fake.metrics.top).toBe(250)
+    expect(control('.view-conversation')).not.toBeNull()
+    // The scroll the reveal made delivers its event; it resumes nothing.
+    act(() => void root().querySelector('.view-conversation .scroll')?.dispatchEvent(new Event('scroll')))
+    expect(control('.view-conversation')).not.toBeNull()
+    // Anything arriving while paused moves nothing.
+    push({ name: 'session:opened', payload: { sessionId: 's-mary', agentId: mary.id, at: 4 } })
+    push({ name: 'persona:said', payload: { sessionId: 's-mary', agentId: mary.id, messageId: 'm1', text: 'More', at: 5 } })
+    expect(fake.metrics.top).toBe(250)
+
+    click(control('.view-conversation'))
+
+    expect(fake.metrics.top).toBe(600)
+    expect(control('.view-conversation')).toBeNull()
+    expect(document.activeElement).toBe(field())
+  })
+
+  it('does the same in the room: paused by the user, back by a send or by the control', async () => {
+    await opened()
+    click([...root().querySelectorAll('.topbar button')].find((button) => button.textContent === 'Party Mode'))
+    click(root().querySelector('.cast-chooser-open'))
+    await settle()
+    push({ name: 'session:opened', payload: { sessionId: 'session-of-the-room', at: 1 } })
+    const party = (): HTMLElement => root().querySelector('.view-party') as HTMLElement
+    const roomField = (): HTMLTextAreaElement => party().querySelector('textarea') as HTMLTextAreaElement
+    expect(fake.metrics.top).toBe(600)
+
+    userScrolls('.party-scroll', 100)
+    expect(control('.view-party')?.textContent).toBe('↓ latest')
+    auditPaused('.view-party', 'party-scroll')
+    expect(control('.view-conversation')).toBeNull()
+
+    type(roomField(), 'hold on')
+    enter(roomField())
+    await settle()
+    expect(fake.metrics.top).toBe(600)
+    expect(control('.view-party')).toBeNull()
+
+    userScrolls('.party-scroll', 100)
+    click(control('.view-party'))
+    expect(fake.metrics.top).toBe(600)
+    expect(document.activeElement).toBe(roomField())
   })
 })

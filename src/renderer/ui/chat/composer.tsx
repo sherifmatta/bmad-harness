@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { JSX, KeyboardEvent, ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { JSX, KeyboardEvent, ReactNode, RefObject } from 'react'
 
 import './composer.css'
 
@@ -33,7 +33,8 @@ export function Composer({
   focusOnMount = false,
   refocus = 0,
   head,
-  returned
+  returned,
+  fieldRef
 }: {
   agentName: string
   onSend?: (text: string) => void
@@ -58,10 +59,24 @@ export function Composer({
    * sent. The one held when the composer appears is not taken.
    */
   returned?: { key: number; text: string }
+  /**
+   * Holds the field while this composer is mounted, for whoever has to put focus here: the thread's
+   * `↓ latest` (Story 5.3). Nothing is read from it here.
+   */
+  fieldRef?: RefObject<HTMLTextAreaElement | null>
 }): JSX.Element {
   const [text, setText] = useState('')
   const field = useRef<HTMLTextAreaElement>(null)
   const returnedKey = useRef(returned?.key)
+  const holdField = useCallback(
+    (element: HTMLTextAreaElement | null) => {
+      field.current = element
+      if (fieldRef !== undefined) {
+        fieldRef.current = element
+      }
+    },
+    [fieldRef]
+  )
 
   useEffect(() => {
     if (returned === undefined || returned.key === returnedKey.current) {
@@ -124,7 +139,7 @@ export function Composer({
         {head}
         <div className="composer-field">
           <textarea
-            ref={field}
+            ref={holdField}
             className="composer-input"
             rows={1}
             value={text}

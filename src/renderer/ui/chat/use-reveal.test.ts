@@ -3,6 +3,7 @@ import { act, createElement, useRef } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { FollowContext } from '../follow/follow-context'
 import { connectRunRevealed, useReveal } from './use-reveal'
 
 describe('connectRunRevealed', () => {
@@ -115,5 +116,65 @@ describe('useReveal', () => {
 
     expect(JSON.stringify(scrolled[0][1])).not.toMatch(/smooth|behavior/)
     expect(document.activeElement).toBe(document.body)
+  })
+})
+
+describe('useReveal inside a thread (Story 5.3)', () => {
+  let scrolled: number
+  beforeEach(() => {
+    scrolled = 0
+    Element.prototype.scrollIntoView = function () {
+      scrolled += 1
+    }
+  })
+  afterEach(() => {
+    delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView
+  })
+
+  it('pauses the thread after the scroll, once per request', () => {
+    // What the scroll count was each time the thread was paused: after the scroll, never before.
+    const seen: number[] = []
+    const pause = vi.fn(() => void seen.push(scrolled))
+    function Probe({ reveal }: { reveal: boolean }) {
+      const ref = useRef<HTMLDivElement>(null)
+      useReveal(ref, reveal)
+      return createElement('div', { ref })
+    }
+    const container = document.createElement('div')
+    document.body.append(container)
+    const root = createRoot(container)
+    const draw = (reveal: boolean): void =>
+      act(() => root.render(createElement(FollowContext.Provider, { value: pause }, createElement(Probe, { reveal }))))
+
+    draw(false)
+    expect(pause).not.toHaveBeenCalled()
+    draw(true)
+    expect(pause).toHaveBeenCalledTimes(1)
+    draw(true)
+    expect(pause).toHaveBeenCalledTimes(1)
+    draw(false)
+    draw(true)
+    expect(pause).toHaveBeenCalledTimes(2)
+    expect(seen).toEqual([1, 2])
+
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it('has no thread to pause in the pinned slot, and scrolls all the same', () => {
+    function Probe() {
+      const ref = useRef<HTMLDivElement>(null)
+      useReveal(ref, true)
+      return createElement('div', { ref })
+    }
+    const container = document.createElement('div')
+    document.body.append(container)
+    const root = createRoot(container)
+
+    expect(() => act(() => root.render(createElement(Probe)))).not.toThrow()
+    expect(scrolled).toBe(1)
+
+    act(() => root.unmount())
+    container.remove()
   })
 })

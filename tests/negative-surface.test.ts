@@ -618,7 +618,8 @@ describe("motion", () => {
   it("scrolls, frames and animates by no script and no smooth-scroll rule", () => {
     // Story 3.1: the prose store paints a run's text at most once a frame, and
     // the frame is injected in one place. It animates and scrolls nothing. Story
-    // 3.10's reveal hook is the renderer's one scroll call, instant, never smooth.
+    // 3.10's reveal hook is the renderer's one scrollIntoView, instant, never smooth;
+    // Story 5.3's follow hook is the one place a scroll position is set.
     expect(
       offenders(
         RENDERER_CODE,
@@ -633,7 +634,8 @@ describe("motion", () => {
     ).toHaveLength(1);
     expect(
       offenders(RENDERER_CODE, /\.scroll(?:Top|To|By)\b/),
-    ).toEqual([]);
+    ).toEqual(["src/renderer/ui/follow/use-follow.ts: .scrollTop"]);
+    expect(offenders(RENDERER_CODE, /behavior:\s*['"]smooth|\bsmooth\b/)).toEqual([]);
     expect(offenders(stylesheets, /scroll-behavior/)).toEqual([]);
   });
 });
@@ -1582,9 +1584,10 @@ describe("the pinned running card is a place, not a control (Story 3.14)", () =>
     const start = css.indexOf(".pinned {");
     const rule = css.slice(start, css.indexOf("}", start));
     expect(rule).not.toMatch(/z-index|position|animation|transition|scroll|overflow/);
-    // The renderer's one scroll call arrived with Story 3.10, in the reveal hook, and is the only one.
+    // The renderer's scroll code is the reveal hook's (Story 3.10) and the follow hook's (Story 5.3), and is no other.
     expect(offenders(RENDERER_CODE, /\.scroll(?:Top|To|By)\b|\bscrollIntoView\b|\.animate\(/)).toEqual([
       "src/renderer/ui/chat/use-reveal.ts: scrollIntoView",
+      "src/renderer/ui/follow/use-follow.ts: .scrollTop",
     ]);
     expect(offenders(RENDERER_ALL.filter((path) => path.endsWith(".css")), /z-index/)).not.toContain(
       `${SHELL_CSS}: z-index`,
@@ -2175,8 +2178,8 @@ describe("told once, quietly, when you are elsewhere: one silent banner, one scr
     expect(notifier()).not.toMatch(/\bsetAlwaysOnTop\b|\bmoveTop\b|\bopenDocWindow\b|\bcreateProjectWindow\b|\bnew BrowserWindow\b|\bloadURL\b|\bloadFile\b/);
   });
 
-  it("scrolls in the reveal hook alone, instantly, and moves no focus, switches no persona, opens nothing and sends no command there", () => {
-    expect(offenders(RENDERER_CODE, /\bscrollIntoView\b|\.scroll(?:Top|To|By)\b/).map((hit) => hit.split(":")[0])).toEqual([REVEAL]);
+  it("scrolls in the reveal hook and the follow hook alone, instantly, and moves no focus, switches no persona, opens nothing and sends no command there", () => {
+    expect(offenders(RENDERER_CODE, /\bscrollIntoView\b|\.scroll(?:Top|To|By)\b/).map((hit) => hit.split(":")[0])).toEqual([REVEAL, "src/renderer/ui/follow/use-follow.ts"]);
     expect(reveal()).toMatch(/scrollIntoView\(\{ block: 'start' \}\)/);
     expect(reveal()).not.toMatch(/smooth|behavior|\.focus\(|\bfocus\(|setCurrentId|openDoc|dispatchMenu|sendTurn|openSession|stopRun|closeSession|ipcRenderer/);
     // The target is the card's own ref: no attribute, no query.
@@ -2467,7 +2470,7 @@ describe("nothing this epic promised not to do: the audit's static half (Story 4
     expect(code.get(HEADER) ?? "").toContain("Write summary to _bmad/");
     // The composer is the room's only other control in a live room, and nothing the room does can switch it off.
     const view = code.get(VIEW) ?? "";
-    expect(view.match(/<Composer\b[^>]*>/g)).toEqual(['<Composer agentName="the room" onSend={onSend} returned={returned} />']);
+    expect(view.match(/<Composer\b[^>]*>/g)).toEqual(['<Composer agentName="the room" onSend={onSend} returned={returned} fieldRef={fieldRef} />']);
     expect(view).not.toMatch(/disabled|readOnly|aria-disabled|aria-busy/);
     expect(code.get(COMPOSER) ?? "").not.toMatch(/\bdisabled\b|readOnly|aria-disabled/);
     expect(offenders(PARTY_TSX.filter((path) => path !== CHOOSER && path !== HEADER), /\bdisabled\b/)).toEqual([]);
@@ -2625,5 +2628,61 @@ describe("nothing this epic promised not to do: the audit's static half (Story 4
     const getConversation = slice(BRIDGE, "function getConversation", "export function registerSessionBridge");
     expect(getConversation.length).toBeGreaterThan(0);
     expect(getConversation).not.toMatch(/registry\.say|\bsay\(|transcript\.record|LINES\./);
+  });
+});
+
+describe("the thread follows what is being said, and says nothing of it (Story 5.3)", () => {
+  const FOLLOW = RENDERER_CODE.filter((path) => path.startsWith("src/renderer/ui/follow/"));
+  const FOLLOW_CSS = "src/renderer/ui/follow/follow.css";
+  const SCROLLER = "src/renderer/ui/follow/follow-scroller.tsx";
+  const HOOK = "src/renderer/ui/follow/use-follow.ts";
+
+  it("moves no thread smoothly, by animation or by transition, and sets a scroll position in the follow hook alone", () => {
+    expect(FOLLOW.length).toBeGreaterThanOrEqual(4);
+    expect(offenders(RENDERER_ALL, /behavior:\s*['"]smooth|scroll-behavior|\bscrollTo\(|\bscrollBy\(/)).toEqual([]);
+    expect(offenders(RENDERER_ALL, /\bsmooth\b/)).toEqual([]);
+    expect(offenders(FOLLOW, /requestAnimationFrame|setTimeout|setInterval|\.animate\(|\bscrollIntoView\b/)).toEqual([]);
+    expect(offenders(RENDERER_CODE, /\.scrollTop =(?!=)/)).toEqual([`${HOOK}: .scrollTop =`]);
+    const css = code.get(FOLLOW_CSS) ?? "";
+    expect(css).not.toMatch(/transition|animation|@keyframes|box-shadow|filter|z-index|transform|opacity/);
+  });
+
+  it("draws one literal string, with no count, dot, badge, sign, toast, sound or live region around it", () => {
+    const scroller = code.get(SCROLLER) ?? "";
+    expect(scroller.match(/↓/g)).toHaveLength(1);
+    expect(scroller).toMatch(/>\s*↓ latest\s*</);
+    expect(scroller).not.toMatch(/\{[^}]*(?:count|length|unread|missed)[^}]*\}\s*<\/button>/i);
+    expect(scroller).not.toMatch(/aria-live|role=|aria-label|aria-hidden|tabIndex|autoFocus|announce|badge|toast|new\b/i);
+    expect(scroller.match(/<button\b/g)).toHaveLength(1);
+    expect(offenders(RENDERER_ALL.filter((path) => path !== SCROLLER), /↓ latest|↓/)).toEqual([]);
+    expect(offenders(FOLLOW, /Audio|\bnew Notification\b|navigator\.vibrate|localStorage|sessionStorage|indexedDB/)).toEqual([]);
+  });
+
+  it("stores nothing, has no setting, and adds no command, event, channel or bridge method", () => {
+    expect(offenders(FOLLOW, /window\.harness|ipcRenderer|contextBridge|localStorage|sessionStorage/)).toEqual([]);
+    expect(offenders(FOLLOW, /setting|preference|persist|remember/i)).toEqual([]);
+    expect(offenders(RENDERER_CODE.filter((path) => !path.startsWith("src/renderer/ui/follow/")), /\bfollow(?:ing)?(?:Setting|Preference|Enabled)\b/)).toEqual([]);
+  });
+
+  it("is drawn by the two threads and only by them: the shell's and the room's live scroller, and not the stopped room's read-only one", () => {
+    expect(offenders(RENDERER_CODE.filter((path) => !path.startsWith("src/renderer/ui/follow/")), /<FollowScroller\b/).sort()).toEqual([
+      "src/renderer/ui/party/party-view.tsx: <FollowScroller",
+      "src/renderer/ui/shell/shell.tsx: <FollowScroller",
+    ]);
+    expect((code.get("src/renderer/ui/party/party-view.tsx") ?? "").match(/<FollowScroller\b/g)).toHaveLength(1);
+    expect(code.get("src/renderer/ui/shell/shell.tsx") ?? "").toContain('className="scroll"');
+  });
+
+  it("takes its colours, dimensions and type through tokens, and names the two new dimensions", () => {
+    const css = code.get(FOLLOW_CSS) ?? "";
+    expect(css).toContain("var(--follow-offset)");
+    expect(css).toContain("var(--follow-padding)");
+    expect(css).toContain("var(--panel-2)");
+    expect(css).toContain("var(--panel-3)");
+    expect(css).toContain("var(--dim)");
+    expect(css).toContain("var(--text-strong)");
+    expect(css).toContain("var(--fs-label)");
+    expect(css).toContain("var(--mono)");
+    expect(css).not.toMatch(/prefers-color-scheme|data-theme/);
   });
 });

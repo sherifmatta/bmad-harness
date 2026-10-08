@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { createElement } from 'react'
+import { createElement, createRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -335,5 +335,27 @@ describe('returned (Story 4.8)', () => {
     show(root, { key: 1, text: 'one' })
 
     expect(field().value).toBe('')
+  })
+})
+
+describe('fieldRef (Story 5.3)', () => {
+  it('holds the field while the composer is mounted, and lets go of it when it goes', () => {
+    const fieldRef = createRef<HTMLTextAreaElement>()
+    mounted = mount(createElement(Composer, { agentName: 'John', fieldRef }))
+
+    expect(fieldRef.current).toBe(mounted.container.querySelector('textarea'))
+
+    mounted.unmount()
+    expect(fieldRef.current).toBeNull()
+  })
+
+  it('changes nothing for a composer given none', () => {
+    const { field } = render()
+
+    type(field, 'hello')
+    press(field, {})
+
+    expect(sent).toEqual(['hello'])
+    expect(document.activeElement).toBe(field)
   })
 })

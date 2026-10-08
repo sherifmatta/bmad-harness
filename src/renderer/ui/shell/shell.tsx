@@ -1,11 +1,12 @@
-import { useState } from 'react'
-import type { JSX, ReactNode } from 'react'
+import { createRef, useState } from 'react'
+import type { JSX, ReactNode, RefObject } from 'react'
 
 import './shell.css'
 import type { AgentView, HarnessError, InstallSnapshot, MenuEntryView } from '../../../shared/install'
 import type { RailSnapshot } from '../../../shared/rail'
 import { ChatHeader } from '../chat/chat-header'
 import { OrphanHeader } from '../chat/orphan-header'
+import { FollowScroller } from '../follow/follow-scroller'
 import type { PersonaState } from '../persona/portrait'
 import { ConnectedOutputs } from '../outputs/outputs'
 import { stateOf } from '../status/persona-state'
@@ -86,6 +87,7 @@ export function Shell({
   liveSessions = NO_LIVE,
   onCloseSession,
   composer,
+  sends = 0,
   pinned,
   party,
   children
@@ -126,7 +128,13 @@ export function Shell({
   onCloseSession?: (agentId: string) => void
   /** The composer for the current persona, rendered in the chat column under the thread, and
       handed that persona's menu entries for the skill row it carries. */
-  composer?: (agent: AgentView, items: readonly MenuEntryView[]) => ReactNode
+  composer?: (
+    agent: AgentView,
+    items: readonly MenuEntryView[],
+    fieldRef: RefObject<HTMLTextAreaElement | null>
+  ) => ReactNode
+  /** How many user turns the thread holds (Story 5.3): a rise puts the thread at its bottom, following. */
+  sends?: number
   /** What is pinned at the top of the chat column for the current persona (Story 3.14): the
       running card. Called with the current persona; a `null` result draws no slot. */
   pinned?: (agent: AgentView) => ReactNode
@@ -137,6 +145,8 @@ export function Shell({
   const [view, setView] = useState<ViewId>(initialView)
   const [ownId, setOwnId] = useState<string | null>(null)
   const branch = useBranch()
+  // The current composer's field, which the thread's `↓ latest` puts focus in (Story 5.3).
+  const [fieldRef] = useState(() => createRef<HTMLTextAreaElement>())
 
   const currentId = chosenId === undefined ? ownId : chosenId
   const ordered = displayOrder(groupAgents(snapshot.agents))
@@ -187,10 +197,16 @@ export function Shell({
               }
             />
           )}
-          <div className="scroll">
-            <div className="thread">{children}</div>
-          </div>
-          {current !== null && composer?.(current, snapshot.menus[current.id] ?? NO_ITEMS)}
+          <FollowScroller
+            className="scroll"
+            contentClassName="thread"
+            resetKey={current?.id}
+            sends={sends}
+            fieldRef={fieldRef}
+          >
+            {children}
+          </FollowScroller>
+          {current !== null && composer?.(current, snapshot.menus[current.id] ?? NO_ITEMS, fieldRef)}
         </div>
         <div className="rail">
           <RailHalf label="Team">
