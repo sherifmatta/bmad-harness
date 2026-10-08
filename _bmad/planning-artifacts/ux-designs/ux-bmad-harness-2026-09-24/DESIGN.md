@@ -434,7 +434,7 @@ components:
     group-label: 'the first group in the list is the watched folder itself, `{typography.badge}`-tier as every group label'
     colour: 'none — every state is text; no amber, no red, no icon'
   splitter:
-    hit: '9px wide, full height of the panel, centred on the panel's inner border, cursor col-resize'
+    hit: '9px wide, full height of the panel, centred on the panel''s inner border, cursor col-resize'
     line: '1px {colors.line} (the panel border) at rest; {colors.accent-border} 3px on hover; {colors.accent} 3px while dragging or focused'
     focus: 'the 3px accent line plus the shared ring {components.focus.ring}'
     motion: 'none — the panel follows the pointer one frame at a time; no easing, no snap'
