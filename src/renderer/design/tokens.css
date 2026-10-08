@@ -248,6 +248,19 @@
   --eq-delay-2:.3s;
   --eq-delay-3:.45s;
 
+  /* ── The party header and the Room side panel (Story 4.3), read off harness-mockup.html's
+     `.party-head` (:270), `.chip` (:58-62), `.ghost-btn` (:72-76), `.party-side`, `.sidesec` and
+     `.kv` rules (:320-328) and DESIGN.md's party side panel ruling (a 74px key column). Component
+     dimensions, here for the reason the cast strip's are: NFR23 allows no literal in a component
+     stylesheet. The panel's own width, --party-side, is with the layout constants; the gaps
+     (14, 6, 8, 5) are the spacing ladder's --space-xxl, -sm, -md and -xs. */
+  --party-side-key:74px;
+  --party-head-padding:9px 16px;
+  --party-chip-height:20px;
+  --party-chip-padding:0 7px;
+  --party-button-padding:4px 10px;
+  --party-panel-padding:11px 13px;
+
   /* ── Elevation (UX-DR10). Depth is tonal, not cast: the five-step surface
      ramp *is* the elevation system. There is no elevation scale, no z1/z2/z3,
      and no hover-lift. Exactly two z-indexes exist, and a surface that needs a

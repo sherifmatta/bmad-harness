@@ -513,6 +513,22 @@ describe('the layout constants', () => {
     // The speaker's party turn takes the accent itself where the user's takes `--accent-edge`.
     expect(tokens.get('--inset-turn-party-live')).toBe('inset 2px 0 0 var(--accent)')
   })
+
+  it('carries the party header’s and the Room panel’s dimensions (Story 4.3)', () => {
+    // The panel is 240px with a 74px key column (DESIGN.md, the party side panel ruling); 288px is superseded.
+    expect(tokens.get('--party-side')).toBe('240px')
+    expect(tokens.get('--party-side-key')).toBe('74px')
+    for (const name of [
+      'party-head-padding',
+      'party-chip-height',
+      'party-chip-padding',
+      'party-button-padding',
+      'party-panel-padding'
+    ]) {
+      expect(tokens.get(`--${name}`), `--${name}`).toBeDefined()
+      expect(tokensCss.match(new RegExp(`--${name}\\s*:`, 'g')), name).toHaveLength(1)
+    }
+  })
 })
 
 describe('the files in the rail (Story 1.11)', () => {

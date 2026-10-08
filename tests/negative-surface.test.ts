@@ -682,6 +682,10 @@ describe("the text ramp", () => {
       kind: "restated",
       why: "a cast card's `in the room` line; the card being there at all says it, and the speaking card turns the line to the accent",
     },
+    "ui/party/room-panel.css: .room-panel-key": {
+      kind: "label",
+      why: "the name of a Room row (topic, opened, context, writes to); the value beside it is at --text and reads as the fact it names",
+    },
     "ui/chat/composer.css: .composer-hint": {
       kind: "restated",
       why: "the two keys the field answers to; Enter sending is how every message field behaves and nothing is lost by missing the line",
@@ -1338,6 +1342,8 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
         "personas",
         "room",
         "roomCast",
+        "roomOpenedAt",
+        "roomTopic",
         "nextId",
       ]);
       for (const path of [

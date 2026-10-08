@@ -57,7 +57,7 @@ describe('the party view’s files', () => {
   const sources = filesUnder(PARTY).filter((path) => /\.(?:ts|tsx)$/.test(path) && !/\.test\.tsx?$/.test(path))
 
   it('exist, so the sweep below is not over nothing', () => {
-    expect(sources.map((path) => path.split('/').pop()).sort()).toEqual(['cast-chooser.tsx', 'cast-strip.tsx', 'party-turn.tsx', 'party-view.tsx'])
+    expect(sources.map((path) => path.split('/').pop()).sort()).toEqual(['cast-chooser.tsx', 'cast-strip.tsx', 'party-header.tsx', 'party-turn.tsx', 'party-view.tsx', 'room-panel.tsx'])
   })
 
   it('reach outside the renderer only into `shared/`: never main, preload or the bridge', () => {
@@ -108,5 +108,45 @@ describe('the party view’s files', () => {
       expect(stripped(read(path)), path).not.toMatch(/disagrees|evidence|unresolved/i)
     }
     expect(stripped(read(`${PARTY}/cast-strip.tsx`))).not.toMatch(/aria-live|role=|role:/)
+  })
+})
+
+describe('what the room’s header and panel do not draw (Story 4.3)', () => {
+  const PARTY = 'src/renderer/ui/party'
+  const files = filesUnder(PARTY).filter((path) => /\.(?:ts|tsx|css)$/.test(path) && !/\.test\.tsx?$/.test(path))
+
+  it('has no party file that names a deferred section, a pause control or the superseded width', () => {
+    for (const path of files) {
+      const source = stripped(read(path))
+      expect(source, path).not.toMatch(/disagree|Decisions so far|Open disagreements|Pause|\b288/i)
+    }
+  })
+
+  it('has no live region and no role in the header or the panel', () => {
+    for (const name of ['party-header.tsx', 'room-panel.tsx']) {
+      expect(stripped(read(`${PARTY}/${name}`)), name).not.toMatch(/aria-live|role=|role:/)
+    }
+  })
+
+  it('gives the panel exactly one heading and the shell’s own class', () => {
+    const panel = stripped(read(`${PARTY}/room-panel.tsx`))
+    expect(panel.match(/<h[1-6]\b/g)).toHaveLength(1)
+    expect(panel).toContain('className="party-side"')
+    expect(panel).toMatch(/aria-label="room"/)
+  })
+
+  it('leaves the panel’s display to the shell’s breakpoint, and the panel at --party-side', () => {
+    const css = stripped(read(`${PARTY}/room-panel.css`))
+    const rule = css.match(/\.party-side\s*\{([^}]*)\}/)?.[1] ?? ''
+    expect(rule).not.toBe('')
+    expect(rule).not.toMatch(/\bdisplay\b/)
+    expect(css).toContain('var(--party-side)')
+    expect(css).toContain('var(--party-side-key)')
+    expect(stripped(read('src/renderer/ui/shell/shell.css'))).toMatch(/@media \(max-width: 1180px\)\s*\{\s*\.party-side\s*\{\s*display: none;/)
+  })
+
+  it('wires no handler for the header button in the app, and nothing else for the summary', () => {
+    expect(stripped(read('src/renderer/ui/app.tsx'))).not.toMatch(/onWriteSummary/)
+    expect(stripped(read(`${PARTY}/party-header.tsx`))).toContain('disabled={onWriteSummary === undefined}')
   })
 })

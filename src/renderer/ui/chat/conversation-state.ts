@@ -1,6 +1,7 @@
 import type { ConversationSnapshot, RunCardSnapshot, SyslineRecord } from '../../../shared/conversation'
 import type { ContractEvent, PersonaState } from '../../../shared/events'
 import type { AgentView } from '../../../shared/install'
+import { roomTopicOf } from '../../../shared/room-destination'
 import { withPulled } from '../../../shared/section-plan'
 import type { RunCardEntry, TranscriptEntry, UserEntry } from './transcript-entry'
 
@@ -41,6 +42,17 @@ export type ConversationState = {
    * ok and cleared when the room closes or the conversation ends. The cast strip draws one card for each.
    */
   roomCast: readonly string[]
+  /**
+   * When the room opened (Story 4.3), epoch milliseconds: the room's `session:opened` `at`, or the
+   * conversation's own clock when the open's reply came first; the first of the two stands. Set
+   * only for a live room, and cleared where `roomCast` is.
+   */
+  roomOpenedAt: number | undefined
+  /**
+   * What the room is about (Story 4.3): the shape of the user's first message into it, set once
+   * and never again for that room. `undefined` until then; the harness writes none of its own.
+   */
+  roomTopic: string | undefined
   /** The next entry's key. */
   nextId: number
 }
@@ -53,6 +65,8 @@ export const initialConversation: ConversationState = {
   personas: new Map(),
   room: undefined,
   roomCast: [],
+  roomOpenedAt: undefined,
+  roomTopic: undefined,
   nextId: 0
 }
 
@@ -291,7 +305,9 @@ export function ended(state: ConversationState): ConversationState {
     busy: new Set(),
     queue: new Map(),
     room: undefined,
-    roomCast: []
+    roomCast: [],
+    roomOpenedAt: undefined,
+    roomTopic: undefined
   }
 }
 
@@ -299,15 +315,20 @@ export function ended(state: ConversationState): ConversationState {
  * The reply to opening the room: the session it answered with is the room, whether the
  * events announced it already or it was live before this window loaded. The cast, when the
  * reply is the window's own (`cast`, which the chooser sends in roster order), is kept; a room met only through
- * an event keeps the cast it had. The room has no queue.
+ * an event keeps the cast it had. The room has no queue. `at` is the moment of the reply: it
+ * is the room's open time only when no event gave one first (the first of the two stands).
  */
 export function roomReady(
   state: ConversationState,
   sessionId: string,
-  cast?: readonly string[]
+  cast?: readonly string[],
+  at?: number
 ): ConversationState {
   const roomCast = cast === undefined ? state.roomCast : [...cast]
-  return state.room === sessionId && roomCast === state.roomCast ? state : { ...state, room: sessionId, roomCast }
+  const roomOpenedAt = state.roomOpenedAt ?? at
+  return state.room === sessionId && roomCast === state.roomCast && roomOpenedAt === state.roomOpenedAt
+    ? state
+    : { ...state, room: sessionId, roomCast, roomOpenedAt }
 }
 
 /**
@@ -324,7 +345,13 @@ export function roomSent(
     return { state }
   }
   const entry: UserEntry = { kind: 'user', id: `entry-${state.nextId}`, at, text, room: true }
-  return { state: withBusy(withEntry(state, entry), state.room, true), sessionId: state.room }
+  const sent = withBusy(withEntry(state, entry), state.room, true)
+  // The first message is the topic, once: a room with one keeps it, and a message with no text in it is none.
+  const topic = state.roomTopic === undefined ? roomTopicOf(text) : state.roomTopic
+  return {
+    state: topic === '' ? sent : { ...sent, roomTopic: topic },
+    sessionId: state.room
+  }
 }
 
 /**
@@ -347,6 +374,19 @@ export function speakerOf(state: ConversationState): string | undefined {
     }
   }
   return undefined
+}
+
+/**
+ * How many turns the room has had (Story 4.3): its persona entries from the room's opening on. A
+ * message of the user's is not a turn, and neither is an entry of an earlier room, which is older
+ * than this one's open time. Without an open time there are none.
+ */
+export function roomTurnsOf(state: ConversationState): number {
+  const openedAt = state.roomOpenedAt
+  if (state.room === undefined || openedAt === undefined) {
+    return 0
+  }
+  return state.entries.filter((entry) => entry.kind === 'persona' && entry.room === true && entry.at >= openedAt).length
 }
 
 /**
@@ -561,12 +601,12 @@ export function foldEvent(
 ): { state: ConversationState; deliver?: Delivery } {
   switch (event.name) {
     case 'session:opened': {
-      const { agentId, sessionId } = event.payload
-      // The room has no agent id: it is the window's room, and nothing else of it is kept (Story 4.1).
+      const { agentId, sessionId, at } = event.payload
+      // The room has no agent id: it is the window's room, and only its cast and open time are kept (Stories 4.1, 4.3).
       // The activation turn of a persona is in flight until the session says it is awaiting.
       // The room's activation turn is in flight until the session says it is awaiting.
       return agentId === undefined
-        ? { state: withBusy(roomReady(state, sessionId), sessionId, true) }
+        ? { state: withBusy(roomReady(state, sessionId, undefined, at), sessionId, true) }
         : {
             state: withBusy(withSession(state, agentId, sessionId), sessionId, true)
           }
@@ -576,7 +616,7 @@ export function foldEvent(
       const { sessionId, reason } = event.payload
       let next = withBusy(state, sessionId, false)
       if (next.room === sessionId) {
-        next = { ...next, room: undefined, roomCast: [] }
+        next = { ...next, room: undefined, roomCast: [], roomOpenedAt: undefined, roomTopic: undefined }
       }
       for (const [agentId, live] of state.sessions) {
         if (live === sessionId) {

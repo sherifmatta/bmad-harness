@@ -1964,6 +1964,54 @@ describe('the party view (Story 4.1)', () => {
     expect(party().querySelectorAll('.cast-card')).toHaveLength(2)
   })
 
+  it('wires the room’s topic, open time, turns and the rail’s rows into the header and the Room panel (Story 4.3)', async () => {
+    const rows = [
+      { path: '_bmad/planning-artifacts/prd.md', state: 'saved', savedAt: 1, owner: { agentId: john.id } },
+      { path: '_bmad/party/earlier.md', state: 'saved', savedAt: 1, room: true }
+    ]
+    ;(window.harness as unknown as { getRail: () => Promise<unknown> }).getRail = async () => ({ revision: 2, rows })
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    click(partyButton())
+    click(openButton())
+    // The event is the first of the two to reach the window, so its time is the room's open time.
+    const openedAt = new Date(2026, 9, 8, 14, 31).getTime()
+    push({ name: 'session:opened', payload: { sessionId: 'session-of-the-room', at: openedAt } })
+    await settle()
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 'session-of-the-room', at: openedAt + 1 } })
+
+    const head = (): string => party().querySelector('.party-head')?.textContent ?? ''
+    const panel = (): string => party().querySelector('.party-side')?.textContent ?? ''
+    expect(head()).toContain('no topic yet')
+    expect(head()).toContain('turn 0 · ')
+    expect(panel()).toContain('none yet')
+    expect(panel()).toContain('14:31 by you')
+    expect(panel()).toContain('_bmad/party/2026-10-08-<topic>.md')
+
+    const field = party().querySelector('textarea') as HTMLTextAreaElement
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
+      setter?.call(field, '  Payouts —\nmore  ')
+      field.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    act(() => {
+      field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    })
+    await settle()
+    push({
+      name: 'persona:said',
+      payload: { sessionId: 'session-of-the-room', agentId: john.id, messageId: 'm#1', text: 'No.', at: openedAt + 2000, room: true }
+    })
+
+    expect(party().querySelector('.party-head-topic')?.textContent).toBe('Payouts —')
+    expect(head()).toContain('turn 1 · ')
+    expect(panel()).toContain('Payouts —')
+    expect(panel()).toContain('_bmad/planning-artifacts/prd.md')
+    expect(panel()).not.toContain('_bmad/party/earlier.md')
+    expect(panel()).toContain('_bmad/party/2026-10-08-payouts.md')
+  })
+
   it('returns the chooser when the room closes, and leaves the old line where it fell', async () => {
     mounted = mount(createElement(App))
     await settle()

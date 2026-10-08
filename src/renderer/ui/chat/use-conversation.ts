@@ -18,6 +18,7 @@ import {
   orphansOf,
   roomReady,
   roomSent,
+  roomTurnsOf,
   runCardOf,
   sendMessage,
   sessionOf,
@@ -279,7 +280,7 @@ export function createConversation(deps: ConversationDeps): Conversation {
         if (generation !== endings) {
           return
         }
-        commit(roomReady(state, sessionId, cast))
+        commit(roomReady(state, sessionId, cast, now()))
       })
       .catch((reason: unknown) => {
         if (generation !== endings) {
@@ -492,6 +493,12 @@ export function useConversation(
   room: string | undefined
   /** The agent ids chosen for the room, in roster order, while it is live (Story 4.2). */
   roomCast: readonly string[]
+  /** When the room opened, in epoch milliseconds, while it is live (Story 4.3). */
+  roomOpenedAt: number | undefined
+  /** What the room is about: the shape of the user's first message into it, or none yet (Story 4.3). */
+  roomTopic: string | undefined
+  /** How many turns the room has had (Story 4.3). */
+  roomTurns: number
   /** The agent id of the room's current speaker, or none (Story 4.2). */
   speaker: string | undefined
   /** Send text into the room, with no gate; main interrupts the speaker. */
@@ -615,6 +622,9 @@ export function useConversation(
     openRoom,
     room: state.room,
     roomCast: state.roomCast,
+    roomOpenedAt: state.roomOpenedAt,
+    roomTopic: state.roomTopic,
+    roomTurns: roomTurnsOf(state),
     speaker: speakerOf(state),
     sendToRoom,
     send,

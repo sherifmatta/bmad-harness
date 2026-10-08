@@ -1,0 +1,53 @@
+/*
+ * The Room side panel (Story 4.3), from harness-mockup.html's `.party-side`, `.sidesec` and `.kv`.
+ * Fixed at --party-side with a rule down its left edge; it scrolls inside itself when the context is
+ * long. It sets no `display`: the shell's one breakpoint (`.party-side` at 1180px) hides it outright
+ * and a rule here would race that one. The section's one heading is the only heading. No motion.
+ * Every value reaches the design system through `var()`.
+ */
+
+.party-side {
+  flex: 0 0 var(--party-side);
+  width: var(--party-side);
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--party-panel-padding);
+  border-left: var(--rule-width) solid var(--line);
+  background: var(--panel);
+}
+
+.room-panel-heading {
+  margin: 0 0 var(--space-md);
+  font-size: var(--fs-label);
+  font-weight: var(--weight-strong);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.room-panel-row {
+  display: flex;
+  gap: var(--space-md);
+  margin-bottom: var(--space-xs);
+  font-size: var(--fs-body-ui);
+}
+
+.room-panel-key {
+  flex: 0 0 var(--party-side-key);
+  width: var(--party-side-key);
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  color: var(--faint);
+}
+
+.room-panel-value {
+  min-width: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.room-panel-path {
+  display: block;
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+}

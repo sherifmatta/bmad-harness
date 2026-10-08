@@ -15,6 +15,7 @@ import {
   orphansOf,
   roomReady,
   roomSent,
+  roomTurnsOf,
   runCardOf,
   sendMessage,
   sessionOf,
@@ -1048,5 +1049,92 @@ describe('the room’s cast, turns and speaker (Story 4.2)', () => {
     const { state } = hydrate(initialConversation, snapshot, agentOf)
 
     expect(state.entries.map((entry) => ('room' in entry ? entry.room : undefined))).toEqual([true, true, undefined])
+  })
+})
+
+describe('what the room is about (Story 4.3)', () => {
+  const opened = (sessionId: string, at: number): ContractEvent => ({ name: 'session:opened', payload: { sessionId, at } })
+  const closed = (sessionId: string): ContractEvent => ({
+    name: 'session:closed',
+    payload: { sessionId, reason: 'process-exited', at: 99 }
+  })
+  const spoke = (agentId: string, messageId: string, at: number, room = true): ContractEvent => ({
+    name: 'persona:said',
+    payload: { sessionId: 'r1', agentId, messageId, text: 'words', at, ...(room ? { room: true as const } : {}) }
+  })
+  const fold = (state: ConversationState, ...events: ContractEvent[]): ConversationState =>
+    events.reduce((held, event) => foldEvent(held, event, agentOf).state, state)
+  const live = (at = 100): ConversationState => fold(initialConversation, opened('r1', at))
+
+  it('takes the open time from the room’s session:opened and no topic', () => {
+    expect(live(100).roomOpenedAt).toBe(100)
+    expect(live(100).roomTopic).toBeUndefined()
+    expect(initialConversation.roomOpenedAt).toBeUndefined()
+  })
+
+  it('lets the first of the event and the reply stand', () => {
+    expect(roomReady(live(100), 'r1', [mary.id], 500).roomOpenedAt).toBe(100)
+    expect(fold(roomReady(initialConversation, 'r1', [mary.id], 500), opened('r1', 100)).roomOpenedAt).toBe(500)
+    expect(roomReady(initialConversation, 'r1', [mary.id]).roomOpenedAt).toBeUndefined()
+  })
+
+  it('sets the topic from the first message, shaped, and never again', () => {
+    const first = roomSent(live(), 110, '  Payouts —\nextend billing-svc?  ').state
+    expect(first.roomTopic).toBe('Payouts —')
+
+    const second = roomSent(first, 120, 'something else').state
+    expect(second.roomTopic).toBe('Payouts —')
+  })
+
+  it('cuts a long first line to 80 characters', () => {
+    expect(roomSent(live(), 110, 'x'.repeat(200)).state.roomTopic).toBe('x'.repeat(80))
+  })
+
+  it('takes an emoji-only first message as the topic', () => {
+    expect(roomSent(live(), 110, '🎉🎉').state.roomTopic).toBe('🎉🎉')
+  })
+
+  it('leaves the topic open when the first message has no text in it', () => {
+    const blank = roomSent(live(), 110, ' \n ').state
+    expect(blank.roomTopic).toBeUndefined()
+    expect(roomSent(blank, 120, 'real').state.roomTopic).toBe('real')
+  })
+
+  it('clears the open time and the topic with the room and with the conversation', () => {
+    const held = roomSent(live(), 110, 'topic').state
+    const closedRoom = fold(held, closed('r1'))
+    expect(closedRoom.roomOpenedAt).toBeUndefined()
+    expect(closedRoom.roomTopic).toBeUndefined()
+    const endedRoom = ended(held)
+    expect(endedRoom.roomOpenedAt).toBeUndefined()
+    expect(endedRoom.roomTopic).toBeUndefined()
+  })
+
+  it('does not carry a topic into the next room', () => {
+    const next = fold(fold(roomSent(live(), 110, 'old').state, closed('r1')), opened('r2', 200))
+    expect(next.roomTopic).toBeUndefined()
+    expect(next.roomOpenedAt).toBe(200)
+  })
+
+  it('counts room persona entries from the open on, and no user message', () => {
+    const held = fold(
+      live(100),
+      spoke(mary.id, 'm#0', 50),
+      spoke(mary.id, 'm#1', 101),
+      spoke(john.id, 'm#2', 102),
+      spoke(mary.id, 'm#3', 103)
+    )
+    const sent = roomSent(held, 104, 'hello').state
+
+    expect(roomTurnsOf(sent)).toBe(3)
+  })
+
+  it('counts a persona entry of another view as no turn of the room', () => {
+    expect(roomTurnsOf(fold(live(100), spoke(mary.id, 'm#1', 105, false)))).toBe(0)
+  })
+
+  it('has no turns without a room', () => {
+    expect(roomTurnsOf(initialConversation)).toBe(0)
+    expect(roomTurnsOf(fold(fold(live(100), spoke(mary.id, 'm#1', 105)), closed('r1')))).toBe(0)
   })
 })

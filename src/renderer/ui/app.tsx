@@ -271,6 +271,10 @@ export function App(): JSX.Element | null {
             roomCast={conversation.roomCast}
             speaker={conversation.speaker}
             entries={conversation.entries}
+            topic={conversation.roomTopic}
+            openedAt={conversation.roomOpenedAt}
+            turns={conversation.roomTurns}
+            rows={rail?.rows ?? []}
             onOpen={(cast) => void conversation.openRoom(cast)}
             onSend={conversation.sendToRoom}
           />

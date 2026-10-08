@@ -7,7 +7,7 @@ import { formatElapsed } from './format-elapsed'
 import { STATE_TEXT } from './persona-state'
 
 /** How often the counter re-reads the clock: the finest unit it writes is a second. */
-const COUNTER_TICK_MS = 1000
+export const COUNTER_TICK_MS = 1000
 
 /**
  * The status dot — FR22, UX-DR17, DESIGN.md's `components.status-dot`.

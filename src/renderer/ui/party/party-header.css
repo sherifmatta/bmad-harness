@@ -1,0 +1,63 @@
+/*
+ * The party header (Story 4.3), from harness-mockup.html's `.party-head`, `.chip` and `.ghost-btn`.
+ * One row across the full width: the topic takes what is left and ellipsises, the chips and the
+ * button keep their size. No focus rule (the shared `:focus-visible` ring covers the button), no
+ * motion, no stacking index. Every value reaches the design system through `var()`.
+ */
+
+.party-head {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-xxl);
+  padding: var(--party-head-padding);
+  background: var(--chrome);
+  border-bottom: var(--rule-width) solid var(--line);
+}
+
+.party-head-topic {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--fs-base);
+  font-weight: var(--weight-strong);
+  color: var(--text-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.party-chip {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  height: var(--party-chip-height);
+  padding: var(--party-chip-padding);
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--radius-chip);
+  background: var(--panel-2);
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+.party-write {
+  flex: 0 0 auto;
+  padding: var(--party-button-padding);
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--r);
+  background: var(--panel-2);
+  font-family: var(--sans);
+  font-size: var(--fs-body-ui);
+  color: var(--dim);
+  cursor: pointer;
+}
+
+.party-write:hover:not(:disabled) {
+  color: var(--text-strong);
+  border-color: var(--ghost-border-hover);
+}
+
+.party-write:disabled {
+  cursor: default;
+}

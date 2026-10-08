@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
 import type { AgentView } from '../../../shared/install'
+import type { RailRow } from '../../../shared/rail'
 import type { TranscriptEntry } from '../chat/transcript-entry'
 import { PartyView } from './party-view'
 
@@ -25,7 +26,8 @@ const render = (
   room: string | undefined,
   entries: readonly TranscriptEntry[],
   speaker?: string,
-  cast: readonly string[] = [mary.id, john.id]
+  cast: readonly string[] = [mary.id, john.id],
+  extra: { topic?: string; openedAt?: number; turns?: number; rows?: readonly RailRow[] } = {}
 ): string =>
   renderToStaticMarkup(
     <PartyView
@@ -34,6 +36,10 @@ const render = (
       roomCast={cast}
       speaker={speaker}
       entries={entries}
+      topic={extra.topic}
+      openedAt={extra.openedAt ?? Date.parse('2026-10-08T14:31:00')}
+      turns={extra.turns ?? 0}
+      rows={extra.rows ?? []}
       onOpen={() => {}}
       onSend={() => {}}
     />
@@ -47,6 +53,42 @@ describe('PartyView', () => {
     expect(markup).not.toContain('party-thread')
     expect(markup).not.toContain('cast-strip')
     expect(markup).not.toContain('room opened by you')
+  })
+
+  it('is the header, the strip, the party thread, the composer and the Room panel once a room is live', () => {
+    const markup = render('s1', [ROOM_LINE])
+
+    expect(markup).toContain('party-head')
+    expect(markup).toContain('party-side')
+    expect(markup.indexOf('party-head')).toBeLessThan(markup.indexOf('cast-strip'))
+    expect(markup.indexOf('party-main')).toBeLessThan(markup.indexOf('party-side'))
+  })
+
+  it('draws neither header nor panel while there is no live room', () => {
+    const markup = render(undefined, [ROOM_LINE])
+
+    expect(markup).not.toContain('party-head')
+    expect(markup).not.toContain('party-side')
+  })
+
+  it('counts the participants from the cast and reads the topic into header and panel', () => {
+    const markup = render('s1', [ROOM_LINE], undefined, [mary.id, john.id], {
+      topic: 'Payouts —',
+      turns: 3,
+      rows: [
+        { path: '_bmad/PRD.md', state: 'saved', savedAt: 1 },
+        { path: '_bmad/party/x.md', state: 'saved', savedAt: 1, room: true }
+      ]
+    })
+
+    expect(markup).toContain('2 participants')
+    expect(markup).toContain('14:31 by you')
+    expect(markup).toContain('_bmad/PRD.md')
+    expect(markup).not.toContain('_bmad/party/x.md')
+    expect(markup).toContain('turn 3 · ')
+    expect(markup.match(/>Payouts —</g)).toHaveLength(2)
+    expect(markup).toContain('_bmad/party/2026-10-08-payouts.md')
+    expect(markup).not.toContain('no topic yet')
   })
 
   it('is the strip, the party thread and the composer once a room is live, replacing the chooser', () => {

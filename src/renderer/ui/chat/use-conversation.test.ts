@@ -1525,7 +1525,7 @@ describe('sendToRoom (Story 4.2)', () => {
     name: 'persona:said',
     payload: { sessionId: 'r1', agentId, messageId, text, at: 3, room: true }
   })
-  type Held = { room?: string; roomCast: readonly string[]; busy: ReadonlySet<string>; entries: readonly { kind: string; room?: true; queuedFor?: string; text?: string }[] }
+  type Held = { room?: string; roomCast: readonly string[]; roomOpenedAt?: number; roomTopic?: string; busy: ReadonlySet<string>; entries: readonly { kind: string; room?: true; queuedFor?: string; text?: string }[] }
   const held = (published: object | undefined): Held => published as unknown as Held
 
   async function live() {
@@ -1603,5 +1603,26 @@ describe('sendToRoom (Story 4.2)', () => {
 
     expect(held(last()).roomCast).toEqual([])
     expect(held(last()).room).toBeUndefined()
+  })
+
+  it('opens the room at the conversation’s clock when the reply came first, and reads the first message as the topic', async () => {
+    const { last, conversation } = await live()
+    expect(typeof held(last()).roomOpenedAt).toBe('number')
+    expect(held(last()).roomTopic).toBeUndefined()
+
+    conversation.sendToRoom('  Payouts —\nmore  ')
+    conversation.sendToRoom('second')
+    bridge.push(spoke(john.id, 'm#1', 'No.'))
+
+    expect(held(last()).roomTopic).toBe('Payouts —')
+  })
+
+  it('is cleared with the conversation: no open time, no topic', async () => {
+    const { conversation, last } = await live()
+    conversation.sendToRoom('topic')
+    await conversation.end('/project')
+
+    expect(held(last()).roomOpenedAt).toBeUndefined()
+    expect(held(last()).roomTopic).toBeUndefined()
   })
 })
