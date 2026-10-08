@@ -5,22 +5,29 @@ import type { DocSnapshot, DocState } from '../../../shared/document'
  * the harness's microcopy: lower case, `·` between facts, and never a sentence
  * that advises what to do next.
  */
-const STATE_LINE: Record<DocState, string> = {
+const STATE_LINE: Record<Exclude<DocState, 'refused'>, string> = {
   present: 'separate window · read-only preview · reloads on write',
   missing: 'no longer on disk',
-  refused: 'outside _bmad/ · not opened',
   unreadable: 'could not be read',
   binary: 'not text · not shown'
 }
 
-/** The state line for one state. */
-export function stateLine(state: DocState): string {
+/** The state line of a state that names no folder: every one but `refused`. */
+export function plainStateLine(state: Exclude<DocState, 'refused'>): string {
   return STATE_LINE[state]
+}
+
+/**
+ * The state line for one state. A refused file is one that leads outside the
+ * output folder the window was opened under (Story 5.4), and the line names it.
+ */
+export function stateLine(state: DocState, folder: string): string {
+  return state === 'refused' ? `outside ${folder} · not opened` : plainStateLine(state)
 }
 
 /** The foot's left side: the state line, or nothing before the first snapshot. */
 export function footLeft(snapshot: DocSnapshot | null): string {
-  return snapshot === null ? '' : stateLine(snapshot.state)
+  return snapshot === null ? '' : stateLine(snapshot.state, snapshot.folder)
 }
 
 /**

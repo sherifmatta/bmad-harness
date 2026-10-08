@@ -1241,7 +1241,7 @@ describe('asking the room for its summary (Story 4.4)', () => {
 
   it('records one room user entry with the ask, marks the room busy and returns the session and the text', () => {
     const topical = roomSent(live(), at + 10, 'Payouts').state
-    const asked = roomSummaryAsked(topical, at + 20)
+    const asked = roomSummaryAsked(topical, at + 20, '_bmad/')
 
     expect(asked.sessionId).toBe('r1')
     expect(asked.text).toContain('_bmad/party/2026-10-08-payouts.md')
@@ -1254,29 +1254,37 @@ describe('asking the room for its summary (Story 4.4)', () => {
   })
 
   it('carries <topic> when the room has none yet, and leaves the topic unset', () => {
-    const asked = roomSummaryAsked(live(), at + 5)
+    const asked = roomSummaryAsked(live(), at + 5, '_bmad/')
 
     expect(asked.text).toContain('_bmad/party/2026-10-08-<topic>.md')
     expect(asked.state.roomTopic).toBeUndefined()
     expect(roomSent(asked.state, at + 6, 'Payouts').state.roomTopic).toBe('Payouts')
   })
 
+  it('asks for the destination under the folder it is given, a chosen one as the default', () => {
+    const topical = roomSent(live(), at + 10, 'Payouts').state
+    const asked = roomSummaryAsked(topical, at + 20, 'docs/out/')
+
+    expect(asked.text?.startsWith('Write a summary of this conversation to docs/out/party/2026-10-08-payouts.md. Cover')).toBe(true)
+    expect(asked.text).not.toContain('_bmad')
+  })
+
   it('leaves a topic already set as it was', () => {
     const topical = roomSent(live(), at + 10, 'Payouts').state
 
-    expect(roomSummaryAsked(topical, at + 20).state.roomTopic).toBe('Payouts')
+    expect(roomSummaryAsked(topical, at + 20, '_bmad/').state.roomTopic).toBe('Payouts')
   })
 
   it('is sent into a busy room as well, with no gate and no queue', () => {
     const busy = fold(live(), { name: 'persona:said', payload: { sessionId: 'r1', agentId: mary.id, messageId: 'm#1', text: 'Hi', at: at + 1, room: true } })
-    const asked = roomSummaryAsked(busy, at + 2)
+    const asked = roomSummaryAsked(busy, at + 2, '_bmad/')
 
     expect(asked.sessionId).toBe('r1')
     expect(asked.state.queue.size).toBe(0)
   })
 
   it('sends nothing without a live room', () => {
-    expect(roomSummaryAsked(initialConversation, 1)).toEqual({ state: initialConversation })
+    expect(roomSummaryAsked(initialConversation, 1, '_bmad/')).toEqual({ state: initialConversation })
   })
 })
 
@@ -1290,7 +1298,7 @@ describe('a message the room refused (Story 4.8)', () => {
 
   it('returns the entry id of a send and of the summary ask, which is the entry they added', () => {
     const sent = roomSent(live(), at + 1, 'x')
-    const asked = roomSummaryAsked(sent.state, at + 2)
+    const asked = roomSummaryAsked(sent.state, at + 2, '_bmad/')
 
     expect(sent.state.entries.at(-1)?.id).toBe(sent.entryId)
     expect(asked.state.entries.at(-1)?.id).toBe(asked.entryId)
@@ -1333,13 +1341,13 @@ describe('a message the room refused (Story 4.8)', () => {
 
   it('leaves the topic and destination as they were for the summary ask, and returns nothing', () => {
     const topical = roomSent(live(), at + 10, 'Payouts').state
-    const asked = roomSummaryAsked(topical, at + 20)
+    const asked = roomSummaryAsked(topical, at + 20, '_bmad/')
     const refused = roomRefused(asked.state, asked.entryId ?? '', at + 21, false)
 
     expect(refused.state.roomTopic).toBe('Payouts')
     expect(refused.state.roomReturned).toBeUndefined()
     expect(refused.state.entries.map((entry) => entry.kind)).toEqual(['user', 'sysline'])
-    expect(roomSummaryAsked(refused.state, at + 22).text).toContain('2026-10-08-payouts.md')
+    expect(roomSummaryAsked(refused.state, at + 22, '_bmad/').text).toContain('2026-10-08-payouts.md')
   })
 
   it('leaves the topic as it was when the open time is not known', () => {

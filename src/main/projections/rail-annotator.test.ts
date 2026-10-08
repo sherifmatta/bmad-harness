@@ -79,7 +79,7 @@ describe('the rail annotator', () => {
     told.length = 0
 
     send({ name: 'run:note', payload: { runId: 'r1', sessionId: 's1', text: '- n', at: 3 } })
-    send({ name: 'rail:changed', payload: { revision: 1, rows: [] } })
+    send({ name: 'rail:changed', payload: { revision: 1, folder: '_bmad/', rows: [] } })
 
     expect(told).toEqual([])
   })

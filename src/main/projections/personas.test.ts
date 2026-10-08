@@ -128,18 +128,31 @@ describe('the persona projection', () => {
   })
 
   it('takes the seeded snapshot as the baseline, then raises note for an owned row that changes', () => {
-    projection.seedRail({ revision: 1, rows: [owned('_bmad/prd.md', B, 1)] })
-    projection.apply({ name: 'rail:changed', payload: { revision: 2, rows: [owned('_bmad/prd.md', B, 1)] } })
+    projection.seedRail({ revision: 1, folder: '_bmad/', rows: [owned('_bmad/prd.md', B, 1)] })
+    projection.apply({ name: 'rail:changed', payload: { revision: 2, folder: '_bmad/', rows: [owned('_bmad/prd.md', B, 1)] } })
 
     expect(raised).toEqual([])
 
-    projection.apply({ name: 'rail:changed', payload: { revision: 3, rows: [owned('_bmad/prd.md', B, 9)] } })
+    projection.apply({ name: 'rail:changed', payload: { revision: 3, folder: '_bmad/', rows: [owned('_bmad/prd.md', B, 9)] } })
+
+    expect(states()).toEqual([[B, 'note', 5_002]])
+  })
+
+  it('takes the rows of another folder as a new baseline when the rail is re-pointed, and raises no note for them (Story 5.4)', () => {
+    projection.seedRail({ revision: 1, folder: '_bmad/', rows: [owned('_bmad/prd.md', B, 1)] })
+
+    projection.rebaseRail({ revision: 2, folder: 'docs/out/', rows: [owned('docs/out/prd.md', B, 7)] })
+    projection.apply({ name: 'rail:changed', payload: { revision: 2, folder: 'docs/out/', rows: [owned('docs/out/prd.md', B, 7)] } })
+
+    expect(raised).toEqual([])
+
+    projection.apply({ name: 'rail:changed', payload: { revision: 3, folder: 'docs/out/', rows: [owned('docs/out/prd.md', B, 9)] } })
 
     expect(states()).toEqual([[B, 'note', 5_002]])
   })
 
   it('treats a first rail push with no seed as the baseline', () => {
-    projection.apply({ name: 'rail:changed', payload: { revision: 1, rows: [owned('_bmad/prd.md', B, 1)] } })
+    projection.apply({ name: 'rail:changed', payload: { revision: 1, folder: '_bmad/', rows: [owned('_bmad/prd.md', B, 1)] } })
 
     expect(raised).toEqual([])
   })
@@ -151,12 +164,12 @@ describe('the persona projection and a persona’s own run', () => {
   const runDone: ContractEvent = { name: 'run:finished', payload: { runId: 'r', sessionId: 's1', at: 50 } }
   const railAt = (revision: number, row: RailRow): ContractEvent => ({
     name: 'rail:changed',
-    payload: { revision, rows: [row] }
+    payload: { revision, folder: '_bmad/', rows: [row] }
   })
   const changing: RailRow = { path: PRD, owner: { agentId: B }, state: 'changing' }
 
   function runWithOwnWrite(): void {
-    projection.seedRail({ revision: 1, rows: [owned(PRD, B, 1)] })
+    projection.seedRail({ revision: 1, folder: '_bmad/', rows: [owned(PRD, B, 1)] })
     projection.apply(opened('s1', B, 10))
     projection.apply(awaiting('s1', 20))
     projection.apply(runStart)

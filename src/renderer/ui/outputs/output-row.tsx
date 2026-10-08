@@ -36,7 +36,7 @@ function FileIcon(): JSX.Element {
 }
 
 /**
- * One file under `_bmad/`, as one line (UX-DR18): icon, name, then a meta
+ * One file under the output folder, as one line (UX-DR18): icon, name, then a meta
  * cluster — the stream's annotation if there is one, the owner's name if it
  * resolved, and the watcher's state.
  *

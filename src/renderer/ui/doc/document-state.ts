@@ -1,5 +1,5 @@
 import type { DocSnapshot, DocState } from '../../../shared/document'
-import { stateLine } from './foot-text'
+import { plainStateLine } from './foot-text'
 
 /**
  * The pure pieces of the document hook, kept apart from React so a suite with
@@ -82,5 +82,5 @@ const ANNOUNCED: ReadonlySet<DocState> = new Set(['missing', 'unreadable', 'bina
  * Staying in a state, leaving one, and `present` or `refused` say nothing.
  */
 export function announcementFor(previous: DocState | null, next: DocState): string | null {
-  return ANNOUNCED.has(next) && previous !== next ? stateLine(next) : null
+  return next !== 'refused' && ANNOUNCED.has(next) && previous !== next ? plainStateLine(next) : null
 }

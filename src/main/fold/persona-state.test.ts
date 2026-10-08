@@ -5,6 +5,7 @@ import type { RailRow, RailSnapshot } from '../../shared/rail'
 import {
   EMPTY_PERSONA_TABLE,
   foldPersonaState,
+  rebaseRail,
   seedRail,
   stateOfAgent
 } from './persona-state'
@@ -65,7 +66,7 @@ const row = (path: string, state: 'saved' | 'changing', agentId?: string, savedA
 })
 const rail = (revision: number, ...rows: RailRow[]): ContractEvent => ({
   name: 'rail:changed',
-  payload: { revision, rows } satisfies RailSnapshot
+  payload: { revision, folder: '_bmad/', rows } satisfies RailSnapshot
 })
 
 function fold(inputs: PersonaInput[], from: PersonaTable = EMPTY_PERSONA_TABLE): PersonaTable {
@@ -244,6 +245,7 @@ describe('note', () => {
   const idle = (): PersonaTable =>
     seedRail(EMPTY_PERSONA_TABLE, {
       revision: 1,
+      folder: '_bmad/',
       rows: [row('_bmad/prd.md', 'saved', B, 1), row('_bmad/epics.md', 'saved', undefined, 1)]
     })
 
@@ -277,11 +279,38 @@ describe('note', () => {
   it('treats a seeded snapshot as the baseline, and a second seed as nothing', () => {
     const seeded = seedRail(EMPTY_PERSONA_TABLE, {
       revision: 1,
+      folder: '_bmad/',
       rows: [row('_bmad/prd.md', 'saved', B, 1)]
     })
 
     expect(stateOf(seeded, B)).toBe('idle')
-    expect(seedRail(seeded, { revision: 2, rows: [] })).toBe(seeded)
+    expect(seedRail(seeded, { revision: 2, folder: '_bmad/', rows: [] })).toBe(seeded)
+  })
+
+  it('takes another folder’s rows as the baseline when the rail is re-pointed, and raises nothing for them (Story 5.4)', () => {
+    // The files of the old folder are gone from the rail and those of the new one are there: no owned file changed.
+    const repointed = rebaseRail(idle(), {
+      revision: 2,
+      folder: 'docs/out/',
+      rows: [row('docs/out/prd.md', 'saved', B, 7), row('docs/out/architecture.md', 'saved', A, 8)]
+    })
+
+    expect(repointed.shown.size).toBe(0)
+    expect(repointed.rail?.has('_bmad/prd.md')).toBe(false)
+    expect(repointed.rail?.get('docs/out/prd.md')?.agentId).toBe(B)
+    // And it is a baseline like any: the next change to an owned row of the new folder is news.
+    expect(stateOf(fold([rail(3, row('docs/out/prd.md', 'saved', B, 9), row('docs/out/architecture.md', 'saved', A, 8))], repointed), B)).toBe('note')
+  })
+
+  it('leaves what the agents carry as it was when the rail is re-pointed', () => {
+    const noted = fold([rail(2, row('_bmad/prd.md', 'changing', B), row('_bmad/epics.md', 'saved'))], idle())
+    expect(stateOf(noted, B)).toBe('note')
+
+    const repointed = rebaseRail(noted, { revision: 3, folder: 'docs/out/', rows: [] })
+
+    expect(stateOf(repointed, B)).toBe('note')
+    expect(repointed.agents).toBe(noted.agents)
+    expect(repointed.sessions).toBe(noted.sessions)
   })
 
   it('is raised for the owner when an owned row changes between snapshots, at the injected time', () => {
@@ -310,6 +339,7 @@ describe('note', () => {
       [rail(2, row('_bmad/prd.md', 'saved', B, 1))],
       seedRail(EMPTY_PERSONA_TABLE, {
         revision: 1,
+        folder: '_bmad/',
         rows: [row('_bmad/prd.md', 'saved', B, 1), row('_bmad/epics.md', 'saved')]
       })
     )
@@ -369,6 +399,7 @@ describe('note and the persona’s own run', () => {
   const baseline = (): PersonaTable =>
     seedRail(EMPTY_PERSONA_TABLE, {
       revision: 1,
+      folder: '_bmad/',
       rows: [row(PRD, 'saved', B, 1), row(ARCH, 'saved', A, 1)]
     })
   /** pm's session, attached and awaiting, its run started at 40: the run in flight. */

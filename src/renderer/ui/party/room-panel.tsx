@@ -19,7 +19,8 @@ import { formatTurnTime } from '../chat/format-turn-time'
 export function RoomPanel({
   topic,
   openedAt,
-  rows
+  rows,
+  folder
 }: {
   /** What the room is about, or `undefined` until the user's first message. */
   topic: string | undefined
@@ -27,6 +28,8 @@ export function RoomPanel({
   openedAt: number | undefined
   /** The rail's rows; those a room wrote are not context. */
   rows: readonly RailRow[]
+  /** The project's output folder, which the summary is written under (Story 5.4); `undefined` until the rail has said. */
+  folder: string | undefined
 }): JSX.Element {
   const context = rows.filter((row) => row.room !== true).map((row) => row.path)
   return (
@@ -54,7 +57,7 @@ export function RoomPanel({
       </div>
       <div className="room-panel-row">
         <span className="room-panel-key">writes to</span>
-        <span className="room-panel-value room-panel-path">{roomDestination(openedAt, topic)}</span>
+        <span className="room-panel-value room-panel-path">{folder === undefined ? 'none yet' : roomDestination(openedAt, topic, folder)}</span>
       </div>
     </aside>
   )

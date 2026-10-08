@@ -1,6 +1,7 @@
 import { statSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { dialog } from 'electron'
+import type { BrowserWindow } from 'electron'
 
 /**
  * A project path was supplied on the command line but does not name an existing
@@ -76,6 +77,30 @@ export async function chooseProjectDirectory(): Promise<string | null> {
     buttonLabel: 'open',
     properties: ['openDirectory', 'createDirectory']
   })
+  return canceled || filePaths.length === 0 ? null : filePaths[0]
+}
+
+/**
+ * The native folder chooser for a project's output folder (Story 5.4), opened as
+ * a sheet on the project's window and starting in the folder now watched.
+ * Folders only, and a new one may be made. `null` means the user cancelled.
+ * Where the choice may point is not decided here: it is checked, on real paths,
+ * by the one that asked.
+ */
+export async function chooseOutputDirectory(
+  parent: BrowserWindow | null,
+  defaultPath: string
+): Promise<string | null> {
+  const options = {
+    title: 'choose the bmad output folder',
+    buttonLabel: 'choose',
+    defaultPath,
+    properties: ['openDirectory' as const, 'createDirectory' as const]
+  }
+  const { canceled, filePaths } =
+    parent === null || parent.isDestroyed()
+      ? await dialog.showOpenDialog(options)
+      : await dialog.showOpenDialog(parent, options)
   return canceled || filePaths.length === 0 ? null : filePaths[0]
 }
 

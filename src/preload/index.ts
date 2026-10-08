@@ -7,6 +7,7 @@ import {
   INSTALL_CHANGED_CHANNEL,
   INSTALL_GET_CHANNEL,
   MENU_DISPATCH_CHANNEL,
+  OUTPUT_FOLDER_CHOOSE_CHANNEL,
   PROJECT_BRANCH_CHANNEL,
   PROJECT_PATH_CHANNEL,
   RAIL_CHANGED_CHANNEL,
@@ -29,6 +30,7 @@ import type { DocAck } from '../shared/document'
 import type { ContractEvent } from '../shared/events'
 import type { RunId } from '../shared/ids'
 import type { InstallReply, InstallSnapshot } from '../shared/install'
+import type { OutputFolderReply } from '../shared/output-folder'
 import type { RailReply, RailSnapshot } from '../shared/rail'
 import { followTheme, pageDocument } from '../shared/theme'
 import type { HarnessApi } from './harness-api'
@@ -46,6 +48,7 @@ export {
   INSTALL_CHANGED_CHANNEL,
   INSTALL_GET_CHANNEL,
   MENU_DISPATCH_CHANNEL,
+  OUTPUT_FOLDER_CHOOSE_CHANNEL,
   PROJECT_BRANCH_CHANNEL,
   PROJECT_PATH_CHANNEL,
   RAIL_CHANGED_CHANNEL,
@@ -107,6 +110,18 @@ const harness: HarnessApi = {
     if (!reply.ok) {
       throw reply.error
     }
+  },
+
+  // A command, not a read (Story 5.4): nothing but the request crosses. Main
+  // opens the native chooser, checks the folder on real paths and keeps it or
+  // refuses it; what comes back is what it came to, and the rail's next snapshot
+  // carries the folder and any refusal.
+  chooseOutputFolder: async () => {
+    const reply = (await ipcRenderer.invoke(OUTPUT_FOLDER_CHOOSE_CHANNEL)) as OutputFolderReply
+    if (!reply.ok) {
+      throw reply.error
+    }
+    return reply.outcome
   },
 
   onDocClosed: (listener) => {

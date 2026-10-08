@@ -23,7 +23,7 @@ function mount(room: string | undefined, onWriteSummary?: () => void, onStop?: (
 }
 
 function update(room: string | undefined, onWriteSummary?: () => void, onStop?: () => void, entries: readonly TranscriptEntry[] = [LINE]): void {
-  act(() => root.render(createElement(PartyView, { agents: [mary], room, roomCast: [mary.id], speaker: undefined, entries, topic: undefined, openedAt: 1, turns: 0, rows: [], onOpen: () => {}, onSend: () => {}, onWriteSummary, onStop })))
+  act(() => root.render(createElement(PartyView, { agents: [mary], room, roomCast: [mary.id], speaker: undefined, entries, topic: undefined, openedAt: 1, turns: 0, rows: [], folder: '_bmad/', onOpen: () => {}, onSend: () => {}, onWriteSummary, onStop })))
 }
 
 afterEach(() => {
@@ -183,7 +183,7 @@ describe('PartyView stopped room (Story 4.5)', () => {
 describe('PartyView returned words (Story 4.8)', () => {
   const field = (): HTMLTextAreaElement => container.querySelector('textarea') as HTMLTextAreaElement
   const show = (returned?: { key: number; text: string }): void =>
-    act(() => root.render(createElement(PartyView, { agents: [mary], room: 'r1', roomCast: [mary.id], speaker: undefined, entries: [LINE], topic: undefined, openedAt: 1, turns: 0, returned, rows: [], onOpen: () => {}, onSend: () => {} })))
+    act(() => root.render(createElement(PartyView, { agents: [mary], room: 'r1', roomCast: [mary.id], speaker: undefined, entries: [LINE], topic: undefined, openedAt: 1, turns: 0, returned, rows: [], folder: '_bmad/', onOpen: () => {}, onSend: () => {} })))
 
   it('hands the words a refused send brought back to the room’s composer, once, and only when it is empty', () => {
     mount('r1')

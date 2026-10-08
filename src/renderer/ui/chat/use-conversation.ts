@@ -73,11 +73,11 @@ export type Conversation = {
    */
   sendToRoom(text: string): void
   /**
-   * The user pressed *Write summary to `_bmad/`* (Story 4.4): the room's session is asked, as one turn
+   * The user pressed *Write summary to `<F>`* (Story 4.4): the room's session is asked, as one turn
    * and with no gate, to write its summary to the destination the panel shows. Handled as `sendToRoom`
    * is; nothing is written here, and with no live room nothing is sent.
    */
-  writeSummary(): void
+  writeSummary(folder: string): void
   /** The user sent `text` to a persona. */
   send(agentId: string, text: string): void
   /** The user took a queued message back, by its transcript entry's id. */
@@ -429,9 +429,9 @@ export function createConversation(deps: ConversationDeps): Conversation {
       transmitToRoom(sent.sessionId, sent.entryId, text, true)
     },
 
-    writeSummary() {
+    writeSummary(folder) {
       onFailure(null)
-      const asked = roomSummaryAsked(state, now())
+      const asked = roomSummaryAsked(state, now(), folder)
       if (asked.sessionId === undefined || asked.text === undefined || asked.entryId === undefined) {
         return
       }
@@ -581,8 +581,8 @@ export function useConversation(
   speaker: string | undefined
   /** Send text into the room, with no gate; main interrupts the speaker. */
   sendToRoom: (text: string) => void
-  /** Ask the room's session to write its summary to the destination the panel shows. */
-  writeSummary: () => void
+  /** Ask the room's session to write its summary under `folder`, the project's output folder, at the destination the panel shows. */
+  writeSummary: (folder: string) => void
   send: (agentId: string, text: string) => void
   cancel: (entryId: string) => void
   end: (projectId: string) => Promise<boolean>
@@ -659,7 +659,7 @@ export function useConversation(
     []
   )
   const sendToRoom = useCallback((text: string) => conversation.current?.sendToRoom(text), [])
-  const writeSummary = useCallback(() => conversation.current?.writeSummary(), [])
+  const writeSummary = useCallback((folder: string) => conversation.current?.writeSummary(folder), [])
   const send = useCallback(
     (agentId: string, text: string) => conversation.current?.send(agentId, text),
     []

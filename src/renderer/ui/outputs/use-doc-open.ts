@@ -12,7 +12,7 @@ export type DocOpenBridge = {
 /**
  * Ask main to open the row's document. A command, not a read: nothing comes
  * back but whether main acted, and a refusal is swallowed here because nothing
- * legitimate produces one — a row's path is always a path under `_bmad/`. With
+ * legitimate produces one — a row's path is always a path under the output folder. With
  * no bridge (a preload that failed to load) it does nothing.
  */
 export function openDocument(bridge: Partial<DocOpenBridge> | undefined, path: string): void {

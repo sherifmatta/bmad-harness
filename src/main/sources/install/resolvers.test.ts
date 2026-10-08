@@ -132,7 +132,11 @@ describe('the failure classes', () => {
   it.each(cases)('maps %s and keeps stderr out of detail', async (_name, result, kind, detail) => {
     const { source } = sourceWith(result)
 
-    for (const answer of [await source.resolveRoster(), await source.resolveMenu('bmad-agent-a')]) {
+    for (const answer of [
+      await source.resolveRoster(),
+      await source.resolveMenu('bmad-agent-a'),
+      await source.resolveOutputFolder()
+    ]) {
       expect(answer.ok).toBe(false)
       if (!answer.ok) {
         expect(answer.failure.kind).toBe(kind)
@@ -149,6 +153,78 @@ describe('the failure classes', () => {
     expect(await source.resolveRoster()).toMatchObject({
       ok: false,
       failure: { kind: 'unexpected-shape', detail: 'agents · expected an object' }
+    })
+  })
+})
+
+describe('the output folder (Story 5.4)', () => {
+  it('asks the same resolver for core.output_folder, with an absolute script, no shell and the guarded env', async () => {
+    const { run, source } = sourceWith(ok({ 'core.output_folder': '{project-root}/docs/out' }))
+
+    const answer = await source.resolveOutputFolder()
+
+    expect(answer).toEqual({ ok: true, folder: '{project-root}/docs/out' })
+    expect(run).toHaveBeenCalledTimes(1)
+    const [command, args, options] = run.mock.calls[0]
+    expect(command).toBe('uv')
+    // The install is read where it always was: the script is under `_bmad/scripts`, whatever the output folder is.
+    expect(args).toEqual([
+      'run',
+      '--no-project',
+      '--quiet',
+      `${ROOT}/_bmad/scripts/resolve_config.py`,
+      '--project-root',
+      ROOT,
+      '--key',
+      'core.output_folder'
+    ])
+    expect(options.env.PYTHONDONTWRITEBYTECODE).toBe('1')
+    expect(options.cwd).toBe(tmpdir())
+  })
+
+  it('does not change what the roster asks', async () => {
+    const { run, source } = sourceWith(ok({ agents: { 'bmad-agent-a': agent } }))
+
+    await source.resolveRoster()
+
+    expect(run.mock.calls[0][1].slice(-2)).toEqual(['--key', 'agents'])
+    expect(run.mock.calls[0][1].join(' ')).not.toContain('core.output_folder')
+  })
+
+  it('reads an absent key as none, and says no folder', async () => {
+    const { source } = sourceWith(ok({}))
+
+    expect(await source.resolveOutputFolder()).toEqual({ ok: true, folder: null })
+  })
+
+  it('has none and runs nothing for a project with no resolver script', async () => {
+    const run = vi.fn<CommandRunner>(async () => ok({}))
+    const asked: string[] = []
+    const source = createInstallSource({
+      projectRoot: ROOT,
+      run,
+      exists: async (path) => {
+        asked.push(path)
+        return false
+      }
+    })
+
+    expect(await source.resolveOutputFolder()).toEqual({ ok: true, folder: null })
+    expect(run).not.toHaveBeenCalled()
+    expect(asked).toEqual([`${ROOT}/_bmad/scripts/resolve_config.py`])
+  })
+
+  it.each([
+    ['a number', { 'core.output_folder': 7 }, 'core.output_folder · expected a non-empty string'],
+    ['an empty string', { 'core.output_folder': '  ' }, 'core.output_folder · expected a non-empty string'],
+    ['an array', ['x'], 'output · expected an object'],
+    ['null', null, 'output · expected an object']
+  ])('rejects %s as the wrong shape, with the failing path', async (_name, json, detail) => {
+    const { source } = sourceWith(ok(json))
+
+    expect(await source.resolveOutputFolder()).toMatchObject({
+      ok: false,
+      failure: { kind: 'unexpected-shape', detail }
     })
   })
 })

@@ -1,7 +1,7 @@
 import type { ContractEvent, PersonaState } from '../../shared/events'
 import type { AgentId, SessionId } from '../../shared/ids'
 import type { RailSnapshot } from '../../shared/rail'
-import { EMPTY_PERSONA_TABLE, foldPersonaState, seedRail } from '../fold/persona-state'
+import { EMPTY_PERSONA_TABLE, foldPersonaState, rebaseRail, seedRail } from '../fold/persona-state'
 import type { PersonaInput, PersonaTable } from '../fold/persona-state'
 
 /** The one event this projection raises. */
@@ -24,6 +24,8 @@ export type PersonaProjection = {
   apply(event: PersonaInput): void
   /** The first rail snapshot a window sees: the baseline, which raises no `note`. */
   seedRail(snapshot: RailSnapshot): void
+  /** The rail watches another folder: its rows are the new baseline, and raise no `note` (Story 5.4). */
+  rebaseRail(snapshot: RailSnapshot): void
   attach(sessionId: SessionId): void
   detach(sessionId: SessionId): void
   /** Every persona that is anything but `idle`, with when that state began: what a reloaded window is told. */
@@ -62,6 +64,10 @@ export function createPersonaProjection({
 
     seedRail(snapshot) {
       table = seedRail(table, snapshot)
+    },
+
+    rebaseRail(snapshot) {
+      table = rebaseRail(table, snapshot)
     },
 
     attach(sessionId) {

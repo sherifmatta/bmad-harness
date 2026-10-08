@@ -109,6 +109,7 @@ describe('what a stop never touches', () => {
 
     // Story 5.1's recent list is the one other: a path and a time under `userData`, written atomically.
     expect(writers.map(rel).sort()).toEqual([
+      'src/main/sources/persistence/output-folder-file.ts',
       'src/main/sources/persistence/recent-file.ts',
       'src/main/sources/persistence/theme-file.ts',
       'src/main/sources/persistence/transcript-file.ts'

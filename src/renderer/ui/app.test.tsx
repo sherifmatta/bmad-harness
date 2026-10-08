@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { SyslineRecord } from '../../shared/conversation'
 import type { ContractEvent } from '../../shared/events'
 import type { AgentView, InstallSnapshot } from '../../shared/install'
+import type { RailSnapshot } from '../../shared/rail'
 import { App } from './app'
 import { LIVE_REGIONS } from './testing/audit-patterns'
 import { installFakeScroll } from './testing/fake-scroll'
@@ -59,6 +60,10 @@ let docsOpened: string[]
 let dispatchedMenus: [string, string][]
 /** The sysline main answers the next open with, one per open, `undefined` for none. */
 let handoffs: (SyslineRecord | undefined)[]
+/** The rail as `getRail` answers it, who `onRailChanged` subscribed, and how often `change…` asked for the chooser. */
+let railNow: RailSnapshot
+let railListeners: ((next: RailSnapshot) => void)[]
+let chooseCalls: number
 
 function installBridge(): void {
   const bridge = {
@@ -69,8 +74,15 @@ function installBridge(): void {
       return () => {}
     },
     getBranch: async () => 'main',
-    getRail: async () => ({ revision: 1, rows: [] }),
-    onRailChanged: () => () => {},
+    getRail: async () => railNow,
+    onRailChanged: (listener: (next: RailSnapshot) => void) => {
+      railListeners.push(listener)
+      return () => {}
+    },
+    chooseOutputFolder: async () => {
+      chooseCalls += 1
+      return { kind: 'cancelled' }
+    },
     openDoc: async (path: string) => {
       docsOpened.push(path)
     },
@@ -132,6 +144,9 @@ beforeEach(() => {
   docsOpened = []
   dispatchedMenus = []
   handoffs = []
+  railNow = { revision: 1, folder: '_bmad/', rows: [] }
+  railListeners = []
+  chooseCalls = 0
   installBridge()
 })
 
@@ -2012,7 +2027,7 @@ describe('the party view (Story 4.1)', () => {
       { path: '_bmad/planning-artifacts/prd.md', state: 'saved', savedAt: 1, owner: { agentId: john.id } },
       { path: '_bmad/party/earlier.md', state: 'saved', savedAt: 1, room: true }
     ]
-    ;(window.harness as unknown as { getRail: () => Promise<unknown> }).getRail = async () => ({ revision: 2, rows })
+    ;(window.harness as unknown as { getRail: () => Promise<unknown> }).getRail = async () => ({ revision: 2, folder: '_bmad/', rows })
     mounted = mount(createElement(App))
     await settle()
     await settle()
@@ -2168,7 +2183,7 @@ describe('the party view (Story 4.1)', () => {
       { path: '_bmad/party/note.md', state: 'saved', savedAt: Date.now(), room: true },
       { path: '_bmad/planning-artifacts/prd.md', state: 'saved', savedAt: Date.now(), owner: { agentId: john.id } }
     ]
-    ;(window.harness as unknown as { getRail: () => Promise<unknown> }).getRail = async () => ({ revision: 2, rows })
+    ;(window.harness as unknown as { getRail: () => Promise<unknown> }).getRail = async () => ({ revision: 2, folder: '_bmad/', rows })
     mounted.unmount()
     mounted = mount(createElement(App))
     await settle()
@@ -2309,5 +2324,145 @@ describe('following the thread, in the window (Story 5.3)', () => {
     click(control('.view-party'))
     expect(fake.metrics.top).toBe(600)
     expect(document.activeElement).toBe(roomField())
+  })
+})
+
+describe('App, the output folder (Story 5.4)', () => {
+  const head = (): HTMLElement => mounted!.container.querySelectorAll<HTMLElement>('.rail-head')[1]
+  const state = (): string | null => mounted!.container.querySelector('.outputs-state')?.textContent ?? null
+  const live = (): string => mounted!.container.querySelector('.visually-hidden')?.textContent ?? ''
+  const pushRail = (next: RailSnapshot): void => act(() => railListeners.forEach((listener) => listener(next)))
+  /** The live region speaks when its clock says it is due: let it. */
+  const spoken = async (): Promise<string> => {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 300))
+    })
+    return live()
+  }
+  const start = async (): Promise<void> => {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+  }
+
+  it('shows the folder and `change…` in the Outputs head, and no state line while there is none', async () => {
+    await start()
+
+    expect(head().querySelector('.outputs-where')?.textContent).toBe('_bmad/')
+    expect(head().querySelector<HTMLButtonElement>('button.outputs-change')?.textContent).toBe('change…')
+    expect(state()).toBeNull()
+  })
+
+  it('asks main for the chooser when `change…` is pressed, and for nothing else', async () => {
+    await start()
+
+    act(() => head().querySelector<HTMLButtonElement>('button.outputs-change')?.click())
+    await settle()
+
+    expect(chooseCalls).toBe(1)
+    expect(docsOpened).toEqual([])
+    expect(opened).toEqual([])
+  })
+
+  it('moves the head, the group heading and the state line in one render when a snapshot re-points the rail', async () => {
+    railNow = {
+      revision: 1,
+      folder: '_bmad/',
+      rows: [{ path: '_bmad/old.md', state: 'saved', savedAt: Date.now() }]
+    }
+    await start()
+    expect([...mounted!.container.querySelectorAll('.rail-group')].map((group) => group.textContent)).toContain('_bmad/')
+
+    pushRail({
+      revision: 2,
+      folder: 'docs/out/',
+      chosen: 'docs/out/',
+      bmadFolder: '_bmad/',
+      state: 'different',
+      rows: [{ path: 'docs/out/prd.md', state: 'saved', savedAt: Date.now() }]
+    })
+
+    expect(head().querySelector('.outputs-where')?.textContent).toBe('docs/out/')
+    expect(state()).toBe('bmad writes to · _bmad/')
+    expect(mounted!.container.querySelector('.outputs')?.textContent).toContain('docs/out/')
+    expect(mounted!.container.querySelector('.outputs')?.textContent).not.toContain('_bmad/old.md')
+    expect(mounted!.container.querySelectorAll('.output-row')).toHaveLength(1)
+  })
+
+  it('names a missing choice on the line, and the empty state names the folder watched with its full path', async () => {
+    await start()
+
+    pushRail({ revision: 2, folder: '_bmad/', chosen: 'docs/out/', state: 'missing', rows: [] })
+
+    expect(state()).toBe('docs/out/ · folder missing')
+    expect(mounted!.container.querySelector('.outputs-empty-line')?.textContent).toBe('no files under _bmad/ yet')
+    expect(mounted!.container.querySelector('.outputs-empty-path')?.textContent).toBe('/work/falcon/_bmad')
+
+    pushRail({ revision: 3, folder: 'docs/out/', chosen: 'docs/out/', rows: [] })
+
+    expect(state()).toBeNull()
+    expect(mounted!.container.querySelector('.outputs-empty-line')?.textContent).toBe('no files under docs/out/ yet')
+    expect(mounted!.container.querySelector('.outputs-empty-path')?.textContent).toBe('/work/falcon/docs/out')
+  })
+
+  it('says a refusal on the line and announces it once, politely, through the one live region', async () => {
+    await start()
+
+    pushRail({ revision: 2, folder: '_bmad/', rows: [], refusal: { reason: 'outside this project', seq: 1 } })
+
+    expect(state()).toBe('not changed · outside this project')
+    expect(await spoken()).toBe('not changed · outside this project')
+    expect(mounted!.container.querySelectorAll('.visually-hidden')).toHaveLength(1)
+
+    // The same snapshot again says nothing more; a new refusal is a new announcement, in its turn (the region speaks once every two seconds).
+    pushRail({ revision: 3, folder: '_bmad/', rows: [], refusal: { reason: 'outside this project', seq: 1 } })
+    pushRail({ revision: 4, folder: '_bmad/', rows: [], refusal: { reason: 'inside .git', seq: 2 } })
+    expect(state()).toBe('not changed · inside .git')
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 2300))
+    })
+    expect(live()).toBe('not changed · inside .git')
+  }, 10_000)
+
+  it('clears the line at the next choice, and announces nothing for it', async () => {
+    await start()
+    pushRail({ revision: 2, folder: '_bmad/', rows: [], refusal: { reason: 'the project folder itself', seq: 1 } })
+    await spoken()
+
+    pushRail({ revision: 3, folder: '_bmad/', rows: [] })
+
+    expect(state()).toBeNull()
+    expect(await spoken()).toBe('not changed · the project folder itself')
+  })
+
+  it('does not announce a refusal a window finds on connecting: it was said when it was made', async () => {
+    railNow = { revision: 5, folder: '_bmad/', rows: [], refusal: { reason: 'inside node_modules', seq: 3 } }
+    await start()
+
+    expect(state()).toBe('not changed · inside node_modules')
+    expect(await spoken()).toBe('')
+  })
+
+  it('writes the summary ask under the folder the rail says, and shows it in the header and the panel', async () => {
+    railNow = { revision: 2, folder: 'docs/out/', chosen: 'docs/out/', rows: [] }
+    await start()
+    const partyView = (): HTMLElement => mounted!.container.querySelector('.view-party') as HTMLElement
+    act(() => [...mounted!.container.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Party Mode')?.click())
+    act(() => partyView().querySelector<HTMLButtonElement>('button.cast-chooser-open')?.click())
+    const openedAt = new Date(2026, 9, 8, 14, 31).getTime()
+    act(() => listeners.forEach((listener) => listener({ name: 'session:opened', payload: { sessionId: 'session-of-the-room', at: openedAt } })))
+    await settle()
+    act(() => listeners.forEach((listener) => listener({ name: 'session:awaiting-turn', payload: { sessionId: 'session-of-the-room', at: openedAt + 1 } })))
+
+    const write = partyView().querySelector<HTMLButtonElement>('.party-write') as HTMLButtonElement
+    expect(write.textContent).toBe('Write summary to docs/out/')
+    expect(partyView().querySelector('.party-side')?.textContent).toContain('docs/out/party/2026-10-08-<topic>.md')
+
+    act(() => write.click())
+    await settle()
+
+    expect(sent).toHaveLength(1)
+    expect(sent[0][1]).toContain('docs/out/party/2026-10-08-<topic>.md')
+    expect(sent[0][1]).not.toContain('_bmad')
   })
 })

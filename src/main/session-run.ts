@@ -258,7 +258,7 @@ export function isMemlog(path: string): boolean {
 }
 
 /**
- * The watcher saw a file under `_bmad/`: if it is a memlog, read it again and
+ * The watcher saw a file under the output folder: if it is a memlog, read it again and
  * note what was appended. Reads of one file are taken in order. Only a memlog
  * concerns the sessions, so the window's service is asked for (and made, the
  * first time) only then. Resolves once this observation is accounted for;

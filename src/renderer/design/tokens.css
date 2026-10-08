@@ -633,6 +633,12 @@
      --rule-width, --radius-control), so the two dimensions are all that was missing. */
   --follow-offset:12px;
   --follow-padding:3px 11px;
+
+  /* ── The Outputs head's state line (Story 5.4), DESIGN.md's `components.outputs-head`
+     `state-line`: padded `5px 11px`. The eleven is the rail head's own, which is not
+     on the spacing ladder. Everything else it needs (--fs-label, --dim, --panel,
+     --line-soft, --rule-width, --mono) already exists. */
+  --rail-state-padding:var(--space-xs) 11px;
 }
 
 /*

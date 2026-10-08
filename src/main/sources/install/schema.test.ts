@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isSafeAgentId, parseMenu, parseRoster } from './schema'
+import { isSafeAgentId, parseMenu, parseOutputFolder, parseRoster } from './schema'
 
 const agent = (over: Record<string, unknown> = {}) => ({
   module: 'bmm',
@@ -170,5 +170,34 @@ describe('parseMenu', () => {
       detail: 'agent.menu · expected an array'
     })
     expect(parseMenu([], 'Mary')).toEqual({ ok: false, detail: 'output · expected an object' })
+  })
+})
+
+describe('parseOutputFolder', () => {
+  it('reads the literal dotted key the resolver prints', () => {
+    expect(parseOutputFolder({ 'core.output_folder': '{project-root}/_bmad' })).toEqual({
+      ok: true,
+      folder: '{project-root}/_bmad'
+    })
+  })
+
+  it('reads an absent key as none, not as a failure', () => {
+    expect(parseOutputFolder({})).toEqual({ ok: true, folder: null })
+    expect(parseOutputFolder({ other: 'x' })).toEqual({ ok: true, folder: null })
+  })
+
+  it('does not read a nested core.output_folder: the key is one literal', () => {
+    expect(parseOutputFolder({ core: { output_folder: 'x' } })).toEqual({ ok: true, folder: null })
+  })
+
+  it('rejects a non-object answer and a value that is not a non-empty string', () => {
+    expect(parseOutputFolder([])).toEqual({ ok: false, detail: 'output · expected an object' })
+    expect(parseOutputFolder('x')).toEqual({ ok: false, detail: 'output · expected an object' })
+    for (const bad of [1, null, true, {}, [], '', '   ']) {
+      expect(parseOutputFolder({ 'core.output_folder': bad }), JSON.stringify(bad)).toEqual({
+        ok: false,
+        detail: 'core.output_folder · expected a non-empty string'
+      })
+    }
   })
 })

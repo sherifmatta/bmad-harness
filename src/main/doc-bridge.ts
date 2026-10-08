@@ -1,4 +1,4 @@
-import { join } from 'node:path'
+import { resolve as resolvePath } from 'node:path'
 import { ipcMain } from 'electron'
 import type { BrowserWindow, IpcMainInvokeEvent, WebContents } from 'electron'
 import {
@@ -20,6 +20,7 @@ import {
   unexpected
 } from './bridge-kit'
 import { documentKindFor } from './fold/document-kind'
+import { outputFolderNameFor } from './output-folder-model'
 import { createDocumentProjection } from './projections/document'
 import type { DocumentProjection } from './projections/document'
 import { resolveDocument } from './sources/project/resolve-document'
@@ -49,6 +50,8 @@ export type DocBridgeDeps = {
   projectPathFor?: (webContentsId: number) => string | undefined
   parentWindowFor?: (webContents: WebContents) => BrowserWindow | null
   resolve?: typeof resolveDocument
+  /** The window's output folder now, project-relative with a trailing `/`: what bounds a document opened now. */
+  folderFor?: (webContentsId: number) => string
   watch?: (options: {
     fullPath: string
     boundary: string
@@ -77,10 +80,11 @@ const NO_DOCUMENT: HarnessError = {
   code: 'doc/no-document',
   message: 'doc · no document is open for this window'
 }
-const INVALID_PATH: HarnessError = {
+/** The refusal of a path that names nothing under the output folder in force. */
+const invalidPath = (folder: string): HarnessError => ({
   code: 'doc/invalid-path',
-  message: 'doc · not a document under _bmad/'
-}
+  message: `doc · not a document under ${folder}`
+})
 
 /**
  * Open a document window on `doc:open`, answer it with `doc:get`, push every
@@ -97,6 +101,7 @@ export function registerDocBridge(deps: DocBridgeDeps = {}): void {
   const projectPathFor = deps.projectPathFor ?? defaultProjectPathFor
   const parentOf = deps.parentWindowFor ?? parentWindowFor
   const resolve = deps.resolve ?? resolveDocument
+  const folderFor = deps.folderFor ?? outputFolderNameFor
   const watch = deps.watch ?? watchDocument
   const openWindow = deps.openWindow ?? openDocWindow
   const writeDiagnostic = deps.writeDiagnostic ?? defaultWriteDiagnostic
@@ -109,7 +114,7 @@ export function registerDocBridge(deps: DocBridgeDeps = {}): void {
     return entries.get(event.sender.id)
   }
 
-  /** What an escape acts on: the file, unless it now leads outside `_bmad/`. */
+  /** What an escape acts on: the file, unless it now leads outside the output folder it was opened under. */
   function escapeTarget(entry: Entry): EscapeTarget {
     return { fullPath: entry.fullPath, refused: entry.projection.snapshot().state === 'refused' }
   }
@@ -142,9 +147,12 @@ export function registerDocBridge(deps: DocBridgeDeps = {}): void {
       // be left open with nothing behind it.
       let created: DocWindowHandle | undefined
       try {
-        const resolved = await resolve(projectRoot, path)
+        // The folder as it is at this open: a window already open keeps the
+        // boundary it was opened with, whatever the folder becomes after.
+        const folder = folderFor(event.sender.id)
+        const resolved = await resolve(projectRoot, path, folder)
         if (!resolved.ok) {
-          return failure(INVALID_PATH)
+          return failure(invalidPath(folder))
         }
         const parent = parentOf(event.sender)
         if (parent === null || parent.isDestroyed()) {
@@ -173,6 +181,7 @@ export function registerDocBridge(deps: DocBridgeDeps = {}): void {
           path: projectRelative,
           fullPath: resolved.fullPath,
           kind: documentKindFor(projectRelative),
+          folder,
           refused: resolved.refused,
           onChange: (snapshot) => {
             if (!handle.sender.isDestroyed()) {
@@ -185,7 +194,7 @@ export function registerDocBridge(deps: DocBridgeDeps = {}): void {
           ? null
           : watch({
               fullPath: resolved.fullPath,
-              boundary: join(projectRoot, '_bmad'),
+              boundary: resolvePath(projectRoot, folder),
               onRead: (read) => projection.apply(read),
               onError: (error) =>
                 writeDiagnostic(

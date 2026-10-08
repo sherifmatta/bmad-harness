@@ -5,7 +5,7 @@ import { isRoomSummaryTurn, roomSummaryTurn } from './room-summary'
 
 describe('roomSummaryTurn', () => {
   it('names the destination of a room with a topic, in the exact ask', () => {
-    const destination = roomDestination(Date.parse('2026-10-08T14:31:00'), 'Payouts')
+    const destination = roomDestination(Date.parse('2026-10-08T14:31:00'), 'Payouts', '_bmad/')
 
     expect(roomSummaryTurn(destination)).toBe(
       'Write a summary of this conversation to _bmad/party/2026-10-08-payouts.md. Cover what was discussed, what was decided and what is still open. If the file name has <topic> in it, put a short name for the topic there; if the file already exists, add -2 to the name rather than overwrite it.'
@@ -13,9 +13,16 @@ describe('roomSummaryTurn', () => {
   })
 
   it('carries <topic> for the runtime to fill when the room has none yet', () => {
-    const text = roomSummaryTurn(roomDestination(Date.parse('2026-10-08T14:31:00'), undefined))
+    const text = roomSummaryTurn(roomDestination(Date.parse('2026-10-08T14:31:00'), undefined, '_bmad/'))
 
     expect(text.startsWith('Write a summary of this conversation to _bmad/party/2026-10-08-<topic>.md. Cover')).toBe(true)
+  })
+
+  it('names a chosen folder as it names the default one', () => {
+    const destination = roomDestination(Date.parse('2026-10-08T14:31:00'), 'Payouts', 'docs/out/')
+
+    expect(roomSummaryTurn(destination).startsWith('Write a summary of this conversation to docs/out/party/2026-10-08-payouts.md. Cover')).toBe(true)
+    expect(isRoomSummaryTurn(roomSummaryTurn(destination))).toBe(true)
   })
 
   it('is one paragraph', () => {
@@ -25,8 +32,8 @@ describe('roomSummaryTurn', () => {
 
 describe('isRoomSummaryTurn', () => {
   it('knows the ask for any destination, with or without a topic', () => {
-    expect(isRoomSummaryTurn(roomSummaryTurn(roomDestination(Date.parse('2026-10-08T14:31:00'), 'Payouts')))).toBe(true)
-    expect(isRoomSummaryTurn(roomSummaryTurn(roomDestination(undefined, undefined)))).toBe(true)
+    expect(isRoomSummaryTurn(roomSummaryTurn(roomDestination(Date.parse('2026-10-08T14:31:00'), 'Payouts', '_bmad/')))).toBe(true)
+    expect(isRoomSummaryTurn(roomSummaryTurn(roomDestination(undefined, undefined, '_bmad/')))).toBe(true)
   })
 
   it('does not take the user’s own words for it', () => {

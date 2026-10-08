@@ -12,6 +12,7 @@ import {
 } from './bridge-kit'
 import type { Sender } from './bridge-kit'
 import { forgetInstall, rememberInstall } from './install-model'
+import { outputFolderOf } from './output-folder-model'
 import { createInstallProjection } from './projections/install'
 import type { InstallProjection } from './projections/install'
 import { createInstallSource } from './sources/install/resolvers'
@@ -83,7 +84,16 @@ export function registerInstallBridge(deps: InstallBridgeDeps = {}): void {
       onChange: (snapshot) => sendTo(sender, INSTALL_CHANGED_CHANNEL, snapshot),
       onDiagnostic: writeDiagnostic
     })
-    const watcher = watch({ projectRoot, onChange: () => void projection.refresh() })
+    // The same trigger says BMad's configuration may have changed, and with it the
+    // output folder it names (Story 5.4). The folder is resolved beside the
+    // install, never inside it: the install's own answer does not carry it.
+    const watcher = watch({
+      projectRoot,
+      onChange: () => {
+        void projection.refresh()
+        void outputFolderOf(sender.id)?.refresh()
+      }
+    })
     const service = { projection, watcher, ready: projection.refresh() }
     services.set(sender.id, service)
     rememberInstall(sender.id, projection)

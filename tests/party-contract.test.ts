@@ -36,12 +36,12 @@ describe('what the room did not add', () => {
     expect([...body.matchAll(/^ {2}'([a-z-]+:[a-z-]+)': EventSpec</gm)]).toHaveLength(15)
   })
 
-  it('leaves the room no channel of its own: twenty-nine in all, four the Welcome’s and three the theme’s', () => {
-    expect(Object.values(channels)).toHaveLength(29)
+  it('leaves the room no channel of its own: thirty in all, four the Welcome’s, three the theme’s and one the output folder’s', () => {
+    expect(Object.values(channels)).toHaveLength(30)
   })
 
-  it('leaves seventeen preload methods', () => {
-    expect([...read('src/preload/harness-api.d.ts').matchAll(/^ {2}[a-zA-Z]+\(/gm)]).toHaveLength(17)
+  it('leaves eighteen preload methods, the eighteenth the output folder’s chooser', () => {
+    expect([...read('src/preload/harness-api.d.ts').matchAll(/^ {2}[a-zA-Z]+\(/gm)]).toHaveLength(18)
   })
 
   it('widens the argument of session.open and leaves its reply as it was', () => {
@@ -153,8 +153,8 @@ describe('what the room’s header and panel do not draw (Story 4.3)', () => {
   })
 
   it('wires the header button in the app to the conversation, which only asks the room to write', () => {
-    expect(stripped(read('src/renderer/ui/app.tsx'))).toContain('onWriteSummary={conversation.writeSummary}')
-    expect(stripped(read(`${PARTY}/party-header.tsx`))).toContain('disabled={onWriteSummary === undefined}')
+    expect(stripped(read('src/renderer/ui/app.tsx'))).toContain('onWriteSummary={rail === null ? undefined : () => conversation.writeSummary(rail.folder)}')
+    expect(stripped(read(`${PARTY}/party-header.tsx`))).toContain('disabled={onWriteSummary === undefined || folder === undefined}')
   })
 
   it('wires `stop room` in the app to the conversation, as the room’s own close and never the end of the conversation (Story 4.5)', () => {

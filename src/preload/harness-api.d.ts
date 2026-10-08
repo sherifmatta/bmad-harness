@@ -3,10 +3,11 @@ import type { ConversationSnapshot, OpenedSession } from '../shared/conversation
 import type { ContractEvent } from '../shared/events'
 import type { RunId, SessionId } from '../shared/ids'
 import type { InstallSnapshot } from '../shared/install'
+import type { ChooseOutcome } from '../shared/output-folder'
 import type { RailSnapshot } from '../shared/rail'
 
 /**
- * The whole bridge surface. Explicitly enumerated: seventeen named methods, no
+ * The whole bridge surface. Explicitly enumerated: eighteen named methods, no
  * generic `invoke(channel, …)` passthrough, and no `ipcRenderer` in the
  * renderer's reach.
  */
@@ -31,6 +32,14 @@ export interface HarnessApi {
    * has acted and rejects with the `HarnessError` envelope when it refused.
    */
   openDoc(path: string): Promise<void>
+  /**
+   * Ask main to open the native folder chooser for this project's output folder
+   * (Story 5.4). A command: it takes nothing, and main checks what is chosen on
+   * real paths before keeping it. Resolves with what it came to (`chosen`,
+   * `cancelled`, or `refused` with the reason); the folder itself, and a refusal,
+   * arrive in the rail's next snapshot. Rejects with the `HarnessError` envelope.
+   */
+  chooseOutputFolder(): Promise<ChooseOutcome>
   /**
    * Calls back with the project-relative path of the row whose document window
    * has just been closed by the user; returns the way to stop listening.

@@ -45,24 +45,32 @@ describe('roomDestination', () => {
     expect(
       roomDestination(
         Date.parse('2026-10-08T14:31:00'),
-        'Payouts — extend billing-svc, or stand up the ledger now?'
+        'Payouts — extend billing-svc, or stand up the ledger now?',
+        '_bmad/'
       )
     ).toBe('_bmad/party/2026-10-08-payouts-extend-billing-svc-or-stand-up-the-ledge.md')
   })
 
   it('dates by the local calendar day of the open', () => {
-    expect(roomDestination(new Date(2026, 0, 2, 0, 5).getTime(), 'a')).toBe('_bmad/party/2026-01-02-a.md')
-    expect(roomDestination(new Date(2026, 11, 31, 23, 59).getTime(), 'a')).toBe('_bmad/party/2026-12-31-a.md')
+    expect(roomDestination(new Date(2026, 0, 2, 0, 5).getTime(), 'a', '_bmad/')).toBe('_bmad/party/2026-01-02-a.md')
+    expect(roomDestination(new Date(2026, 11, 31, 23, 59).getTime(), 'a', '_bmad/')).toBe('_bmad/party/2026-12-31-a.md')
   })
 
   it('keeps the literal <topic> when there is no slug', () => {
     const at = Date.parse('2026-10-08T14:31:00')
-    expect(roomDestination(at, undefined)).toBe('_bmad/party/2026-10-08-<topic>.md')
-    expect(roomDestination(at, '🎉🎉')).toBe('_bmad/party/2026-10-08-<topic>.md')
+    expect(roomDestination(at, undefined, '_bmad/')).toBe('_bmad/party/2026-10-08-<topic>.md')
+    expect(roomDestination(at, '🎉🎉', '_bmad/')).toBe('_bmad/party/2026-10-08-<topic>.md')
   })
 
   it('leaves <date> for an open that is no instant', () => {
-    expect(roomDestination(undefined, 'a')).toBe('_bmad/party/<date>-a.md')
-    expect(roomDestination(Number.NaN, 'a')).toBe('_bmad/party/<date>-a.md')
+    expect(roomDestination(undefined, 'a', '_bmad/')).toBe('_bmad/party/<date>-a.md')
+    expect(roomDestination(Number.NaN, 'a', '_bmad/')).toBe('_bmad/party/<date>-a.md')
+  })
+
+  it('puts the party directory under whatever folder it is given, and keeps the filename rules', () => {
+    const at = Date.parse('2026-10-08T14:31:00')
+    expect(roomDestination(at, 'Payouts', 'docs/out/')).toBe('docs/out/party/2026-10-08-payouts.md')
+    expect(roomDestination(at, undefined, '_bmad-output/')).toBe('_bmad-output/party/2026-10-08-<topic>.md')
+    expect(roomDestination(undefined, 'a', 'a/b/c/')).toBe('a/b/c/party/<date>-a.md')
   })
 })

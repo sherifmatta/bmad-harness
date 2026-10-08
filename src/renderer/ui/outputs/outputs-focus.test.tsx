@@ -123,6 +123,7 @@ const ORDER = [EPICS, ARCHITECTURE, PRD]
 
 const SNAPSHOT: RailSnapshot = {
   revision: 1,
+  folder: '_bmad/',
   rows: [saved(PRD), saved(EPICS), saved(ARCHITECTURE)]
 }
 

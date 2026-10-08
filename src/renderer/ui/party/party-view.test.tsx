@@ -27,7 +27,7 @@ const render = (
   entries: readonly TranscriptEntry[],
   speaker?: string,
   cast: readonly string[] = [mary.id, john.id],
-  extra: { topic?: string; openedAt?: number; turns?: number; rows?: readonly RailRow[] } = {}
+  extra: { topic?: string; openedAt?: number; turns?: number; rows?: readonly RailRow[]; folder?: string } = {}
 ): string =>
   renderToStaticMarkup(
     <PartyView
@@ -40,6 +40,7 @@ const render = (
       openedAt={extra.openedAt ?? Date.parse('2026-10-08T14:31:00')}
       turns={extra.turns ?? 0}
       rows={extra.rows ?? []}
+      folder={extra.folder ?? '_bmad/'}
       onOpen={() => {}}
       onSend={() => {}}
     />
@@ -104,6 +105,18 @@ describe('PartyView', () => {
     expect(markup.match(/>Payouts —</g)).toHaveLength(2)
     expect(markup).toContain('_bmad/party/2026-10-08-payouts.md')
     expect(markup).not.toContain('no topic yet')
+  })
+
+  it('reads a chosen output folder into the header’s button and the panel’s destination (Story 5.4)', () => {
+    const markup = render('s1', [ROOM_LINE], undefined, [mary.id, john.id], {
+      topic: 'Payouts',
+      openedAt: Date.parse('2026-10-08T14:31:00'),
+      folder: 'docs/out/'
+    })
+
+    expect(markup).toContain('Write summary to docs/out/')
+    expect(markup).toContain('docs/out/party/2026-10-08-payouts.md')
+    expect(markup).not.toContain('_bmad/')
   })
 
   it('is the strip, the party thread and the composer once a room is live, replacing the chooser', () => {

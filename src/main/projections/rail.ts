@@ -1,3 +1,5 @@
+import { DEFAULT_OUTPUT_FOLDER } from '../../shared/output-folder'
+import type { OutputFolderFacts, OutputFolderRefusal } from '../../shared/output-folder'
 import type { ArtifactObservation, RailAnnotation, RailRow, RailSnapshot } from '../../shared/rail'
 import { ownerAgentIdFor } from '../fold/artifact-owner'
 import {
@@ -12,7 +14,7 @@ import {
 import type { RailTable } from '../fold/rail-rows'
 
 /**
- * The rail read model: the rows under `_bmad/`, as the watcher last saw them,
+ * The rail read model: the rows under the output folder, as the watcher last saw them,
  * with each row's owner derived from its class and the stream's annotation
  * carried beside the disk state, never merged into it.
  *
@@ -20,6 +22,13 @@ import type { RailTable } from '../fold/rail-rows'
  * a burst of writes to one path is at most two pushes (`changing`, then
  * `saved`), and nothing is pushed before `ready()`: the initial scan's rows
  * are the answer to the first `rail:get`, not a stream of events.
+ *
+ * The folder the rows are under, and what is to be said of it, are the
+ * snapshot's own (Story 5.4): a change of either is a change of the snapshot and
+ * pushed with the rows, so a re-pointed rail and its head land in one frame. A
+ * projection serves one folder; the bridge makes a new one when the watched
+ * folder moves, and `continuesFrom` makes its first snapshot a later revision
+ * than the last one the window was sent, which `ready()` then makes the baseline.
  *
  * One timer, aimed at the next row due to settle. `now` is injected so the
  * clock can be held still.
@@ -39,10 +48,22 @@ export type RailProjection = {
   unmarkRoom(path: string): void
   /** The conversation ended: no file is the room's any more. */
   clearRoom(): void
-  /** The initial scan is done: fix the baseline, and push from here on. */
-  ready(): void
+  /** What is to be said of the folder changed (not the folder itself): pushed like any change. */
+  setFacts(facts: OutputFolderFacts, refusal?: OutputFolderRefusal): void
+  /**
+   * The initial scan is done: fix the baseline, and push from here on. Given
+   * `after`, the revision of the snapshot this one replaces (Story 5.4), the
+   * baseline is a later revision than that whatever its rows, so a window that
+   * was sent the other folder's rows takes this one's.
+   */
+  ready(after?: number): void
   snapshot(): RailSnapshot
   dispose(): void
+}
+
+/** What makes two snapshots the same: the folder, what is said of it, and the rows. */
+function keyOf(facts: OutputFolderFacts, refusal: OutputFolderRefusal | undefined, rows: readonly RailRow[]): string {
+  return JSON.stringify([facts, refusal ?? null, rows])
 }
 
 /**
@@ -57,18 +78,28 @@ function withOwner(row: RailRow, roomPaths: ReadonlySet<string>): RailRow {
   return agentId === undefined ? row : { ...row, owner: { agentId } }
 }
 
+/** The folder the rail is under before it has been told another: the install's own. */
+const NO_FACTS: OutputFolderFacts = { folder: DEFAULT_OUTPUT_FOLDER }
+
 export function createRailProjection({
   onChange,
+  facts: initialFacts = NO_FACTS,
+  refusal: initialRefusal,
   now = Date.now,
   quietMs = SETTLE_MS
 }: {
   onChange: (snapshot: RailSnapshot) => void
+  /** The folder the rows are under and what is said of it. */
+  facts?: OutputFolderFacts
+  refusal?: OutputFolderRefusal
   now?: () => number
   quietMs?: number
 }): RailProjection {
   let table: RailTable = EMPTY_TABLE
+  let facts = initialFacts
+  let refusal = initialRefusal
   let revision = 0
-  let sent = '[]'
+  let sent: string | null = keyOf(initialFacts, initialRefusal, [])
   let isReady = false
   let disposed = false
   let timer: NodeJS.Timeout | null = null
@@ -78,16 +109,23 @@ export function createRailProjection({
 
   const rows = (): RailRow[] => toRows(table).map((row) => withOwner(row, roomPaths))
 
-  /** Advance the revision if the rows differ from the last sent; report whether they did. */
+  const snapshotOf = (current: RailRow[]): RailSnapshot => ({
+    revision,
+    rows: current,
+    ...facts,
+    ...(refusal === undefined ? {} : { refusal })
+  })
+
+  /** Advance the revision if the rows, the folder or what is said of it differ from the last sent; report whether they did. */
   function commit(): RailSnapshot | null {
     const current = rows()
-    const key = JSON.stringify(current)
+    const key = keyOf(facts, refusal, current)
     if (key === sent) {
       return null
     }
     sent = key
     revision += 1
-    return { revision, rows: current }
+    return snapshotOf(current)
   }
 
   function flush(): void {
@@ -162,11 +200,25 @@ export function createRailProjection({
       }
     },
 
-    ready() {
+    setFacts(next, nextRefusal) {
+      if (disposed) {
+        return
+      }
+      facts = next
+      refusal = nextRefusal
+      flush()
+    },
+
+    ready(after) {
       if (isReady || disposed) {
         return
       }
       isReady = true
+      if (after !== undefined) {
+        // Nothing has been sent from this one, and what it sends next must be newer than `after`.
+        revision = Math.max(revision, after)
+        sent = null
+      }
       // The baseline is handed out by `snapshot()`, not pushed.
       commit()
     },
@@ -174,7 +226,7 @@ export function createRailProjection({
     snapshot() {
       // After `ready()` every change is committed as it lands, so the revision
       // is always the rows' own.
-      return { revision, rows: rows() }
+      return snapshotOf(rows())
     },
 
     dispose() {

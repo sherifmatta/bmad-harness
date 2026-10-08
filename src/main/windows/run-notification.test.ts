@@ -269,7 +269,7 @@ describe('the completion line, when nothing is posted', () => {
       { name: 'persona:said', payload: { sessionId: 's1', agentId: PM, messageId: 'm1', text: 'hi', at: 1_400 } },
       { name: 'persona:state', payload: { agentId: PM, state: 'work', at: 1_500 } },
       { name: 'session:closed', payload: { sessionId: 's1', agentId: PM, reason: 'closed', at: 1_600 } },
-      { name: 'rail:changed', payload: { revision: 1, rows: [] } }
+      { name: 'rail:changed', payload: { revision: 1, folder: '_bmad/', rows: [] } }
     ]
 
     for (const event of others) told(sender, event, 'runId' in event.payload ? held : undefined)

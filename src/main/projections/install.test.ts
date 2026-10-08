@@ -53,6 +53,9 @@ function scripted() {
     async resolveMenu(id) {
       const answer = state.menus[id] ?? menuOk([])
       return typeof answer === 'function' ? answer() : answer
+    },
+    async resolveOutputFolder() {
+      return { ok: true, folder: null }
     }
   }
   return { state, source }

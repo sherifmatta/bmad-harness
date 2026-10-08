@@ -68,3 +68,10 @@ export const WELCOME_OPEN_DROPPED_CHANNEL = 'welcome:open-dropped'
 export const THEME_STATE_CHANNEL = 'theme:state'
 export const THEME_CHANGED_CHANNEL = 'theme:changed'
 export const THEME_CHOOSE_CHANNEL = 'theme:choose'
+
+/**
+ * The output folder's one: a window asks main to open the native folder chooser
+ * for its project's output folder (Story 5.4). Nothing but the request crosses;
+ * main chooses the path, checks it and answers with what it came to.
+ */
+export const OUTPUT_FOLDER_CHOOSE_CHANNEL = 'output-folder:choose'

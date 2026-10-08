@@ -3,6 +3,7 @@ import type { RunCardSnapshot } from '../shared/conversation'
 import type { ContractEvent } from '../shared/events'
 import type { ArtifactObservation, RailSnapshot } from '../shared/rail'
 import { foldRunCard, startCard } from './fold/run-card'
+import type { FolderView, OutputFolderHandle } from './output-folder-model'
 
 type Handler = (event: { sender: FakeSender }) => Promise<unknown>
 
@@ -49,6 +50,10 @@ class FakeSender {
 
 type FakeWatcher = {
   root: string
+  folder: string
+  awaiting: string | undefined
+  /** What the watcher tells when the folder is removed or the awaited one arrives. */
+  folderChanged: (() => void) | undefined
   emit: (observation: ArtifactObservation) => void
   fail: (error: unknown) => void
   finishScan: () => void
@@ -80,7 +85,7 @@ beforeEach(() => {
   vi.setSystemTime(1_000_000)
   registerRailBridge({
     projectPathFor: (id) => (id < 100 ? `/project-${id}` : undefined),
-    watch: ({ projectRoot, onObservation, onError }) => {
+    watch: ({ projectRoot, folder, awaiting, onFolderChange, onObservation, onError }) => {
       if (watchThrows !== null) {
         throw watchThrows
       }
@@ -88,6 +93,9 @@ beforeEach(() => {
       const ready = new Promise<void>((resolve) => (finish = resolve))
       const watcher: FakeWatcher = {
         root: projectRoot,
+        folder,
+        awaiting,
+        folderChanged: onFolderChange,
         emit: onObservation,
         fail: onError,
         finishScan: () => {
@@ -454,5 +462,360 @@ describe('the stream’s annotations in the rows (Story 3.6)', () => {
 
     expect(one.railPushes).toHaveLength(1)
     expect(two.railPushes).toEqual([])
+  })
+})
+
+describe('the output folder (Story 5.4)', () => {
+  /** A window's output folder that the test moves by hand. */
+  function folderHandle(initial?: FolderView) {
+    let view = initial
+    const heard = new Set<(view: FolderView) => void>()
+    const refreshes: number[] = []
+    const handle: OutputFolderHandle = {
+      view: () => view,
+      refresh: async () => {
+        refreshes.push(1)
+        view ??= { folder: '_bmad/' }
+        return view
+      },
+      subscribe: (listener) => {
+        heard.add(listener)
+        return () => void heard.delete(listener)
+      },
+      hasChoice: () => view?.chosen !== undefined
+    }
+    return {
+      handle,
+      refreshes,
+      listeners: heard,
+      move(next: FolderView) {
+        view = next
+        for (const listener of [...heard]) listener(next)
+      }
+    }
+  }
+
+  const DOCS = 'docs/out/'
+  const inDocs = (name: string): ArtifactObservation => found(`${DOCS}${name}`)
+
+  let folder: ReturnType<typeof folderHandle>
+
+  function registerWith(initial?: FolderView): void {
+    folder = folderHandle(initial)
+    handlers.clear()
+    registerRailBridge({
+      projectPathFor: (id) => (id < 100 ? `/project-${id}` : undefined),
+      outputFolder: () => folder.handle,
+      watch: ({ projectRoot, folder: watched, awaiting, onFolderChange, onObservation, onError }) => {
+        let finish: () => void = () => {}
+        const ready = new Promise<void>((resolve) => (finish = resolve))
+        const watcher: FakeWatcher = {
+          root: projectRoot,
+          folder: watched,
+          awaiting,
+          folderChanged: onFolderChange,
+          emit: onObservation,
+          fail: onError,
+          finishScan: () => {
+            scanRows.forEach(onObservation)
+            finish()
+          },
+          closed: false
+        }
+        watchers.push(watcher)
+        return { ready, close: async () => void (watcher.closed = true) }
+      },
+      writeDiagnostic: (line) => diagnostics.push(line)
+    })
+  }
+
+  async function openAt(initial: FolderView): Promise<FakeSender> {
+    registerWith(initial)
+    const sender = new FakeSender(1)
+    const first = ask(sender)
+    watchers[0].finishScan()
+    await first
+    return sender
+  }
+
+  const settle = async (): Promise<void> => void (await vi.advanceTimersByTimeAsync(0))
+  /** The window’s folder moves, and what follows it has had its turn. */
+  const move = async (next: FolderView): Promise<void> => {
+    folder.move(next)
+    await settle()
+  }
+
+  it('watches the folder the window’s output folder names, and the first snapshot carries it with what is said of it', async () => {
+    scanRows = [inDocs('prd.md')]
+    registerWith({ folder: DOCS, chosen: DOCS, bmadFolder: '_bmad/', state: 'different' })
+    const pending = ask(new FakeSender(1))
+
+    expect(watchers).toHaveLength(1)
+    expect(watchers[0]).toMatchObject({ root: '/project-1', folder: DOCS, awaiting: undefined })
+    watchers[0].finishScan()
+    const reply = (await pending) as { ok: true; snapshot: RailSnapshot }
+
+    expect(reply.snapshot).toMatchObject({
+      folder: DOCS,
+      chosen: DOCS,
+      bmadFolder: '_bmad/',
+      state: 'different'
+    })
+    expect(reply.snapshot.rows.map((row) => row.path)).toEqual(['docs/out/prd.md'])
+  })
+
+  it('resolves the folder before it watches, when the window’s has not been resolved yet', async () => {
+    registerWith(undefined)
+    const pending = ask(new FakeSender(1))
+
+    expect(watchers).toHaveLength(0)
+    await settle()
+    expect(folder.refreshes).toHaveLength(1)
+    expect(watchers).toHaveLength(1)
+    expect(watchers[0].folder).toBe('_bmad/')
+    watchers[0].finishScan()
+    expect(await pending).toMatchObject({ ok: true, snapshot: { folder: '_bmad/' } })
+  })
+
+  it('hands the watcher a folder to wait for, and resolves the folder again when the watcher says it changed', async () => {
+    await openAt({ folder: '_bmad/', chosen: DOCS, state: 'missing', awaiting: DOCS })
+
+    expect(watchers[0].awaiting).toBe(DOCS)
+    watchers[0].folderChanged?.()
+    expect(folder.refreshes).toHaveLength(1)
+  })
+
+  describe('when it moves', () => {
+    it('scans the new folder with a watcher of its own and leaves the old rows until the scan is done', async () => {
+      const sender = await openAt({ folder: '_bmad/' })
+      watchers[0].emit(found('_bmad/old.md'))
+      const pushed = sender.railPushes.length
+      scanRows = [inDocs('prd.md')]
+
+      await move({ folder: DOCS, chosen: DOCS })
+
+      expect(watchers).toHaveLength(2)
+      expect(watchers[1]).toMatchObject({ folder: DOCS, root: '/project-1' })
+      expect(sender.railPushes).toHaveLength(pushed)
+      expect(watchers[0].closed).toBe(false)
+      const reply = (await ask(sender)) as { ok: true; snapshot: RailSnapshot }
+      expect(reply.snapshot.rows.map((row) => row.path)).toEqual(['_bmad/old.md'])
+    })
+
+    it('swaps in one push that carries the folder, what is said of it and the new rows, at a later revision', async () => {
+      const sender = await openAt({ folder: '_bmad/' })
+      const before = ((await ask(sender)) as { snapshot: RailSnapshot }).snapshot.revision
+      scanRows = [inDocs('prd.md'), inDocs('epics.md')]
+
+      await move({ folder: DOCS, chosen: DOCS, bmadFolder: '_bmad/', state: 'different' })
+      watchers[1].finishScan()
+      await settle()
+
+      expect(sender.railPushes).toHaveLength(1)
+      expect(sender.railPushes[0]).toMatchObject({ folder: DOCS, chosen: DOCS, bmadFolder: '_bmad/', state: 'different' })
+      expect(sender.railPushes[0].rows.map((row) => row.path)).toEqual(['docs/out/epics.md', 'docs/out/prd.md'])
+      expect(sender.railPushes[0].revision).toBeGreaterThan(before)
+      // Nothing of the old folder is kept for a file the rail no longer watches, and the old watcher is gone.
+      expect(watchers[0].closed).toBe(true)
+      expect(watchers[1].closed).toBe(false)
+      expect(((await ask(sender)) as { snapshot: RailSnapshot }).snapshot).toEqual(sender.railPushes[0])
+    })
+
+    it('keeps its revision above the last the window was sent, however far the old folder had gone', async () => {
+      const sender = await openAt({ folder: '_bmad/' })
+      for (let at = 0; at < 3; at += 1) {
+        watchers[0].emit({ type: 'artifact:written', path: `_bmad/f${at}.md`, size: 1, mtimeMs: 1_000_000 + at })
+      }
+      const last = sender.railPushes.at(-1)?.revision ?? 0
+      scanRows = []
+
+      await move({ folder: DOCS, chosen: DOCS })
+      watchers[1].finishScan()
+      await settle()
+
+      expect(sender.railPushes.at(-1)?.revision).toBeGreaterThan(last)
+      expect(sender.railPushes.at(-1)).toMatchObject({ folder: DOCS, rows: [] })
+    })
+
+    it('keeps pushing from the new folder’s own watcher, and nothing from the old one', async () => {
+      const sender = await openAt({ folder: '_bmad/' })
+      scanRows = []
+      await move({ folder: DOCS, chosen: DOCS })
+      watchers[1].finishScan()
+      await settle()
+      const pushed = sender.railPushes.length
+
+      watchers[0].emit({ type: 'artifact:written', path: '_bmad/late.md', size: 1, mtimeMs: 1_000_000 })
+      expect(sender.railPushes).toHaveLength(pushed)
+
+      watchers[1].emit({ type: 'artifact:written', path: 'docs/out/new.md', size: 1, mtimeMs: 1_000_000 })
+      expect(sender.railPushes.at(-1)?.rows.map((row) => row.path)).toEqual(['docs/out/new.md'])
+    })
+
+    it('raises no note for the persona who owns the rows it shows now: the baseline moves with it', async () => {
+      scanRows = [found('_bmad/planning-artifacts/prd.md')]
+      const sender = await openAt({ folder: '_bmad/' })
+      scanRows = [inDocs('planning-artifacts/prd.md'), inDocs('epics.md')]
+
+      await move({ folder: DOCS, chosen: DOCS })
+      watchers[1].finishScan()
+      await settle()
+
+      expect(sender.personaStates).toEqual([])
+      // And a change to an owned file of the new folder after it is news, as it was before.
+      watchers[1].emit({ type: 'artifact:written', path: 'docs/out/planning-artifacts/prd.md', size: 3, mtimeMs: 1_000_000 })
+      expect(sender.personaStates).toHaveLength(1)
+    })
+
+    it('keeps what a room wrote as the room’s, and tells every annotation held again, on the new rows', async () => {
+      const sender = await openAt({ folder: '_bmad/' })
+      railAnnotatorFor(sender).roomWrote(['docs/out/party/talk.md'])
+      scanRows = [inDocs('party/talk.md'), inDocs('prd.md')]
+
+      await move({ folder: DOCS, chosen: DOCS })
+      watchers[1].finishScan()
+      await settle()
+
+      const rows = sender.railPushes[0].rows
+      expect(rows.find((row) => row.path === 'docs/out/party/talk.md')).toMatchObject({ room: true })
+      expect(rows.find((row) => row.path === 'docs/out/prd.md')?.room).toBeUndefined()
+    })
+
+    it('does not touch the sessions: nothing is said to the window but the one rail snapshot', async () => {
+      const sender = await openAt({ folder: '_bmad/' })
+      const sentBefore = sender.sent.length
+      scanRows = []
+
+      await move({ folder: DOCS, chosen: DOCS })
+      watchers[1].finishScan()
+      await settle()
+
+      expect(sender.sent.slice(sentBefore).map(([channel]) => channel)).toEqual([RAIL_CHANGED_CHANNEL])
+    })
+
+    it('drops a scan that a newer move has replaced, and swaps in only the newest', async () => {
+      const sender = await openAt({ folder: '_bmad/' })
+      scanRows = []
+
+      await move({ folder: DOCS, chosen: DOCS })
+      await move({ folder: 'other/', chosen: 'other/' })
+
+      expect(watchers).toHaveLength(3)
+      expect(watchers[1].closed).toBe(true)
+      watchers[1].finishScan()
+      watchers[2].finishScan()
+      await settle()
+
+      expect(sender.railPushes).toHaveLength(1)
+      expect(sender.railPushes[0].folder).toBe('other/')
+      expect(watchers[0].closed).toBe(true)
+      expect(watchers[2].closed).toBe(false)
+    })
+
+    it('drops a scan when the folder returns to the one watched before it is done, and starts nothing again', async () => {
+      const sender = await openAt({ folder: '_bmad/' })
+
+      await move({ folder: DOCS, chosen: DOCS })
+      await move({ folder: '_bmad/' })
+      watchers[1].finishScan()
+      await settle()
+
+      expect(watchers).toHaveLength(2)
+      expect(watchers[1].closed).toBe(true)
+      expect(watchers[0].closed).toBe(false)
+      expect(sender.railPushes.every((snapshot) => snapshot.folder === '_bmad/')).toBe(true)
+    })
+
+    it('starts a new scan when only the folder awaited changes, and not when only what is said does', async () => {
+      const sender = await openAt({ folder: '_bmad/' })
+
+      await move({ folder: '_bmad/', chosen: 'a/', state: 'missing' })
+      expect(watchers).toHaveLength(1)
+      expect(sender.railPushes.map((snapshot) => [snapshot.chosen, snapshot.state])).toEqual([['a/', 'missing']])
+
+      await move({ folder: '_bmad/', chosen: 'a/', state: 'missing', awaiting: 'a/' })
+      expect(watchers).toHaveLength(2)
+      expect(watchers[1].awaiting).toBe('a/')
+    })
+  })
+
+  describe('what is said of the folder, without a move', () => {
+    it('pushes a change of it as one snapshot with the rows as they are', async () => {
+      scanRows = [found('_bmad/prd.md')]
+      const sender = await openAt({ folder: '_bmad/' })
+
+      await move({ folder: '_bmad/', chosen: '_bmad/', bmadFolder: 'docs/out/', state: 'different' })
+
+      expect(watchers).toHaveLength(1)
+      expect(sender.railPushes).toHaveLength(1)
+      expect(sender.railPushes[0]).toMatchObject({ state: 'different', bmadFolder: 'docs/out/' })
+      expect(sender.railPushes[0].rows.map((row) => row.path)).toEqual(['_bmad/prd.md'])
+    })
+
+    it('pushes a refusal, and again for the next, and not for a view that says nothing new', async () => {
+      const sender = await openAt({ folder: '_bmad/' })
+
+      await move({ folder: '_bmad/', refusal: { reason: 'inside .git', seq: 1 } })
+      await move({ folder: '_bmad/', refusal: { reason: 'inside .git', seq: 1 } })
+      await move({ folder: '_bmad/', refusal: { reason: 'inside .git', seq: 2 } })
+      await move({ folder: '_bmad/' })
+
+      expect(sender.railPushes.map((snapshot) => snapshot.refusal?.seq)).toEqual([1, 2, undefined])
+    })
+  })
+
+  it('stops following, and closes every watcher it holds, with the window', async () => {
+    const sender = await openAt({ folder: '_bmad/' })
+    await move({ folder: DOCS, chosen: DOCS })
+
+    sender.destroy()
+
+    expect(watchers.every((watcher) => watcher.closed)).toBe(true)
+    expect(folder.listeners.size).toBe(0)
+    watchers[1].finishScan()
+    await settle()
+    expect(sender.railPushes).toEqual([])
+  })
+
+  it('answers rail/unexpected when the folder cannot be resolved, keeps no service, and starts again on the next ask', async () => {
+    registerWith(undefined)
+    let failing = true
+    const refresh = folder.handle.refresh
+    folder.handle.refresh = async () => {
+      if (failing) throw new RangeError('/secret/path')
+      return refresh()
+    }
+    const sender = new FakeSender(1)
+
+    const reply = await ask(sender)
+    expect(reply).toEqual({
+      ok: false,
+      error: { code: 'rail/unexpected', message: 'rail · unexpected failure', detail: 'RangeError' }
+    })
+    expect(JSON.stringify(reply)).not.toContain('secret')
+    expect(watchers).toEqual([])
+    expect(folder.listeners.size).toBe(0)
+
+    failing = false
+    const again = ask(sender)
+    await settle()
+    watchers[0].finishScan()
+    expect(await again).toMatchObject({ ok: true, snapshot: { folder: '_bmad/' } })
+  })
+
+  it('starts nothing when the window is destroyed while the folder is still being resolved', async () => {
+    registerWith(undefined)
+    let resolveFolder: (view: FolderView) => void = () => {}
+    folder.handle.refresh = () => new Promise<FolderView>((resolve) => void (resolveFolder = resolve))
+    const sender = new FakeSender(1)
+
+    const pending = ask(sender)
+    sender.destroy()
+    resolveFolder({ folder: '_bmad/' })
+    await settle()
+
+    expect(watchers).toEqual([])
+    expect(await pending).toMatchObject({ ok: false })
+    expect(folder.listeners.size).toBe(0)
   })
 })

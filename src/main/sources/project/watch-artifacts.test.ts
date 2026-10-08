@@ -60,6 +60,7 @@ async function start(): Promise<void> {
   await sleep(200)
   watcher = watchArtifacts({
     projectRoot: root,
+    folder: '_bmad/',
     onObservation: (observation) => seen.push(observation),
     onError: (error) => errors.push(error)
   })
@@ -252,5 +253,140 @@ describe('watchArtifacts', () => {
     await sleep(SETTLED)
 
     expect(seen).toEqual([])
+  })
+})
+
+describe('a chosen output folder (Story 5.4)', () => {
+  let changes: number
+
+  /** Start a watcher on `folder`, with the project as `beforeEach` made it, once the OS has delivered the fixture. */
+  async function startOn(folder: string, awaiting?: string): Promise<void> {
+    await sleep(200)
+    changes = 0
+    watcher = watchArtifacts({
+      projectRoot: root,
+      folder,
+      ...(awaiting === undefined ? {} : { awaiting }),
+      onObservation: (observation) => seen.push(observation),
+      onFolderChange: () => void (changes += 1),
+      onError: (error) => errors.push(error)
+    })
+    await watcher.ready
+  }
+
+  it('reports the files of a folder several segments deep, project-relative, and nothing of the install’s folder or beside it', async () => {
+    mkdirSync(join(root, 'docs/out/nested'), { recursive: true })
+    mkdirSync(join(root, 'docs/other'), { recursive: true })
+    writeFileSync(join(root, 'docs/out/prd.md'), 'hello')
+    writeFileSync(join(root, 'docs/out/nested/arch.md'), 'a')
+    writeFileSync(join(root, 'docs/other/x.md'), 'x')
+    writeFileSync(join(root, 'docs/readme.md'), 'x')
+    writeFileSync(join(root, '_bmad/planning-artifacts/prd.md'), 'x')
+    writeFileSync(join(root, 'notes.md'), 'x')
+    await startOn('docs/out/')
+
+    expect(paths('artifact:found').sort()).toEqual(['docs/out/nested/arch.md', 'docs/out/prd.md'])
+    expect(seen.every((o) => o.type === 'artifact:found')).toBe(true)
+  })
+
+  it('never walks a node_modules or .git nested under the folder: nothing in them is observed', async () => {
+    mkdirSync(join(root, 'packages/a/node_modules/dep'), { recursive: true })
+    mkdirSync(join(root, 'packages/.git'), { recursive: true })
+    writeFileSync(join(root, 'packages/a/node_modules/dep/x.md'), 'x')
+    writeFileSync(join(root, 'packages/.git/y.md'), 'x')
+    writeFileSync(join(root, 'packages/a/mine.md'), 'x')
+    await startOn('packages/')
+
+    writeFileSync(join(root, 'packages/a/node_modules/dep/late.md'), 'x')
+    writeFileSync(join(root, 'packages/.git/late.md'), 'x')
+    writeFileSync(join(root, 'packages/a/later.md'), 'x')
+    await until(() => paths().includes('packages/a/later.md'))
+    await sleep(SETTLED)
+
+    expect(paths().sort()).toEqual(['packages/a/later.md', 'packages/a/mine.md'])
+  })
+
+  it('walks nothing outside the way to the folder: a sibling directory and the files beside it stay silent', async () => {
+    mkdirSync(join(root, 'docs/out'), { recursive: true })
+    mkdirSync(join(root, 'docs/other'), { recursive: true })
+    await startOn('docs/out/')
+
+    writeFileSync(join(root, 'docs/other/x.md'), 'x')
+    writeFileSync(join(root, 'docs/readme.md'), 'x')
+    writeFileSync(join(root, '_bmad/planning-artifacts/y.md'), 'x')
+    writeFileSync(join(root, 'docs/out/mine.md'), 'x')
+    await until(() => seen.length > 0)
+    await sleep(SETTLED)
+
+    expect(paths()).toEqual(['docs/out/mine.md'])
+  })
+
+  it('sees a folder that is made after launch, and reports its files as written, never as found', async () => {
+    await startOn('docs/out/')
+
+    mkdirSync(join(root, 'docs/out'), { recursive: true })
+    await sleep(100)
+    writeFileSync(join(root, 'docs/out/prd.md'), 'hi')
+    await until(() => paths('artifact:written').includes('docs/out/prd.md'))
+
+    expect(paths('artifact:written')).toContain('docs/out/prd.md')
+    expect(paths('artifact:found')).toEqual([])
+    expect(errors).toEqual([])
+  })
+
+  it('tells that the folder was removed, which is how the folder is resolved again', async () => {
+    mkdirSync(join(root, 'docs/out'), { recursive: true })
+    writeFileSync(join(root, 'docs/out/prd.md'), 'hi')
+    await startOn('docs/out/')
+
+    rmSync(join(root, 'docs/out'), { recursive: true })
+    await until(() => changes > 0)
+
+    expect(changes).toBeGreaterThanOrEqual(1)
+  })
+
+  it('does not tell of the removal of a folder inside it, nor of one beside it', async () => {
+    mkdirSync(join(root, 'docs/out/inner'), { recursive: true })
+    mkdirSync(join(root, 'docs/other'), { recursive: true })
+    await startOn('docs/out/')
+
+    rmSync(join(root, 'docs/out/inner'), { recursive: true })
+    rmSync(join(root, 'docs/other'), { recursive: true })
+    await sleep(SETTLED)
+
+    expect(changes).toBe(0)
+  })
+
+  it('waits for a folder not there yet: tells when it arrives, and never gives a row for what is in it', async () => {
+    await startOn('_bmad/', 'docs/out/')
+
+    mkdirSync(join(root, 'docs/out'), { recursive: true })
+    await until(() => changes > 0)
+    writeFileSync(join(root, 'docs/out/prd.md'), 'hi')
+    writeFileSync(join(root, '_bmad/planning-artifacts/mine.md'), 'x')
+    await until(() => paths().includes('_bmad/planning-artifacts/mine.md'))
+    await sleep(SETTLED)
+
+    expect(changes).toBeGreaterThanOrEqual(1)
+    expect(paths()).toEqual(['_bmad/planning-artifacts/mine.md'])
+  })
+
+  it('does not tell of the arrival of a folder it is not waiting for', async () => {
+    await startOn('_bmad/', 'docs/out/')
+
+    mkdirSync(join(root, 'docs/elsewhere'), { recursive: true })
+    await sleep(SETTLED)
+
+    expect(changes).toBe(0)
+  })
+
+  it('stays silent about the folder after close', async () => {
+    await startOn('_bmad/', 'docs/out/')
+    await watcher?.close()
+
+    mkdirSync(join(root, 'docs/out'), { recursive: true })
+    await sleep(SETTLED)
+
+    expect(changes).toBe(0)
   })
 })

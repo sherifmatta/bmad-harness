@@ -14,7 +14,7 @@ function mount(props: Partial<Parameters<typeof PartyHeader>[0]> = {}): void {
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
-  act(() => root.render(createElement(PartyHeader, { topic: undefined, participants: 5, openedAt: Date.now(), turns: 0, ...props })))
+  act(() => root.render(createElement(PartyHeader, { topic: undefined, participants: 5, openedAt: Date.now(), turns: 0, folder: '_bmad/', ...props })))
 }
 
 beforeEach(() => {
@@ -74,6 +74,17 @@ describe('PartyHeader', () => {
     expect(button().disabled).toBe(false)
     act(() => button().click())
     expect(pressed).toHaveBeenCalledTimes(1)
+  })
+
+  it('names a chosen folder, and offers no destination while the rail has not said which (Story 5.4)', () => {
+    mount({ onWriteSummary: () => {}, folder: 'docs/out/' })
+    expect(button().textContent).toBe('Write summary to docs/out/')
+
+    act(() => root.unmount())
+    container.remove()
+    mount({ onWriteSummary: () => {}, folder: undefined })
+    expect(button().textContent).toBe('Write summary')
+    expect(button().disabled).toBe(true)
   })
 
   it('draws `stop room` after the write button only with a handler, as a plain native button', () => {

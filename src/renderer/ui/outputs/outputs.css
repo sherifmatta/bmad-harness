@@ -157,3 +157,55 @@
   overflow-wrap: anywhere;
   color: var(--faint);
 }
+
+/* ---------- the head's folder and the state line beneath it (Story 5.4) ----------
+   The head is the shell's `.rail-head`; what it holds on its right is drawn
+   here. Mono at the label size, `dim` for the folder and `accent` for the link,
+   neither at `faint`: both are text the user reads or acts on. */
+
+.outputs-where {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  letter-spacing: var(--track-brand);
+  font-weight: normal;
+  text-transform: none;
+  color: var(--dim);
+}
+
+.outputs-change {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  letter-spacing: var(--track-brand);
+  font-weight: normal;
+  text-transform: none;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.outputs-change:hover {
+  text-decoration: underline;
+}
+
+/* One plain line, only while there is a state to say. No colour: the four state
+   colours are for things happening, and a difference between two folders is a
+   fact. */
+.outputs-state {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: var(--rail-state-padding);
+  border-bottom: var(--rule-width) solid var(--line-soft);
+  background: var(--panel);
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}

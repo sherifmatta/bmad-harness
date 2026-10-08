@@ -30,8 +30,26 @@ vi.mock('./windows/run-notification', () => ({ createRunNotifier }))
 vi.mock('./session-bridge', () => ({ registerSessionBridge }))
 // The Welcome's own window is `windows/welcome-window.test.ts`'s; here only that it is asked for, and why it closed.
 vi.mock('./windows/welcome-window', () => ({ openWelcome, closeWelcome: vi.fn(), isWelcomeWindow: () => false }))
-const registerRailBridge = vi.hoisted(() => vi.fn<(deps: { observeArtifact?: (...args: unknown[]) => void }) => void>())
+const registerRailBridge = vi.hoisted(() =>
+  vi.fn<(deps: { observeArtifact?: (...args: unknown[]) => void; outputFolder?: unknown }) => void>()
+)
 vi.mock('./rail-bridge', () => ({ registerRailBridge }))
+// The output folders (Story 5.4): the rail watches what they say, and the menu's File chooses through them.
+const outputFolders = vi.hoisted(() => ({
+  handleFor: vi.fn(),
+  ready: vi.fn(),
+  choose: vi.fn(),
+  forget: vi.fn(),
+  hasChoice: vi.fn(),
+  onChanged: vi.fn()
+}))
+const registerOutputFolderBridge = vi.hoisted(() => vi.fn<(deps: { userDataPath: () => string }) => typeof outputFolders>(() => outputFolders))
+vi.mock('./output-folder-bridge', () => ({ registerOutputFolderBridge }))
+// The menu is `windows/app-menu.test.ts`'s; here only what the root hands it.
+const installApplicationMenu = vi.hoisted(() => vi.fn())
+vi.mock('./windows/app-menu', () => ({ installApplicationMenu }))
+// Settled by the last test, which is the one that runs the start the others leave pending.
+const appReady = vi.hoisted(() => ({ resolve: () => {} }))
 
 vi.mock('electron', () => {
   class BrowserWindow {
@@ -52,9 +70,9 @@ vi.mock('electron', () => {
   return {
     BrowserWindow,
     app: {
-      // Never settles: the launch that happens at startup is not what this
-      // test is about, and leaving it pending keeps the reopen path clean.
-      whenReady: () => new Promise<void>(() => {}),
+      // Pending until the last test settles it: the launch that happens at startup is
+      // not what the others are about, and leaving it pending keeps the reopen path clean.
+      whenReady: () => new Promise<void>((resolve) => void (appReady.resolve = resolve)),
       on: (event: string, handler: () => void) => appHandlers.set(event, handler),
       quit,
       exit,
@@ -80,6 +98,11 @@ const bridgeDeps = registerSessionBridge.mock.calls[0]?.[0]
 const notifierCalls = [...createRunNotifier.mock.calls]
 const sessionBridge = registerSessionBridge.mock.results[0]?.value as { observeArtifact: ReturnType<typeof vi.fn> }
 const railDeps = [...registerRailBridge.mock.calls]
+const folderDeps = [...registerOutputFolderBridge.mock.calls]
+const registrationOrder = {
+  folders: registerOutputFolderBridge.mock.invocationCallOrder[0],
+  rail: registerRailBridge.mock.invocationCallOrder[0]
+}
 
 const existingDirectory = mkdtempSync(join(tmpdir(), 'harness-reopen-'))
 const originalArgv = process.argv
@@ -159,4 +182,47 @@ it('hands the rail bridge an observer that forwards what the watcher saw to the 
 
   expect(sessionBridge.observeArtifact).toHaveBeenCalledTimes(1)
   expect(sessionBridge.observeArtifact).toHaveBeenCalledWith(sender, '/project', observation)
+})
+
+it('registers the output folders once, over userData, and hands the rail bridge the way to each window’s folder (Story 5.4)', () => {
+  expect(folderDeps).toHaveLength(1)
+  expect(folderDeps[0][0].userDataPath()).toBe(existingDirectory)
+  expect(railDeps[0]?.[0].outputFolder).toBe(outputFolders.handleFor)
+  // Registered before the rail asks for any: the order the root spells.
+  expect(registrationOrder.folders).toBeLessThan(registrationOrder.rail)
+})
+
+// Last: it settles the app's start, which opens the first window.
+it('hands the menu the output folders: its File reaches the bridge’s own functions, and a failed chooser is one stderr line (Story 5.4)', async () => {
+  const write = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+  appReady.resolve()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+
+  expect(installApplicationMenu).toHaveBeenCalledTimes(1)
+  const menu = installApplicationMenu.mock.calls[0][3] as {
+    ready: unknown
+    hasChoice: unknown
+    forget: unknown
+    onChanged: unknown
+    choose: (id: number) => void
+  }
+  expect(menu.ready).toBe(outputFolders.ready)
+  expect(menu.hasChoice).toBe(outputFolders.hasChoice)
+  expect(menu.forget).toBe(outputFolders.forget)
+  expect(menu.onChanged).toBe(outputFolders.onChanged)
+
+  outputFolders.choose.mockResolvedValueOnce({ kind: 'cancelled' })
+  menu.choose(7)
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  expect(outputFolders.choose).toHaveBeenLastCalledWith(7)
+  expect(write).not.toHaveBeenCalled()
+
+  outputFolders.choose.mockRejectedValueOnce(new Error('no chooser'))
+  menu.choose(8)
+  await new Promise((resolve) => setTimeout(resolve, 0))
+
+  expect(outputFolders.choose).toHaveBeenLastCalledWith(8)
+  expect(write).toHaveBeenCalledTimes(1)
+  expect(String(write.mock.calls[0][0])).toBe('output-folder/choose-failed \u00b7 Error: no chooser\n')
+  write.mockRestore()
 })

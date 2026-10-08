@@ -262,6 +262,16 @@
   background: var(--panel-2);
 }
 
+/* What a head holds on its right: pushed to the far edge, and the first thing to
+   give way when the rail is narrow is the folder's own text. */
+.rail-head-trailing {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  min-width: 0;
+  margin-left: auto;
+}
+
 .rail-head h3 {
   margin: 0;
   font-size: var(--fs-label);

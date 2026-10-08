@@ -18,7 +18,7 @@ function mount(props: Partial<Parameters<typeof RoomPanel>[0]> = {}): void {
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
-  act(() => root.render(createElement(RoomPanel, { topic: undefined, openedAt: OPENED, rows: [], ...props })))
+  act(() => root.render(createElement(RoomPanel, { topic: undefined, openedAt: OPENED, rows: [], folder: '_bmad/', ...props })))
 }
 
 afterEach(() => {
@@ -52,6 +52,12 @@ describe('RoomPanel', () => {
       ['context', 'none'],
       ['writes to', '_bmad/party/2026-10-08-<topic>.md']
     ])
+  })
+
+  it('writes under a chosen folder (Story 5.4)', () => {
+    mount({ topic: 'Payouts', folder: 'docs/out/' })
+
+    expect(rows()[3]).toEqual(['writes to', 'docs/out/party/2026-10-08-payouts.md'])
   })
 
   it('follows the topic into the destination', () => {

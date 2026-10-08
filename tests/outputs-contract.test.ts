@@ -115,24 +115,33 @@ describe('the outputs stylesheet', () => {
     expect(tokens).toMatch(/--rail-name-min:\s*56px;/)
   })
 
-  it('gives the row button the pointer and the hover ground a persona tile has, and nothing more', () => {
+  it('gives the row button the pointer and the hover ground a persona tile has, and the head’s link its underline, and nothing more', () => {
     expect(css).toMatch(/\.output-row-button\s*\{[^}]*cursor:\s*pointer/)
     expect(css).toMatch(/\.output-row-button:hover\s*\{[^}]*background:\s*var\(--panel-2\)/)
-    expect([...css.matchAll(/:hover/g)]).toHaveLength(1)
+    // `change…` (Story 5.4) underlines on hover, as every link does, and has no ground to raise.
+    expect(css).toMatch(/\.outputs-change:hover\s*\{[^}]*text-decoration:\s*underline/)
+    expect([...css.matchAll(/:hover/g)]).toHaveLength(2)
   })
 })
 
 describe('the outputs sources', () => {
   const ROW = `${OUTPUTS_DIR}/output-row.tsx`
+  const HEAD = `${OUTPUTS_DIR}/outputs-head.tsx`
 
-  it('draw no control, tab stop or handler but in the row, and no role, inline style, title or live region anywhere', () => {
+  it('draw no control, tab stop or handler but in the row and the head’s one link, and no role, inline style, title or live region anywhere', () => {
     expect(outputsSources).toContain(ROW)
+    expect(outputsSources).toContain(HEAD)
     for (const path of outputsSources) {
       const text = code(path)
-      // The row is the one control (Story 1.12): a native button, its tab stop
-      // and its two handlers live in output-row.tsx and nowhere else.
+      // The row is the list's one control (Story 1.12): a native button, its tab stop
+      // and its two handlers live in output-row.tsx. The head's `change…` (Story 5.4)
+      // is the one other, a native button with one click handler and no tab stop of its own.
       if (path !== ROW) {
-        expect(text, path).not.toMatch(/<button|tabindex=|tabIndex=|onClick|onKeyDown/i)
+        expect(text, path).not.toMatch(path === HEAD ? /tabindex=|tabIndex=|onKeyDown/i : /<button|tabindex=|tabIndex=|onClick|onKeyDown/i)
+      }
+      if (path === HEAD) {
+        expect(text.match(/<button\b/g)).toHaveLength(1)
+        expect(text.match(/onClick=/g)).toHaveLength(1)
       }
       expect(text, path).not.toMatch(/<input|role=|style=|title=/)
       expect(text, path).not.toMatch(/aria-live/)
@@ -203,12 +212,12 @@ describe('the rail modules in main', () => {
     expect(watcher).toContain('alwaysStat: true')
     expect(watcher).toContain('ignoreInitial: false')
     expect(watcher).not.toMatch(/awaitWriteFinish|usePolling|interval:|debounce/)
-    // `_bmad` only: no watcher on the skills directory or the harness's own
-    // data. The watch path is the project root so that a `_bmad` created after
-    // launch is seen, and everything under the root but `_bmad` is ignored.
+    // The output folder only (Story 5.4), and the way to it: no watcher on the skills directory or the
+    // harness's own data. The watch path is the project root so that a folder created after launch is
+    // seen, and everything under the root but the way to the folder, the folder and what is in it is ignored.
     expect(watcher).toContain('watch(projectRoot')
-    expect(watcher).toContain("WATCHED_DIR = '_bmad'")
-    expect(watcher).toContain('!underWatchedDir(path)')
+    expect(watcher).toContain('!admitted(path)')
+    expect(watcher).not.toContain('_bmad')
     expect(watcher).not.toMatch(/\.claude|userData/)
   })
 

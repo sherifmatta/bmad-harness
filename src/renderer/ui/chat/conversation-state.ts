@@ -372,20 +372,21 @@ function withRoomEntry(state: ConversationState, room: string, at: number, text:
 }
 
 /**
- * The user pressed *Write summary to `_bmad/`* (Story 4.4): the room's own session is asked, as one turn,
+ * The user pressed *Write summary to `<F>`* (Story 4.4): the room's own session is asked, as one turn,
  * to write its summary to the destination the header and the panel show. `text` is the ask for the
- * destination as it stands at the press; the entry shows what was sent and the room is busy, as with any
+ * destination as it stands at the press, under `folder`, the project's output folder (Story 5.4); the entry shows what was sent and the room is busy, as with any
  * message into the room. The ask is never the topic, so the room's topic is left as it was. Without a live
  * room there is nothing to ask and nothing is sent.
  */
 export function roomSummaryAsked(
   state: ConversationState,
-  at: number
+  at: number,
+  folder: string
 ): { state: ConversationState; sessionId?: string; text?: string; entryId?: string } {
   if (state.room === undefined) {
     return { state }
   }
-  const text = roomSummaryTurn(roomDestination(state.roomOpenedAt, state.roomTopic))
+  const text = roomSummaryTurn(roomDestination(state.roomOpenedAt, state.roomTopic, folder))
   const entryId = `entry-${state.nextId}`
   return { state: withRoomEntry(state, state.room, at, text), sessionId: state.room, text, entryId }
 }

@@ -26,6 +26,9 @@ export type ParsedMenu =
   | { ok: true; entries: ResolvedMenuEntry[]; problems: MenuProblem[] }
   | { ok: false; detail: string }
 
+/** `folder` is BMad's own `output_folder` as the resolver gave it, or `null` when it says none. */
+export type ParsedOutputFolder = { ok: true; folder: string | null } | { ok: false; detail: string }
+
 const SAFE_AGENT_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 
 /**
@@ -177,4 +180,24 @@ export function parseMenu(value: unknown, agentName: string): ParsedMenu {
   })
 
   return { ok: true, entries, problems }
+}
+
+/**
+ * `resolve_config.py --key core.output_folder` prints a literal dotted key,
+ * `{"core.output_folder": "{project-root}/_bmad"}`, or `{}` when the key is
+ * absent, which says no folder. A value that is not a non-empty string is the
+ * wrong shape, and so is the answer.
+ */
+export function parseOutputFolder(value: unknown): ParsedOutputFolder {
+  if (!isRecord(value)) {
+    return { ok: false, detail: 'output · expected an object' }
+  }
+  const folder = value['core.output_folder']
+  if (folder === undefined) {
+    return { ok: true, folder: null }
+  }
+  if (!isNonEmptyString(folder)) {
+    return { ok: false, detail: 'core.output_folder · expected a non-empty string' }
+  }
+  return { ok: true, folder }
 }

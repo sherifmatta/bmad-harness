@@ -14,6 +14,7 @@ import { useRail } from './use-rail'
 
 const snapshot = (revision: number, path = 'a.md'): RailSnapshot => ({
   revision,
+  folder: '_bmad/',
   rows: [{ path, state: 'saved', savedAt: revision }]
 })
 

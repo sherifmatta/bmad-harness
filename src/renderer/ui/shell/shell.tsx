@@ -3,12 +3,14 @@ import type { JSX, ReactNode, RefObject } from 'react'
 
 import './shell.css'
 import type { AgentView, HarnessError, InstallSnapshot, MenuEntryView } from '../../../shared/install'
+import { stateLineOf } from '../../../shared/output-folder'
 import type { RailSnapshot } from '../../../shared/rail'
 import { ChatHeader } from '../chat/chat-header'
 import { OrphanHeader } from '../chat/orphan-header'
 import { FollowScroller } from '../follow/follow-scroller'
 import type { PersonaState } from '../persona/portrait'
 import { ConnectedOutputs } from '../outputs/outputs'
+import { OutputsFolder, OutputsState } from '../outputs/outputs-head'
 import { stateOf } from '../status/persona-state'
 import { Team } from '../team/team'
 import { currentAgent, displayOrder, groupAgents } from '../team/tile-groups'
@@ -22,13 +24,30 @@ function labelOf(id: ViewId): string {
   return VIEWS.find((view) => view.id === id)?.label ?? id
 }
 
-/** One half of the rail: a head over a scrolling body, empty unless given children. */
-function RailHalf({ label, children }: { label: string; children?: ReactNode }): JSX.Element {
+/**
+ * One half of the rail: a head over a scrolling body, empty unless given children.
+ * `trailing` is what the head holds on its right (the Outputs half's folder and
+ * `change…`), and `beneath` a line between the head and the body that does not
+ * scroll with it.
+ */
+function RailHalf({
+  label,
+  trailing,
+  beneath,
+  children
+}: {
+  label: string
+  trailing?: ReactNode
+  beneath?: ReactNode
+  children?: ReactNode
+}): JSX.Element {
   return (
     <section className="rail-half">
       <div className="rail-head">
         <h3>{label}</h3>
+        {trailing !== undefined && trailing !== null && <div className="rail-head-trailing">{trailing}</div>}
       </div>
+      {beneath}
       <div className="rail-body">{children}</div>
     </section>
   )
@@ -78,6 +97,7 @@ export function Shell({
   since = NO_SINCE,
   rail = null,
   railFailure = null,
+  onChooseFolder = ignore,
   currentId: chosenId,
   onCurrentChange,
   onActivate,
@@ -107,6 +127,8 @@ export function Shell({
   rail?: RailSnapshot | null
   /** Why there is no rail snapshot, when there is not one. */
   railFailure?: HarnessError | null
+  /** Called when `change…` is pressed: the native folder chooser for the output folder (Story 5.4). */
+  onChooseFolder?: () => void
   /** The current persona when the window holds it: `App` does, so `@<name>` can move it
       too. Left out, the shell keeps its own and selecting a tile is what changes it. */
   currentId?: string | null
@@ -152,6 +174,7 @@ export function Shell({
   const ordered = displayOrder(groupAgents(snapshot.agents))
   const current = currentAgent(ordered, currentId)
 
+  const outputsLine = rail === null ? undefined : stateLineOf(rail, rail.refusal)
   const pinnedNode = current === null ? null : (pinned?.(current) ?? null)
 
   // With nobody listening, selecting is only choosing the current persona.
@@ -219,7 +242,11 @@ export function Shell({
               onSelect={select}
             />
           </RailHalf>
-          <RailHalf label="Outputs">
+          <RailHalf
+            label="Outputs"
+            trailing={rail === null ? null : <OutputsFolder folder={rail.folder} onChange={onChooseFolder} />}
+            beneath={outputsLine === undefined ? null : <OutputsState line={outputsLine} />}
+          >
             <ConnectedOutputs
               snapshot={rail}
               failure={railFailure}

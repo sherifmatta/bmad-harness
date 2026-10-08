@@ -5,7 +5,7 @@ import type { AgentView } from '../../../shared/install'
 import { errnoName } from '../errno'
 import { runCommand } from './run-command'
 import type { CommandResult, CommandRunner } from './run-command'
-import { isSafeAgentId, parseMenu, parseRoster } from './schema'
+import { isSafeAgentId, parseMenu, parseOutputFolder, parseRoster } from './schema'
 import type { MenuProblem, ResolvedMenuEntry } from './schema'
 
 /**
@@ -36,8 +36,20 @@ export type MenuResult =
   | { ok: true; entries: ResolvedMenuEntry[]; problems: MenuProblem[] }
   | { ok: false; failure: ResolverFailure }
 
+/** BMad's own `output_folder` as the resolver spelled it, or `null` when the install says none. */
+export type OutputFolderResult =
+  | { ok: true; folder: string | null }
+  | { ok: false; failure: ResolverFailure }
+
 export type InstallSource = {
   resolveRoster(): Promise<RosterResult>
+  /**
+   * The output folder BMad's configuration names (`core.output_folder`), through
+   * the same resolver as the roster and validated like it. The install's own
+   * path stays where it was: this asks the resolver for one more key and reads
+   * nothing else.
+   */
+  resolveOutputFolder(): Promise<OutputFolderResult>
   resolveMenu(agentId: string, agentName?: string): Promise<MenuResult>
 }
 
@@ -139,6 +151,25 @@ export function createInstallSource({
       }
       const roster = parseRoster(answer.json)
       return roster.ok ? roster : unexpectedShape(script, roster.detail)
+    },
+
+    async resolveOutputFolder() {
+      const script = 'resolve_config.py'
+      // No resolver script, no answer: nothing is asked and nothing is said.
+      if (!(await exists(join(scripts, script)))) {
+        return { ok: true, folder: null }
+      }
+      const answer = await resolve(script, [
+        '--project-root',
+        projectRoot,
+        '--key',
+        'core.output_folder'
+      ])
+      if (!answer.ok) {
+        return answer
+      }
+      const parsed = parseOutputFolder(answer.json)
+      return parsed.ok ? parsed : unexpectedShape(script, parsed.detail)
     },
 
     async resolveMenu(agentId, agentName = agentId) {

@@ -89,6 +89,7 @@ const installBridge = await import('../src/main/install-bridge')
 const projectBridge = await import('../src/main/project-bridge')
 const railBridge = await import('../src/main/rail-bridge')
 const docBridge = await import('../src/main/doc-bridge')
+const outputFolderBridge = await import('../src/main/output-folder-bridge')
 const welcomeBridge = await import('../src/main/welcome-bridge')
 const themeBridge = await import('../src/main/theme-bridge')
 const sessionBridge = await import('../src/main/session-bridge')
@@ -120,6 +121,12 @@ it('answers the rail channels on the same literals from both sides', () => {
   expect(preload.RAIL_GET_CHANNEL).toBe('rail:get')
   expect(preload.RAIL_CHANGED_CHANNEL).toBe('rail:changed')
   expect(registeredHandlers.has(railBridge.RAIL_GET_CHANNEL)).toBe(true)
+})
+
+it('answers the output folder’s one channel on the same literal from both sides', () => {
+  expect(preload.OUTPUT_FOLDER_CHOOSE_CHANNEL).toBe(outputFolderBridge.OUTPUT_FOLDER_CHOOSE_CHANNEL)
+  expect(preload.OUTPUT_FOLDER_CHOOSE_CHANNEL).toBe('output-folder:choose')
+  expect(registeredHandlers.has(outputFolderBridge.OUTPUT_FOLDER_CHOOSE_CHANNEL)).toBe(true)
 })
 
 it('answers the document channels on the same literals from both sides', () => {
@@ -222,7 +229,7 @@ it('paints each of the three windows from main’s state as its preload loads, a
   }
 })
 
-it('exposes exactly seventeen named methods, and no channel passthrough', () => {
+it('exposes exactly eighteen named methods, and no channel passthrough', () => {
   const harness = exposedApis.get('harness')
 
   expect(harness).toBeDefined()
@@ -234,6 +241,7 @@ it('exposes exactly seventeen named methods, and no channel passthrough', () => 
     'getRail',
     'onRailChanged',
     'openDoc',
+    'chooseOutputFolder',
     'onDocClosed',
     'openSession',
     'closeSession',
@@ -291,7 +299,7 @@ it('exposes the Welcome exactly seven named methods, four of them its own and th
     }
   }
   // The counts of the other two are untouched by the Welcome's arrival.
-  expect(Object.keys(exposedApis.get('harness') ?? {})).toHaveLength(17)
+  expect(Object.keys(exposedApis.get('harness') ?? {})).toHaveLength(18)
   expect(Object.keys(exposedApis.get('docWindow') ?? {})).toHaveLength(5)
 })
 
@@ -475,6 +483,20 @@ it('sends openDoc down the open channel with the row’s path, and resolves with
 
   await expect(openDoc('_bmad/planning-artifacts/prd.md')).resolves.toBeUndefined()
   expect(invoke).toHaveBeenCalledWith(docBridge.DOC_OPEN_CHANNEL, '_bmad/planning-artifacts/prd.md')
+})
+
+it('sends chooseOutputFolder down its channel with nothing, and resolves with what the choice came to', async () => {
+  const choose = exposedApis.get('harness')?.chooseOutputFolder as (...args: unknown[]) => Promise<unknown>
+
+  invoke.mockClear()
+  invoke.mockResolvedValue({ ok: true, outcome: { kind: 'refused', reason: 'outside this project' } })
+  await expect(choose('/etc')).resolves.toEqual({ kind: 'refused', reason: 'outside this project' })
+  // No argument crosses: main chooses the path and judges it, and the window names none.
+  expect(invoke.mock.calls).toEqual([[outputFolderBridge.OUTPUT_FOLDER_CHOOSE_CHANNEL]])
+
+  const error = { code: 'output-folder/unexpected', message: 'output-folder · unexpected failure', detail: 'Error' }
+  invoke.mockResolvedValue({ ok: false, error })
+  await expect(choose()).rejects.toEqual(error)
 })
 
 it('turns a refused doc:open into a rejection carrying the envelope', async () => {

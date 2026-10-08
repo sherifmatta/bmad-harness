@@ -458,6 +458,7 @@ describe('Shell in the party state', () => {
 describe('Shell, the project files', () => {
   const rail = {
     revision: 1,
+    folder: '_bmad/',
     rows: [
       { path: '_bmad/epics.md', state: 'saved' as const, savedAt: 1 },
       { path: '_bmad/planning-artifacts/prd.md', state: 'changing' as const }
@@ -479,15 +480,17 @@ describe('Shell, the project files', () => {
     const outputs = outputsOf(withRail)
 
     expect(outputs).not.toMatch(/<input|<a |role=/)
-    expect(count(outputs, /<button/g)).toBe(2)
+    // The head's `change…` and the two rows: the rows are the one tab stop, the head's button its own, before them.
+    expect(count(outputs, /<button/g)).toBe(1 + 2)
     expect(count(outputs, /tabindex="0"/g)).toBe(1)
-    // Three tiles, two switch buttons and the two rows.
-    expect(count(withRail, /<button/g)).toBe(2 + 3 + 2)
+    expect(outputs.indexOf('change…')).toBeLessThan(outputs.indexOf('<li'))
+    // Three tiles, two switch buttons, `change…` and the two rows.
+    expect(count(withRail, /<button/g)).toBe(2 + 3 + 1 + 2)
   })
 
   it('shows the empty state for a snapshot with no rows, and the failure for a failed rail', () => {
     const empty = renderToStaticMarkup(
-      <Shell projectPath="/work/falcon" snapshot={snapshot(1)} rail={{ revision: 1, rows: [] }} />
+      <Shell projectPath="/work/falcon" snapshot={snapshot(1)} rail={{ revision: 1, folder: '_bmad/', rows: [] }} />
     )
     expect(outputsOf(empty)).toContain('no files under _bmad/ yet')
     expect(outputsOf(empty)).toContain('/work/falcon/_bmad')
@@ -502,6 +505,67 @@ describe('Shell, the project files', () => {
     expect(outputsOf(failed)).toContain('rail · unexpected failure')
   })
 
+  it('puts the folder and `change…` in the Outputs head, before the list, and nothing of them in the Team half', () => {
+    const chosen = renderToStaticMarkup(
+      <Shell
+        projectPath="/p"
+        snapshot={snapshot(1)}
+        rail={{ ...rail, folder: 'docs/out/', chosen: 'docs/out/', rows: [{ path: 'docs/out/a.md', state: 'saved', savedAt: 1 }] }}
+      />
+    )
+    const outputs = outputsOf(chosen)
+
+    expect(outputs).toContain('<span class="outputs-where">docs/out/</span>')
+    expect(outputs.indexOf('class="outputs-change"')).toBeLessThan(outputs.indexOf('<li'))
+    expect(outputs.indexOf('class="outputs-change"')).toBeGreaterThan(outputs.indexOf('class="rail-head-trailing"'))
+    expect(teamOf(chosen)).not.toContain('outputs-where')
+    expect(teamOf(chosen)).not.toContain('change…')
+    expect(outputs).toContain('>docs/out/<')
+  })
+
+  it('draws no head folder before the first snapshot, and no state line unless there is a state to say', () => {
+    const none = renderToStaticMarkup(<Shell projectPath="/p" snapshot={snapshot(1)} />)
+    expect(none).not.toContain('outputs-where')
+    expect(none).not.toContain('change…')
+    expect(withRail).not.toContain('outputs-state')
+  })
+
+  it.each([
+    ['bmad writes to · _bmad/', { chosen: 'docs/out/', folder: 'docs/out/', bmadFolder: '_bmad/', state: 'different' as const }],
+    ['docs/out/ · folder missing', { chosen: 'docs/out/', folder: '_bmad/', state: 'missing' as const }]
+  ])('says %s on one plain line between the head and the list, outside what scrolls', (line, facts) => {
+    const markup = renderToStaticMarkup(
+      <Shell projectPath="/p" snapshot={snapshot(1)} rail={{ revision: 1, rows: [], ...facts }} />
+    )
+    const outputs = outputsOf(markup)
+
+    expect(outputs).toContain(`<p class="outputs-state">${line}</p>`)
+    expect(outputs.match(/outputs-state/g)).toHaveLength(1)
+    expect(outputs.indexOf('class="outputs-state"')).toBeGreaterThan(outputs.indexOf('class="rail-head-trailing"'))
+    expect(outputs.indexOf('class="outputs-state"')).toBeLessThan(outputs.indexOf('class="rail-body"'))
+  })
+
+  it('says a refusal on that line, over any other state, so that the line is always one', () => {
+    const markup = renderToStaticMarkup(
+      <Shell
+        projectPath="/p"
+        snapshot={snapshot(1)}
+        rail={{
+          revision: 1,
+          rows: [],
+          folder: 'docs/out/',
+          chosen: 'docs/out/',
+          bmadFolder: '_bmad/',
+          state: 'different',
+          refusal: { reason: 'inside .git', seq: 1 }
+        }}
+      />
+    )
+
+    expect(outputsOf(markup)).toContain('<p class="outputs-state">not changed · inside .git</p>')
+    expect(outputsOf(markup)).not.toContain('bmad writes to')
+  })
+
   it('names the owner from the install roster it already holds', () => {
     const owned = renderToStaticMarkup(
       <Shell
@@ -509,6 +573,7 @@ describe('Shell, the project files', () => {
         snapshot={snapshotOf([{ ...agent('bmad-agent-pm'), name: 'John' }])}
         rail={{
           revision: 1,
+          folder: '_bmad/',
           rows: [
             {
               path: '_bmad/planning-artifacts/prd.md',

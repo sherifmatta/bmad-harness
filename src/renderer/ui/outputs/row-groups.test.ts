@@ -16,6 +16,24 @@ describe('groupRows', () => {
     expect(groups[0].rows.map((r) => r.path)).toEqual(['_bmad/config.toml', '_bmad/epics.md'])
   })
 
+  it('heads the files directly in a chosen folder by the folder itself, and its subfolders by their own paths (Story 5.4)', () => {
+    const groups = groupRows([
+      row('docs/out/prd.md'),
+      row('docs/out/epics.md'),
+      row('docs/out/planning/arch.md'),
+      row('docs/out/planning/deep/x.md')
+    ])
+
+    expect(groups.map((group) => group.dir)).toEqual(['docs/out/', 'docs/out/planning/', 'docs/out/planning/deep/'])
+    expect(groups[0].rows.map((r) => r.path)).toEqual(['docs/out/epics.md', 'docs/out/prd.md'])
+  })
+
+  it('names no folder of its own: it reads the directory from the path, whatever the output folder is', () => {
+    for (const folder of ['_bmad/', '_bmad-output/', 'a/b/c/', 'x/']) {
+      expect(groupRows([row(`${folder}f.md`)]).map((group) => group.dir)).toEqual([folder])
+    }
+  })
+
   it('orders groups and rows by code unit, never by locale', () => {
     const groups = groupRows([
       row('_bmad/b/x.md'),

@@ -3,18 +3,18 @@ import type { RailRow } from '../../../shared/rail'
 /** One directory's rows. `dir` is project-relative with a trailing `/`. */
 export type RowGroup = { dir: string; rows: RailRow[] }
 
-/** The root of the watched tree, which is also the heading of a file directly in it. */
-const ROOT_DIR = '_bmad/'
-
 /** Code-unit order, never locale order: the same on every machine. */
 function byCodeUnit(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0
 }
 
-/** The directory a path sits in, with a trailing `/`. */
+/**
+ * The directory a path sits in, with a trailing `/`. Every row is under the
+ * output folder (Story 5.4) and its path is project-relative, so a row always
+ * has one, and a file directly in the folder is headed by the folder itself.
+ */
 function dirOf(path: string): string {
-  const slash = path.lastIndexOf('/')
-  return slash === -1 ? ROOT_DIR : path.slice(0, slash + 1)
+  return path.slice(0, path.lastIndexOf('/') + 1)
 }
 
 /** The file's own name, which is what a row shows under its directory's heading. */

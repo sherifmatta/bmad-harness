@@ -46,7 +46,7 @@ function codeOf(error: unknown): string | undefined {
  * the first `DOC_SNIFF_BYTES` makes it `binary`. A file that is not there is
  * `missing`; any other failure is `unreadable`, and `onError` is told why.
  *
- * With a `boundary` — the project's `<root>/_bmad` — every read re-checks
+ * With a `boundary` — the project's `<root>/<output folder>` — every read re-checks
  * containment (NFR8): the file's real path must sit inside the boundary's real
  * path, else the read is `refused` and nothing is opened. The check is per
  * read, because what a path leads to can change after the window opened: a file
@@ -137,7 +137,7 @@ export function watchDocument({
   onError
 }: {
   fullPath: string
-  /** The project's `<root>/_bmad`: every read must stay inside its real path. */
+  /** The project's `<root>/<output folder>`: every read must stay inside its real path. */
   boundary?: string
   /** How a read is taken. Injectable so a test can hold one in flight. */
   read?: DocumentReader

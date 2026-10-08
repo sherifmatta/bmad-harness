@@ -59,6 +59,7 @@ const row = (path: string, extra: Partial<RailRow> = {}): RailRow =>
 
 const RAIL: RailSnapshot = {
   revision: 1,
+  folder: '_bmad/',
   rows: [
     row('_bmad/planning-artifacts/prd.md', { owner: { agentId: 'bmad-agent-a' } }),
     row('_bmad/planning-artifacts/epics.md', { state: 'changing' } as Partial<RailRow>),
@@ -138,7 +139,7 @@ describe('the assembled shell, all five persona states', () => {
 
   it('treats a file named config.toml as data, and nothing else in the markup mentions it', () => {
     const withToml = shell({
-      rail: { revision: 2, rows: [...RAIL.rows, row('_bmad/config.toml')] }
+      rail: { revision: 2, folder: '_bmad/', rows: [...RAIL.rows, row('_bmad/config.toml')] }
     })
     const rest = withToml.replace(/<li\b[^>]*>(?:(?!<\/li>)[\s\S])*config\.toml[\s\S]*?<\/li>/, '')
 
@@ -156,7 +157,7 @@ describe('an empty or pending surface', () => {
   })
 
   it('draws the one fact sentence, and the path, for an empty rail', () => {
-    const markup = shell({ rail: { revision: 1, rows: [] } })
+    const markup = shell({ rail: { revision: 1, folder: '_bmad/', rows: [] } })
 
     expect(markup).toContain('no files under _bmad/ yet')
     expect(markup).not.toMatch(LOADING)
@@ -186,6 +187,7 @@ describe('the document window', () => {
     path: '_bmad/notes.txt',
     fullPath: '/work/falcon/_bmad/notes.txt',
     kind: 'text',
+    folder: '_bmad/',
     state: 'present',
     text: 'a = 1',
     truncated: false

@@ -13,6 +13,7 @@ const snapshot = (revision: number, text = ''): DocSnapshot => ({
   path: '_bmad/a.md',
   fullPath: '/p/_bmad/a.md',
   kind: 'markdown',
+  folder: '_bmad/',
   state: 'present',
   text,
   truncated: false

@@ -98,6 +98,7 @@ const DOCUMENT: DocSnapshot = {
   path: '_bmad/planning-artifacts/prd.md',
   fullPath: '/work/falcon/_bmad/planning-artifacts/prd.md',
   kind: 'markdown',
+  folder: '_bmad/',
   state: 'present',
   text: '# Title\n\nA paragraph with `code`.\n\n## Section\n\n- one\n- two\n\n| a | b |\n|---|---|\n| 1 | 2 |\n',
   truncated: false
@@ -136,6 +137,7 @@ describe('what the theme changes in what is drawn', () => {
         openedAt: NOW,
         turns: 2,
         rows: [],
+        folder: '_bmad/',
         onOpen: () => {},
         onSend: () => {},
         onWriteSummary: () => {},

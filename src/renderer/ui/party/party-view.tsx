@@ -50,6 +50,7 @@ export function PartyView({
   turns,
   returned,
   rows,
+  folder,
   onOpen,
   onSend,
   onWriteSummary,
@@ -74,11 +75,13 @@ export function PartyView({
   returned?: { key: number; text: string }
   /** The rail's rows: the panel lists those a room did not write as the room's context. */
   rows: readonly RailRow[]
+  /** The project's output folder (Story 5.4): where the summary is written and what the header's button names. */
+  folder: string | undefined
   /** Called with the ticked agent ids when *Open the room* is pressed. */
   onOpen: (cast: readonly string[]) => void
   /** Called with the user's message for the room; the composer is never gated. */
   onSend: (text: string) => void
-  /** Called when *Write summary to `_bmad/`* is pressed; the header's button is disabled without it. */
+  /** Called when *Write summary to `<F>`* is pressed; the header's button is disabled without it. */
   onWriteSummary?: () => void
   /** Called when `stop room` is pressed (Story 4.5); the header draws the control only with it. */
   onStop?: () => void
@@ -149,6 +152,7 @@ export function PartyView({
             participants={roomCast.length}
             openedAt={openedAt}
             turns={turns}
+            folder={folder}
             onWriteSummary={onWriteSummary}
             onStop={onStop}
           />
@@ -166,7 +170,7 @@ export function PartyView({
               </FollowScroller>
               <Composer agentName="the room" onSend={onSend} returned={returned} fieldRef={fieldRef} />
             </div>
-            <RoomPanel topic={topic} openedAt={openedAt} rows={rows} />
+            <RoomPanel topic={topic} openedAt={openedAt} rows={rows} folder={folder} />
           </div>
         </>
       )}

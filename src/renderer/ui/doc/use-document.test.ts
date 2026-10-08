@@ -16,6 +16,7 @@ const snapshot = (revision: number, text = `text ${revision}`): DocSnapshot => (
   path: '_bmad/a.md',
   fullPath: '/project/_bmad/a.md',
   kind: 'markdown',
+  folder: '_bmad/',
   state: 'present',
   text,
   truncated: false

@@ -21,6 +21,7 @@ import { Shell } from './shell/shell'
 import { currentAgent, displayOrder, groupAgents } from './team/tile-groups'
 import type { SyslineRecord } from '../../shared/conversation'
 import type { AgentView } from '../../shared/install'
+import { refusalLine } from '../../shared/output-folder'
 
 /** No roster yet: the conversation is mounted before the install has answered. */
 const NO_AGENTS: readonly AgentView[] = []
@@ -79,6 +80,29 @@ export function App(): JSX.Element | null {
     (line: string) => announcer.announce(line, performance.now()),
     [announcer]
   )
+  // `change…` asks main to open the native chooser. What came of it is the rail's
+  // next snapshot (the folder, or a refusal), so nothing is waited for here.
+  const chooseFolder = useCallback(() => {
+    if (typeof window.harness?.chooseOutputFolder === 'function') {
+      window.harness.chooseOutputFolder().catch(() => {})
+    }
+  }, [])
+  // A refused choice is announced once, politely, when the snapshot first carries it
+  // (Story 5.4): the one a window finds on connecting was announced when it was made.
+  const seenRefusal = useRef<number | null | undefined>(undefined)
+  const refusal = rail?.refusal
+  const hasRail = rail !== null
+  useEffect(() => {
+    if (!hasRail) {
+      return
+    }
+    const seq = refusal?.seq ?? null
+    const before = seenRefusal.current
+    seenRefusal.current = seq
+    if (before !== undefined && refusal !== undefined && seq !== before) {
+      announcer.announce(refusalLine(refusal), performance.now())
+    }
+  }, [announcer, hasRail, refusal])
   const conversation = useConversation(snapshot?.agents ?? NO_AGENTS, announceHandoff, announceLifecycle)
   const announced = useRef<ReadonlySet<string>>(new Set())
   const [expandedRuns, setExpandedRuns] = useState<ReadonlySet<string>>(NO_RUNS)
@@ -243,6 +267,7 @@ export function App(): JSX.Element | null {
         since={since}
         rail={rail}
         railFailure={railFailure}
+        onChooseFolder={chooseFolder}
         currentId={currentId}
         onCurrentChange={setCurrentId}
         onActivate={(agentId) => {
@@ -278,9 +303,10 @@ export function App(): JSX.Element | null {
             turns={conversation.roomTurns}
             returned={conversation.roomReturned}
             rows={rail?.rows ?? []}
+            folder={rail?.folder}
             onOpen={(cast) => void conversation.openRoom(cast)}
             onSend={conversation.sendToRoom}
-            onWriteSummary={conversation.writeSummary}
+            onWriteSummary={rail === null ? undefined : () => conversation.writeSummary(rail.folder)}
             onStop={() => void conversation.stopRoom()}
           />
         }

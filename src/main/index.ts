@@ -3,6 +3,7 @@ import { PROJECT_PATH_CHANNEL } from '../shared/channels'
 import { defaultWriteDiagnostic } from './bridge-kit'
 import { registerDocBridge } from './doc-bridge'
 import { registerInstallBridge } from './install-bridge'
+import { registerOutputFolderBridge } from './output-folder-bridge'
 import { agentNameFor } from './install-model'
 import { registerProjectBridge } from './project-bridge'
 import { createTranscriptRegistry } from './projections/transcript'
@@ -11,6 +12,7 @@ import { registerSessionBridge } from './session-bridge'
 import { createThemeStore, registerThemeBridge } from './theme-bridge'
 import { createRecentList, registerWelcomeBridge } from './welcome-bridge'
 import { installApplicationMenu } from './windows/app-menu'
+import type { OutputFolderMenu } from './windows/app-menu'
 import { ProjectPathError, resolveProjectPath } from './windows/choose-project'
 import {
   createProjectWindow,
@@ -115,9 +117,14 @@ const sessions = registerSessionBridge({
   transcripts,
   told: createRunNotifier({ agentName: agentNameFor, writeDiagnostic: defaultWriteDiagnostic }).told
 })
+// Each project window's output folder (Story 5.4): derived from BMad's own
+// configuration, overridden by the user's choice, which is stored under `userData`
+// and never in the project. The rail watches it, and the menu's File chooses it.
+const outputFolders = registerOutputFolderBridge({ userDataPath: () => app.getPath('userData') })
 // The rail's watcher is the one that sees a memlog change; the session side
 // reads it for the notes of the run in flight.
 registerRailBridge({
+  outputFolder: outputFolders.handleFor,
   observeArtifact: (sender, projectRoot, observation) =>
     void sessions.observeArtifact(sender, projectRoot, observation)
 })
@@ -145,6 +152,19 @@ function chooseFolderFromMenu(): void {
   })
 }
 
+/** What the project menu's File does for a window: the chooser, or the choice forgotten. A failed chooser is said on stderr, in one line. */
+const outputFolderMenu: OutputFolderMenu = {
+  ready: outputFolders.ready,
+  hasChoice: outputFolders.hasChoice,
+  choose: (webContentsId) => {
+    outputFolders.choose(webContentsId).catch((error: unknown) => {
+      process.stderr.write(`output-folder/choose-failed \u00b7 ${String(error)}\n`)
+    })
+  },
+  forget: outputFolders.forget,
+  onChanged: outputFolders.onChanged
+}
+
 /**
  * Anything startup did not expect. It is attached at every call site: a
  * rejection here means no window will ever open, so failing loudly and non-zero
@@ -162,7 +182,7 @@ app
     // is ever painted in the other theme first and the menu's check starts right.
     theme.start()
     // Before the first window, so no window ever has Electron's default menu.
-    installApplicationMenu(app.isPackaged, chooseFolderFromMenu, theme)
+    installApplicationMenu(app.isPackaged, chooseFolderFromMenu, theme, outputFolderMenu)
     openFirstWindow()
   })
   .catch(reportStartupFailure)

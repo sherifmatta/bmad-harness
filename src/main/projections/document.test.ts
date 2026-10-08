@@ -8,6 +8,7 @@ function make(options: { refused?: boolean } = {}) {
     path: '_bmad/prd.md',
     fullPath: '/work/falcon/_bmad/prd.md',
     kind: 'markdown',
+    folder: '_bmad/',
     onChange: (snapshot) => pushed.push(snapshot),
     ...options
   })
@@ -33,6 +34,7 @@ describe('the first result', () => {
       path: '_bmad/prd.md',
       fullPath: '/work/falcon/_bmad/prd.md',
       kind: 'markdown',
+      folder: '_bmad/',
       state: 'present',
       text: 'hello',
       truncated: false

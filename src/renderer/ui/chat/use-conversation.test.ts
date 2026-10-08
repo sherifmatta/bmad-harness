@@ -1804,7 +1804,7 @@ describe('writeSummary (Story 4.4)', () => {
 
   it('sends the ask to the room session once, shows it as one unqueued room entry and marks the room busy', async () => {
     const { conversation, last } = await live()
-    conversation.writeSummary()
+    conversation.writeSummary('_bmad/')
 
     expect(bridge.sends).toHaveLength(1)
     expect(bridge.sends[0][0]).toBe('r1')
@@ -1819,10 +1819,18 @@ describe('writeSummary (Story 4.4)', () => {
     expect(state.roomTopic).toBeUndefined()
   })
 
+  it('asks for the destination under the folder it is given', async () => {
+    const { conversation } = await live()
+    conversation.sendToRoom('Payouts')
+    conversation.writeSummary('docs/out/')
+
+    expect(bridge.sends[1][1]).toMatch(/to docs\/out\/party\/\d{4}-\d{2}-\d{2}-payouts\.md\. Cover/)
+  })
+
   it('names the topic once the room has one, and the ask is never the topic', async () => {
     const { conversation, last } = await live()
     conversation.sendToRoom('Payouts')
-    conversation.writeSummary()
+    conversation.writeSummary('_bmad/')
 
     expect(bridge.sends[1][1]).toMatch(/-payouts\.md\. Cover/)
     expect(held(last()).roomTopic).toBe('Payouts')
@@ -1831,7 +1839,7 @@ describe('writeSummary (Story 4.4)', () => {
   it('sends into a room mid-turn with no gate', async () => {
     const { conversation, last } = await live()
     bridge.push({ name: 'persona:said', payload: { sessionId: 'r1', agentId: mary.id, messageId: 'm#1', text: 'Hi', at: 3, room: true } })
-    conversation.writeSummary()
+    conversation.writeSummary('_bmad/')
 
     expect(bridge.sends).toHaveLength(1)
     expect(held(last()).entries.filter((entry) => entry.kind === 'user' && entry.queuedFor !== undefined)).toEqual([])
@@ -1841,7 +1849,7 @@ describe('writeSummary (Story 4.4)', () => {
     const { conversation, last, failures, handoffs } = await live()
     conversation.sendToRoom('Payouts')
     bridge.sendResults.push(busy())
-    conversation.writeSummary()
+    conversation.writeSummary('_bmad/')
     await settle()
 
     const state = held(last())
@@ -1857,7 +1865,7 @@ describe('writeSummary (Story 4.4)', () => {
   it('leaves a room with no topic without one when the ask is refused', async () => {
     const { conversation, last } = await live()
     bridge.sendResults.push(busy())
-    conversation.writeSummary()
+    conversation.writeSummary('_bmad/')
     await settle()
 
     expect(held(last()).roomTopic).toBeUndefined()
@@ -1866,7 +1874,7 @@ describe('writeSummary (Story 4.4)', () => {
   it('clears the busy mark, keeps the entry and shows the failure for any other refusal', async () => {
     const { conversation, last, failures } = await live()
     bridge.sendResults.push(Promise.reject({ code: 'session/write-failed', message: 'session · the turn could not be written' }))
-    conversation.writeSummary()
+    conversation.writeSummary('_bmad/')
     await settle()
 
     expect(held(last()).busy.has('r1')).toBe(false)
@@ -1877,7 +1885,7 @@ describe('writeSummary (Story 4.4)', () => {
   it('sends nothing when there is no live room', async () => {
     const { conversation, last } = build()
     await connected(conversation)
-    conversation.writeSummary()
+    conversation.writeSummary('_bmad/')
 
     expect(bridge.sends).toEqual([])
     expect(last()?.entries ?? []).toEqual([])

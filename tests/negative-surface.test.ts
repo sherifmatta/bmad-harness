@@ -364,11 +364,13 @@ describe("the document window has no refresh, edit or save", () => {
   const RECENT_STORE = "src/main/sources/persistence/recent-file.ts";
   // Story 5.2 adds the last: the theme choice, one word under `userData`.
   const THEME_STORE = "src/main/sources/persistence/theme-file.ts";
+  // Story 5.4 adds the fourth: each project's output folder choice, a relative path per project under `userData`.
+  const FOLDER_STORE = "src/main/sources/persistence/output-folder-file.ts";
 
-  it("forces no reload, saves and writes nothing in main but the transcript store, the recent list and the theme choice", () => {
+  it("forces no reload, saves and writes nothing in main but the transcript store, the recent list, the theme choice and the output folder choice", () => {
     expect(
       offenders(
-        MAIN_CODE.filter((path) => !path.endsWith(TRANSCRIPT_STORE) && !path.endsWith(RECENT_STORE) && !path.endsWith(THEME_STORE)),
+        MAIN_CODE.filter((path) => !path.endsWith(TRANSCRIPT_STORE) && !path.endsWith(RECENT_STORE) && !path.endsWith(THEME_STORE) && !path.endsWith(FOLDER_STORE)),
         /\bforceReload\b|\breloadIgnoringCache\b|\.reload\(|CommandOrControl|\bsaveAs\b|\bshowSaveDialog\b|\bsave\b|\bwriteFile(?:Sync)?\b|\bappendFile(?:Sync)?\b|\bcreateWriteStream\b/,
       ),
     ).toEqual([]);
@@ -912,8 +914,9 @@ describe("the handoff says only what is true and parses no skill (Story 2.9)", (
     const preload = code.get("src/preload/index.ts") ?? "";
 
     // Thirteen before Story 2.11, whose one new method is closeSession, Story 3.1's
-    // dispatchMenu, Story 3.7's stopRun and Story 3.10's onRunRevealed; none is the handoff's.
-    expect([...preload.matchAll(/^ {2}([a-zA-Z]+): (?:async )?\(/gm)]).toHaveLength(17);
+    // dispatchMenu, Story 3.7's stopRun, Story 3.10's onRunRevealed and Story 5.4's chooseOutputFolder;
+    // none is the handoff's.
+    expect([...preload.matchAll(/^ {2}([a-zA-Z]+): (?:async )?\(/gm)]).toHaveLength(18);
     expect(code.get("src/shared/commands.ts") ?? "").not.toMatch(/handoff|sysline/i);
     expect(code.get("src/shared/events.ts") ?? "").not.toMatch(/handoff|sysline/i);
   });
@@ -969,7 +972,10 @@ describe("the decision block marks and decides nothing (Story 2.10)", () => {
       "src/shared/conversation.ts",
       "src/preload/index.ts",
     ]) {
-      expect(code.get(path) ?? "", path).not.toMatch(/decision|choose|answer/i);
+      // The output folder's one request (Story 5.4) is a folder chooser's, which is no decision: its two names are
+      // the only place the word is spelled, and they are taken out before the rest is read.
+      const own = (code.get(path) ?? "").replace(/\bchooseOutputFolder\b|\bOUTPUT_FOLDER_CHOOSE_CHANNEL\b/g, "");
+      expect(own, path).not.toMatch(/decision|choose|answer/i);
     }
     expect(code.get("src/renderer/ui/chat/transcript-entry.ts") ?? "").not.toMatch(
       /decision/i,
@@ -1341,6 +1347,9 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
         "src/main/windows/app-menu.ts: Open Project Folder…",
         "src/renderer/ui/welcome/personas.ts: Market and competitive research and requirements — the thinking done before a project is committed to.",
         "src/renderer/ui/welcome/welcome-app.tsx: open project folder…",
+        // Story 5.4: the same mark on the commands that open the native folder chooser, the head's link and the menu's item.
+        "src/main/windows/app-menu.ts: Output Folder…",
+        "src/renderer/ui/outputs/outputs-head.tsx: change…",
       ];
       expect(
         hits.filter(
@@ -1969,7 +1978,7 @@ describe("two writers, one file: the rail reports it and nothing arbitrates (Sto
     expect(offenders([OWNER_LABEL], /§|\bof\b|\btotal\b|\bcount\b/)).toEqual([]);
   });
 
-  it("adds no command, event, channel or bridge method: the counts stay seven, fifteen, twenty-nine and seventeen", () => {
+  it("adds no command, event, channel or bridge method: the counts stay seven, fifteen, thirty and eighteen", () => {
     const commands = [...(code.get(COMMANDS) ?? "").matchAll(/^\s+'([a-z]+\.[a-z]+)':\s*CommandSpec/gm)].map(([, name]) => name);
     const events = [...(code.get(EVENTS) ?? "").matchAll(/^\s+'([a-z]+:[a-z-]+)':\s*EventSpec/gm)].map(([, name]) => name);
     const channels = [...(code.get(CHANNELS) ?? "").matchAll(/^export const (\w+) = '/gm)].map(([, name]) => name);
@@ -1981,11 +1990,12 @@ describe("two writers, one file: the rail reports it and nothing arbitrates (Sto
     // Story 3.9 left the counts at seven, fifteen, twenty-one and sixteen; Story 3.10 added
     // the one channel and the one method a window hears a revealed run on, and no event.
     // Story 5.1 added the Welcome's four channels (twenty-six) and no method to the shell's;
-    // Story 5.2 added the theme's three (twenty-nine) and none to the shell's.
+    // Story 5.2 added the theme's three (twenty-nine) and none to the shell's; Story 5.4 added the
+    // output folder's one channel (thirty) and the one method that asks for its chooser (eighteen).
     expect(commands).toHaveLength(7);
     expect(events).toHaveLength(15);
-    expect(channels).toHaveLength(29);
-    expect(methods).toHaveLength(17);
+    expect(channels).toHaveLength(30);
+    expect(methods).toHaveLength(18);
     // And none of them is named for it.
     expect(offenders(CONTRACT, /contend|contention|\bowners\b|arbitrat/i)).toEqual([]);
     expect(offenders(MAIN_CODE, /ipcMain\.handle\(\s*["'`][^"'`]*(?:contend|contention|owners|arbitrat)/i)).toEqual([]);
@@ -2027,7 +2037,9 @@ describe("two writers, one file: the rail reports it and nothing arbitrates (Sto
       expect(offenders(MAIN_CODE.filter((path) => path !== CHOOSER), /\bdialog\b|\bshowMessageBox|\bshowErrorBox|\bshowOpenDialog|\bshowSaveDialog/)).toEqual([]);
       // The one dialog main has chooses a folder to open, and says nothing about a file.
       const chooser = code.get(CHOOSER) ?? "";
-      expect(chooser.match(/\bdialog\./g)).toHaveLength(1);
+      // Story 5.4's output folder chooser is its sibling, a sheet on the project's window or a plain dialog, and the same call.
+      expect(chooser.match(/\bdialog\./g)).toHaveLength(3);
+      expect(chooser.match(/dialog\.(\w+)/g)?.every((call) => call === "dialog.showOpenDialog")).toBe(true);
       expect(chooser).toContain("dialog.showOpenDialog");
       expect(chooser).not.toMatch(/showMessageBox|showErrorBox|showSaveDialog/);
     });
@@ -2044,7 +2056,8 @@ describe("two writers, one file: the rail reports it and nothing arbitrates (Sto
 
   it("writes nothing to the project: no write-capable filesystem call in main outside the harness's own transcript, which refuses the project", () => {
     const THEME_STORE = "src/main/sources/persistence/theme-file.ts";
-    const others = MAIN_CODE.filter((path) => path !== TRANSCRIPT_STORE && path !== RECENT_STORE && path !== THEME_STORE);
+    const FOLDER_STORE = "src/main/sources/persistence/output-folder-file.ts";
+    const others = MAIN_CODE.filter((path) => path !== TRANSCRIPT_STORE && path !== RECENT_STORE && path !== THEME_STORE && path !== FOLDER_STORE);
     const WRITES = /^(?:write|append|mkdir|mkdtemp|rename|unlink|rm|rmdir|copy|cp|truncate|ftruncate|symlink|link|chmod|chown|utimes|lutimes|createWriteStream)/;
 
     // What main takes from the filesystem is read-only: every name imported from `node:fs` outside the store.
@@ -2074,6 +2087,16 @@ describe("two writers, one file: the rail reports it and nothing arbitrates (Sto
     const theme = code.get(THEME_STORE) ?? "";
     expect(theme).toMatch(/export function themeFilePath\(userDataDir: string\)/);
     expect(theme).not.toMatch(/projectPath|projectRoot/);
+    // So is the output folder choice (Story 5.4): a path per project under `userData`, keyed by a name the store is
+    // handed and never a project it could write into.
+    const folders = code.get(FOLDER_STORE) ?? "";
+    expect(folders).toMatch(/export function outputFoldersFilePath\(userDataDir: string\)/);
+    expect(folders).not.toMatch(/projectPath|projectRoot/);
+    expect(offenders(MAIN_CODE, /outputFoldersFilePath\(/).map((hit) => hit.split(":")[0]).sort()).toEqual([
+      "src/main/output-folder-bridge.ts",
+      "src/main/sources/persistence/output-folder-file.ts",
+    ]);
+    expect(code.get("src/main/output-folder-bridge.ts")).toMatch(/outputFoldersFilePath\(deps\.userDataPath\(\)\)/);
     expect(offenders(MAIN_CODE, /themeFilePath\(/).map((hit) => hit.split(":")[0]).sort()).toEqual([
       "src/main/sources/persistence/theme-file.ts",
       "src/main/theme-bridge.ts",
@@ -2193,7 +2216,7 @@ describe("told once, quietly, when you are elsewhere: one silent banner, one scr
     expect(revealing).not.toMatch(/setCurrentId|setComposerFocus|openDoc|activate\(|send\(|runSkill|stopRun|close\(/);
   });
 
-  it("gives the preload and the shared contract no word of it, and no new command or event: seven, fifteen, twenty-nine channels, seventeen methods", () => {
+  it("gives the preload and the shared contract no word of it, and no new command or event: seven, fifteen, thirty channels, eighteen methods", () => {
     expect(
       offenders(
         [...sources("src/preload/"), ...sources("src/shared/")],
@@ -2209,9 +2232,9 @@ describe("told once, quietly, when you are elsewhere: one silent banner, one scr
     );
     expect(commands).toHaveLength(7);
     expect(events).toHaveLength(15);
-    expect(channels).toHaveLength(29);
+    expect(channels).toHaveLength(30);
     expect(channels).toContain("RUN_REVEALED_CHANNEL");
-    expect(methods).toHaveLength(17);
+    expect(methods).toHaveLength(18);
     expect(methods).toContain("onRunRevealed");
     // The channel is a push to a window and nothing answers on it: no handler, no invoke.
     expect(offenders(MAIN_CODE, /ipcMain\.handle\(\s*RUN_REVEALED_CHANNEL/)).toEqual([]);
@@ -2351,13 +2374,13 @@ describe("nothing this epic promised not to do: the audit's static half (Story 3
     expect((code.get(ROW) ?? "").match(/<button\b/g)).toHaveLength(1);
   });
 
-  it("holds the contract at seven commands, fifteen events, twenty-nine channels and seventeen bridge methods", () => {
+  it("holds the contract at seven commands, fifteen events, thirty channels and eighteen bridge methods", () => {
     const commands = [...(code.get(COMMANDS) ?? "").matchAll(/^\s+'([a-z]+\.[a-z]+)':\s*CommandSpec/gm)];
     const events = [...(code.get(EVENTS) ?? "").matchAll(/^\s+'([a-z]+:[a-z-]+)':\s*EventSpec/gm)];
     const channels = [...(code.get(CHANNELS) ?? "").matchAll(/^export const (\w+) = '/gm)];
     const preload = code.get(PRELOAD) ?? "";
     const methods = [...preload.slice(preload.indexOf("const harness: HarnessApi = {"), preload.indexOf("contextBridge.exposeInMainWorld")).matchAll(/^ {2}(\w+):/gm)];
-    expect([commands.length, events.length, channels.length, methods.length]).toEqual([7, 15, 29, 17]);
+    expect([commands.length, events.length, channels.length, methods.length]).toEqual([7, 15, 30, 18]);
   });
 
   it("says what carried on after a stop in lower case, `·`-separated, unpunctuated, and offers nothing: no resume, continue, retry or guidance word", () => {
@@ -2467,15 +2490,18 @@ describe("nothing this epic promised not to do: the audit's static half (Story 4
     expect(offenders(PARTY_TSX, /<(?:ol|li|table|select|dialog)\b|aria-modal|role=/)).toEqual([`${CHOOSER}: <li`]);
     expect((code.get(HEADER) ?? "").match(/<button\b/g)).toHaveLength(2);
     expect(code.get(HEADER) ?? "").toContain("stop room");
-    expect(code.get(HEADER) ?? "").toContain("Write summary to _bmad/");
+    // The button names the project's output folder, which the rail says (Story 5.4), and no literal one.
+    expect(code.get(HEADER) ?? "").toContain("`Write summary to ${folder}`");
+    expect(code.get(HEADER) ?? "").not.toContain("_bmad");
     // The composer is the room's only other control in a live room, and nothing the room does can switch it off.
     const view = code.get(VIEW) ?? "";
     expect(view.match(/<Composer\b[^>]*>/g)).toEqual(['<Composer agentName="the room" onSend={onSend} returned={returned} fieldRef={fieldRef} />']);
     expect(view).not.toMatch(/disabled|readOnly|aria-disabled|aria-busy/);
     expect(code.get(COMPOSER) ?? "").not.toMatch(/\bdisabled\b|readOnly|aria-disabled/);
     expect(offenders(PARTY_TSX.filter((path) => path !== CHOOSER && path !== HEADER), /\bdisabled\b/)).toEqual([]);
-    // The only disabled controls in party code are the summary button without a handler and *Open the room* with nobody ticked.
-    expect((code.get(HEADER) ?? "").match(/\bdisabled=\{[^}]*\}/g)).toEqual(["disabled={onWriteSummary === undefined}"]);
+    // The only disabled controls in party code are the summary button without a handler, or before the rail has said
+    // which folder it writes under (Story 5.4), and *Open the room* with nobody ticked.
+    expect((code.get(HEADER) ?? "").match(/\bdisabled=\{[^}]*\}/g)).toEqual(["disabled={onWriteSummary === undefined || folder === undefined}"]);
     expect((code.get(CHOOSER) ?? "").match(/\bdisabled=\{[^}]*\}/g)).toEqual(["disabled={cast.length === 0}"]);
   });
 
@@ -2580,13 +2606,13 @@ describe("nothing this epic promised not to do: the audit's static half (Story 4
     expect(offenders(PARTY_CSS, /spinner|skeleton|shimmer|loader|badge|@keyframes\s+(?!eq\b)/i)).toEqual([]);
   });
 
-  it("holds the contract at seven commands, fifteen events, twenty-nine channels and seventeen bridge methods", () => {
+  it("holds the contract at seven commands, fifteen events, thirty channels and eighteen bridge methods", () => {
     const commands = [...(code.get(COMMANDS) ?? "").matchAll(/^\s+'([a-z]+\.[a-z]+)':\s*CommandSpec/gm)];
     const events = [...(code.get(EVENTS) ?? "").matchAll(/^\s+'([a-z]+:[a-z-]+)':\s*EventSpec/gm)];
     const channels = [...(code.get(CHANNELS) ?? "").matchAll(/^export const (\w+) = '/gm)];
     const preload = code.get(PRELOAD) ?? "";
     const methods = [...preload.slice(preload.indexOf("const harness: HarnessApi = {"), preload.indexOf("contextBridge.exposeInMainWorld")).matchAll(/^ {2}(\w+):/gm)];
-    expect([commands.length, events.length, channels.length, methods.length]).toEqual([7, 15, 29, 17]);
+    expect([commands.length, events.length, channels.length, methods.length]).toEqual([7, 15, 30, 18]);
   });
 
   it("says a refused message once, as a fact, in the window's own register, and never sends, queues or retries it (Story 4.8)", () => {

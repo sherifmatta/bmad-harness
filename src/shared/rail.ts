@@ -1,7 +1,8 @@
 import type { HarnessError } from './install'
+import type { OutputFolderFacts, OutputFolderRefusal } from './output-folder'
 
 /**
- * The rail contract — what main folds out of the project's `_bmad/` tree and
+ * The rail contract — what main folds out of the project's output folder and
  * what crosses the bridge to the renderer. Types only, like `install.ts`.
  *
  * A row has two fields with two owners and no merge (FR49, AD-2). The disk
@@ -39,7 +40,7 @@ export type RailOwner = { agentId: string }
  */
 export type RailAnnotation = { text: string; owner?: RailOwner; owners?: readonly RailOwner[] }
 
-/** One file under `_bmad/`. `path` is project-relative, POSIX. */
+/** One file under the output folder. `path` is project-relative, POSIX. */
 export type RailRow = {
   path: string
   owner?: RailOwner
@@ -51,8 +52,17 @@ export type RailRow = {
   room?: true
 } & DiskField
 
-/** `revision` only ever increases, so a late push can be told from a fresh one. */
-export type RailSnapshot = { revision: number; rows: RailRow[] }
+/**
+ * `revision` only ever increases, so a late push can be told from a fresh one.
+ * The folder the rows are under and what is to be said of it ride with them
+ * (Story 5.4), so a re-pointed rail and its head land in one frame; `refusal` is
+ * the last refused choice, held until the next.
+ */
+export type RailSnapshot = {
+  revision: number
+  rows: RailRow[]
+  refusal?: OutputFolderRefusal
+} & OutputFolderFacts
 
 /** The reply to `rail:get`: a snapshot, or the envelope saying why not. */
 export type RailReply =

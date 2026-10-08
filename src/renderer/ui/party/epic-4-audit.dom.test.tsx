@@ -76,10 +76,11 @@ type Props = {
   openedAt: number | undefined
   turns: number
   rows: readonly RailRow[]
+  folder: string
   agents: readonly AgentView[]
 }
 
-const BASE: Props = { room: 's1', roomCast: CAST, speaker: undefined, entries: [OPENED], topic: undefined, openedAt: NOW, turns: 0, rows: [], agents: ROSTER }
+const BASE: Props = { room: 's1', roomCast: CAST, speaker: undefined, entries: [OPENED], topic: undefined, openedAt: NOW, turns: 0, rows: [], folder: '_bmad/', agents: ROSTER }
 
 /** What the audit mounts: a name, the props, and whether the room is live. */
 type Case = { name: string; props: Props; live: boolean }
@@ -111,6 +112,7 @@ function propsOf(state: ConversationState): Props {
     openedAt: state.roomOpenedAt,
     turns: roomTurnsOf(state),
     rows: [],
+    folder: '_bmad/',
     agents: ROSTER
   }
 }
@@ -137,7 +139,7 @@ function refused(asked: 'typed' | 'summary'): Props {
     initialConversation
   )
   state = roomReady(state, 's1', CAST, NOW)
-  const sent = asked === 'typed' ? roomSent(state, NOW + 3, 'Should the payouts ship first') : roomSummaryAsked(state, NOW + 3)
+  const sent = asked === 'typed' ? roomSent(state, NOW + 3, 'Should the payouts ship first') : roomSummaryAsked(state, NOW + 3, '_bmad/')
   return propsOf(roomRefused(sent.state, sent.entryId ?? '', NOW + 4, asked === 'typed').state)
 }
 
@@ -199,6 +201,7 @@ function render(props: Props): void {
         openedAt: props.openedAt,
         turns: props.turns,
         rows: props.rows,
+        folder: props.folder,
         onOpen: () => {},
         onSend: () => {},
         onWriteSummary: () => {},

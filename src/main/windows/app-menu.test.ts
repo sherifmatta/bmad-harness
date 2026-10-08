@@ -53,15 +53,16 @@ beforeEach(() => {
 })
 
 describe('the application menu', () => {
-  it('is app, Edit, View and Window, from roles alone', () => {
+  it('is app, File, Edit, View and Window, from roles alone but for File’s two items', () => {
     const top = (buildMenuTemplate({ packaged: true, focus: 'project' }) as Item[]).map(({ label }) => label)
 
-    expect(top).toEqual(['bmad-harness', 'Edit', 'View', 'Window'])
+    expect(top).toEqual(['bmad-harness', 'File', 'Edit', 'View', 'Window'])
     expect(roles(true, 'project')).toEqual([
       'hide',
       'hideOthers',
       'unhide',
       'quit',
+      'close',
       'copy',
       'selectAll',
       'reload',
@@ -134,10 +135,12 @@ describe('the Welcome’s menu', () => {
     expect(roles(true, 'welcome')).toEqual(roles(true, 'document'))
   })
 
-  it('is the one menu with an accelerator: the project and document menus are unchanged', () => {
+  it('is the one menu with an accelerator: the project and document menus have none, and the document menu is unchanged', () => {
     for (const focus of ['project', 'document'] as const) {
       const labels = (buildMenuTemplate({ packaged: true, focus }) as Item[]).map(({ label }) => label)
-      expect(labels, focus).toEqual(['bmad-harness', 'Edit', 'View', 'Window'])
+      expect(labels, focus).toEqual(
+        focus === 'project' ? ['bmad-harness', 'File', 'Edit', 'View', 'Window'] : ['bmad-harness', 'Edit', 'View', 'Window']
+      )
       expect(JSON.stringify(buildMenuTemplate({ packaged: true, focus })), focus).not.toMatch(/accelerator|Open Project/)
     }
   })
@@ -145,6 +148,50 @@ describe('the Welcome’s menu', () => {
   it('offers Toggle Developer Tools only when not packaged', () => {
     expect(roles(true, 'welcome')).not.toContain('toggleDevTools')
     expect(roles(false, 'welcome')).toContain('toggleDevTools')
+  })
+})
+
+describe('the project window’s File menu (Story 5.4)', () => {
+  type FolderItem = Item & { enabled?: boolean; type?: string }
+  const file = (focus: Focus, outputFolder?: Parameters<typeof buildMenuTemplate>[0]['outputFolder']): FolderItem[] =>
+    ((buildMenuTemplate({ packaged: true, focus, outputFolder }) as Item[]).find(({ label }) => label === 'File')
+      ?.submenu ?? []) as FolderItem[]
+
+  it('has Output Folder…, Use BMad’s Output Folder and the OS’s own Close Window, and no accelerator', () => {
+    const items = file('project', { enabled: true, hasChoice: true, choose: vi.fn(), forget: vi.fn() })
+
+    expect(items.map((item) => item.label ?? item.role ?? item.type)).toEqual([
+      'Output Folder…',
+      "Use BMad's Output Folder",
+      'separator',
+      'close'
+    ])
+    expect(JSON.stringify(items)).not.toMatch(/accelerator/)
+  })
+
+  it('runs the chooser for Output Folder… and forgets the choice for Use BMad’s Output Folder', () => {
+    const choose = vi.fn()
+    const forget = vi.fn()
+    const items = file('project', { enabled: true, hasChoice: true, choose, forget })
+
+    items[0].click?.()
+    expect(choose).toHaveBeenCalledTimes(1)
+    expect(forget).not.toHaveBeenCalled()
+    items[1].click?.()
+    expect(forget).toHaveBeenCalledTimes(1)
+  })
+
+  it('dims Use BMad’s Output Folder while there is no choice, and both while the window has no folder yet', () => {
+    expect(file('project', { enabled: true, hasChoice: false, choose: vi.fn(), forget: vi.fn() }).map((item) => item.enabled)).toEqual([true, false, undefined, undefined])
+    expect(file('project', { enabled: true, hasChoice: true, choose: vi.fn(), forget: vi.fn() }).map((item) => item.enabled)).toEqual([true, true, undefined, undefined])
+    expect(file('project').map((item) => item.enabled)).toEqual([false, false, undefined, undefined])
+  })
+
+  it('is in the project window’s menu alone: the Welcome’s File and the document window’s menu gain neither item', () => {
+    for (const focus of ['welcome', 'document'] as const) {
+      expect(JSON.stringify(buildMenuTemplate({ packaged: true, focus })), focus).not.toMatch(/Output Folder/)
+    }
+    expect(file('welcome').map((item) => item.label)).toEqual(['Open Project Folder…'])
   })
 })
 
@@ -201,6 +248,82 @@ describe('installing the menu', () => {
     focusHandlers[0]({}, { webContents: { id: 3 } })
 
     expect(setApplicationMenu).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('the project menu follows the focused window’s output folder (Story 5.4)', () => {
+  type FolderItem = Item & { enabled?: boolean }
+  const fileOf = (): FolderItem[] =>
+    ((buildFromTemplate.mock.lastCall?.[0] as Item[]).find(({ label }) => label === 'File')?.submenu ?? []) as FolderItem[]
+
+  const folders = () => {
+    const state = new Map<number, { choice: boolean }>([
+      [1, { choice: false }],
+      [3, { choice: true }]
+    ])
+    const listeners: ((id: number) => void)[] = []
+    return {
+      state,
+      listeners,
+      menu: {
+        ready: (id: number) => state.has(id),
+        hasChoice: (id: number) => state.get(id)?.choice ?? false,
+        choose: vi.fn(),
+        forget: vi.fn(),
+        onChanged: (listener: (id: number) => void) => void listeners.push(listener)
+      }
+    }
+  }
+
+  it('acts on the window that has focus, and is rebuilt when focus moves between project windows', () => {
+    const { menu } = folders()
+    installApplicationMenu(true, undefined, undefined, menu)
+
+    focusHandlers[0]({}, { webContents: { id: 1 } })
+    expect(fileOf().map((item) => item.enabled)).toEqual([true, false, undefined, undefined])
+    fileOf()[0].click?.()
+    expect(menu.choose).toHaveBeenLastCalledWith(1)
+
+    focusHandlers[0]({}, { webContents: { id: 3 } })
+    expect(fileOf().map((item) => item.enabled)).toEqual([true, true, undefined, undefined])
+    fileOf()[1].click?.()
+    expect(menu.forget).toHaveBeenLastCalledWith(3)
+  })
+
+  it('is rebuilt when the focused window’s folder changes, and not for another window’s', () => {
+    const { menu, state, listeners } = folders()
+    installApplicationMenu(true, undefined, undefined, menu)
+    focusHandlers[0]({}, { webContents: { id: 1 } })
+    const builds = buildFromTemplate.mock.calls.length
+
+    state.get(1)!.choice = true
+    listeners[0](3)
+    expect(buildFromTemplate.mock.calls.length).toBe(builds)
+
+    listeners[0](1)
+    expect(buildFromTemplate.mock.calls.length).toBe(builds + 1)
+    expect(fileOf().map((item) => item.enabled)).toEqual([true, true, undefined, undefined])
+  })
+
+  it('dims both items once the focused window is destroyed', () => {
+    const { menu, state, listeners } = folders()
+    installApplicationMenu(true, undefined, undefined, menu)
+    focusHandlers[0]({}, { webContents: { id: 3 } })
+    expect(fileOf().map((item) => item.enabled)).toEqual([true, true, undefined, undefined])
+
+    state.delete(3)
+    listeners[0](3)
+
+    expect(fileOf().map((item) => item.enabled)).toEqual([false, false, undefined, undefined])
+  })
+
+  it('has nothing enabled before a project window has focus, and none of it in the other menus', () => {
+    installApplicationMenu(true, undefined, undefined, folders().menu)
+    expect(fileOf().map((item) => item.enabled)).toEqual([false, false, undefined, undefined])
+
+    isDocWindow.mockImplementation(({ id }) => id === 2)
+    focusHandlers[0]({}, { webContents: { id: 2 } })
+    expect(JSON.stringify(buildFromTemplate.mock.lastCall?.[0])).not.toMatch(/Output Folder/)
   })
 })
 

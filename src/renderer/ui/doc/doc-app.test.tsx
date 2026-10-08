@@ -11,6 +11,7 @@ const SNAPSHOT: DocSnapshot = {
   path: '_bmad/planning-artifacts/prd.md',
   fullPath: FULL_PATH,
   kind: 'markdown',
+  folder: '_bmad/',
   state: 'present',
   text: '# Title\n\nbody',
   truncated: false

@@ -33,6 +33,14 @@ import { isWelcomeWindow } from './welcome-window'
  * does, and is rebuilt (for the window kind in force) whenever a choice is made,
  * wherever it was made.
  *
+ * A project window's menu has a *File* of its own (Story 5.4): *Output Folder…*,
+ * which opens the same native chooser as the Outputs head's `change…`, and *Use
+ * BMad's Output Folder*, which forgets the project's choice and is dimmed while
+ * there is none, then the OS's own Close Window. Neither item has an accelerator,
+ * and the Welcome's and the document window's menus have neither. The project
+ * the items act on is the focused window's, so the menu is rebuilt when focus
+ * moves between project windows and whenever a window's folder changes.
+ *
  * Toggle Developer Tools is the developer's, and only in an unpackaged build.
  */
 
@@ -47,6 +55,30 @@ export type ThemeMenu = {
   onChosen(listener: (choice: ThemeChoice) => void): void
 }
 
+/**
+ * What the project menu's File needs of main's output folders, by window: whether
+ * a window has one to act on yet, whether it has a choice to forget, the two
+ * things the items do, and a way to hear that a window's folder has changed so the
+ * menu can follow it.
+ */
+export type OutputFolderMenu = {
+  ready(webContentsId: number): boolean
+  hasChoice(webContentsId: number): boolean
+  choose(webContentsId: number): void
+  forget(webContentsId: number): void
+  onChanged(listener: (webContentsId: number) => void): void
+}
+
+/** What a project window's File menu shows and does for the focused window. */
+export type ProjectFolderItems = {
+  /** Whether the window has an output folder to act on. */
+  enabled: boolean
+  /** Whether it has a choice to forget. */
+  hasChoice: boolean
+  choose: () => void
+  forget: () => void
+}
+
 /** The three radio items, in the order the choice lists them. Labels are the OS's register. */
 const THEME_ITEMS: readonly { choice: ThemeChoice; label: string }[] = [
   { choice: 'system', label: 'System' },
@@ -59,7 +91,8 @@ export function buildMenuTemplate({
   packaged,
   focus,
   openProjectFolder,
-  theme = { choice: 'system', choose: () => {} }
+  theme = { choice: 'system', choose: () => {} },
+  outputFolder = { enabled: false, hasChoice: false, choose: () => {}, forget: () => {} }
 }: {
   packaged: boolean
   focus: MenuFocus
@@ -67,6 +100,8 @@ export function buildMenuTemplate({
   openProjectFolder?: () => void
   /** The choice in force and what choosing another does; *System* and nothing when not given. */
   theme?: { choice: ThemeChoice; choose: (choice: ThemeChoice) => void }
+  /** What the project window's File does; nothing is enabled when not given. */
+  outputFolder?: ProjectFolderItems
 }): MenuItemConstructorOptions[] {
   const view: MenuItemConstructorOptions[] = []
   if (focus === 'project') {
@@ -118,6 +153,21 @@ export function buildMenuTemplate({
       ]
     })
   }
+  if (focus === 'project') {
+    menus.splice(1, 0, {
+      label: 'File',
+      submenu: [
+        { label: 'Output Folder…', enabled: outputFolder.enabled, click: () => outputFolder.choose() },
+        {
+          label: "Use BMad's Output Folder",
+          enabled: outputFolder.enabled && outputFolder.hasChoice,
+          click: () => outputFolder.forget()
+        },
+        { type: 'separator' },
+        { role: 'close' }
+      ]
+    })
+  }
   return menus
 }
 
@@ -128,9 +178,22 @@ export function buildMenuTemplate({
 export function installApplicationMenu(
   packaged: boolean,
   openProjectFolder?: () => void,
-  theme?: ThemeMenu
+  theme?: ThemeMenu,
+  outputFolders?: OutputFolderMenu
 ): void {
   let installed: MenuFocus | null = null
+  /** The project window with focus, whose output folder File acts on. */
+  let focused: number | undefined
+
+  const folderItems = (): ProjectFolderItems | undefined =>
+    outputFolders === undefined || focused === undefined
+      ? undefined
+      : {
+          enabled: outputFolders.ready(focused),
+          hasChoice: outputFolders.hasChoice(focused),
+          choose: () => focused !== undefined && outputFolders.choose(focused),
+          forget: () => focused !== undefined && outputFolders.forget(focused)
+        }
 
   const build = (focus: MenuFocus): void => {
     Menu.setApplicationMenu(
@@ -139,14 +202,21 @@ export function installApplicationMenu(
           packaged,
           focus,
           openProjectFolder,
-          theme: theme === undefined ? undefined : { choice: theme.choice(), choose: theme.choose }
+          theme: theme === undefined ? undefined : { choice: theme.choice(), choose: theme.choose },
+          outputFolder: focus === 'project' ? folderItems() : undefined
         })
       )
     )
   }
 
-  const install = (focus: MenuFocus): void => {
-    if (focus === installed) {
+  const install = (focus: MenuFocus, windowId?: number): void => {
+    // Between project windows the menu is rebuilt only when there are folders to follow.
+    const movedProject =
+      focus === 'project' && outputFolders !== undefined && windowId !== undefined && windowId !== focused
+    if (focus === 'project') {
+      focused = windowId
+    }
+    if (focus === installed && !movedProject) {
       return
     }
     installed = focus
@@ -160,13 +230,17 @@ export function installApplicationMenu(
       build(installed)
     }
   })
+  // A window's folder moved, or its rail asked: File follows it, for the window it acts on.
+  outputFolders?.onChanged((webContentsId) => {
+    if (installed === 'project' && webContentsId === focused) {
+      build('project')
+    }
+  })
   app.on('browser-window-focus', (_event, window) => {
+    const { webContents } = window
     install(
-      isWelcomeWindow(window.webContents)
-        ? 'welcome'
-        : isDocWindow(window.webContents)
-          ? 'document'
-          : 'project'
+      isWelcomeWindow(webContents) ? 'welcome' : isDocWindow(webContents) ? 'document' : 'project',
+      webContents.id
     )
   })
 }

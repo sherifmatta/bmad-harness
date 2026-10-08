@@ -3,6 +3,7 @@ import type { JSX, KeyboardEvent } from 'react'
 
 import './outputs.css'
 import type { AgentView, HarnessError } from '../../../shared/install'
+import { folderPathOf } from '../../../shared/output-folder'
 import type { RailSnapshot } from '../../../shared/rail'
 import { ErrorLine } from '../install/error-line'
 import { OutputRow } from './output-row'
@@ -13,8 +14,9 @@ import { useDocOpen } from './use-doc-open'
 import { useNow } from './use-now'
 
 /**
- * The rail's Outputs half (FR48, UX-DR18): one row per file under `_bmad/`,
- * grouped by directory.
+ * The rail's Outputs half (FR48, UX-DR18): one row per file under the project's
+ * output folder, grouped by directory. The folder is the snapshot's own (Story
+ * 5.4): the first group is headed by it, and the empty state names it.
  *
  * Before the first snapshot it draws nothing at all: no spinner, no sentence.
  * A snapshot with no rows is exactly two lines — that there are none, and the
@@ -87,8 +89,8 @@ export function Outputs({
   if (snapshot.rows.length === 0) {
     return (
       <div className="outputs-empty">
-        <p className="outputs-empty-line">no files under _bmad/ yet</p>
-        <p className="outputs-empty-path">{`${projectPath}/_bmad`}</p>
+        <p className="outputs-empty-line">{`no files under ${snapshot.folder} yet`}</p>
+        <p className="outputs-empty-path">{folderPathOf(projectPath, snapshot.folder)}</p>
       </div>
     )
   }

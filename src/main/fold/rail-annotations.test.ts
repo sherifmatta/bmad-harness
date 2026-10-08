@@ -225,7 +225,7 @@ describe('the annotation fold', () => {
       w.send(
         note('r1'),
         { name: 'persona:state', payload: { agentId: JOHN, state: 'work', at: 1 } },
-        { name: 'rail:changed', payload: { revision: 1, rows: [] } },
+        { name: 'rail:changed', payload: { revision: 1, folder: '_bmad/', rows: [] } },
         { name: 'doc:section-opened', payload: { runId: 'r1', sessionId: 's-r1', callId: 'c1', path: PRD, heading: 'Vision', at: 1 } }
       )
 

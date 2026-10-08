@@ -5,7 +5,7 @@ import type { DocSnapshot } from '../../shared/document'
 
 /**
  * The document window (FR55, UX-DR27): a separate OS window over the project
- * window, reading one file under `_bmad/` without taking the room away.
+ * window, reading one file under the output folder without taking the room away.
  *
  * The OS window is only the stage. It is **frameless, transparent and
  * non-resizable**, a child of the project window, and it is kept exactly over

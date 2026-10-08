@@ -45,7 +45,7 @@ describe('the rail projection', () => {
   it('is an empty snapshot for a project with nothing under _bmad', () => {
     projection.ready()
 
-    expect(projection.snapshot()).toEqual({ revision: 0, rows: [] })
+    expect(projection.snapshot()).toEqual({ revision: 0, folder: '_bmad/', rows: [] })
   })
 
   it('attaches the owner from the class and leaves an unrecognised file without one', () => {
@@ -312,5 +312,62 @@ describe('a file a room wrote (Story 4.1)', () => {
 
     expect(pushes).toHaveLength(1)
     expect(projection.snapshot().rows.some((row) => 'room' in row)).toBe(false)
+  })
+})
+
+describe('the folder the rows are under (Story 5.4)', () => {
+  const make = (facts: Parameters<typeof createRailProjection>[0]['facts']) => {
+    const mine: RailSnapshot[] = []
+    const own = createRailProjection({ onChange: (snapshot) => mine.push(snapshot), facts })
+    return { own, mine }
+  }
+
+  it('carries the folder and what is said of it in every snapshot', () => {
+    const { own, mine } = make({ folder: 'docs/out/', chosen: 'docs/out/', bmadFolder: '_bmad/', state: 'different' })
+    own.observe(obs('artifact:found', 'docs/out/prd.md'))
+    own.ready()
+
+    expect(own.snapshot()).toMatchObject({
+      folder: 'docs/out/',
+      chosen: 'docs/out/',
+      bmadFolder: '_bmad/',
+      state: 'different'
+    })
+    expect(mine).toEqual([])
+    own.dispose()
+  })
+
+  it('pushes a change of what is said of the folder as it pushes a change of rows, and not again for the same', () => {
+    const { own, mine } = make({ folder: 'docs/out/' })
+    own.ready()
+
+    own.setFacts({ folder: 'docs/out/', chosen: 'docs/out/', bmadFolder: '_bmad/', state: 'different' })
+    own.setFacts({ folder: 'docs/out/', chosen: 'docs/out/', bmadFolder: '_bmad/', state: 'different' })
+    own.setFacts({ folder: 'docs/out/', chosen: 'docs/out/', bmadFolder: '_bmad/', state: 'different' }, { reason: 'inside .git', seq: 1 })
+    own.setFacts({ folder: 'docs/out/', chosen: 'docs/out/', bmadFolder: '_bmad/', state: 'different' }, { reason: 'inside .git', seq: 2 })
+
+    expect(mine.map((snapshot) => [snapshot.revision, snapshot.state, snapshot.refusal?.seq])).toEqual([
+      [1, 'different', undefined],
+      [2, 'different', 1],
+      [3, 'different', 2]
+    ])
+    own.dispose()
+  })
+
+  it('makes its baseline a later revision than the snapshot it replaces, whatever its rows', () => {
+    const { own } = make({ folder: 'docs/out/' })
+    own.ready(7)
+
+    expect(own.snapshot()).toEqual({ revision: 8, folder: 'docs/out/', rows: [] })
+    own.dispose()
+  })
+
+  it('keeps pushing from that revision on', () => {
+    const { own, mine } = make({ folder: 'docs/out/' })
+    own.ready(7)
+    own.observe(obs('artifact:written', 'docs/out/prd.md'))
+
+    expect(mine.map((snapshot) => snapshot.revision)).toEqual([9])
+    own.dispose()
   })
 })

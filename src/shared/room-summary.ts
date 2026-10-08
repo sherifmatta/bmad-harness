@@ -1,5 +1,5 @@
 /**
- * What the room's own session is asked when the user presses *Write summary to `_bmad/`*
+ * What the room's own session is asked when the user presses *Write summary to `<F>`*
  * (Story 4.4, FR71). Pure, and in `shared/` beside `room-destination.ts`, whose destination it
  * names. The runtime writes the file; the harness writes nothing, and decides neither the name
  * of an empty slug nor what to do about a collision: both are left to the runtime in the text.

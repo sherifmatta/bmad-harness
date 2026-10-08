@@ -13,6 +13,7 @@ vi.mock('electron', () => ({
 
 const {
   ProjectPathError,
+  chooseOutputDirectory,
   chooseProjectDirectory,
   directoryFromArgument,
   projectPathArgument,
@@ -143,5 +144,53 @@ describe('the native folder chooser', () => {
     showOpenDialog.mockResolvedValue({ canceled: false, filePaths: [] })
 
     await expect(chooseProjectDirectory()).resolves.toBeNull()
+  })
+})
+
+describe('the output folder chooser (Story 5.4)', () => {
+  const OPTIONS = {
+    title: 'choose the bmad output folder',
+    buttonLabel: 'choose',
+    defaultPath: '/work/falcon/docs/out',
+    properties: ['openDirectory', 'createDirectory']
+  }
+
+  it('is a sheet on the project’s window, titled, with its button named, folders only, create-folder allowed, opening in the folder watched', async () => {
+    showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ['/work/falcon/docs/other'] })
+    const parent = { isDestroyed: () => false }
+
+    await expect(chooseOutputDirectory(parent as never, '/work/falcon/docs/out')).resolves.toBe('/work/falcon/docs/other')
+
+    expect(showOpenDialog).toHaveBeenCalledTimes(1)
+    expect(showOpenDialog).toHaveBeenCalledWith(parent, OPTIONS)
+  })
+
+  it('is a plain dialog when the window is gone or there is none', async () => {
+    showOpenDialog.mockResolvedValue({ canceled: true, filePaths: [] })
+
+    await chooseOutputDirectory(null, '/work/falcon/docs/out')
+    await chooseOutputDirectory({ isDestroyed: () => true } as never, '/work/falcon/docs/out')
+
+    expect(showOpenDialog.mock.calls).toEqual([[OPTIONS], [OPTIONS]])
+  })
+
+  it('answers null when cancelled, or when it returns nothing, which changes nothing', async () => {
+    showOpenDialog.mockResolvedValue({ canceled: true, filePaths: ['/x'] })
+    await expect(chooseOutputDirectory(null, '/p')).resolves.toBeNull()
+
+    showOpenDialog.mockResolvedValue({ canceled: false, filePaths: [] })
+    await expect(chooseOutputDirectory(null, '/p')).resolves.toBeNull()
+  })
+
+  it('leaves the project chooser’s own options as they were', async () => {
+    showOpenDialog.mockResolvedValue({ canceled: true, filePaths: [] })
+
+    await chooseProjectDirectory()
+
+    expect(showOpenDialog).toHaveBeenCalledWith({
+      title: 'open a bmad project',
+      buttonLabel: 'open',
+      properties: ['openDirectory', 'createDirectory']
+    })
   })
 })

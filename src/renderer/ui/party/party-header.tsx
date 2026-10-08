@@ -32,6 +32,7 @@ export function PartyHeader({
   participants,
   openedAt,
   turns,
+  folder,
   onWriteSummary,
   onStop
 }: {
@@ -43,7 +44,9 @@ export function PartyHeader({
   openedAt: number | undefined
   /** How many turns the room has had. */
   turns: number
-  /** Called when *Write summary to `_bmad/`* is pressed; the button is disabled without it. */
+  /** The project's output folder, where the summary will be written (Story 5.4); `undefined` until the rail has said. */
+  folder: string | undefined
+  /** Called when *Write summary to `<F>`* is pressed; the button is disabled without it. */
   onWriteSummary?: (() => void) | undefined
   /** Called when `stop room` is pressed (Story 4.5); without it the header draws no stop control. */
   onStop?: (() => void) | undefined
@@ -63,8 +66,13 @@ export function PartyHeader({
           </>
         )}
       </span>
-      <button type="button" className="party-write" disabled={onWriteSummary === undefined} onClick={onWriteSummary}>
-        Write summary to _bmad/
+      <button
+        type="button"
+        className="party-write"
+        disabled={onWriteSummary === undefined || folder === undefined}
+        onClick={onWriteSummary}
+      >
+        {folder === undefined ? 'Write summary' : `Write summary to ${folder}`}
       </button>
       {onStop !== undefined && (
         <button type="button" className="party-stop" onClick={onStop}>

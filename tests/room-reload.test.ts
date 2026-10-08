@@ -123,7 +123,7 @@ describe('a window that reloads with a live room (Story 4.7)', () => {
     expect(state.roomOpenedAt).toBe(snapshot.room?.openedAt)
     expect(state.roomTopic).toBe('Should we')
     expect(roomTurnsOf(state)).toBe(1)
-    expect(roomDestination(state.roomOpenedAt, state.roomTopic)).toMatch(/^_bmad\/party\/\d{4}-\d{2}-\d{2}-should-we\.md$/)
+    expect(roomDestination(state.roomOpenedAt, state.roomTopic, '_bmad/')).toMatch(/^_bmad\/party\/\d{4}-\d{2}-\d{2}-should-we\.md$/)
     expect(state.sessions.size).toBe(0)
     expect(state.busy.has(sessionId)).toBe(false)
   })

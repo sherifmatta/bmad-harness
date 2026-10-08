@@ -87,7 +87,8 @@ function register(extra: Partial<InstallBridgeDeps> = {}): void {
           rosterCalls += 1
           return roster()
         },
-        resolveMenu: async () => ({ ok: true, entries: [], problems: [] })
+        resolveMenu: async () => ({ ok: true, entries: [], problems: [] }),
+        resolveOutputFolder: async () => ({ ok: true, folder: null })
       }
     },
     createChecks: () => {
@@ -187,6 +188,43 @@ describe('install:get', () => {
 
     expect(sender.sent[0][0]).toBe(INSTALL_CHANGED_CHANNEL)
     expect(sender.sent[0][1].agents.map((a) => a.name)).toEqual(['Mary', 'John'])
+  })
+
+  it('resolves the window’s output folder again beside the install when the watcher fires, and never inside the install’s own answer (Story 5.4)', async () => {
+    const { rememberOutputFolder, forgetOutputFolder } = await import('./output-folder-model')
+    const refreshes: number[] = []
+    const handle = {
+      view: () => undefined,
+      refresh: async () => {
+        refreshes.push(1)
+        return { folder: '_bmad/' }
+      },
+      subscribe: () => () => {},
+      hasChoice: () => false
+    }
+    rememberOutputFolder(1, handle)
+    try {
+      const sender = new FakeSender(1)
+      const reply = (await ask(sender)) as { ok: true; snapshot: InstallSnapshot }
+      expect(refreshes).toEqual([])
+      expect(JSON.stringify(reply.snapshot)).not.toMatch(/folder/i)
+
+      watchers[0].onChange()
+      await vi.waitFor(() => expect(refreshes).toEqual([1]))
+      // The install is re-resolved by the same trigger, as it was.
+      await vi.waitFor(() => expect(rosterCalls).toBe(2))
+    } finally {
+      forgetOutputFolder(1, handle)
+    }
+  })
+
+  it('has no output folder to resolve for a window that has none, and fires as it always did', async () => {
+    const sender = new FakeSender(3)
+    await ask(sender)
+
+    watchers[0].onChange()
+
+    await vi.waitFor(() => expect(rosterCalls).toBe(2))
   })
 
   it('does not send to a destroyed sender', async () => {

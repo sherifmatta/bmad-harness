@@ -156,6 +156,15 @@ export function seedRail(table: PersonaTable, snapshot: RailSnapshot): PersonaTa
 }
 
 /**
+ * The baseline taken again: the rail now watches another folder (Story 5.4), so
+ * the rows it shows are not a change of the files that were owned, and none of
+ * them raises a `note`. What the agents carry is untouched.
+ */
+export function rebaseRail(table: PersonaTable, snapshot: RailSnapshot): PersonaTable {
+  return { ...table, rail: ownedRows(snapshot) }
+}
+
+/**
  * An owned row that is new, whose disk state differs, or that is gone since the
  * last snapshot: the watcher saw a change to a file the persona owns. The
  * baseline takes every change, but one the owner's own run made raises no `note`.

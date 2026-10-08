@@ -5,11 +5,11 @@ import { shell } from 'electron'
  * The document window's two ways out of the window and into the OS (FR57):
  * *Reveal in Finder* and *Open in editor*. They act on main's own record of
  * the file a window is showing — never on a path the renderer supplied — and a
- * `refused` document (one that resolved outside `_bmad/`) gets neither.
+ * `refused` document (one that resolved outside the output folder) gets neither.
  *
  * *Open in editor* is `open -t`, the default **text** editor, and never
  * Electron's open-path call: that hands the file to LaunchServices, which would run a
- * `.command`, a script or an app bundle found under `_bmad/`. `execFile` takes
+ * `.command`, a script or an app bundle found under the output folder. `execFile` takes
  * an argument vector, so the path is never parsed by a shell.
  *
  * A failure is one line to the developer's terminal and nothing else; it is

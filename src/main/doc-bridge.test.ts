@@ -79,6 +79,8 @@ let edited: unknown[]
 let diagnostics: string[]
 let watchThrows: Error | null
 let nextDocId: number
+/** The output folder the window's project is on: what bounds a document opened now (Story 5.4). */
+let folder: string
 
 beforeEach(() => {
   handlers.clear()
@@ -96,9 +98,11 @@ beforeEach(() => {
   diagnostics = []
   watchThrows = null
   nextDocId = 500
+  folder = '_bmad/'
 
   registerDocBridge({
     projectPathFor: (id) => (id < 100 ? root : undefined),
+    folderFor: () => folder,
     parentWindowFor: (contents) => {
       const id = (contents as unknown as FakeSender).id
       if (!parents.has(id)) {
@@ -274,6 +278,7 @@ describe('doc:open', () => {
         path: '_bmad/link.md',
         fullPath: join(root, '_bmad/link.md'),
         kind: 'markdown',
+        folder: '_bmad/',
         state: 'refused',
         text: '',
         truncated: false
@@ -341,6 +346,7 @@ describe('doc:get', () => {
       path: PRD,
       fullPath: join(root, PRD),
       kind: 'markdown',
+      folder: '_bmad/',
       state: 'present',
       text: '# hello',
       truncated: false
@@ -431,7 +437,7 @@ describe('the escapes', () => {
     expect(edited).toEqual([target])
   })
 
-  it('watches inside the project’s _bmad and nowhere wider', async () => {
+  it('watches inside the project’s output folder and nowhere wider', async () => {
     await open()
 
     expect(watchers[0].boundary).toBe(join(root, '_bmad'))
@@ -551,5 +557,67 @@ describe('closing returns the room', () => {
 
     expect(again.reply).toEqual({ ok: true })
     expect(watchers).toHaveLength(2)
+  })
+})
+
+describe('a chosen output folder (Story 5.4)', () => {
+  beforeEach(() => {
+    mkdirSync(join(root, 'docs/out'), { recursive: true })
+    writeFileSync(join(root, 'docs/out/prd.md'), '# chosen\n')
+    folder = 'docs/out/'
+  })
+
+  it('opens a document under the folder it is on, and refuses the install’s with the folder named', async () => {
+    expect((await open('docs/out/prd.md')).reply).toEqual({ ok: true })
+    expect(watchers[0].boundary).toBe(join(root, 'docs/out'))
+
+    expect(await call(DOC_OPEN_CHANNEL, new FakeSender(1), PRD)).toEqual({
+      ok: false,
+      error: { code: 'doc/invalid-path', message: 'doc · not a document under docs/out/' }
+    })
+  })
+
+  it('tells the window the folder it was opened under', async () => {
+    const { window } = await open('docs/out/prd.md')
+    watchers[0].deliver(present('# chosen'))
+
+    expect(await call(DOC_GET_CHANNEL, window.sender)).toMatchObject({
+      ok: true,
+      snapshot: { path: 'docs/out/prd.md', folder: 'docs/out/' }
+    })
+  })
+
+  it('leaves a window already open its file and its boundary when the folder moves, and takes the new one for what opens after', async () => {
+    const { window } = await open('docs/out/prd.md')
+    watchers[0].deliver(present('first'))
+
+    // The project's folder moves while the window is open.
+    folder = '_bmad/'
+    watchers[0].deliver(present('second'))
+
+    expect(watchers[0].boundary).toBe(join(root, 'docs/out'))
+    expect(await call(DOC_GET_CHANNEL, window.sender)).toMatchObject({
+      ok: true,
+      snapshot: { folder: 'docs/out/', state: 'present', text: 'second' }
+    })
+    expect((await open(PRD)).reply).toEqual({ ok: true })
+    expect(watchers[1].boundary).toBe(join(root, '_bmad'))
+    expect(await call(DOC_OPEN_CHANNEL, new FakeSender(1), 'docs/out/prd.md')).toMatchObject({
+      ok: false,
+      error: { code: 'doc/invalid-path', message: 'doc · not a document under _bmad/' }
+    })
+  })
+
+  it('refuses a symlink out of the folder as it refuses one out of the install’s', async () => {
+    symlinkSync(join(outside, 'secret.md'), join(root, 'docs/out/link.md'))
+
+    const { reply, window } = await open('docs/out/link.md')
+
+    expect(reply).toEqual({ ok: true })
+    expect(watchers).toEqual([])
+    expect(await call(DOC_GET_CHANNEL, window.sender)).toMatchObject({
+      ok: true,
+      snapshot: { state: 'refused', text: '', folder: 'docs/out/' }
+    })
   })
 })

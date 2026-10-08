@@ -328,7 +328,7 @@ describe('the shell furniture stays within scope', () => {
   it('mounts the files in the Outputs half and gives the party view one `party` slot and nothing more', () => {
     const shell = code('src/renderer/ui/shell/shell.tsx')
 
-    expect(shell).toMatch(/<RailHalf label="Outputs">\s*<ConnectedOutputs/)
+    expect(shell).toMatch(/<RailHalf\s+label="Outputs"[\s\S]*?>\s*<ConnectedOutputs/)
     // Story 4.1: the view holds what `party` gives it; no side panel, header or slot beside it.
     expect(shell).toMatch(/className="view view-party"[\s\S]*?>\s*\{party\}\s*<\/section>/)
     expect(shell).not.toMatch(/party-side|party-header|cast-strip/)

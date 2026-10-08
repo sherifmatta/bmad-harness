@@ -13,7 +13,8 @@ import type { DocRead } from '../sources/project/watch-document'
  *
  * A failed or non-text read never blanks the window: `missing`, `unreadable`
  * and `binary` change the state and keep the last good `text` (empty before
- * any good read). A `refused` document is one that resolved outside `_bmad/`.
+ * any good read). A `refused` document is one that resolved outside the output
+ * folder it was opened under (`folder`, which the foot names).
  * If it was so at open it is a snapshot from the start, is never read, and
  * nothing changes it. If it becomes so later — the watcher's per-read check —
  * the state turns `refused` and the text is cleared, pushed like any change.
@@ -32,12 +33,15 @@ export function createDocumentProjection({
   path,
   fullPath,
   kind,
+  folder,
   refused = false,
   onChange
 }: {
   path: string
   fullPath: string
   kind: DocKind
+  /** The output folder the document was opened under: project-relative, with a trailing `/`. */
+  folder: string
   refused?: boolean
   onChange: (snapshot: DocSnapshot) => void
 }): DocumentProjection {
@@ -58,7 +62,7 @@ export function createDocumentProjection({
   }
 
   const keyOf = (): string => JSON.stringify([state, text, truncated])
-  const current = (): DocSnapshot => ({ revision, path, fullPath, kind, state, text, truncated })
+  const current = (): DocSnapshot => ({ revision, path, fullPath, kind, folder, state, text, truncated })
 
   return {
     apply(read) {
@@ -71,7 +75,7 @@ export function createDocumentProjection({
         text = read.text
         truncated = read.truncated
       } else if (read.state === 'refused') {
-        // The file now leads outside `_bmad/`: nothing it said is kept.
+        // The file now leads outside the folder: nothing it said is kept.
         text = ''
         truncated = false
       }

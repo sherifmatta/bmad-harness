@@ -42,19 +42,19 @@ describe('the lexical tier', () => {
     ['a case variant of the first segment', '_BMAD/x.md'],
     ['_bmad itself', '_bmad']
   ])('refuses %s as doc/invalid-path', async (_name, path) => {
-    expect(await resolveDocument(root, path)).toEqual({ ok: false, code: 'doc/invalid-path' })
+    expect(await resolveDocument(root, path, '_bmad/')).toEqual({ ok: false, code: 'doc/invalid-path' })
   })
 
   it('reads the segments of a valid path and of nothing else', () => {
-    expect(documentSegments('_bmad/a/b.md')).toEqual(['_bmad', 'a', 'b.md'])
-    expect(documentSegments('_bmad/..a/b')).toEqual(['_bmad', '..a', 'b'])
-    expect(documentSegments('a/b')).toBeNull()
+    expect(documentSegments('_bmad/a/b.md', '_bmad/')).toEqual(['_bmad', 'a', 'b.md'])
+    expect(documentSegments('_bmad/..a/b', '_bmad/')).toEqual(['_bmad', '..a', 'b'])
+    expect(documentSegments('a/b', '_bmad/')).toBeNull()
   })
 })
 
 describe('the real-path tier', () => {
   it('resolves an existing file to its absolute path, not refused', async () => {
-    expect(await resolveDocument(root, '_bmad/planning-artifacts/prd.md')).toEqual({
+    expect(await resolveDocument(root, '_bmad/planning-artifacts/prd.md', '_bmad/')).toEqual({
       ok: true,
       fullPath: join(root, '_bmad/planning-artifacts/prd.md'),
       refused: false
@@ -62,12 +62,12 @@ describe('the real-path tier', () => {
   })
 
   it('opens a file that does not exist, not refused: the row may have just gone', async () => {
-    expect(await resolveDocument(root, '_bmad/planning-artifacts/gone.md')).toEqual({
+    expect(await resolveDocument(root, '_bmad/planning-artifacts/gone.md', '_bmad/')).toEqual({
       ok: true,
       fullPath: join(root, '_bmad/planning-artifacts/gone.md'),
       refused: false
     })
-    expect(await resolveDocument(root, '_bmad/no-such-dir/gone.md')).toMatchObject({
+    expect(await resolveDocument(root, '_bmad/no-such-dir/gone.md', '_bmad/')).toMatchObject({
       ok: true,
       refused: false
     })
@@ -76,7 +76,7 @@ describe('the real-path tier', () => {
   it('opens a file whose _bmad directory does not exist, as missing rather than refused', async () => {
     const empty = mkdtempSync(join(tmpdir(), 'resolve-doc-empty-'))
     try {
-      expect(await resolveDocument(empty, '_bmad/x.md')).toMatchObject({ ok: true, refused: false })
+      expect(await resolveDocument(empty, '_bmad/x.md', '_bmad/')).toMatchObject({ ok: true, refused: false })
     } finally {
       rmSync(empty, { recursive: true, force: true })
     }
@@ -85,7 +85,7 @@ describe('the real-path tier', () => {
   it('refuses, without an error, a file symlinked out of _bmad', async () => {
     symlinkSync(join(outside, 'secret.md'), join(root, '_bmad/link.md'))
 
-    expect(await resolveDocument(root, '_bmad/link.md')).toEqual({
+    expect(await resolveDocument(root, '_bmad/link.md', '_bmad/')).toEqual({
       ok: true,
       fullPath: join(root, '_bmad/link.md'),
       refused: true
@@ -95,7 +95,7 @@ describe('the real-path tier', () => {
   it('refuses a file reached through a directory symlinked out of _bmad', async () => {
     symlinkSync(outside, join(root, '_bmad/linked-dir'))
 
-    expect(await resolveDocument(root, '_bmad/linked-dir/secret.md')).toMatchObject({
+    expect(await resolveDocument(root, '_bmad/linked-dir/secret.md', '_bmad/')).toMatchObject({
       ok: true,
       refused: true
     })
@@ -104,19 +104,59 @@ describe('the real-path tier', () => {
   it('refuses a dangling link, which would read whatever it is later mended to', async () => {
     symlinkSync(join(outside, 'not-yet.md'), join(root, '_bmad/dangling.md'))
 
-    expect(await resolveDocument(root, '_bmad/dangling.md')).toMatchObject({ ok: true, refused: true })
+    expect(await resolveDocument(root, '_bmad/dangling.md', '_bmad/')).toMatchObject({ ok: true, refused: true })
   })
 
   it('accepts a symlink that stays inside _bmad', async () => {
     symlinkSync(join(root, '_bmad/planning-artifacts/prd.md'), join(root, '_bmad/alias.md'))
 
-    expect(await resolveDocument(root, '_bmad/alias.md')).toMatchObject({ ok: true, refused: false })
+    expect(await resolveDocument(root, '_bmad/alias.md', '_bmad/')).toMatchObject({ ok: true, refused: false })
   })
 
   it('refuses a link loop', async () => {
     symlinkSync(join(root, '_bmad/b.md'), join(root, '_bmad/a.md'))
     symlinkSync(join(root, '_bmad/a.md'), join(root, '_bmad/b.md'))
 
-    expect(await resolveDocument(root, '_bmad/a.md')).toMatchObject({ ok: true, refused: true })
+    expect(await resolveDocument(root, '_bmad/a.md', '_bmad/')).toMatchObject({ ok: true, refused: true })
+  })
+})
+
+describe('a chosen output folder (Story 5.4)', () => {
+  const FOLDER = 'docs/out/'
+
+  it('opens a document under the folder, and nothing outside it', async () => {
+    mkdirSync(join(root, 'docs/out/nested'), { recursive: true })
+    writeFileSync(join(root, 'docs/out/nested/prd.md'), 'x')
+
+    expect(await resolveDocument(root, 'docs/out/nested/prd.md', FOLDER)).toEqual({
+      ok: true,
+      fullPath: join(root, 'docs/out/nested/prd.md'),
+      refused: false
+    })
+    expect(await resolveDocument(root, 'docs/out/prd.md', FOLDER)).toMatchObject({ ok: true })
+    for (const path of ['_bmad/planning-artifacts/prd.md', 'docs/prd.md', 'docs/out2/x.md', 'docs/out', 'docs/out/', 'DOCS/out/x.md']) {
+      expect(await resolveDocument(root, path, FOLDER), path).toEqual({ ok: false, code: 'doc/invalid-path' })
+    }
+  })
+
+  it('reads the segments of a path under the folder and of nothing else', () => {
+    expect(documentSegments('docs/out/a/b.md', FOLDER)).toEqual(['docs', 'out', 'a', 'b.md'])
+    expect(documentSegments('docs/out/..a', FOLDER)).toEqual(['docs', 'out', '..a'])
+    expect(documentSegments('docs/out', FOLDER)).toBeNull()
+    expect(documentSegments('_bmad/a.md', FOLDER)).toBeNull()
+    expect(documentSegments('docs/out/../x.md', FOLDER)).toBeNull()
+  })
+
+  it('judges the real path against the folder’s own real path: a link out of it is refused, one that stays is not', async () => {
+    mkdirSync(join(root, 'docs/out'), { recursive: true })
+    writeFileSync(join(root, 'docs/out/real.md'), 'x')
+    writeFileSync(join(root, 'docs/elsewhere.md'), 'x')
+    symlinkSync(join(root, 'docs/out/real.md'), join(root, 'docs/out/alias.md'))
+    symlinkSync(join(root, 'docs/elsewhere.md'), join(root, 'docs/out/leaves.md'))
+    symlinkSync(join(outside, 'secret.md'), join(root, 'docs/out/out.md'))
+
+    expect(await resolveDocument(root, 'docs/out/alias.md', FOLDER)).toMatchObject({ ok: true, refused: false })
+    expect(await resolveDocument(root, 'docs/out/leaves.md', FOLDER)).toMatchObject({ ok: true, refused: true })
+    expect(await resolveDocument(root, 'docs/out/out.md', FOLDER)).toMatchObject({ ok: true, refused: true })
   })
 })

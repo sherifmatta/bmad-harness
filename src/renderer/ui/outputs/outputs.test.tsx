@@ -32,7 +32,7 @@ function render(overrides: Partial<Props> = {}): string {
   )
 }
 
-const rail = (...rows: RailRow[]): RailSnapshot => ({ revision: 1, rows })
+const rail = (...rows: RailRow[]): RailSnapshot => ({ revision: 1, folder: '_bmad/', rows })
 const saved = (path: string, extra: Partial<RailRow> = {}): RailRow =>
   ({ path, state: 'saved', savedAt: NOW - 3 * DAY, ...extra }) as RailRow
 

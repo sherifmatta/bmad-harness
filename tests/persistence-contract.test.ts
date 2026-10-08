@@ -230,12 +230,13 @@ describe('a sysline in main’s transcript and in the window’s', () => {
 })
 
 describe('what is stored, and where', () => {
-  it('is written by the persistence sources and nowhere else: the transcript, the recent list and the theme choice', () => {
+  it('is written by the persistence sources and nowhere else: the transcript, the recent list, the theme choice and the output folder choice', () => {
     const writers = shipping.filter((path) =>
       /\b(?:writeFileSync|writeFile|appendFile|appendFileSync|renameSync|createWriteStream)\b/.test(code(path))
     )
 
     expect(writers.map(rel).sort()).toEqual([
+      'src/main/sources/persistence/output-folder-file.ts',
       'src/main/sources/persistence/recent-file.ts',
       'src/main/sources/persistence/theme-file.ts',
       'src/main/sources/persistence/transcript-file.ts'

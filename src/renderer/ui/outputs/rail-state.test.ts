@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { RailSnapshot } from '../../../shared/rail'
 import { acceptRail, connectRail } from './rail-state'
 
-const snapshot = (revision: number): RailSnapshot => ({ revision, rows: [] })
+const snapshot = (revision: number): RailSnapshot => ({ revision, folder: '_bmad/', rows: [] })
 
 describe('acceptRail', () => {
   it('takes the first snapshot whatever its revision', () => {
