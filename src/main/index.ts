@@ -10,6 +10,7 @@ import { registerProjectBridge } from './project-bridge'
 import { createTranscriptRegistry } from './projections/transcript'
 import { registerRailBridge } from './rail-bridge'
 import { registerSessionBridge } from './session-bridge'
+import { inheritLoginPath } from './sources/preflight/login-path'
 import { createThemeStore, registerThemeBridge } from './theme-bridge'
 import { createRecentList, registerWelcomeBridge } from './welcome-bridge'
 import { installApplicationMenu } from './windows/app-menu'
@@ -180,7 +181,14 @@ function reportStartupFailure(error: unknown): void {
 
 app
   .whenReady()
-  .then(() => {
+  .then(async () => {
+    // A packaged app opened from Finder has launchd's path, which holds neither
+    // `claude` nor `uv`. Taken before any window, so the first preflight and the
+    // first session both spawn under the user's own path. A dev launch from a
+    // terminal already has it.
+    if (app.isPackaged) {
+      await inheritLoginPath()
+    }
     // The stored theme is applied before any window or menu exists, so no window
     // is ever painted in the other theme first and the menu's check starts right.
     theme.start()
