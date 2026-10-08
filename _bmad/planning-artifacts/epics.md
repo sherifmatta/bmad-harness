@@ -513,7 +513,7 @@ Convene a room of chosen personas in one conversation you participate in, with e
 - **Negative-surface check:** this epic's final story verifies the UX-DR38 prohibitions on its own surfaces — no deferred section rendered as an empty state, no reserved slots, no `disagrees`/`evidence` tag, no quote-back chrome, no turn gate, no pause control, and no 288px panel.
 
 
-### Epic 5: Arrive — choose a project from a welcome
+### Epic 5: Arrive and settle in
 
 The harness stops opening to a native dialog. It opens to a Welcome that offers one action (open a project folder, or drop one), lists the projects opened before, and shows the five core personas by phase of the method, so the first thing seen is what the product is, not an operating-system chooser. And it can be seen in light or dark: the user chooses, and System is the default. And a conversation, in a persona's thread or in the room, follows what is being said and holds still when you scroll up to reread. And the folder the rail watches for a project's output is BMad's own by default, and the user's to choose.
 
@@ -2324,7 +2324,7 @@ So that what is on screen as sent is what the room received.
 
 ---
 
-## Epic 5: Arrive — choose a project from a welcome
+## Epic 5: Arrive and settle in
 
 The harness opens to a Welcome in place of a native folder dialog: one action, the projects opened before, and the five core personas by phase of the method. It can be seen in light or dark, and a conversation follows what is being said.
 
