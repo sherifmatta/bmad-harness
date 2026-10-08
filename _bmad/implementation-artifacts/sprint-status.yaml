@@ -86,7 +86,7 @@ development_status:
   3-15-the-work-that-carries-on-after-a-stop: done
   epic-3-retrospective: done
 
-  epic-4: in-progress
+  epic-4: done
   4-1-choose-who-is-in-the-room: done
   4-2-everyone-stays-in-the-room: done
   4-3-what-the-room-is-about-on-screen: done
@@ -535,7 +535,7 @@ action_items:
       the cast or resets counters; add a test that hydrates a snapshot while main
       holds a live room."
     owner: "dev"
-    status: open
+    status: done
     ref: "_bmad/implementation-artifacts/epic-4-retro-2026-10-08.md"
   - id: "epic-4-retro-item-50-make-a-refused-room-send-honest-f2-on-se"
     epic: 4
@@ -544,7 +544,7 @@ action_items:
       room during an in-flight send shows no failure; replace the two tests that pin
       the silent behavior."
     owner: "dev"
-    status: open
+    status: done
     ref: "_bmad/implementation-artifacts/epic-4-retro-2026-10-08.md"
   - id: "epic-4-retro-item-51-decide-and-fix-what-the-room-shows-when"
     epic: 4
@@ -622,7 +622,7 @@ action_items:
       at narrow widths) into deferred-work.md now; set epic-4 to done in sprint status
       after the verdict decision."
     owner: "Sherif"
-    status: open
+    status: done
     ref: "_bmad/implementation-artifacts/epic-4-retro-2026-10-08.md"
   - id: "epic-4-retro-item-59-low-severity-bundle-f10-f11-f12-capitali"
     epic: 4
