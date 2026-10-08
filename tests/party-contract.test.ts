@@ -145,8 +145,20 @@ describe('what the room’s header and panel do not draw (Story 4.3)', () => {
     expect(stripped(read('src/renderer/ui/shell/shell.css'))).toMatch(/@media \(max-width: 1180px\)\s*\{\s*\.party-side\s*\{\s*display: none;/)
   })
 
-  it('wires no handler for the header button in the app, and nothing else for the summary', () => {
-    expect(stripped(read('src/renderer/ui/app.tsx'))).not.toMatch(/onWriteSummary/)
+  it('wires the header button in the app to the conversation, which only asks the room to write', () => {
+    expect(stripped(read('src/renderer/ui/app.tsx'))).toContain('onWriteSummary={conversation.writeSummary}')
     expect(stripped(read(`${PARTY}/party-header.tsx`))).toContain('disabled={onWriteSummary === undefined}')
+  })
+
+  it('writes nothing of the summary: no renderer or main source names the party directory or writes a file for it', () => {
+    const sources = [...filesUnder('src/renderer'), ...filesUnder('src/main')].filter(
+      (path) => /\.tsx?$/.test(path) && !/\.test\.tsx?$/.test(path)
+    )
+    for (const path of sources) {
+      expect(stripped(read(path)), path).not.toMatch(/_bmad\/party/)
+    }
+    for (const path of filesUnder('src/renderer').filter((file) => /\.tsx?$/.test(file) && !/\.test\./.test(file))) {
+      expect(stripped(read(path)), path).not.toMatch(/node:fs|from 'fs'|require\(['"]fs/)
+    }
   })
 })

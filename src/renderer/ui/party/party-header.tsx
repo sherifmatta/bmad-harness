@@ -17,13 +17,13 @@ function Elapsed({ since }: { since: number }): JSX.Element {
 
 /**
  * The party header (Story 4.3, FR67): what the room is about, how many are in it, how many turns
- * it has had and for how long, and the button that will write its summary. Drawn only while a room
+ * it has had and for how long, and the button that asks the room to write its summary. Drawn only while a room
  * is live, above the cast strip and across the full width.
  *
  * The topic is the user's own first message, handed in as it was shaped (a string drawn as text);
  * with none it reads `no topic yet`. The button is a native `<button>` that takes the shared
- * `:focus-visible` ring. It has no handler of its own: `onWriteSummary` is the caller's (Story 4.4),
- * and without one the button is disabled. There is no pause control, no disagreement chip and no
+ * `:focus-visible` ring. It has no handler of its own: `onWriteSummary` is the caller's (Story 4.4: the room's
+ * session is asked, as one turn, to write the file), and without one the button is disabled. There is no pause control, no disagreement chip and no
  * title, and nothing here announces.
  */
 export function PartyHeader({

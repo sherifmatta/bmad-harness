@@ -1,7 +1,8 @@
 import type { ConversationSnapshot, RunCardSnapshot, SyslineRecord } from '../../../shared/conversation'
 import type { ContractEvent, PersonaState } from '../../../shared/events'
 import type { AgentView } from '../../../shared/install'
-import { roomTopicOf } from '../../../shared/room-destination'
+import { roomDestination, roomTopicOf } from '../../../shared/room-destination'
+import { roomSummaryTurn } from '../../../shared/room-summary'
 import { withPulled } from '../../../shared/section-plan'
 import type { RunCardEntry, TranscriptEntry, UserEntry } from './transcript-entry'
 
@@ -344,14 +345,37 @@ export function roomSent(
   if (state.room === undefined) {
     return { state }
   }
-  const entry: UserEntry = { kind: 'user', id: `entry-${state.nextId}`, at, text, room: true }
-  const sent = withBusy(withEntry(state, entry), state.room, true)
+  const sent = withRoomEntry(state, state.room, at, text)
   // The first message is the topic, once: a room with one keeps it, and a message with no text in it is none.
   const topic = state.roomTopic === undefined ? roomTopicOf(text) : state.roomTopic
   return {
     state: topic === '' ? sent : { ...sent, roomTopic: topic },
     sessionId: state.room
   }
+}
+
+/** One room user entry for `text` and the room busy from now: what a send into the room does to the state. */
+function withRoomEntry(state: ConversationState, room: string, at: number, text: string): ConversationState {
+  const entry: UserEntry = { kind: 'user', id: `entry-${state.nextId}`, at, text, room: true }
+  return withBusy(withEntry(state, entry), room, true)
+}
+
+/**
+ * The user pressed *Write summary to `_bmad/`* (Story 4.4): the room's own session is asked, as one turn,
+ * to write its summary to the destination the header and the panel show. `text` is the ask for the
+ * destination as it stands at the press; the entry shows what was sent and the room is busy, as with any
+ * message into the room. The ask is never the topic, so the room's topic is left as it was. Without a live
+ * room there is nothing to ask and nothing is sent.
+ */
+export function roomSummaryAsked(
+  state: ConversationState,
+  at: number
+): { state: ConversationState; sessionId?: string; text?: string } {
+  if (state.room === undefined) {
+    return { state }
+  }
+  const text = roomSummaryTurn(roomDestination(state.roomOpenedAt, state.roomTopic))
+  return { state: withRoomEntry(state, state.room, at, text), sessionId: state.room, text }
 }
 
 /**

@@ -2,7 +2,7 @@
 import { act, createElement } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { Root } from 'react-dom/client'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { AgentView } from '../../../shared/install'
 import type { TranscriptEntry } from '../chat/transcript-entry'
@@ -15,15 +15,15 @@ const LINE: TranscriptEntry = { kind: 'sysline', id: 'm-0', at: 1, text: 'room o
 let container: HTMLElement
 let root: Root
 
-function mount(room: string | undefined): void {
+function mount(room: string | undefined, onWriteSummary?: () => void): void {
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
-  update(room)
+  update(room, onWriteSummary)
 }
 
-function update(room: string | undefined): void {
-  act(() => root.render(createElement(PartyView, { agents: [mary], room, roomCast: [mary.id], speaker: undefined, entries: [LINE], topic: undefined, openedAt: 1, turns: 0, rows: [], onOpen: () => {}, onSend: () => {} })))
+function update(room: string | undefined, onWriteSummary?: () => void): void {
+  act(() => root.render(createElement(PartyView, { agents: [mary], room, roomCast: [mary.id], speaker: undefined, entries: [LINE], topic: undefined, openedAt: 1, turns: 0, rows: [], onOpen: () => {}, onSend: () => {}, onWriteSummary })))
 }
 
 afterEach(() => {
@@ -78,5 +78,25 @@ describe('PartyView focus', () => {
 
     expect(document.activeElement).toBe(document.body)
     expect(thread().tabIndex).toBe(-1)
+  })
+})
+
+describe('PartyView summary button (Story 4.4)', () => {
+  const write = (): HTMLButtonElement => container.querySelector('button.party-write') as HTMLButtonElement
+
+  it('calls the handler when the header button is pressed in a live room', () => {
+    const pressed = vi.fn()
+    mount('r1', pressed)
+
+    expect(write().disabled).toBe(false)
+    act(() => write().click())
+
+    expect(pressed).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the button disabled with no handler', () => {
+    mount('r1')
+
+    expect(write().disabled).toBe(true)
   })
 })

@@ -15,6 +15,7 @@ import {
   orphansOf,
   roomReady,
   roomSent,
+  roomSummaryAsked,
   roomTurnsOf,
   runCardOf,
   sendMessage,
@@ -1136,5 +1137,53 @@ describe('what the room is about (Story 4.3)', () => {
   it('has no turns without a room', () => {
     expect(roomTurnsOf(initialConversation)).toBe(0)
     expect(roomTurnsOf(fold(fold(live(100), spoke(mary.id, 'm#1', 105)), closed('r1')))).toBe(0)
+  })
+})
+
+describe('asking the room for its summary (Story 4.4)', () => {
+  const opened = (sessionId: string, at: number): ContractEvent => ({ name: 'session:opened', payload: { sessionId, at } })
+  const fold = (state: ConversationState, ...events: ContractEvent[]): ConversationState =>
+    events.reduce((held, event) => foldEvent(held, event, agentOf).state, state)
+  const at = Date.parse('2026-10-08T14:31:00')
+  const live = (): ConversationState => fold(initialConversation, opened('r1', at))
+
+  it('records one room user entry with the ask, marks the room busy and returns the session and the text', () => {
+    const topical = roomSent(live(), at + 10, 'Payouts').state
+    const asked = roomSummaryAsked(topical, at + 20)
+
+    expect(asked.sessionId).toBe('r1')
+    expect(asked.text).toContain('_bmad/party/2026-10-08-payouts.md')
+    expect(asked.text?.startsWith('Write a summary of this conversation to _bmad/party/2026-10-08-payouts.md. Cover')).toBe(true)
+    expect(asked.state.entries.slice(topical.entries.length)).toEqual([
+      { kind: 'user', id: `entry-${topical.nextId}`, at: at + 20, text: asked.text, room: true }
+    ])
+    expect(asked.state.busy.has('r1')).toBe(true)
+    expect(asked.state.queue.size).toBe(0)
+  })
+
+  it('carries <topic> when the room has none yet, and leaves the topic unset', () => {
+    const asked = roomSummaryAsked(live(), at + 5)
+
+    expect(asked.text).toContain('_bmad/party/2026-10-08-<topic>.md')
+    expect(asked.state.roomTopic).toBeUndefined()
+    expect(roomSent(asked.state, at + 6, 'Payouts').state.roomTopic).toBe('Payouts')
+  })
+
+  it('leaves a topic already set as it was', () => {
+    const topical = roomSent(live(), at + 10, 'Payouts').state
+
+    expect(roomSummaryAsked(topical, at + 20).state.roomTopic).toBe('Payouts')
+  })
+
+  it('is sent into a busy room as well, with no gate and no queue', () => {
+    const busy = fold(live(), { name: 'persona:said', payload: { sessionId: 'r1', agentId: mary.id, messageId: 'm#1', text: 'Hi', at: at + 1, room: true } })
+    const asked = roomSummaryAsked(busy, at + 2)
+
+    expect(asked.sessionId).toBe('r1')
+    expect(asked.state.queue.size).toBe(0)
+  })
+
+  it('sends nothing without a live room', () => {
+    expect(roomSummaryAsked(initialConversation, 1)).toEqual({ state: initialConversation })
   })
 })

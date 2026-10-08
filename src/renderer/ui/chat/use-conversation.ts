@@ -18,6 +18,7 @@ import {
   orphansOf,
   roomReady,
   roomSent,
+  roomSummaryAsked,
   roomTurnsOf,
   runCardOf,
   sendMessage,
@@ -67,6 +68,12 @@ export type Conversation = {
    * any other clears the busy mark and is the failure line.
    */
   sendToRoom(text: string): void
+  /**
+   * The user pressed *Write summary to `_bmad/`* (Story 4.4): the room's session is asked, as one turn
+   * and with no gate, to write its summary to the destination the panel shows. Handled as `sendToRoom`
+   * is; nothing is written here, and with no live room nothing is sent.
+   */
+  writeSummary(): void
   /** The user sent `text` to a persona. */
   send(agentId: string, text: string): void
   /** The user took a queued message back, by its transcript entry's id. */
@@ -168,6 +175,20 @@ export function createConversation(deps: ConversationDeps): Conversation {
     if (live) {
       onFailure(asHarnessError(reason))
     }
+  }
+
+  /**
+   * Send `text` into the room's session, with no gate. Busy: main could not interrupt in time and the turn
+   * goes on; the entry stays and the room stays busy. Any other refusal clears the busy mark and is the failure line.
+   */
+  function transmitToRoom(sessionId: string, text: string): void {
+    bridge.sendTurn(sessionId, text).catch((reason: unknown) => {
+      if (asHarnessError(reason).code === 'session/busy') {
+        return
+      }
+      commit(dispatchFailed(state, sessionId))
+      fail(reason)
+    })
   }
 
   /** Write a turn to its session; a refusal means no turn is in flight on its account. */
@@ -374,16 +395,18 @@ export function createConversation(deps: ConversationDeps): Conversation {
       if (sent.sessionId === undefined) {
         return
       }
-      const sessionId = sent.sessionId
       commit(sent.state)
-      bridge.sendTurn(sessionId, text).catch((reason: unknown) => {
-        // Busy: main could not interrupt in time and the turn goes on; the entry stays, the room stays busy.
-        if (asHarnessError(reason).code === 'session/busy') {
-          return
-        }
-        commit(dispatchFailed(state, sessionId))
-        fail(reason)
-      })
+      transmitToRoom(sent.sessionId, text)
+    },
+
+    writeSummary() {
+      onFailure(null)
+      const asked = roomSummaryAsked(state, now())
+      if (asked.sessionId === undefined || asked.text === undefined) {
+        return
+      }
+      commit(asked.state)
+      transmitToRoom(asked.sessionId, asked.text)
     },
 
     send(agentId, text) {
@@ -503,6 +526,8 @@ export function useConversation(
   speaker: string | undefined
   /** Send text into the room, with no gate; main interrupts the speaker. */
   sendToRoom: (text: string) => void
+  /** Ask the room's session to write its summary to the destination the panel shows. */
+  writeSummary: () => void
   send: (agentId: string, text: string) => void
   cancel: (entryId: string) => void
   end: (projectId: string) => Promise<boolean>
@@ -577,6 +602,7 @@ export function useConversation(
     []
   )
   const sendToRoom = useCallback((text: string) => conversation.current?.sendToRoom(text), [])
+  const writeSummary = useCallback(() => conversation.current?.writeSummary(), [])
   const send = useCallback(
     (agentId: string, text: string) => conversation.current?.send(agentId, text),
     []
@@ -627,6 +653,7 @@ export function useConversation(
     roomTurns: roomTurnsOf(state),
     speaker: speakerOf(state),
     sendToRoom,
+    writeSummary,
     send,
     cancel,
     end,

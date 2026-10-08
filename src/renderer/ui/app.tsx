@@ -277,6 +277,7 @@ export function App(): JSX.Element | null {
             rows={rail?.rows ?? []}
             onOpen={(cast) => void conversation.openRoom(cast)}
             onSend={conversation.sendToRoom}
+            onWriteSummary={conversation.writeSummary}
           />
         }
         composer={(agent, items) => (

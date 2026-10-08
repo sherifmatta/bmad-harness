@@ -2012,6 +2012,33 @@ describe('the party view (Story 4.1)', () => {
     expect(panel()).toContain('_bmad/party/2026-10-08-payouts.md')
   })
 
+  it('asks the room’s session to write its summary when *Write summary to _bmad/* is pressed, and writes nothing itself (Story 4.4)', async () => {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    click(partyButton())
+    click(openButton())
+    const openedAt = new Date(2026, 9, 8, 14, 31).getTime()
+    push({ name: 'session:opened', payload: { sessionId: 'session-of-the-room', at: openedAt } })
+    await settle()
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 'session-of-the-room', at: openedAt + 1 } })
+
+    const write = party().querySelector<HTMLButtonElement>('.party-write') as HTMLButtonElement
+    expect(write.disabled).toBe(false)
+    const destination = '_bmad/party/2026-10-08-<topic>.md'
+    expect(party().querySelector('.party-side')?.textContent).toContain(destination)
+
+    click(write)
+    await settle()
+
+    expect(sent).toHaveLength(1)
+    expect(sent[0][0]).toBe('session-of-the-room')
+    expect(sent[0][1]).toContain(`Write a summary of this conversation to ${destination}. Cover`)
+    expect([...party().querySelectorAll('.turn--user .turn-words')].map((words) => words.textContent)).toEqual([sent[0][1]])
+    // The ask is not the topic.
+    expect(party().querySelector('.party-head-topic')?.textContent).toBe('no topic yet')
+  })
+
   it('returns the chooser when the room closes, and leaves the old line where it fell', async () => {
     mounted = mount(createElement(App))
     await settle()
