@@ -76,6 +76,25 @@ describe('PartyHeader', () => {
     expect(pressed).toHaveBeenCalledTimes(1)
   })
 
+  it('draws `stop room` after the write button only with a handler, as a plain native button', () => {
+    mount()
+    expect(container.querySelector('.party-stop')).toBeNull()
+    expect(container.querySelectorAll('button')).toHaveLength(1)
+
+    act(() => root.unmount())
+    container.remove()
+    const stopped = vi.fn()
+    mount({ onStop: stopped, onWriteSummary: vi.fn() })
+    const buttons = [...container.querySelectorAll('button')]
+    expect(buttons.map((b) => b.textContent)).toEqual(['Write summary to _bmad/', 'stop room'])
+    const stop = buttons[1] as HTMLButtonElement
+    expect(stop.type).toBe('button')
+    expect(stop.className).toBe('party-stop')
+    expect(stop.getAttributeNames().sort()).toEqual(['class', 'type'])
+    act(() => stop.click())
+    expect(stopped).toHaveBeenCalledTimes(1)
+  })
+
   it('has no pause control, no disagreement chip, no live region and no role', () => {
     mount({ topic: 'x', turns: 2 })
 

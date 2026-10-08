@@ -439,9 +439,10 @@ async function readPlanOf(ctx: Context, projectRoot: string, skill: string): Pro
 }
 
 // Ends one session of this window: its process is killed and it is closed
-// through `finish`, so `session:closed` is emitted. The transcript is not
-// touched, and neither is any other session. Nothing else ends a session
-// short of the conversation ending, the process exiting or the window going.
+// through `finish`, so `session:closed` is emitted. A room (no agent) says one
+// harness line first (Story 4.5). The transcript is not otherwise touched, and
+// neither is any other session. Nothing else ends a session short of the
+// conversation ending, the process exiting or the window going.
 function closeSession(ctx: Context) {
   return (event: IpcMainInvokeEvent, sessionId: unknown): CloseReply => {
     const sender = senderOf(event)
@@ -449,6 +450,9 @@ function closeSession(ctx: Context) {
     const entry = typeof sessionId === 'string' ? service?.bySession.get(sessionId) : undefined
     if (service === undefined || entry === undefined || entry.closed) {
       return NOT_FOUND
+    }
+    if (entry.agentId === undefined) {
+      ctx.registry.say(sender, entry, LINES.roomStopped)
     }
     entry.session?.kill()
     ctx.registry.finish(sender, service, entry, 'closed')

@@ -48,3 +48,8 @@
 .turn--party-live {
   box-shadow: var(--inset-turn-party-live);
 }
+
+/* A stopped room (Story 4.5): its read-only thread sits above the chooser in the same column, with a gap between. */
+.party-thread + .cast-chooser {
+  margin-top: var(--space-xxl);
+}

@@ -23,7 +23,8 @@ function Elapsed({ since }: { since: number }): JSX.Element {
  * The topic is the user's own first message, handed in as it was shaped (a string drawn as text);
  * with none it reads `no topic yet`. The button is a native `<button>` that takes the shared
  * `:focus-visible` ring. It has no handler of its own: `onWriteSummary` is the caller's (Story 4.4: the room's
- * session is asked, as one turn, to write the file), and without one the button is disabled. There is no pause control, no disagreement chip and no
+ * session is asked, as one turn, to write the file), and without one the button is disabled. `onStop` (Story 4.5) draws `stop room`
+ * after it, the header's only control that ends the room. There is no disagreement chip and no
  * title, and nothing here announces.
  */
 export function PartyHeader({
@@ -31,7 +32,8 @@ export function PartyHeader({
   participants,
   openedAt,
   turns,
-  onWriteSummary
+  onWriteSummary,
+  onStop
 }: {
   /** What the room is about, or `undefined` until the user's first message. */
   topic: string | undefined
@@ -43,6 +45,8 @@ export function PartyHeader({
   turns: number
   /** Called when *Write summary to `_bmad/`* is pressed; the button is disabled without it. */
   onWriteSummary?: (() => void) | undefined
+  /** Called when `stop room` is pressed (Story 4.5); without it the header draws no stop control. */
+  onStop?: (() => void) | undefined
 }): JSX.Element {
   return (
     <div className="party-head">
@@ -62,6 +66,11 @@ export function PartyHeader({
       <button type="button" className="party-write" disabled={onWriteSummary === undefined} onClick={onWriteSummary}>
         Write summary to _bmad/
       </button>
+      {onStop !== undefined && (
+        <button type="button" className="party-stop" onClick={onStop}>
+          stop room
+        </button>
+      )}
     </div>
   )
 }

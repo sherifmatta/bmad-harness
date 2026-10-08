@@ -15,15 +15,15 @@ const LINE: TranscriptEntry = { kind: 'sysline', id: 'm-0', at: 1, text: 'room o
 let container: HTMLElement
 let root: Root
 
-function mount(room: string | undefined, onWriteSummary?: () => void): void {
+function mount(room: string | undefined, onWriteSummary?: () => void, onStop?: () => void, entries: readonly TranscriptEntry[] = [LINE]): void {
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
-  update(room, onWriteSummary)
+  update(room, onWriteSummary, onStop, entries)
 }
 
-function update(room: string | undefined, onWriteSummary?: () => void): void {
-  act(() => root.render(createElement(PartyView, { agents: [mary], room, roomCast: [mary.id], speaker: undefined, entries: [LINE], topic: undefined, openedAt: 1, turns: 0, rows: [], onOpen: () => {}, onSend: () => {}, onWriteSummary })))
+function update(room: string | undefined, onWriteSummary?: () => void, onStop?: () => void, entries: readonly TranscriptEntry[] = [LINE]): void {
+  act(() => root.render(createElement(PartyView, { agents: [mary], room, roomCast: [mary.id], speaker: undefined, entries, topic: undefined, openedAt: 1, turns: 0, rows: [], onOpen: () => {}, onSend: () => {}, onWriteSummary, onStop })))
 }
 
 afterEach(() => {
@@ -98,5 +98,70 @@ describe('PartyView summary button (Story 4.4)', () => {
     mount('r1')
 
     expect(write().disabled).toBe(true)
+  })
+})
+
+describe('PartyView stopped room (Story 4.5)', () => {
+  const stop = (): HTMLButtonElement | null => container.querySelector('button.party-stop')
+  const SAID: TranscriptEntry = { kind: 'sysline', id: 'm-1', at: 2, text: 'room stopped · session released', room: true }
+  const OTHER: TranscriptEntry = { kind: 'sysline', id: 'm-2', at: 3, text: 'not the room’s' }
+
+  it('offers `stop room` in a live room, and calls the handler', () => {
+    const stopped = vi.fn()
+    mount('r1', undefined, stopped)
+
+    act(() => stop()?.click())
+
+    expect(stopped).toHaveBeenCalledTimes(1)
+  })
+
+  it('draws the room’s entries read-only above the chooser, with no header, strip, panel or composer', () => {
+    mount(undefined, undefined, undefined, [LINE, SAID, OTHER])
+
+    const column = container.querySelector('.party-column') as HTMLElement
+    expect([...column.children].map((child) => child.className)).toEqual(['party-thread', 'cast-chooser'])
+    expect(thread().textContent).toContain('room opened by you')
+    expect(thread().textContent).toContain('room stopped · session released')
+    expect(thread().textContent).not.toContain('not the room’s')
+    expect(container.querySelector('.party-head, .cast-strip, .party-side, textarea')).toBeNull()
+    expect(stop()).toBeNull()
+    expect(container.querySelector('.turn--party-live')).toBeNull()
+  })
+
+  it('is the chooser alone with no room entry', () => {
+    mount(undefined, undefined, undefined, [OTHER])
+
+    expect(thread()).toBeNull()
+    expect(container.querySelector('.cast-chooser')).not.toBeNull()
+  })
+
+  it('moves focus to the thread when the room goes under a focused `stop room`', () => {
+    mount('r1', undefined, () => {})
+    act(() => stop()?.focus())
+    expect(document.activeElement).toBe(stop())
+
+    update(undefined, undefined, () => {}, [LINE, SAID])
+
+    expect(document.activeElement).toBe(thread())
+  })
+
+  it('takes no focus when a room goes and focus was never inside the view', () => {
+    mount('r1', undefined, () => {})
+
+    update(undefined, undefined, () => {}, [LINE, SAID])
+
+    expect(document.activeElement).toBe(document.body)
+  })
+
+  it('keeps the earlier entries above a new room opened later', () => {
+    mount(undefined, undefined, undefined, [LINE, SAID])
+    update('r2', undefined, undefined, [LINE, SAID])
+
+    expect(thread().textContent).toContain('room opened by you')
+    expect(thread().textContent).toContain('room stopped · session released')
+    expect(container.querySelector('.party-head')).not.toBeNull()
+    // The new room's own count and topic start fresh.
+    expect(container.querySelector('.party-head-topic')?.textContent).toBe('no topic yet')
+    expect([...container.querySelectorAll('.party-chip')].map((chip) => chip.textContent)).toEqual(['1 participant', expect.stringMatching(/^turn 0\b/)])
   })
 })

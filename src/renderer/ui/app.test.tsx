@@ -2051,6 +2051,73 @@ describe('the party view (Story 4.1)', () => {
     expect(openButton()).not.toBeNull()
   })
 
+  it('stops the room with `stop room`: the session closes, the thread stays with the stop line above the chooser, and only *End session* clears it (Story 4.5)', async () => {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    click(partyButton())
+    click(openButton())
+    await settle()
+    push({ name: 'session:opened', payload: { sessionId: 'session-of-the-room', at: 1 } })
+    push({
+      name: 'harness:said',
+      payload: { sessionId: 'session-of-the-room', id: 'm-0', text: 'room opened by you · present · Mary · John', at: 2, room: true }
+    })
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 'session-of-the-room', at: 3 } })
+    push({
+      name: 'persona:said',
+      payload: { sessionId: 'session-of-the-room', agentId: mary.id, messageId: 'm#1', text: 'Hello room', at: 4, room: true }
+    })
+    const stop = party().querySelector<HTMLButtonElement>('button.party-stop') as HTMLButtonElement
+    expect(stop.textContent).toBe('stop room')
+    const endButton = [...mounted.container.querySelectorAll('.topbar button')].find((button) => button.textContent === 'End session') as HTMLButtonElement
+    expect(endButton.disabled).toBe(false)
+
+    click(stop)
+    await settle()
+
+    expect(closedSessions).toEqual(['session-of-the-room'])
+    expect(ended).toEqual([])
+    // Main says its line, then closes; the room is gone only on session:closed.
+    push({
+      name: 'harness:said',
+      payload: { sessionId: 'session-of-the-room', id: 'm-1', text: 'room stopped · session released', at: 5, room: true }
+    })
+    push({ name: 'session:closed', payload: { sessionId: 'session-of-the-room', reason: 'closed', at: 6 } })
+
+    expect(party().querySelector('.party-head, .cast-strip, .party-side, textarea')).toBeNull()
+    expect(party().querySelector('button.party-stop')).toBeNull()
+    expect(openButton()).not.toBeNull()
+    expect(party().querySelector('.party-thread')?.textContent).toContain('Hello room')
+    expect([...party().querySelectorAll('.sysline')].map((line) => line.textContent)).toEqual([
+      'room opened by you · present · Mary · John',
+      'room stopped · session released'
+    ])
+    expect(party().querySelector('.turn--party-live')).toBeNull()
+    expect(endButton.disabled).toBe(false)
+
+    click(endButton)
+    await settle()
+
+    expect(ended).toEqual(['/work/falcon'])
+    expect(party().querySelector('.party-thread')).toBeNull()
+    expect(openButton()).not.toBeNull()
+  })
+
+  it('shows the same stopped view when the room’s process exits on its own (Story 4.5)', async () => {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    push({ name: 'session:opened', payload: { sessionId: 'r1', at: 1 } })
+    push({ name: 'harness:said', payload: { sessionId: 'r1', id: 'm-0', text: 'session ended · the process exited', at: 2, room: true } })
+    push({ name: 'session:closed', payload: { sessionId: 'r1', reason: 'process-exited', at: 3 } })
+
+    expect([...party().querySelectorAll('.party-thread .sysline')].map((line) => line.textContent)).toEqual([
+      'session ended · the process exited'
+    ])
+    expect(openButton()).not.toBeNull()
+  })
+
   it('shows a file the room wrote as owned by the room, apart from a persona’s', async () => {
     mounted = mount(createElement(App))
     await settle()

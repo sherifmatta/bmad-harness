@@ -46,13 +46,28 @@ const render = (
   )
 
 describe('PartyView', () => {
-  it('is the chooser while there is no live room, whatever the transcript holds', () => {
-    const markup = render(undefined, [...OTHERS, ROOM_LINE])
+  it('is the chooser alone while there is no live room and the transcript holds no room entry', () => {
+    const markup = render(undefined, OTHERS)
 
     expect(markup).toContain('cast-chooser')
     expect(markup).not.toContain('party-thread')
     expect(markup).not.toContain('cast-strip')
-    expect(markup).not.toContain('room opened by you')
+  })
+
+  it('draws no live turn in a stopped room, whoever the speaker still reads as', () => {
+    const spoken: TranscriptEntry = { kind: 'persona', id: 'p2', at: 6, agent: mary, text: 'last words', room: true }
+    const markup = render(undefined, [ROOM_LINE, spoken], mary.id)
+
+    expect(markup).toContain('last words')
+    expect(markup).not.toContain('turn--party-live')
+  })
+
+  it('keeps the room’s entries, and none of the others, above the chooser once the room is gone (Story 4.5)', () => {
+    const markup = render(undefined, [...OTHERS, ROOM_LINE])
+
+    expect(markup).toContain('room opened by you')
+    expect(markup.indexOf('party-thread')).toBeLessThan(markup.indexOf('cast-chooser'))
+    expect(markup).not.toContain('cast-strip')
   })
 
   it('is the header, the strip, the party thread, the composer and the Room panel once a room is live', () => {

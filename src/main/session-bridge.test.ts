@@ -1042,6 +1042,15 @@ describe('session.close', () => {
     expect(sender.sent).toHaveLength(before)
   })
 
+  it('says nothing new when a persona session is closed', async () => {
+    const sender = new FakeSender(1)
+    const { reply } = await opened(sender, 'bmad-agent-pm')
+
+    expect(closeSession(sender, reply.sessionId)).toEqual({ ok: true })
+
+    expect(sender.events.filter((event) => event.name === 'harness:said')).toEqual([])
+  })
+
   it('closes a session whose turn is in flight', async () => {
     const sender = new FakeSender(1)
     const { reply, proc } = await opened(sender)
@@ -2210,7 +2219,54 @@ describe('the room (Story 4.1)', () => {
 
     const again = await openRoom(sender, Object.keys(FIVE))
     expect(again.reply.sessionId).toBe('s2')
-    expect(said(sender)).toHaveLength(2)
+    expect(said(sender).map(({ text }) => text)).toEqual([ROOM_SYSLINE, 'room stopped · session released', ROOM_SYSLINE])
+  })
+
+  it('says one line in the room’s register when it is closed, before session:closed, and keeps the room’s entries', async () => {
+    const sender = new FakeSender(1)
+    const { reply, proc } = await openRoom(sender, Object.keys(FIVE))
+    proc.frame(delta('kept words'))
+    proc.frame(result())
+    const before = registry.forProject('/project-1').entries()
+
+    expect(closeSession(sender, reply.sessionId)).toEqual({ ok: true })
+
+    const names = sender.events.map((event) => event.name)
+    expect(said(sender).filter(({ text }) => text === 'room stopped · session released')).toEqual([
+      { sessionId: 's1', id: expect.any(String), text: 'room stopped · session released', at: expect.any(Number), room: true }
+    ])
+    expect(names.lastIndexOf('harness:said')).toBeLessThan(names.indexOf('session:closed'))
+    const after = registry.forProject('/project-1').entries()
+    expect(after.slice(0, before.length)).toEqual(before)
+    expect(after).toHaveLength(before.length + 1)
+
+    // A second close finds nothing and says nothing.
+    expect(closeSession(sender, reply.sessionId)).toMatchObject({ ok: false, error: { code: 'session/not-found' } })
+    expect(said(sender).filter(({ text }) => text === 'room stopped · session released')).toHaveLength(1)
+  })
+
+  it('stops mid-turn: the words so far stay, one stop line is said before session:closed, and nothing follows it (Story 4.5)', async () => {
+    const sender = new FakeSender(1)
+    const { reply, proc } = await openRoom(sender, Object.keys(FIVE))
+    for (const frame of [messageStart('msg_1'), textStart, delta('🧙 **Mary:** par')]) proc.frame(frame)
+    expect(said(sender).map(({ text }) => text)).toEqual([ROOM_SYSLINE])
+
+    expect(closeSession(sender, reply.sessionId)).toEqual({ ok: true })
+    const settled = sender.events.length
+    const stored = registry.forProject('/project-1').entries()
+    proc.frame(delta('tial'))
+    proc.frame(result())
+    proc.exit()
+
+    const stops = said(sender).filter(({ text }) => text === 'room stopped · session released')
+    expect(stops).toHaveLength(1)
+    expect(sender.events.filter((event) => event.name === 'session:closed')).toHaveLength(1)
+    const names = sender.events.map((event) => event.name)
+    expect(names.filter((name) => name === 'persona:said')).toHaveLength(1)
+    expect(names.indexOf('harness:said', names.indexOf('persona:said'))).toBeLessThan(names.indexOf('session:closed'))
+    expect(stored.map((entry) => (entry.kind === 'persona' ? entry.text : ''))).toContain('par')
+    expect(sender.events).toHaveLength(settled)
+    expect(registry.forProject('/project-1').entries()).toEqual(stored)
   })
 
   it('closes when its process exits, in the room’s own register and not in a persona’s thread', async () => {

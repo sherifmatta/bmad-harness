@@ -278,6 +278,7 @@ export function App(): JSX.Element | null {
             onOpen={(cast) => void conversation.openRoom(cast)}
             onSend={conversation.sendToRoom}
             onWriteSummary={conversation.writeSummary}
+            onStop={() => void conversation.stopRoom()}
           />
         }
         composer={(agent, items) => (

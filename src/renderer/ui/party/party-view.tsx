@@ -27,7 +27,11 @@ function isRoomEntry(entry: TranscriptEntry): boolean {
  * room's entries, in time order: a persona's turn as a party turn, the user's own words as the user
  * turn (never queued: the room has no gate), and the harness's lines about the room as syslines.
  *
- * When the room opens, the button the user pressed goes with the chooser, so the thread
+ * When the room goes (Story 4.5), its entries stay: with no live room and at least one room entry
+ * the same thread is drawn read-only, none of it speaking, above the chooser in the one column, with
+ * no header, strip, panel or composer. With none it is the chooser alone.
+ *
+ * When the room opens, or goes, the button the user pressed goes with the control, so the thread
  * takes focus (it is focusable by script only) if focus was inside this view and has
  * nowhere else to be; a room that was already live on first render takes none.
  *
@@ -46,7 +50,8 @@ export function PartyView({
   rows,
   onOpen,
   onSend,
-  onWriteSummary
+  onWriteSummary,
+  onStop
 }: {
   agents: readonly AgentView[]
   /** The window's live room session, or `undefined` while there is none. */
@@ -71,6 +76,8 @@ export function PartyView({
   onSend: (text: string) => void
   /** Called when *Write summary to `_bmad/`* is pressed; the header's button is disabled without it. */
   onWriteSummary?: () => void
+  /** Called when `stop room` is pressed (Story 4.5); the header draws the control only with it. */
+  onStop?: () => void
 }): JSX.Element {
   const ordered = orderEntries(entries.filter(isRoomEntry))
   let lastSpoken = -1
@@ -81,11 +88,34 @@ export function PartyView({
   const focusInside = useRef(false)
   const wasLive = useRef(live)
   const thread = useRef<HTMLDivElement>(null)
+  /** The party thread, live or read-only; a stopped room has the same turns, none of them speaking. */
+  const threadOf = (
+    <div className="party-thread" ref={thread} tabIndex={-1}>
+      {ordered.map((entry, index) => {
+        if (entry.kind === 'persona') {
+          return (
+            <PartyTurn
+              key={entry.id}
+              agent={entry.agent}
+              at={entry.at}
+              text={entry.text}
+              live={live && index === lastSpoken && speaker === entry.agent.id}
+            />
+          )
+        }
+        if (entry.kind === 'user') {
+          return <UserTurn key={entry.id} at={entry.at} text={entry.text} user={entry.user} />
+        }
+        return entry.kind === 'sysline' ? <Sysline key={entry.id} text={entry.text} /> : null
+      })}
+    </div>
+  )
   useEffect(() => {
-    const opened = live && !wasLive.current
+    const changed = live !== wasLive.current
     wasLive.current = live
     const active = document.activeElement
-    if (opened && focusInside.current && (active === null || active === document.body)) {
+    // The room opened or went: the button or control the user pressed went with it, so the thread takes focus.
+    if (changed && focusInside.current && (active === null || active === document.body)) {
       thread.current?.focus()
     }
   }, [live])
@@ -101,6 +131,7 @@ export function PartyView({
       {room === undefined ? (
         <div className="party-scroll">
           <div className="party-column">
+            {ordered.length > 0 && threadOf}
             <CastChooser agents={agents} onOpen={onOpen} />
           </div>
         </div>
@@ -112,31 +143,14 @@ export function PartyView({
             openedAt={openedAt}
             turns={turns}
             onWriteSummary={onWriteSummary}
+            onStop={onStop}
           />
           <div className="party-body">
             <div className="party-main">
               <CastStrip agents={agents} cast={roomCast} speaker={speaker} />
               <div className="party-scroll">
                 <div className="party-column">
-                  <div className="party-thread" ref={thread} tabIndex={-1}>
-                    {ordered.map((entry, index) => {
-                      if (entry.kind === 'persona') {
-                        return (
-                          <PartyTurn
-                            key={entry.id}
-                            agent={entry.agent}
-                            at={entry.at}
-                            text={entry.text}
-                            live={index === lastSpoken && speaker === entry.agent.id}
-                          />
-                        )
-                      }
-                      if (entry.kind === 'user') {
-                        return <UserTurn key={entry.id} at={entry.at} text={entry.text} user={entry.user} />
-                      }
-                      return entry.kind === 'sysline' ? <Sysline key={entry.id} text={entry.text} /> : null
-                    })}
-                  </div>
+                  {threadOf}
                 </div>
               </div>
               <Composer agentName="the room" onSend={onSend} />

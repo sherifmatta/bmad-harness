@@ -101,6 +101,14 @@ export type Conversation = {
    */
   close(agentId: string): Promise<boolean>
   /**
+   * The user stops the room (Story 4.5): the room's own session is closed as a
+   * persona's is, and its `session:closed` is what removes the room here; the
+   * entries stay. Resolves true when it was closed (or was already gone); false
+   * with no live room, or when main refused, the refusal shown as the failure
+   * line. Nothing is cleared.
+   */
+  stopRoom(): Promise<boolean>
+  /**
    * End the conversation of `projectId`: main clears its transcript and closes
    * its sessions, and on its reply the window starts empty. Resolves true when
    * it ended; false when main refused, with the refusal shown as the failure
@@ -470,6 +478,25 @@ export function createConversation(deps: ConversationDeps): Conversation {
       return true
     },
 
+    async stopRoom() {
+      onFailure(null)
+      const room = state.room
+      if (room === undefined) {
+        return false
+      }
+      try {
+        await bridge.closeSession(room)
+      } catch (reason) {
+        // Already gone: main's `session:closed` was folded before this refusal.
+        if (state.room !== room) {
+          return true
+        }
+        fail(reason)
+        return false
+      }
+      return true
+    },
+
     async end(projectId) {
       onFailure(null)
       try {
@@ -533,6 +560,8 @@ export function useConversation(
   end: (projectId: string) => Promise<boolean>
   /** Close a persona's session; true when main did. */
   close: (agentId: string) => Promise<boolean>
+  /** Stop the room: close its session and leave its entries (Story 4.5); true when it closed. */
+  stopRoom: () => Promise<boolean>
   /** Personas with a live session the roster no longer has, in session order. */
   orphans: readonly AgentView[]
   /** The agent ids that have a live session, current or not. */
@@ -622,6 +651,7 @@ export function useConversation(
     async (agentId: string) => (await conversation.current?.close(agentId)) ?? false,
     []
   )
+  const stopRoom = useCallback(async () => (await conversation.current?.stopRoom()) ?? false, [])
   const orphans = useMemo(() => orphansOf(state, agents), [state, agents])
   const live = useMemo(() => new Set(state.sessions.keys()), [state.sessions])
 
@@ -658,6 +688,7 @@ export function useConversation(
     cancel,
     end,
     close,
+    stopRoom,
     orphans,
     live,
     canAnswer: answerable,

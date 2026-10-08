@@ -1709,3 +1709,78 @@ describe('writeSummary (Story 4.4)', () => {
     expect(last()?.entries ?? []).toEqual([])
   })
 })
+
+describe('stopRoom (Story 4.5)', () => {
+  const CAST = [mary.id, john.id]
+  const roomClosed = (sessionId: string): ContractEvent => ({
+    name: 'session:closed',
+    payload: { sessionId, reason: 'closed', at: 9 }
+  })
+  type Held = { room?: string; roomCast: readonly string[]; entries: readonly { kind: string; text?: string }[] }
+  const held = (published: object | undefined): Held => published as unknown as Held
+
+  async function live() {
+    const made = build()
+    await connected(made.conversation)
+    void made.conversation.openRoom(CAST)
+    bridge.openResult[0].resolve('r1')
+    await settle()
+    return made
+  }
+
+  it('closes the room’s own session once, and session:closed is what removes the room; the entries stay', async () => {
+    const { conversation, last, failures } = await live()
+    bridge.push({ name: 'persona:said', payload: { sessionId: 'r1', agentId: mary.id, messageId: 'm#1', text: 'Hi', at: 3, room: true } })
+
+    expect(await conversation.stopRoom()).toBe(true)
+
+    expect(bridge.closed).toEqual(['r1'])
+    expect(held(last()).room).toBe('r1')
+    expect(failures.filter((failure) => failure !== null)).toEqual([])
+    bridge.push(roomClosed('r1'))
+    expect(held(last()).room).toBeUndefined()
+    expect(held(last()).roomCast).toEqual([])
+    expect(held(last()).entries).toMatchObject([{ text: 'Hi' }])
+    expect(bridge.ends).toEqual([])
+  })
+
+  it('shows a refusal as the failure line, keeps the room and resolves false', async () => {
+    const { conversation, last, failures } = await live()
+    bridge.closeResults.push(Promise.reject({ code: 'session/not-found', message: 'session · no such session is open' }))
+
+    expect(await conversation.stopRoom()).toBe(false)
+
+    expect(failures.at(-1)).toMatchObject({ code: 'session/not-found' })
+    expect(held(last()).room).toBe('r1')
+  })
+
+  it('resolves true with no failure when the refusal comes after session:closed was folded', async () => {
+    const { conversation, failures } = await live()
+    const refused = deferred<void>()
+    bridge.closeResults.push(refused.promise)
+
+    const result = conversation.stopRoom()
+    bridge.push(roomClosed('r1'))
+    refused.reject({ code: 'session/not-found', message: 'session · no such session is open' })
+
+    expect(await result).toBe(true)
+    expect(failures.filter((failure) => failure !== null)).toEqual([])
+  })
+
+  it('sends nothing and resolves false with no live room', async () => {
+    const { conversation } = build()
+    await connected(conversation)
+
+    expect(await conversation.stopRoom()).toBe(false)
+    expect(bridge.closed).toEqual([])
+  })
+
+  it('leaves a persona’s session alone', async () => {
+    const { conversation } = await live()
+    bridge.push(opened('s2', mary.id))
+
+    await conversation.stopRoom()
+
+    expect(bridge.closed).toEqual(['r1'])
+  })
+})

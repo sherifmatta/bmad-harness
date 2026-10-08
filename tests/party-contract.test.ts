@@ -150,6 +150,21 @@ describe('what the room’s header and panel do not draw (Story 4.3)', () => {
     expect(stripped(read(`${PARTY}/party-header.tsx`))).toContain('disabled={onWriteSummary === undefined}')
   })
 
+  it('wires `stop room` in the app to the conversation, as the room’s own close and never the end of the conversation (Story 4.5)', () => {
+    expect(stripped(read('src/renderer/ui/app.tsx'))).toContain('onStop={() => void conversation.stopRoom()}')
+    expect(stripped(read(`${PARTY}/party-header.tsx`))).toMatch(/onStop !== undefined &&/)
+    expect(stripped(read(`${PARTY}/party-header.tsx`))).toContain('stop room')
+    const hook = stripped(read('src/renderer/ui/chat/use-conversation.ts'))
+    const from = hook.indexOf('async stopRoom()')
+    const to = hook.indexOf('async end(projectId)')
+    expect(from).toBeGreaterThanOrEqual(0)
+    expect(to).toBeGreaterThan(from)
+    const body = hook.slice(from, to)
+    expect(body.length).toBeGreaterThan(0)
+    expect(body).toContain('bridge.closeSession(room)')
+    expect(body).not.toMatch(/endConversation|commit\(/)
+  })
+
   it('writes nothing of the summary: no renderer or main source names the party directory or writes a file for it', () => {
     const sources = [...filesUnder('src/renderer'), ...filesUnder('src/main')].filter(
       (path) => /\.tsx?$/.test(path) && !/\.test\.tsx?$/.test(path)

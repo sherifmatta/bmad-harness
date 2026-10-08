@@ -41,7 +41,8 @@
   white-space: nowrap;
 }
 
-.party-write {
+.party-write,
+.party-stop {
   flex: 0 0 auto;
   padding: var(--party-button-padding);
   border: var(--rule-width) solid var(--line);
@@ -53,11 +54,13 @@
   cursor: pointer;
 }
 
-.party-write:hover:not(:disabled) {
+.party-write:hover:not(:disabled),
+.party-stop:hover:not(:disabled) {
   color: var(--text-strong);
   border-color: var(--ghost-border-hover);
 }
 
-.party-write:disabled {
+.party-write:disabled,
+.party-stop:disabled {
   cursor: default;
 }

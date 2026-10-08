@@ -1024,7 +1024,9 @@ describe("an orphaned session has one header and one control, and nothing else (
     expect(app).toMatch(/const closeSession = \(agentId: string\): void => \{\s*void conversation\.close\(/);
     expect(app).toMatch(/onCloseOrphan=\{closeSession\}/);
     expect(app).toMatch(/onCloseSession=\{closeSession\}/);
-    expect(hook.match(/bridge\.closeSession\(/g)).toHaveLength(1);
+    // The persona's close, and the room's own stop (Story 4.5), which only a button's handler calls.
+    expect(hook.match(/bridge\.closeSession\(/g)).toHaveLength(2);
+    expect(app.match(/conversation\.stopRoom\(/g)).toHaveLength(1);
     expect(hook).not.toMatch(/useEffect\([^)]*close\(/);
   });
 });
@@ -1669,7 +1671,12 @@ describe("the collapsed run card is one line, one expanding button and the stop 
     expect(stopLines(TRANSCRIPT).filter((line) => !/\bonStop\b/.test(line))).toEqual([]);
     expect(stopLines(TRANSCRIPT)).toHaveLength(4);
     expect(offenders([APP], /\brun\.stop\b/)).toEqual([]);
-    expect(stopLines(APP).filter((line) => !line.includes("onStop={conversation.stopRun}"))).toEqual([]);
+    // The room's own stop (Story 4.5) is a different control, handed to the party view and not to the run card.
+    expect(
+      stopLines(APP).filter(
+        (line) => !line.includes("onStop={conversation.stopRun}") && !line.includes("onStop={() => void conversation.stopRoom()}"),
+      ),
+    ).toEqual([]);
     expect(stopLines(APP).length).toBeGreaterThanOrEqual(2);
     // The one place the control is drawn is `run-stop.tsx`, as one native button; main names the declared
     // command once, to type the handler's reply, and answers it on its channel.

@@ -31,6 +31,8 @@ export const LINES = {
    * `bmad-ux` writes it, in the register of EXPERIENCE.md's sysline sample.
    */
   roomOpened: (names: readonly string[]): string => `room opened by you · present · ${names.join(' · ')}`,
+  /** Said once when the user stops a room (Story 4.5): the harness's own fact, never a persona's voice. */
+  roomStopped: 'room stopped · session released',
   quiet: (ms: number): string =>
     `no output for ${Math.round(ms / 1000)}s · the session may be stuck · close it to start over`
 }
