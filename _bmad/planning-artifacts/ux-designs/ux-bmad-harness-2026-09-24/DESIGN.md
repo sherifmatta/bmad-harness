@@ -17,6 +17,7 @@ sources:
   - mockups/light-theme.html
   - mockups/follow-the-thread.html
   - mockups/output-folder.html
+  - mockups/rail-resize-collapse.html
 companions:
   - EXPERIENCE.md
 
@@ -233,7 +234,10 @@ spacing:
   xl: 12px
   xxl: 14px
   # Binding layout constants (AD-14 names these as literals equal in force to the colours).
-  rail: 348px
+  rail: 348px                 # the DEFAULT width: resizable, see rail-min / rail-max
+  rail-min: 280px
+  rail-max: 560px
+  chat-min: 420px             # the chat column never narrows below this when the rail grows
   topbar: 42px
   rail-head: 30px
   legend: 24px
@@ -253,7 +257,10 @@ spacing:
   composer-min: 20px
   composer-max: 120px
   # 288px is superseded for v1 — see Layout & Spacing.
-  party-side: 240px   # DECIDED
+  party-side: 240px   # DECIDED, and now the DEFAULT width: resizable, see party-side-min / -max
+  party-side-min: 200px
+  party-side-max: 400px
+  party-main-min: 480px       # the party column never narrows below this when the panel grows
 
 components:
   status-dot:
@@ -426,6 +433,22 @@ components:
     state-line: '{typography.meta} mono, {colors.dim}, on {colors.panel}, padding 5px 11px, a 1px {colors.line-soft} rule below; present only while there is a state to say, one line, never two'
     group-label: 'the first group in the list is the watched folder itself, `{typography.badge}`-tier as every group label'
     colour: 'none — every state is text; no amber, no red, no icon'
+  splitter:
+    hit: '9px wide, full height of the panel, centred on the panel's inner border, cursor col-resize'
+    line: '1px {colors.line} (the panel border) at rest; {colors.accent-border} 3px on hover; {colors.accent} 3px while dragging or focused'
+    focus: 'the 3px accent line plus the shared ring {components.focus.ring}'
+    motion: 'none — the panel follows the pointer one frame at a time; no easing, no snap'
+    reset: 'double-click, or Enter when focused, returns the panel to its default width'
+    keys: 'ArrowLeft grows the panel 16px, ArrowRight shrinks it 16px, Shift 64px; Home min, End max'
+    aria: 'role=separator, aria-orientation=vertical, aria-label, aria-valuemin/max/now'
+    hidden: 'at ≤1000px (stacked layout) and wherever the panel is hidden (party side ≤1180px)'
+  folder-heading:
+    type: '{typography.badge}-tier mono 10px, tracking .04em, {colors.dim}; hover {colors.text-strong}'
+    chevron: 'one inline stroked path, 9px, 1.4 weight, round caps, currentColor; points right when collapsed, down when open; no rotation transition'
+    layout: 'full row button, padding 8px 11px 3px, gap 6px: chevron · folder path (ellipsis) · live state at the right'
+    live-state: 'while collapsed and a row under it is `changing`: {colors.amber} dot with the pulse, and the word `changing` in {typography.meta} mono'
+    count: 'none — a collapsed folder shows no number of files'
+    focus: 'the shared ring, inset (-2px) so it is not clipped by the rail'
   document-window:
     radius: '{rounded.window}'
     background: '{colors.panel}'
@@ -614,7 +637,8 @@ AD-14 names layout literals as equal in force to the colours. These are the cont
 
 | Constant | Value | Surface |
 |---|---|---|
-| Rail | **348px**, `flex:0 0` | 1:1 view, right side, split into two `flex:1 1 50%` halves — the **Team half** above, the **Outputs half** below |
+| Rail | **348px** by default, **resizable 280–560px**, `flex:0 0`; the chat column keeps **420px** at least | 1:1 view, right side, split into two `flex:1 1 50%` halves — the **Team half** above, the **Outputs half** below |
+| Room panel | **240px** by default, **resizable 200–400px**; the party column keeps **480px** at least | Party view, right side; hidden at ≤1180px |
 | Topbar | **42px** | `chrome`, 1px `line` bottom rule, 14px gap |
 | Rail head | **30px** | Head of each rail half |
 | Legend footer | **24px** | `chrome` |
@@ -629,6 +653,10 @@ AD-14 names layout literals as equal in force to the colours. These are the cont
 | Welcome window | **1080 × 720** | Separate window, no project. Its column is **560px**, its lanes **960px** max |
 
 Portrait render sizes are a closed set: **32** transcript, **36** persona tile, **38** chat header, **44** cast card. Persona tiles are 56px tall, so roughly six fit the Team half before it scrolls. **Tiles are grouped by the agent's `module` and `team` fields** (AD-10; the grouping rule is EXPERIENCE.md → *Interaction Primitives → Persona tile order*). The six-tile scroll limit is not the reason for the grouping — it is what makes the grouping load-bearing.
+
+### Resizing the side panels
+
+Both side panels, the rail in 1:1 and the Room panel in Party Mode, have a **splitter** on their inner edge (Components → Splitter). The widths above are **defaults**, and the old rule *348px is binding* (AD-14) and *288px must not be implemented* both survive as statements about the defaults. The ranges are fixed constants and the panels never overlap the column they border: the maximum is the smaller of the cap and what leaves the neighbouring column its minimum. The two widths are independent, and each is remembered per user.
 
 ### The party side panel — 288px is superseded
 
@@ -895,6 +923,14 @@ The first group label in the list is the watched folder itself, so a file direct
 
 The scrollbar, the shadow and the elevation ladder are not touched: this control casts no shadow, because the product reserves a shadow for the document window and the speaking cast card.
 
+### Splitter
+
+The edge of a side panel, drawn as the panel's own 1px `line` border with a 9px hit area centred on it. Hover widens the line to 3px in `accent-border`; dragging and keyboard focus make it 3px `accent`, and focus adds the shared ring. **It has no motion**: the panel follows the pointer one frame at a time, with no easing and no snapping to a width. Double-click, or `Enter` while it has focus, returns the panel to its default width. It is a `separator` with its value, minimum and maximum exposed, and it is not drawn at ≤1000px (the stacked layout) or wherever its panel is hidden.
+
+### Folder heading
+
+In the Outputs half, a directory group's heading is a button: a chevron, the directory path in `badge`-tier mono at `dim` (`text-strong` on hover), and, only while it is collapsed and a file under it is changing, the amber dot with the word `changing` at the right. The chevron is one inline stroked path like the file icon, and it changes direction without a transition. **There is no count of files.** The heading's whole row is the target and takes the shared ring, inset so the rail does not clip it. Collapsing hides the rows of that directory only; the headings of other directories are untouched.
+
 ### Document window
 
 A separate OS window over a `scrim` fill at z-40, window at z-50, top `8vh`, `min(880px,92vw) × min(760px,80vh)`. `panel` ground, 1px `win-line` (`#333b46`), `{rounded.window}` (8px) radius, `0 30px 70px -20px rgba(0,0,0,.85)`.
@@ -963,6 +999,8 @@ Streaming prose arrives in frame-sized bursts, with the caret at the tail. **A p
 | Set the theme from the stored choice and the OS appearance in main, before a window is first shown | Read `prefers-color-scheme` in a stylesheet or a component, or paint a window in one theme and then switch it |
 | Keep the portraits identical in both themes, on their dark backdrops | Give a portrait a theme-dependent backdrop, or a theme field in `ArtParams` |
 | Strengthen the state-dot halos in light (`.16`) | Reuse the dark alpha, which fades on white |
+| Let a collapsed folder keep showing a file that is changing, with its amber dot and `changing` | Hide a live state because its row is folded away, or replace it with a count |
+| Resize a panel with no easing and no snap, and return it to its default on double-click | Animate the panel's width, or snap it to preset widths |
 | Say a folder disagreement as one mono line, in `dim`, with both folders named | Colour it, add an icon or a warning treatment, or recommend which folder is right |
 | Show `↓ latest` as one literal string over a thread that is not following | Add a count, a dot, a *new* label, a pulse, or a shadow to it |
 | Ship the two themes and nothing else | Add a high-contrast variant, or a third palette |

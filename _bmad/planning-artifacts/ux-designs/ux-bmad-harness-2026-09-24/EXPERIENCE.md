@@ -16,6 +16,7 @@ sources:
   - mockups/light-theme.html
   - mockups/follow-the-thread.html
   - mockups/output-folder.html
+  - mockups/rail-resize-collapse.html
 companions:
   - DESIGN.md
 ---
@@ -43,6 +44,7 @@ Every rule below traces to a memlog decision, an architecture decision (AD-n), a
 | Theme | light and dark, the System default, where the choice lives, and what changing it touches |
 | Following the thread | what a thread does as it grows: follow, pause, and the way back |
 | Output folder | which folder the rail watches, how it is derived and chosen, and what follows it |
+| Resizing and folding | the two side panels' width, the Outputs folders' collapse, and what each remembers |
 | Dead Air | what the card does through a multi-minute silence |
 | Failure, Stopping and Contention | the stop cost, terminal states, and the no-arbitration posture |
 | Run Completion When Unattended | the notification contract for the terminal events |
@@ -74,9 +76,9 @@ Two top-level views behind a single switch — **1:1 Conversation** and **Party 
 | Topbar | always present | brand, project path, install chip, branch chip, view switch | `{spacing.topbar}`. The Help entry point is reserved but not rendered in v1 |
 | 1:1 Conversation | view switch | chat column + rail | default view |
 | Chat column | 1:1 | conversation entries in time order — persona turns, user turns, syslines, document cards; skill button row; composer | thread `{spacing.thread-max}` max-width |
-| Rail | 1:1 | split 50/50 — the **Team half** above, the **Outputs half** below | `{spacing.rail}` |
+| Rail | 1:1 | split 50/50 — the **Team half** above, the **Outputs half** below | `{spacing.rail}` by default; resizable (*Resizing and folding*) |
 | Persona tiles | rail, Team half | one per installed agent: portrait, name, title, state line; current marked with an accent edge | grouped, see *Interaction Primitives* |
-| Rail rows | rail, Outputs half | one row per file under `_bmad/` — path, owner, state, optional run annotation | disk truth only (AD-1) |
+| Rail rows | rail, Outputs half | one row per file under `_bmad/` — path, owner, state, optional run annotation — under a heading per directory that can be folded | disk truth only (AD-1) |
 | Document card | **inline in the conversation, in time order** | head / body / foot | run-scoped; never a panel |
 | Party Mode | view switch | cast, header, transcript, *Room* section | see *Party Mode* below |
 | Document window | click a rail row or a card path | read-only preview, reloads on write | separate OS window, outside the shell |
@@ -180,6 +182,8 @@ Project **content** is untrusted because it is largely model-authored (AD-13). M
 | Cast chooser | party, on opening | chooses the room; defaults to the five core personas |
 | *Write summary to `_bmad/`* | party header | writes `_bmad/party/<date>-<topic>.md` |
 | End session | shell | `conversation.end(projectId)` — **project-scoped**, the only way to clear a persisted conversation |
+| Splitter | the inner edge of the rail and of the Room panel | drags that panel's width; double-click or `Enter` resets it |
+| Folder heading | rail, Outputs half | folds or unfolds that directory's rows |
 | *Open project folder…* · `⌘O` | welcome | the native folder chooser; a choice opens that project's window |
 | Drop a folder | welcome | opens that project's window |
 | *View ▸ Theme ▸ System · Light · Dark* | application menu, every window | sets the theme for every window at once |
@@ -550,6 +554,48 @@ No prompt at open or at first run; no suggestion that the user should choose or 
 
 ---
 
+## Resizing and folding
+
+*Added 2026-10-08. Appearance: `DESIGN.md` → Components → Splitter, Folder heading. Prototype: `mockups/rail-resize-collapse.html`, which works: drag the edge, use the keys, fold a folder.*
+
+### Two side panels, each its own width
+
+The **rail** (1:1) and the **Room panel** (Party Mode) each have a splitter on their inner edge.
+
+| | Default | Range | Keeps its neighbour at |
+|---|---|---|---|
+| Rail | 348px | 280–560px | the chat column, 420px |
+| Room panel | 240px | 200–400px | the party column, 480px |
+
+- **A drag follows the pointer** a frame at a time: no easing, no snapping to presets, no inertia. Outside the range it holds at the limit. Releasing keeps the width.
+- **Double-click, or `Enter` on the focused splitter, returns the panel to its default.** `←` grows the panel and `→` shrinks it, by 16px, or 64px with `Shift`; `Home` and `End` go to the minimum and the maximum.
+- **The window shrinking** below what a width allows pulls the panel in to the maximum that now fits; it never overlaps its neighbour. The width the user chose is kept and returns when the window does.
+- **At ≤1000px**, where the layout stacks, there is no splitter and the rail takes the width of the column (as now). **At ≤1180px** the Room panel is hidden and so is its splitter, as now (NFR27: no breakpoint is added).
+- **Remembered per user**, not per project: two values, one for each panel, under `userData`. A value missing, unreadable or outside the range reads as the default, silently.
+- **Resizing touches nothing live.** It is a layout change: no session, run, transcript, card, scroll position or follow state (*Following the thread*) is affected, apart from the line wrapping the new width gives.
+
+### Folding the Outputs folders
+
+Each directory heading in the Outputs half is a button that folds that directory's rows away.
+
+- **Click, or `Enter`/`Space`, toggles it.** On a heading `←` folds and `→` unfolds. Focus stays on the heading, which is part of the list's one roving tab stop with the rows that are showing.
+- **Folding is of that directory only.** The groups are flat, one per directory: folding `_bmad/` does not fold `_bmad/ux/`.
+- **A live state is never folded out of sight.** While a directory is folded and a row under it is `changing` (the disk register, AD-2), its heading carries the amber dot with the pulse and the word `changing`, so a file being written is never hidden by a fold (AD-20: every indicator is driven by real state). When the file settles, the heading shows only its name. A run's *annotation* (owner, section) is not shown on a heading: it is a second register and is not merged (AD-2).
+- **No count.** A folded folder shows no number of files, saved or unread.
+- **Folded is not hidden from the system.** A file arriving in a folded folder does not unfold it, and does not move the user's focus or scroll; if it is changing, the heading says so. A folder emptied of files loses its heading as it does today.
+- **Remembered per project.** The set of folded directories is stored under `userData`, keyed by the project's path, as project-relative directory paths. It follows the directory, not the output folder: choosing another output folder (*Output folder*) leaves the entries in place for paths that still exist, and an entry for a directory that is gone is ignored. Unreadable or unknown entries read as unfolded, silently.
+- **No *collapse all* or *expand all*** in v1. **[ASSUMPTION]** — the prototype shows per-folder folding is enough for a rail with a handful of directories; add the pair if it stops being.
+
+### Accessibility
+
+A splitter is a `separator` that exposes its minimum, maximum and current value; a heading is a button with `aria-expanded` and `aria-controls`, so a fold is announced by the control itself and **neither is announced through the live region**. Both take the shared focus ring. Nothing here moves with motion, so there is nothing for `prefers-reduced-motion` to disable.
+
+### Banned here
+
+No animation of a width or a fold; no snap points or presets; no per-persona, per-project or per-window panel width; no count or badge on a folded folder; no unfold when something arrives; no *collapse all* in v1; no way to hide the rail or the Room panel altogether.
+
+---
+
 ## Dead Air
 
 [`mockups/document-card-dead-air.html`](mockups/document-card-dead-air.html) — the three treatments compared, the approved Option A among them, plus the same run seen from the collapsed card and the rail. Where it and this spine disagree, **this spine wins**.
@@ -741,7 +787,8 @@ With no command palette (*Banned everywhere*) there is no `⌘K` escape hatch, s
 | Composer | tab-reachable and **never disabled**. **[ASSUMPTION]** — `Enter` sends, `Shift+Enter` inserts a newline; no source specifies send keys. `⌘↵` does **not** send, and `DESIGN.md` drops it from the glyph inventory accordingly |
 | Decision option | each option is its own tab stop; `Enter`/`Space` chooses it, which sends the turn and removes the block |
 | Document card | the card is focusable; `Enter`/`Space` expands a collapsed card; the stop control is its own tab stop |
-| Rail — Outputs half | one tab stop for the list; arrows move between rows; `Enter` opens the document window |
+| Rail — Outputs half | one tab stop for the list; arrows move between **folder headings and the rows that are showing**; `Enter` opens the document window on a row, and `Enter`/`Space` folds or unfolds on a heading; on a heading `←` folds and `→` unfolds |
+| Splitter (rail, Room panel) | one tab stop each, between the panel's neighbour and the panel; `←` grows, `→` shrinks (16px, 64 with `Shift`), `Home`/`End` go to min and max, `Enter` resets |
 | Document window | `Esc` closes. The three escapes are tab-reachable |
 | Party | cast chooser, header controls and composer all tab-reachable; no turn gate means no focus trap |
 | Welcome | *Open project folder…*, the recent list and the three theme words are the tab stops; arrows move between recent rows, `Enter` opens, `⌘O` opens the chooser. Persona cards are content and are not tab stops. See *Welcome → Accessibility* |

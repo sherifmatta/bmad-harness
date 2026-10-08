@@ -181,6 +181,8 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **FR112:** A persona's thread and the party room's thread follow what is being said. While a thread is at its bottom (within one line), anything that lengthens it keeps its newest line in view in the same frame, instantly and without animation. A user scroll away from the bottom pauses following, and while paused nothing moves the thread. Scrolling back to the bottom, pressing `↓ latest`, or sending a message resumes it. A thread opened, reloaded or switched to lands at its bottom, following. The control carries no count or sign of what is below.
 - **FR113:** The folder the harness watches for a project's BMad output (the *output folder*) is, in order, the first usable of: the user's stored choice for that project (a folder inside the project, not the project folder itself, that exists); BMad's own `output_folder` from its resolved configuration (a usable folder inside the project); `_bmad/`. It is derived and never asked: no prompt at open or at first run. The user chooses it from `change…` in the Outputs head or *File ▸ Output Folder…* (the native folder chooser, opening in the folder now watched); a choice whose real path is outside the project, is the project folder, or is `.git` or `node_modules` or inside either, is refused and changes nothing. *File ▸ Use BMad's Output Folder* forgets the choice. The choice is stored per project under `userData`, never in the project, and is remembered while its folder is missing.
 - **FR114:** The output folder is what the rail's rows and groups, the document window's boundary for new opens, the Outputs empty state and the party summary's destination (ask, panel and header button) follow. The install, preflight and the resolvers stay at `_bmad/`, and no skill's writes are redirected. The Outputs head names the folder and says one fact beneath it when there is one: `bmad writes to · <folder>` when the choice differs from BMad's, `<chosen> · folder missing` when the choice is gone (the rail then uses BMad's folder), `not changed · <reason>` once when a choice is refused. A change repaints the rail in one frame and touches no session, run, transcript or open document window.
+- **FR115:** The rail in 1:1 and the Room panel in Party Mode are resizable by a splitter on their inner edge. The rail defaults to 348px and ranges 280–560px, keeping the chat column at 420px at least; the Room panel defaults to 240px and ranges 200–400px, keeping the party column at 480px at least. A drag follows the pointer with no easing or snapping; double-click or `Enter` resets the panel; `←`/`→` move it 16px (64 with `Shift`) and `Home`/`End` go to its limits. Each width is remembered per user under `userData`; an unreadable or out-of-range value reads as the default. Resizing touches no session, run, transcript or card, and adds no breakpoint.
+- **FR116:** Each directory heading in the Outputs half folds that directory's rows away, by click, `Enter`/`Space`, or `←`/`→`. Folding is of that directory only. While a directory is folded and a row under it is `changing`, its heading carries the amber dot and the word `changing`, so a live state is never folded out of sight. A folded folder shows no count of files, is not unfolded by a file arriving, and is remembered per project (project-relative directory paths, under `userData`). There is no collapse-all.
 
 ### NonFunctional Requirements
 
@@ -242,8 +244,8 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **UX-DR4:** Promote every recurring mockup literal to a named token: `accent-border`, `accent-wash`, `accent-edge`, `halo-live`, `halo-work`, `meta`, `ink-doc`, `ink-doc-strong`, `ink-doc-mute`, `ink-md`, `code-bg`, `code-ink`, the initials trio, `win-line`, `scrim`, and the legend-badge trio.
 - **UX-DR5:** Encode the full type scale as tokens — two platform font stacks (no webfont, no icon font, no network dependency), **thirteen** named sizes (`badge` 9 through `h1` 20), four line-heights (1.55 / 1.72 / 1.45 / 0), the tracking table, and **600 as the only non-default weight in the system**.
 - **UX-DR6:** Encode the radius family as ten tokens by role (`hairline` 1 / `micro` 2 / `chip` 3 / `control` 4 / `DEFAULT` 5 / `card` 6 / `window` 8 / `scrollbar` 10 / `full` 50% / `pill` 99px). Do not normalise to one radius — the variation encodes what kind of object a thing is. `pill` is the handoff chip and nothing else; perfect circles are reserved for things standing for a person or a light.
-- **UX-DR7:** Encode the spacing ladder (`1.5 · 4 · 5 · 6 · 7 · 8 · 9 · 10 · 12 · 14`) and the binding layout constants: rail **348px**, topbar **42px**, rail head **30px**, thread max **940px**, party thread max **900px**, chat sub max **72ch**, document window `min(880px,92vw) × min(760px,80vh)` with a 36px titlebar and 28px foot, rendered-markdown measure **70ch**, card body max-height **230px**, composer 20px→120px. Padding is deliberately not on a scale and must not be regularised.
-- **UX-DR8:** The party side panel ships at **240px**. The architecture's 288px literal is superseded by the Room-only decision and **must not be implemented**, and the panel must not reserve slots for the deferred sections.
+- **UX-DR7:** Encode the spacing ladder (`1.5 · 4 · 5 · 6 · 7 · 8 · 9 · 10 · 12 · 14`) and the binding layout constants: rail **348px** *(default; resizable, Story 5.5)*, topbar **42px**, rail head **30px**, thread max **940px**, party thread max **900px**, chat sub max **72ch**, document window `min(880px,92vw) × min(760px,80vh)` with a 36px titlebar and 28px foot, rendered-markdown measure **70ch**, card body max-height **230px**, composer 20px→120px. Padding is deliberately not on a scale and must not be regularised.
+- **UX-DR8:** The party side panel ships at **240px** *(a default, resizable 200–400px since Story 5.5)*. The architecture's 288px literal is superseded by the Room-only decision and **must not be implemented**, and the panel must not reserve slots for the deferred sections.
 
 #### Visual system rules
 
@@ -290,10 +292,11 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **UX-DR43 — The theme control and its prohibitions** (`EXPERIENCE.md` → Theme): *View ▸ Theme* as three radio items in every window's menu, no accelerator; the Welcome's theme line is the only on-window control and the topbar gains none; applying is instant with no transition, no toast and no announcement; native chrome follows; no per-project or per-window theme, no high-contrast variant, no third palette, and no read of `prefers-color-scheme` outside main.
 - **UX-DR44 — The follow control** (`DESIGN.md` → Components → Follow control, `EXPERIENCE.md` → Following the thread): one literal string, `↓ latest`, in `label` mono at `dim` on `panel-2` with a 1px `line` border and `control` radius, centred above the composer, present only while a thread is not following, in one frame in and out, one tab stop between the thread and the composer. No count, dot, *new*, pulse, shadow or sound, and no animated scroll anywhere.
 - **UX-DR45 — The Outputs head and the output-folder control** (`DESIGN.md` → Components → Outputs head, `EXPERIENCE.md` → Output folder): the head shows the watched folder in `meta` mono at `dim` and `change…` in `accent`; one state line beneath it only while there is a state, in `dim` mono with no colour and no icon; a File menu in a project window with *Output Folder…* and *Use BMad's Output Folder* and no accelerators; refusals announced politely once; no prompt, no recommendation, no second folder.
+- **UX-DR46 — The splitter and the folder heading** (`DESIGN.md` → Components → Splitter, Folder heading; `EXPERIENCE.md` → Resizing and folding): a 9px hit area on the panel's inner border, 1px `line` at rest and 3px `accent-border` / `accent` on hover / drag and focus, with the shared ring, no motion, a `separator` with its value, minimum and maximum exposed; a folder heading as a button with a stroked chevron, `badge`-tier mono at `dim`, `aria-expanded` and `aria-controls`, the amber dot and `changing` while folded over a changing row, and no count; neither announced through the live region; no splitter at ≤1000px or where its panel is hidden.
 
 ### FR Coverage Map
 
-Every one of the 114 FRs maps to exactly one epic.
+Every one of the 116 FRs maps to exactly one epic.
 
 | FR | Epic | Covers |
 |---|---|---|
@@ -411,6 +414,8 @@ Every one of the 114 FRs maps to exactly one epic.
 | FR112 | Epic 5 | A thread follows its newest line, pauses when the user scrolls up, and has one way back |
 | FR113 | Epic 5 | Output folder: stored choice, else BMad's `output_folder`, else `_bmad/`; chosen from the head or the File menu; remembered per project |
 | FR114 | Epic 5 | What follows the folder, what stays at `_bmad/`, and the head's three facts |
+| FR115 | Epic 5 | The rail and the Room panel resize: ranges, keys, reset, remembered per user |
+| FR116 | Epic 5 | Outputs folders fold; a changing file is never folded out of sight; remembered per project |
 
 **Coverage by epic:** Epic 1 — 42 FRs · Epic 2 — 20 FRs · Epic 3 — 34 FRs · Epic 4 — 9 FRs · **Total 105.**
 
@@ -515,21 +520,22 @@ Convene a room of chosen personas in one conversation you participate in, with e
 
 ### Epic 5: Arrive and settle in
 
-The harness stops opening to a native dialog. It opens to a Welcome that offers one action (open a project folder, or drop one), lists the projects opened before, and shows the five core personas by phase of the method, so the first thing seen is what the product is, not an operating-system chooser. And it can be seen in light or dark: the user chooses, and System is the default. And a conversation, in a persona's thread or in the room, follows what is being said and holds still when you scroll up to reread. And the folder the rail watches for a project's output is BMad's own by default, and the user's to choose.
+The harness stops opening to a native dialog. It opens to a Welcome that offers one action (open a project folder, or drop one), lists the projects opened before, and shows the five core personas by phase of the method, so the first thing seen is what the product is, not an operating-system chooser. And it can be seen in light or dark: the user chooses, and System is the default. And a conversation, in a persona's thread or in the room, follows what is being said and holds still when you scroll up to reread. And the folder the rail watches for a project's output is BMad's own by default, and the user's to choose. And the two side panels are the user's to size, and the Outputs folders to fold.
 
 **Standalone:** it changes how a project is chosen, how the product is painted and how a thread scrolls, and nothing about what a project window or a thread contains.
 
-**FRs covered:** FR106, FR107, FR108, FR109, FR110, FR111, FR112, FR113, FR114 (FR1, FR9 and FR17 stay true)
+**FRs covered:** FR106, FR107, FR108, FR109, FR110, FR111, FR112, FR113, FR114, FR115, FR116 (FR1, FR9 and FR17 stay true)
 
 **NFRs addressed:** NFR7, NFR13, NFR15, NFR19, NFR20, NFR22, NFR23, NFR24, NFR25, NFR26, NFR27
 
-**UX-DRs addressed:** UX-DR39, UX-DR40, UX-DR41, UX-DR42, UX-DR43, UX-DR44, UX-DR45
+**UX-DRs addressed:** UX-DR39, UX-DR40, UX-DR41, UX-DR42, UX-DR43, UX-DR44, UX-DR45, UX-DR46
 
 **Implementation notes:**
 - The Welcome follows the document window's precedent: its own window, its own page entry and its own preload bundle, sharing no runtime module with the shell's. It has no project and no edge to the install, the CLI or a project's files.
 - The only new durable state is the recent list and the theme value, both under `userData` (AD-1, NFR3). They are bookkeeping and hold paths, times and one word, never project content.
 - The renderer's one scroll call today is the reveal of a run's card (`use-reveal.ts`, Story 3.10). Story 5.3 adds the thread's own following beside it, and the reveal now also pauses following. The follow state is a fact about the scroller's position: nothing is persisted and there is no setting.
 - **The output folder and the install are two folders** (Story 5.4). The code reads `_bmad/` for both; BMad's installer fixes the install, and its own configuration chooses the output. Only the output follows the choice. The default is derived from BMad's resolved `output_folder` (FR1, AD-19), so the choice is an override and never a setup step.
+- **The 348px rail and the 240px Room panel become defaults** (Story 5.5). AD-14 bound them as literals and UX-DR7 and UX-DR8 repeat that; the amendments are recorded where they are stated, and the default values do not change, so no existing test changes its expectation.
 - **The light theme reverses NFR15** (Story 5.2). Dark is unchanged to the byte; the light theme is an additional block, so Epics 1 to 4's token tests keep passing as they are.
 - The five descriptions are a static table (the one roster shown before any install is read). They are written from each agent's `role`; they are not read from a project and not attributed to a persona.
 - **Negative-surface check:** each story's own final criteria verify the UX-DR38 prohibitions on its surfaces. The Welcome's: no badge or count, no recommended persona, no spinner or animation, no tour or wizard, no sound, no *clear recent* control.
@@ -862,7 +868,7 @@ So that I never leave the product to see what the work produced.
 **And** the Help entry point is reserved in the topbar layout but does not render in v1, so it is not a tab stop.
 
 **Given** the 1:1 view
-**Then** the chat column sits left and the rail is fixed at 348px on the right, split into two halves at `flex: 1 1 50%` — Team above, Outputs below.
+**Then** the chat column sits left and the rail is 348px on the right *(a default, resizable 280–560px since Story 5.5)*, split into two halves at `flex: 1 1 50%` — Team above, Outputs below.
 
 **Given** the topbar
 **Then** it is 42px on `chrome` with a 1px `line` bottom rule, carrying brand mark, project path, install chip, branch chip and the segmented view switch, with `│` as the breadcrumb separator.
@@ -2670,3 +2676,80 @@ So that the rail shows my files without my doing anything the first time, and th
 **Decisions to confirm before build (defaults in brackets):** `.git` and `node_modules` are refused [yes]; a document window already open keeps its file [yes]; the chooser allows creating a folder [yes]; a project window gains a File menu with no accelerators [yes]; the party summary follows the output folder [yes].
 
 **Boundaries:** no first-launch prompt and no setup step; nothing written into the project, BMad's configuration included; one watched folder per project, inside it; the install stays at `_bmad/`; no redirection of any skill's writes; the new channels and preload methods are enumerated, spelled in `src/shared/channels.ts` and pinned in the contract tests deliberately, with no generic `invoke(channel, …)`; no change to the persona, session, conversation or run channels.
+
+### Story 5.5: Size the side panels, fold the output folders
+
+*Sequencing: added 2026-10-08 from the resize-and-fold prototype (`mockups/rail-resize-collapse.html`, which works; `EXPERIENCE.md` → Resizing and folding; `DESIGN.md` → Splitter, Folder heading). Independent of Stories 5.1 to 5.4. It touches the shell's and the party view's layout and the Outputs list; if 5.4 has landed, folded directories are keyed by project-relative directory path, so they survive a change of output folder. If 5.1 or 5.2 has landed, store the three values in the same `userData` module. Two seams, in build order: **A** the splitters and the stored widths; **B** the folder headings and the stored fold. Each is shippable alone.*
+
+As someone working with a long conversation or a long list of files,
+I want to give the side panels the width I need and fold the folders I am not looking at,
+So that the thread, the room and the file list fit the way I work, and stay that way.
+
+**Implements:** FR115, FR116 · UX-DR46 · NFR19, NFR20, NFR22, NFR23, NFR25, NFR26, NFR27
+
+**Evidence:** the rail is `flex: 0 0 var(--rail)` with `--rail: 348px` (`src/renderer/ui/shell/shell.css:236-237`, `src/renderer/design/tokens.css:176`) and the Room panel is fixed at `--party-side: 240px` (`tokens.css:194`, `src/renderer/ui/party/room-panel.css`), so neither can be given more room even when a persona's turn or a file path is wider than they are, and the chat column cannot be given back the space. The Outputs list (`src/renderer/ui/outputs/outputs.tsx`, `row-groups.ts`) shows every directory heading as a plain label over its rows, so a project with several directories scrolls the Team half's neighbour for files the user is not using.
+
+**Acceptance Criteria:**
+
+*Seam A: the splitters*
+
+**Given** the 1:1 view at a width above 1000px
+**Then** the rail has a splitter on its inner edge and the Room panel has one on its inner edge in Party Mode, each a `separator` (`aria-orientation="vertical"`, `aria-label`, `aria-valuemin`, `aria-valuemax`, `aria-valuenow`) with one tab stop
+**And** at ≤1000px there is no splitter and the layout is as it is today, and at ≤1180px the Room panel and its splitter are hidden, as today, with no breakpoint added.
+
+**Given** a drag on a splitter
+**Then** the panel's width follows the pointer one frame at a time, with no easing, no snapping and no transition, and it holds at the limit when the pointer goes past it
+**And** the rail is limited to 280–560px and never narrows the chat column below 420px, and the Room panel to 200–400px and never narrows the party column below 480px
+**And** the cursor is `col-resize` and text selection is off for the drag, and both are restored on release or when the drag is cancelled.
+
+**Given** a splitter has focus
+**Then** `←` grows its panel by 16px and `→` shrinks it, by 64px with `Shift`, `Home` and `End` go to the minimum and the maximum, and `Enter` returns the panel to its default
+**And** a double-click does the same as `Enter`, and the keys are consumed so the page does not scroll.
+
+**Given** a splitter at rest, hovered, dragged and focused
+**Then** it draws as `DESIGN.md` gives it (the panel's 1px `line` border; 3px `accent-border`; 3px `accent`; 3px `accent` with the shared ring), from tokens alone.
+
+**Given** a width chosen
+**Then** it is stored per user under `userData`, one value for the rail and one for the Room panel, and survives a relaunch, and the two are independent
+**And** a value that is missing, unreadable or outside its range reads as the default, silently.
+
+**Given** the window narrowed below what a stored width allows
+**Then** the panel is pulled in to the largest width that fits and never overlaps its neighbour, and the width the user chose is kept and applies again when the window widens.
+
+**Given** a resize
+**Then** no session, run, transcript, card, persona, scroll position or follow state changes, and nothing is announced.
+
+*Seam B: the folders*
+
+**Given** the Outputs half
+**Then** each directory heading is a button with a chevron, the directory path and `aria-expanded` and `aria-controls` naming its rows
+**And** the headings and the rows that are showing are one roving tab stop, arrows move between them, `Enter` or `Space` on a heading folds or unfolds it, and on a heading `←` folds and `→` unfolds
+**And** focus stays on the heading that was toggled.
+
+**Given** a folded directory
+**Then** its rows are not rendered or not focusable, no other directory's rows change, and the heading shows no count.
+
+**Given** a folded directory with a row whose disk state is `changing`
+**Then** its heading shows the amber dot with the pulse and the word `changing`, and shows neither when no row under it is changing
+**And** a run's annotation (owner, section, `stopped`) is not shown on a heading.
+
+**Given** a file arriving in, changing in or leaving a folded directory
+**Then** the directory stays folded, focus and scroll do not move, and a directory with no rows has no heading, as today.
+
+**Given** a fold
+**Then** the set of folded directories is stored per project under `userData`, as project-relative directory paths, and survives a relaunch
+**And** an entry for a directory that no longer exists is ignored, and a missing or unreadable set reads as nothing folded, silently
+**And** nothing is written into the project.
+
+**Given** the negative surface and the audit
+**Then** there is no animation of a width or of a fold, no snap points or presets, no count or badge on a heading, no unfold on arrival, no *collapse all* or *expand all*, no way to hide a panel altogether, and no announcement through the live region
+**And** every harness string stays lower case and mono, and an audit test mounts the Outputs half with a folded directory holding a changing file, built from the rail's projection and not by hand.
+
+**Given** the evidence above
+**Then** the clamp is a pure function of the stored width, the range and the neighbour's minimum, tested at both limits, under a narrowed window and with a missing or out-of-range stored value
+**And** the splitter's pointer and key behaviour is tested over a fake panel whose geometry the test sets (the jsdom environment has no layout)
+**And** a test fails if a width or fold carries a `transition`, if the heading ever renders a number, or if a project's tree changes after a resize or a fold.
+
+**Decisions to confirm before build (defaults in brackets):** the rail's range [280–560px] and the Room panel's [200–400px]; folding is flat, one directory at a time [yes]; a folded directory shows `changing` and nothing else [yes]; no *collapse all* [yes]; the fold is per project and the widths per user [yes].
+
+**Boundaries:** no new command, event or channel for the layout (the stored values reach main through enumerated, named methods in `src/shared/channels.ts`, pinned in the contract tests deliberately, with no generic `invoke(channel, …)`); no change to the Team half, the Room panel's contents, the thread or any row's content; the default widths, `--rail` and `--party-side`, keep their values.
