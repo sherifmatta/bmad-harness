@@ -170,6 +170,13 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **FR104:** A persona tile aggregates every session carrying its `agentId` — a tile may stand for more than one session.
 - **FR105:** The decision-option block is rendered inside a persona turn when the persona stops to ask. Each option is its own control; activating one sends that option as the user's turn, in the user's name, and the whole block is then removed. There is no chosen state, no disabled state and no record of the block. The harness never authors the options, never reorders them and never marks one recommended; a stated lean is the persona's own words.
 
+#### CAP-13 — A welcome before the project
+
+- **FR106:** The harness opens to a Welcome window when no project path was given on the command line, and no native dialog opens at launch. A project path on the command line still opens its project directly for the first window, and a path that is not a folder still fails on stderr with exit 1. Closing the last project window, or reactivating the app with no window, shows the Welcome. Closing the Welcome quits the app. Cancelling the native folder chooser returns to the Welcome and does not quit.
+- **FR107:** The Welcome offers one action, *Open project folder…* (`⌘O`), which opens the native folder chooser, and one drop target that opens a dropped folder. Anything else dropped opens nothing and says `not a folder · <name>`. A chosen project's window opens and the Welcome closes in the same moment.
+- **FR108:** The Welcome lists recent projects: at most eight, newest first, recorded under `userData` as path and time only, for every project opened by any route including the command line. A folder that no longer exists keeps its row, shows `folder missing` and does not open. A row carries no install state, count or version, and no resolver runs for it. With none recorded the section is not rendered.
+- **FR109:** The Welcome shows the five core personas, with their curated portraits at 44px and full opacity, in four lanes by phase of the method (analysis, planning, solutioning, implementation) with one harness-written sentence about each role. It reads no project, marks no lane current and recommends no persona.
+
 ### NonFunctional Requirements
 
 - **NFR1 (Architecture paradigm):** Read-only projection — an event-sourced read model with **no write side**. The harness owns no state of its own; it observes three external sources of truth (the project filesystem, the BMad install, a session's event stream), folds each into a read model, and renders it.
@@ -271,10 +278,13 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **UX-DR36 — Empty states:** the Outputs half reads `no files under _bmad/ yet` with the watched path beneath; the document card has **no empty body**; the subagent region may be permanently empty on a given run and nothing may depend on it; the two deferred party sections are not rendered at all.
 - **UX-DR37 — Responsive behaviour:** at `<=1180px` the party side panel is hidden outright; at `<=1000px` the shell unlocks scroll, both views stack to a column with the chat column at `min-height:62vh`, the rail moves below the chat and swaps `border-left` for `border-top` with each half at `min-height:230px`, cast cards wrap at `flex:1 1 44%`, and the topbar wraps with breadcrumbs on their own full-width row.
 - **UX-DR38 — The banned list, as a testable prohibition set:** no command palette / `⌘K` / launcher / global skills list; no badges, unread counts, quest markers, relevance sorting, next-step highlighting or recommended actions; no spinners anywhere, including a sentence doing a spinner's job; no per-section tick-through, progress bars, staggered reveals of an atomic commit, or per-character typewriter effects; no dialog that resolves, merges, reverts, locks, patches or restores, and no undo; no editing affordance or refresh control in a document window; no tooltips or previews derived from a resolved skill name; no sound; no refusal-with-handoff.
+- **UX-DR39 — The Welcome's anatomy and tokens** (`DESIGN.md` → Components → Welcome): a 1080 × 720 window with the topbar's brand and `no project open` only; a 560px column holding the head, the open action and the recent rows; a 960px band of four lanes (`1fr 2fr 1fr 1fr`) that stacks to one column at ≤1000px (the existing second breakpoint, no third). The open action is the composer's send button; the drop zone is the product's one dashed border. The Welcome is the one surface with breathing room, because it holds no state. Every value reaches the design system through a token (NFR23).
+- **UX-DR40 — The Welcome's copy and register** (`EXPERIENCE.md` → Welcome → Copy): harness strings lower case, mono, `·`-separated, no terminal punctuation; the five role descriptions are the harness's words about a role, in sans, with no first person, no quotation and no suggestion of who to start with; nothing says what to do next (no *get started*, *welcome back*, *try*).
+- **UX-DR41 — The Welcome's reach and prohibitions** (`EXPERIENCE.md` → Welcome → Accessibility, Banned on the Welcome): the tab stops are the open button and the recent list (one stop, arrows between rows, `Enter` opens); persona cards are content and take no focus; one polite live region announces a rejected drop once; focus lands on the open button on open and after a cancelled dialog; no motion; no tour, wizard, badge, count, version, *clear recent*, link out, sound, animation or light variant.
 
 ### FR Coverage Map
 
-Every one of the 105 FRs maps to exactly one epic.
+Every one of the 109 FRs maps to exactly one epic.
 
 | FR | Epic | Covers |
 |---|---|---|
@@ -383,6 +393,10 @@ Every one of the 105 FRs maps to exactly one epic.
 | FR103 | Epic 2 | Persona state projection: five states, one source each |
 | FR104 | Epic 2 | A tile aggregates every session carrying its `agentId` |
 | FR105 | Epic 2 | The decision-option block and its removal on answer |
+| FR106 | Epic 5 | Welcome window at launch; command-line path unchanged; lifecycle and cancel behaviour |
+| FR107 | Epic 5 | The one open action, the drop target, `not a folder · <name>` |
+| FR108 | Epic 5 | Recent projects: eight, newest first, `folder missing`, no install state |
+| FR109 | Epic 5 | The five core personas by phase of the method |
 
 **Coverage by epic:** Epic 1 — 42 FRs · Epic 2 — 20 FRs · Epic 3 — 34 FRs · Epic 4 — 9 FRs · **Total 105.**
 
@@ -483,6 +497,25 @@ Convene a room of chosen personas in one conversation you participate in, with e
 - `bmad-party-mode` already ships and works — group conversation, user participation and joint decisions all function today. CAP-9 is a **surfacing** problem, not orchestration to build, which is why this epic is small.
 - Two of the three side-panel sections and the transcript's disagreement tags are deferred for want of a data source, and must not be rendered even as empty states, nor have slots reserved for them. The panel ships at 240px, superseding the architecture's 288px literal.
 - **Negative-surface check:** this epic's final story verifies the UX-DR38 prohibitions on its own surfaces — no deferred section rendered as an empty state, no reserved slots, no `disagrees`/`evidence` tag, no quote-back chrome, no turn gate, no pause control, and no 288px panel.
+
+
+### Epic 5: Arrive — choose a project from a welcome
+
+The harness stops opening to a native dialog. It opens to a Welcome that offers one action (open a project folder, or drop one), lists the projects opened before, and shows the five core personas by phase of the method, so the first thing seen is what the product is, not an operating-system chooser.
+
+**Standalone:** it changes how a project is chosen and nothing about what a project window does once open.
+
+**FRs covered:** FR106, FR107, FR108, FR109 (FR9 and FR17 stay true)
+
+**NFRs addressed:** NFR7, NFR13, NFR15, NFR19, NFR22, NFR23, NFR24, NFR25, NFR27
+
+**UX-DRs addressed:** UX-DR39, UX-DR40, UX-DR41
+
+**Implementation notes:**
+- The Welcome follows the document window's precedent: its own window, its own page entry and its own preload bundle, sharing no runtime module with the shell's. It has no project and no edge to the install, the CLI or a project's files.
+- The only new durable state is the recent list, under `userData` (AD-1, NFR3). It is bookkeeping and holds paths and times, never project content.
+- The five descriptions are a static table (the one roster shown before any install is read). They are written from each agent's `role`; they are not read from a project and not attributed to a persona.
+- **Negative-surface check:** the story's own final criteria verify the UX-DR38 prohibitions on the Welcome: no badge or count, no recommended persona, no spinner or animation, no tour or wizard, no sound, no *clear recent* control.
 
 ---
 
@@ -2270,3 +2303,107 @@ So that what is on screen as sent is what the room received.
 **Decision to confirm before build:** whether the refused message's text returns to the composer for the user to send again (nothing is ever re-sent on their behalf), or only the line is shown. Default if unanswered: the text returns to the composer when the composer is empty.
 
 **Boundaries:** no new command, event, channel or preload method; no change to `STOP_ACK_MS`, `STOP_RESULT_MS` or to the room's no-gate rule (a send into a busy room still interrupts first); the harness never re-sends, queues or retries a message the user did not ask to send again; *Write summary*'s missing busy guard, the summary ask's wording and *stop room* meaning kill-versus-interrupt are Epic 4 retrospective F4 and F8 (action item 7) and are not changed here.
+
+---
+
+## Epic 5: Arrive — choose a project from a welcome
+
+The harness opens to a Welcome in place of a native folder dialog: one action, the projects opened before, and the five core personas by phase of the method.
+
+### Story 5.1: Choose a project from a welcome, not a dialog
+
+*Sequencing: added 2026-10-08 from the welcome-screen design (`mockups/welcome-screen-chosen.html`; `DESIGN.md` → Welcome; `EXPERIENCE.md` → Welcome). Independent of Stories 4.7 and 4.8, which change the room paths; this one changes `src/main/index.ts`'s startup path and adds a window. It is larger than a usual story here and has three seams, in build order: **A** the window, the open action, the drop and the lifecycle; **B** the recent list; **C** the team. If the build reports it oversized, split there as 5.1, 5.2 and 5.3; each seam is shippable alone (A alone opens a Welcome with the action; B adds recent under it; C adds the team under that).*
+
+As someone who has just started the harness,
+I want to choose which project to open from a window that shows me what the product is,
+So that the first thing I meet is not an operating-system dialog that quits the app if I change my mind.
+
+**Implements:** FR106, FR107, FR108, FR109 · UX-DR39, UX-DR40, UX-DR41 · NFR7, NFR13, NFR15, NFR19, NFR22, NFR23, NFR24, NFR25, NFR27
+
+**Evidence:** `openProjectWindow` in `src/main/index.ts` calls `resolveProjectPath`, which falls to `chooseProjectDirectory()` (`src/main/windows/choose-project.ts`), a `dialog.showOpenDialog`, before any window exists. A cancelled dialog calls `app.quit()`; `window-all-closed` re-runs the same path, so closing a project window raises the dialog again. The user can neither see what the product is before choosing nor go back from the choice without leaving the app. No recent projects are kept anywhere (`chooseProjectDirectory` returns a path and forgets it).
+
+**Acceptance Criteria:**
+
+*Seam A: the window, the action, the drop and the lifecycle*
+
+**Given** the harness is started with no project path on the command line
+**Then** the Welcome window opens and no native dialog opens
+**And** the window is 1080 × 720, has the topbar's brand and `no project open`, and takes focus on the *Open project folder…* button.
+
+**Given** the harness is started with a project path
+**Then** that project opens directly and no Welcome opens for the first window, as today
+**And** a path that is not a folder still writes `startup/project-path-not-a-directory · <path>` to stderr and exits 1, with no window and no dialog
+**And** the path applies to the first window only, so the next window opened after it is the Welcome.
+
+**Given** the Welcome
+**When** the user presses *Open project folder…* or `⌘O`
+**Then** the native folder chooser opens with the options it has today (title *open a bmad project*, folders only, *create folder* allowed)
+**And** a chosen folder opens that project's window and closes the Welcome in the same moment
+**And** a cancelled chooser leaves the Welcome as it was, with focus on the button, and the app does not quit.
+
+**Given** the chosen project is already open in a window
+**Then** that window is raised, a second is not made, and the Welcome closes.
+
+**Given** the user drops a folder on the Welcome
+**Then** it opens as a chosen folder does
+**And** the path comes from the sandboxed preload's file-path lookup and main checks that it is a folder; the page never touches the filesystem.
+
+**Given** the user drops a file, several items or anything that is not a folder
+**Then** nothing opens, one line `not a folder · <name>` appears where the drop hint is and is announced once by the window's polite live region, and the next drop or choice clears it.
+
+**Given** the last project window closes, or the app is reactivated with no window
+**Then** the Welcome opens, and a second Welcome is never opened while one is open
+**And** closing the Welcome quits the app.
+
+**Given** a menu
+**Then** the Welcome has its own menu focus carrying *Open Project Folder…* with `⌘O`, and the project window's and document window's menus are unchanged.
+
+*Seam B: recent*
+
+**Given** a project's window opens by any route (chosen, dropped, recent row, command line)
+**Then** its folder path and the time are recorded under `userData` in one file, newest first, at most eight, with a project already listed moved to the top and not listed twice
+**And** nothing else is recorded: no install state, agent count, branch or version, and nothing is ever written into a project.
+
+**Given** the Welcome with recorded projects
+**Then** each row shows the folder name, its parent path with the home directory written `~`, and its age (`now`, `Nm`, `Nh`, `Nd`)
+**And** a row opens its project as a chosen folder does
+**And** no resolver, `claude` or `uv` runs for any row.
+
+**Given** a recorded folder that no longer exists
+**Then** its row stays, shows `folder missing` where the age was, is announced as unavailable and does nothing when activated, and there is no control to remove it.
+
+**Given** no recorded project, or a recent file that is missing or unreadable
+**Then** the recent section is not rendered (no label, no empty line) and nothing is surfaced as an error
+**And** the next project opened writes the file afresh.
+
+*Seam C: the team*
+
+**Given** the Welcome
+**Then** it shows Mary, John, Sally, Winston and Amelia as cards under four lanes in the order `analysis`, `planning` (John and Sally), `solutioning`, `implementation`, each with the portrait the app already draws for that persona at 44px and full opacity, the name, the title and the sentence in `DESIGN.md`
+**And** the cards are not focusable, not interactive and carry no hover state, and no card, lane or persona is highlighted, preselected, ordered by relevance or recommended
+**And** the meta line reads `the five core personas, by phase of the method · a project's own install can add more`, and nothing on the Welcome reads a project.
+
+*Across all three*
+
+**Given** the Welcome is built
+**Then** it is its own window, with its own page entry and its own preload bundle sharing no runtime module with the shell's, with `contextIsolation` on, `nodeIntegration` off and `sandbox` on
+**And** its preload exposes a closed set of named methods (the recent list, choose a folder, open a recent row, open a dropped path) and no generic `invoke(channel, …)`, each on a channel spelled in `src/shared/channels.ts`
+**And** the shell's and the document window's counts in the contract tests do not change, and the Welcome's own are pinned beside them, deliberately.
+
+**Given** the Welcome's styles
+**Then** every colour, dimension, radius and font stack reaches it through a token, with no literal (NFR23, `tests/tokens.test.ts`), it is dark only, and at ≤1000px the lanes stack to one column and the window scrolls, with no new breakpoint (NFR27)
+**And** a fact a user acts on (the drop hint, a recent row's path) is not at `faint` (NFR19).
+
+**Given** the negative surface and the audit
+**Then** the Welcome has no spinner, animation, badge, count or version on a row, tour, wizard, checklist, *clear recent*, link out, sound, light variant or sentence that tells the user what to do next
+**And** every harness string is lower case, mono and `·`-separated with no terminal punctuation, and the five descriptions are in sans with no first person
+**And** an audit test mounts the Welcome with recent rows present, absent and one missing, and with a rejected drop, and checks these.
+
+**Given** the evidence above
+**Then** a test starts the main process's startup path with no argument and a dialog that fails the test if called, and asserts a Welcome window is made and no dialog opens
+**And** a test cancels the chooser and asserts the app does not quit and the Welcome stays; closing the Welcome asserts it does quit
+**And** the tests that pin "closing a project window raises the dialog" and "a cancelled dialog quits" are replaced by these.
+
+**Decisions to confirm before build (defaults in brackets):** closing the Welcome quits the app [yes]; `⌘O` on the Welcome [yes]; the recent cap [8]; a project opened from the command line is recorded as recent [yes]; the age wording below a minute [`now`].
+
+**Boundaries:** no change to Preflight, to the project window, or to any conversation, session, rail or document channel; no project switcher inside a project window (one project per window, FR17); no install read for a recent row; no *clear* or *remove* for recent; no persistence beyond the recent file; no light palette and no portrait larger than 44px; the five descriptions are not read from any project and are not attributed to a persona.

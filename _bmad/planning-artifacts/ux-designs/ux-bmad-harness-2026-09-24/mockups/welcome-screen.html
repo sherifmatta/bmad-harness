@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Welcome screen mockups</title>
+<style>
+  /* ── :root verbatim from design/tokens.css (dark only, NFR15) ── */
+  :root{
+    --bg:#101317; --chrome:#14181d; --panel:#171b21; --panel-2:#1b2027; --panel-3:#20262e;
+    --line:#272d36; --line-soft:#1f242c; --text:#dce2ea; --text-strong:#f1f4f8;
+    --dim:#96a0ad; --faint:#6b7480; --accent:#7fa6e8; --accent-bg:rgba(127,166,232,.12);
+    --green:#6aa87f; --amber:#c6a350; --red:#c47c72;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --r:5px;
+    --accent-border:#33455f; --meta:#5b636e; --win-line:#333b46; --note:#7f9ce8;
+    color-scheme: dark;
+  }
+  *{box-sizing:border-box;margin:0}
+  body{background:#0b0d10;color:var(--text);font:13px/1.55 var(--sans);padding:32px 24px 80px}
+  button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-align:left}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  /* ── review chrome (not part of the product) ── */
+  .review{max-width:1120px;margin:0 auto}
+  .review h1{font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--text-strong)}
+  .review .lede{color:var(--dim);max-width:78ch;margin:6px 0 28px}
+  .opt{margin:0 0 56px}
+  .opt-head{display:flex;align-items:baseline;gap:12px;margin-bottom:10px}
+  .opt-key{font:600 10.5px var(--mono);letter-spacing:.09em;color:var(--accent);border:1px solid var(--accent-border);background:var(--accent-bg);border-radius:3px;padding:1px 7px}
+  .opt-head h2{font-size:14.5px;font-weight:600;color:var(--text-strong)}
+  .opt-head p{color:var(--faint);font-size:11.5px}
+  .notes{display:grid;grid-template-columns:1fr 1fr;gap:12px 32px;margin-top:14px;color:var(--dim);font-size:11.5px;max-width:1080px}
+  .notes b{color:var(--text);font-weight:600}
+  .notes .mono{font-family:var(--mono);font-size:10.5px;color:var(--text)}
+
+  /* ── the window ── */
+  .win{width:100%;max-width:1080px;height:660px;margin:0 auto 0 0;border:1px solid var(--win-line);border-radius:8px;background:var(--bg);overflow:hidden;display:flex;flex-direction:column;box-shadow:0 30px 70px -20px rgba(0,0,0,.85)}
+  .titlebar{height:36px;flex:0 0 36px;background:var(--chrome);display:flex;align-items:center;gap:7px;padding:0 14px}
+  .titlebar i{width:11px;height:11px;border-radius:50%;background:var(--panel-3)}
+  .topbar{height:42px;flex:0 0 42px;background:var(--chrome);border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;padding:0 12px}
+  .brand{display:flex;align-items:center;gap:8px}
+  .brand-mark{width:14px;height:14px;border:1px solid var(--accent-border);border-radius:3px;position:relative}
+  .brand-mark::after{content:"";position:absolute;inset:2px;background:var(--accent);opacity:.75;border-radius:1px}
+  .brand-name{font-size:12.5px;font-weight:600;color:var(--text-strong);letter-spacing:.01em}
+  .sep{color:var(--meta);font:10.5px var(--mono)}
+  .state{font:10.5px var(--mono);color:var(--faint)}
+  .stage{flex:1;min-height:0;overflow:auto}
+
+  /* ── shared pieces ── */
+  .h1{font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--text-strong);line-height:1.25}
+  .sub{font-size:14px;font-weight:600;color:var(--dim);letter-spacing:.01em}
+  .h2{font-size:14.5px;font-weight:600;color:var(--text-strong)}
+  .label{font:600 10.5px var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
+  .meta{font:10px var(--mono);color:var(--faint)}
+  .path{font:11px var(--mono);color:var(--faint)}
+  .chip{font:10px var(--mono);color:var(--dim);border:1px solid var(--line);border-radius:3px;padding:0 6px;line-height:17px;white-space:nowrap}
+  .kbd{font:10px var(--mono);color:var(--faint);border:1px solid var(--line);border-radius:3px;padding:0 5px;line-height:16px}
+  .link{color:var(--accent);font-size:13px;display:inline-flex;align-items:center;gap:9px;padding:3px 0}
+  .link svg{width:15px;height:15px;stroke:var(--accent);fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;opacity:.85}
+  .link:hover span.t{text-decoration:underline}
+  .btn{display:inline-flex;align-items:center;gap:10px;border:1px solid var(--accent-border);background:var(--accent-bg);color:var(--text-strong);border-radius:4px;padding:7px 14px;font-size:12px;letter-spacing:.01em}
+  .btn:hover{border-color:var(--accent)}
+  .btn svg{width:15px;height:15px;stroke:var(--accent);fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+  .pf{display:block;flex:0 0 auto}
+  .pname{font-size:12.5px;font-weight:600;color:var(--text-strong)}
+  .ptitle{font-size:11.5px;color:var(--dim)}
+  .phase{font:9.5px var(--mono);letter-spacing:.04em;color:var(--faint);border:1px solid var(--line);border-radius:2px;padding:0 6px;line-height:16px;white-space:nowrap}
+  .recent{list-style:none;padding:0}
+  .recent li{display:flex;align-items:baseline;gap:12px;padding:3px 0}
+  .recent .nm{color:var(--accent);font-size:13px}
+  .recent button:hover .nm{text-decoration:underline}
+  .recent .r{margin-left:auto;display:flex;gap:10px;align-items:center}
+
+  /* ── A: start / recent · the team ── */
+  .A{display:grid;grid-template-columns:1fr 1fr;gap:56px;padding:64px 64px 40px;max-width:1000px}
+  .A .tag{margin:2px 0 34px}
+  .A .sec{margin-bottom:30px}
+  .A .sec .h2{margin-bottom:10px}
+  .A .links{display:flex;flex-direction:column;align-items:flex-start}
+  .A .hint{margin-top:10px;font:10.5px var(--mono);color:var(--faint)}
+  .A .teampanel{background:var(--panel);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+  .A .prow{display:flex;gap:12px;align-items:center;padding:10px 12px;border-top:1px solid var(--line-soft)}
+  .A .prow:first-child{border-top:0}
+  .A .prow .body{min-width:0;flex:1}
+  .A .prow .line1{display:flex;gap:8px;align-items:baseline}
+  .A .prow .desc{font-size:11.5px;line-height:1.5;color:var(--dim);margin-top:1px}
+  .A .teamnote{margin-top:10px;font:10.5px var(--mono);color:var(--faint)}
+
+  /* ── B: the team is the welcome ── */
+  .B{padding:40px 48px 32px;display:flex;flex-direction:column;gap:26px;height:100%}
+  .B .top{display:flex;align-items:flex-end;gap:24px}
+  .B .top .tag{font-size:12px;color:var(--dim);margin-top:2px}
+  .B .top .go{margin-left:auto;display:flex;align-items:center;gap:12px}
+  .B .lane{display:grid;grid-template-columns:1fr 2fr 1fr 1fr;gap:10px}
+  .B .lane-h{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .B .lane-h::after{content:"";flex:1;height:1px;background:var(--line)}
+  .B .lane-h .n{font:9.5px var(--mono);color:var(--meta)}
+  .B .cards{display:flex;gap:10px}
+  .B .card{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px 14px 13px;display:flex;flex-direction:column;gap:10px;min-height:196px}
+  .B .card .who{display:flex;gap:11px;align-items:center}
+  .B .card .desc{font-size:11.5px;line-height:1.55;color:var(--dim)}
+  .B .card .out{margin-top:auto;font:10px var(--mono);color:var(--faint)}
+  .B .card .out b{font-weight:400;color:var(--text)}
+  .B .below{display:grid;grid-template-columns:1.3fr 1fr;gap:40px;border-top:1px solid var(--line);padding-top:20px}
+  .B .below .label{margin-bottom:8px}
+
+  /* ── C: quiet centre ── */
+  .C{display:flex;flex-direction:column;align-items:center;padding:28px 24px 20px;gap:0}
+  .C .col{width:100%;max-width:560px}
+  .C .head{display:flex;align-items:center;gap:14px;margin-bottom:18px}
+  .C .head .brand-mark{width:30px;height:30px;border-radius:5px}
+  .C .head .brand-mark::after{inset:5px;border-radius:2px}
+  .C .drop{border:1px dashed var(--line);border-radius:6px;background:var(--panel);padding:20px 20px;display:flex;align-items:center;gap:16px}
+  .C .drop:hover,.C .drop.on{border-color:var(--accent-border);background:var(--accent-bg)}
+  .C .drop .t{font:11px var(--mono);color:var(--faint)}
+  .C .drop .btn{margin-left:auto}
+  .C .recentwrap{margin-top:16px}
+  .C .recentwrap .label{margin-bottom:6px}
+  .C .cast{margin-top:22px;border-top:1px solid var(--line);padding-top:20px}
+  .C .cast .label{margin-bottom:12px}
+  .C .strip{display:flex;gap:8px}
+  .C .tile{flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;padding:10px 4px 9px;border:1px solid transparent;border-radius:6px;opacity:.55;transition:opacity .12s}
+  .C .tile:hover{opacity:.82}
+  .C .tile[aria-pressed="true"]{opacity:1;background:var(--panel);border-color:var(--line)}
+  .C .tile[aria-pressed="true"] .pf{box-shadow:0 0 0 2px var(--accent);border-radius:50%}
+  .C .tile .pname{font-size:11.5px}
+  .C .tile .ph{font:9.5px var(--mono);color:var(--faint)}
+  .C .intro{margin-top:10px;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px;min-height:78px}
+  .C .intro .l1{display:flex;gap:8px;align-items:baseline;margin-bottom:3px}
+  .C .intro .d{font-size:12px;color:var(--dim);line-height:1.55}
+</style>
+</head>
+<body>
+<div class="review">
+  <h1>Welcome screen — three mockups</h1>
+  <p class="lede">Shown on launch when no project path was passed on the command line. Nothing opens until you choose. All three are built from the harness's own tokens (dark only, NFR15) and the real portrait generator at its closed sizes, and borrow the VS Code welcome page's structure: a plain title block, text-link actions, a recent list, and a quiet second column.</p>
+
+  <!-- ═════════ A ═════════ -->
+  <section class="opt" id="optA">
+    <div class="opt-head"><span class="opt-key">A</span><h2>Start / Recent / The team</h2><p>closest to the VS Code page</p></div>
+    <div class="win" role="group" aria-label="Mockup A">
+      <div class="titlebar"><i></i><i></i><i></i></div>
+      <header class="topbar"><div class="brand"><span class="brand-mark"></span><span class="brand-name">BMad Harness</span></div><span class="sep">│</span><span class="state">no project open</span></header>
+      <div class="stage"><div class="A">
+        <div>
+          <div class="h1">BMad Harness</div>
+          <div class="sub tag">a visual harness for bmad projects</div>
+          <div class="sec">
+            <div class="h2">Start</div>
+            <div class="links">
+              <button class="link"><svg viewBox="0 0 16 16"><path d="M1.8 4.2c0-.7.5-1.2 1.2-1.2h3l1.4 1.6H13c.7 0 1.2.5 1.2 1.2v6.2c0 .7-.5 1.2-1.2 1.2H3c-.7 0-1.2-.5-1.2-1.2z"/></svg><span class="t">open project folder…</span><span class="kbd">⌘O</span></button>
+            </div>
+            <div class="hint">or drop a folder on this window</div>
+          </div>
+          <div class="sec">
+            <div class="h2">Recent</div>
+            <ul class="recent" id="recentA"></ul>
+          </div>
+        </div>
+        <div>
+          <div class="h2" style="margin-bottom:10px">The team</div>
+          <div class="teampanel" id="teamA"></div>
+          <div class="teamnote">agents in your project's install appear alongside these</div>
+        </div>
+      </div></div>
+    </div>
+    <div class="notes">
+      <div><b>What it is.</b> The VS Code page translated one-for-one: title and tagline, a Start list with one real action, Recent, and the second column given to the five personas where VS Code puts walkthroughs.</div>
+      <div><b>Trade-off.</b> Most familiar and cheapest to build, but the team is a read-only list — it informs, it doesn't invite. The portraits are small (44) and the page is mostly empty space on the left.</div>
+    </div>
+  </section>
+
+  <!-- ═════════ B ═════════ -->
+  <section class="opt" id="optB">
+    <div class="opt-head"><span class="opt-key">B</span><h2>The team, in order of the method</h2><p>teaches how BMad flows while it waits</p></div>
+    <div class="win" role="group" aria-label="Mockup B">
+      <div class="titlebar"><i></i><i></i><i></i></div>
+      <header class="topbar"><div class="brand"><span class="brand-mark"></span><span class="brand-name">BMad Harness</span></div><span class="sep">│</span><span class="state">no project open</span></header>
+      <div class="stage"><div class="B">
+        <div class="top">
+          <div><div class="h1">BMad Harness</div><div class="tag">five colleagues, one per phase of the method</div></div>
+          <div class="go"><span class="meta">drop a folder anywhere</span><button class="btn"><svg viewBox="0 0 16 16"><path d="M1.8 4.2c0-.7.5-1.2 1.2-1.2h3l1.4 1.6H13c.7 0 1.2.5 1.2 1.2v6.2c0 .7-.5 1.2-1.2 1.2H3c-.7 0-1.2-.5-1.2-1.2z"/></svg>open project folder… <span class="kbd">⌘O</span></button></div>
+        </div>
+        <div class="lane" id="laneB"></div>
+        <div class="below">
+          <div><div class="label">recent</div><ul class="recent" id="recentB"></ul></div>
+          <div><div class="label">in a project folder</div>
+            <div style="font-size:11.5px;color:var(--dim);line-height:1.6;max-width:44ch">The team is read from the project's own bmad install, so each project can have its own cast. A folder without one opens with a named reason, not a blank window.</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+    <div class="notes">
+      <div><b>What it is.</b> The five personas laid out under the four BMad phases they belong to — analysis, planning, solutioning, implementation — with the document each one produces. John and Sally share planning, so the lane is wider.</div>
+      <div><b>Trade-off.</b> Does the most to explain BMad, and it is the only layout where the portraits get room to be the warmth in the product. Heaviest of the three, and the open action competes with the cast for attention at the top.</div>
+    </div>
+  </section>
+
+  <!-- ═════════ C ═════════ -->
+  <section class="opt" id="optC">
+    <div class="opt-head"><span class="opt-key">C</span><h2>Quiet centre, interactive cast</h2><p>one action first, the team on demand</p></div>
+    <div class="win" role="group" aria-label="Mockup C">
+      <div class="titlebar"><i></i><i></i><i></i></div>
+      <header class="topbar"><div class="brand"><span class="brand-mark"></span><span class="brand-name">BMad Harness</span></div><span class="sep">│</span><span class="state">no project open</span></header>
+      <div class="stage"><div class="C"><div class="col">
+        <div class="head"><span class="brand-mark"></span><div><div class="h1">BMad Harness</div><div class="ptitle">a visual harness for bmad projects</div></div></div>
+        <div class="drop" id="dropC"><span class="t">drop a project folder here</span><button class="btn"><svg viewBox="0 0 16 16"><path d="M1.8 4.2c0-.7.5-1.2 1.2-1.2h3l1.4 1.6H13c.7 0 1.2.5 1.2 1.2v6.2c0 .7-.5 1.2-1.2 1.2H3c-.7 0-1.2-.5-1.2-1.2z"/></svg>open project folder… <span class="kbd">⌘O</span></button></div>
+        <div class="recentwrap"><div class="label">recent</div><ul class="recent" id="recentC"></ul></div>
+        <div class="cast"><div class="label">the team</div>
+          <div class="strip" id="stripC" role="group" aria-label="The five core personas"></div>
+          <div class="intro" id="introC" aria-live="polite"></div>
+        </div>
+      </div></div></div>
+    </div>
+    <div class="notes">
+      <div><b>What it is.</b> One column, one action. The five faces sit in a strip, dimmed the way idle cast cards already are; choosing one lifts it (the same 2px accent ring as a speaking portrait) and shows its intro below. Click the faces — this one works.</div>
+      <div><b>Trade-off.</b> Calmest and the most like "a place you open things from". The team intro is a step away, so a first-time user only learns the cast if they poke. Keyboard reach: the strip is five buttons, arrow-key friendly.</div>
+    </div>
+  </section>
+
+  <section class="opt" style="margin-bottom:0">
+    <div class="opt-head"><h2>Design notes that apply to all three</h2></div>
+    <div class="notes" style="margin-top:6px">
+      <div><b>Palette.</b> The VS Code page is light; the harness is <span class="mono">dark only (NFR15)</span>, so I kept its layout and left its colours behind. A light welcome would be a spec change, not a mockup choice.</div>
+      <div><b>Voice.</b> Harness strings stay lower-case mono with <span class="mono">·</span> separators; only things <i>said</i> are sans. The persona blurbs describe the role and name no next move (AD-21: state, never guidance) — so none says "start with Mary".</div>
+      <div><b>Portraits.</b> Real <span class="mono">portraitV2</span> at 44, the cast-card size. The size set is closed (FR79); a bigger hero face would need that rule reopened.</div>
+      <div><b>New things to build.</b> A recent-projects list has no store today (<span class="mono">chooseProjectDirectory()</span> returns a path and forgets it). The command-line path (<span class="mono">npm run dev -- &lt;path&gt;</span>) should still skip this screen. <span class="mono">⌘O</span> and folder drop are proposals.</div>
+    </div>
+  </section>
+</div>
+
+<script>
+/* ===== portraitV2 + curated params, verbatim from mockups/portrait.html ===== */
+function shade(hex, amt){const n=parseInt(hex.slice(1),16);const c=[(n>>16)&255,(n>>8)&255,n&255].map(v=>Math.max(0,Math.min(255,v+amt)));return "#"+c.map(v=>v.toString(16).padStart(2,"0")).join("");}
+function portraitV2(a,size,label){
+  const s=size||32;const hairDark=shade(a.hair,-20),hairLite=shade(a.hair,26);const lite=shade(a.skin,20),dark=shade(a.skin,-38);const eye=a.eye||"#5a4332";
+  let g=`<circle cx="50" cy="50" r="50" fill="${a.bg}"/>`;
+  if(a.style==="long"){g+=`<path d="M27,48 C27,25 36,16 50,16 C64,16 73,25 73,48 L73,78 C73,80.5 70,80.5 69,78 C66.5,70 65.5,60 65.5,52 L34.5,52 C34.5,60 33.5,70 31,78 C30,80.5 27,80.5 27,78 Z" fill="${hairDark}"/>`;}
+  if(a.style==="bun"){g+=`<circle cx="70.5" cy="30" r="8.4" fill="${hairDark}"/><circle cx="70.5" cy="30" r="8.4" fill="${hairLite}" opacity=".16"/>`;g+=`<path d="M31,50 C31,28.5 39,19 50,19 C61,19 69,28.5 69,50 L69,61 C69,63 66.5,63 65.8,61 C65,57.5 65,54 65,52 L35,52 C35,54 35,57.5 34.2,61 C33.5,63 31,63 31,61 Z" fill="${hairDark}"/>`;}
+  g+=`<path d="M42.6,56 h14.8 v21 h-14.8 z" fill="${a.shade}"/>`;
+  g+=`<ellipse cx="50" cy="70.5" rx="10.6" ry="4.4" fill="${dark}" opacity=".5"/>`;
+  g+=`<path d="M6,100 C8,83.5 25,75 50,75 C75,75 92,83.5 94,100 Z" fill="${a.shirt}"/>`;
+  g+=`<path d="M42.6,75.4 C44.6,82.6 55.4,82.6 57.4,75.4 Z" fill="${a.shade}"/>`;
+  g+=`<path d="M42.6,75.4 L50,84 L57.4,75.4" fill="none" stroke="${a.collar}" stroke-width="1.6" stroke-linejoin="round"/>`;
+  if(a.style==="curly"){[[35.5,29,8.4],[46,22.5,8.8],[57,23.5,8.4],[65,31.5,7.8],[32.5,38.5,7.4],[67.5,40,7],[50,31,9.2]].forEach(([x,y,r])=>g+=`<circle cx="${x}" cy="${y}" r="${r}" fill="${a.hair}"/>`);[[46,22.5,8.8],[57,23.5,8.4]].forEach(([x,y,r])=>g+=`<circle cx="${x-1.6}" cy="${y-1.6}" r="${r*.62}" fill="${hairLite}" opacity=".2"/>`);}
+  else if(a.style==="receding"){g+=`<ellipse cx="50" cy="37.5" rx="17.8" ry="16.6" fill="${a.hair}"/>`;}
+  else{const c=a.crown||{cy:35,rx:19.2,ry:19.6};g+=`<ellipse cx="50" cy="${c.cy}" rx="${c.rx}" ry="${c.ry}" fill="${a.hair}"/>`;}
+  g+=`<ellipse cx="32.2" cy="48.5" rx="2.9" ry="4.5" fill="${a.skin}"/><ellipse cx="32.4" cy="48.5" rx="1.4" ry="2.5" fill="${dark}" opacity=".45"/>`;
+  g+=`<ellipse cx="67.8" cy="48.5" rx="2.9" ry="4.5" fill="${a.skin}"/><ellipse cx="67.6" cy="48.5" rx="1.4" ry="2.5" fill="${dark}" opacity=".45"/>`;
+  g+=`<path d="M32.5,43.5 C32.5,31 39.5,24 50,24 C60.5,24 67.5,31 67.5,43.5 C67.5,52.5 65.8,58.6 62,63.2 C58.4,67.6 54.4,70 50,70 C45.6,70 41.6,67.6 38,63.2 C34.2,58.6 32.5,52.5 32.5,43.5 Z" fill="${a.skin}"/>`;
+  g+=`<path d="M50,24 C60.5,24 67.5,31 67.5,43.5 C67.5,52.5 65.8,58.6 62,63.2 C58.4,67.6 54.4,70 50,70 C53.6,66 56,59.5 56.8,51.5 C57.8,41 55,30.5 50,24 Z" fill="${a.shade}" opacity=".26"/>`;
+  g+=`<ellipse cx="41.5" cy="53" rx="5.2" ry="6.5" fill="${lite}" opacity=".24"/>`;
+  if(a.beard){g+=`<path d="M33,45 C33,60 40.5,70 50,70 C59.5,70 67,60 67,45 C67,55.5 61,60.5 50,60.5 C39,60.5 33,55.5 33,45 Z" fill="${a.hair}" opacity="${a.beard==="close"?.4:.88}"/>`;}
+  if(a.fringe==="sweep"){g+=`<path d="M32.6,42.5 C32.6,28.5 39.8,22.5 50,22.5 C58.4,22.5 64,25.2 66.8,31 C60.2,27.2 48.2,28.8 41.4,35.2 C37.6,38.6 34.4,43.4 33.4,46.4 C32.8,45.4 32.6,44 32.6,42.5 Z" fill="${a.hair}"/>`;}
+  else if(a.fringe==="straight"){g+=`<path d="M32.6,41 C32.6,28.5 39.6,22.5 50,22.5 C60.4,22.5 67.4,28.5 67.4,41 C67.4,34.5 60.5,31.2 50,31.2 C39.5,31.2 32.6,34.5 32.6,41 Z" fill="${a.hair}"/>`;}
+  if(a.style!=="receding"){g+=`<path d="M36,32 C39,26.4 44.4,23.6 50,23.6 C55,23.6 59.2,25.2 61.8,28.2 C57.4,26.4 52.2,26.6 47.6,28.4 C42.8,30.3 38.6,31.4 36,32 Z" fill="${hairLite}" opacity=".3"/>`;}
+  g+=`<path d="M37.4,42.8 Q42.4,39.6 47.6,41.9 Q42.6,41.4 38.1,44 Z" fill="${hairDark}"/><path d="M62.6,42.8 Q57.6,39.6 52.4,41.9 Q57.4,41.4 61.9,44 Z" fill="${hairDark}"/>`;
+  [42,58].forEach(x=>{g+=`<ellipse cx="${x}" cy="46.6" rx="4.4" ry="3.2" fill="${a.shade}" opacity=".2"/><path d="M${x-3.5},47 Q${x},43.5 ${x+3.5},47 Q${x},49.9 ${x-3.5},47 Z" fill="#f0ebe3"/><circle cx="${x}" cy="46.9" r="1.95" fill="${eye}"/><circle cx="${x}" cy="46.9" r=".92" fill="#17120f"/><circle cx="${x-.75}" cy="46.15" r=".5" fill="#ffffff" opacity=".75"/><path d="M${x-3.7},46.9 Q${x},43.1 ${x+3.7},46.9" fill="none" stroke="#3a2f29" stroke-width="1.3" stroke-linecap="round"/>`;});
+  g+=`<path d="M50.2,45 C50.8,50 51.8,53.8 52.8,55.8" fill="none" stroke="${a.shade}" stroke-width="1.25" stroke-linecap="round" opacity=".6"/><ellipse cx="50" cy="56.2" rx="3.4" ry="1.7" fill="${a.shade}" opacity=".36"/><ellipse cx="47.4" cy="56.4" rx=".85" ry=".6" fill="${dark}" opacity=".55"/><ellipse cx="52.6" cy="56.4" rx=".85" ry=".6" fill="${dark}" opacity=".55"/>`;
+  g+=`<path d="M45.3,61.4 Q50,63.2 54.7,61.4" fill="none" stroke="#8d5a4d" stroke-width="1.35" stroke-linecap="round"/><ellipse cx="50" cy="64" rx="4.2" ry="1.7" fill="${lite}" opacity=".22"/>`;
+  if(a.glasses==="rect"){g+=`<g fill="rgba(240,246,255,.06)" stroke="#cdd4dc" stroke-width="1.3" stroke-linejoin="round"><rect x="35.6" y="41.6" width="12.8" height="9.6" rx="3"/><rect x="51.6" y="41.6" width="12.8" height="9.6" rx="3"/></g><path d="M48.4,45.4 H51.6 M35.6,44.8 L31,43.8 M64.4,44.8 L69,43.8" fill="none" stroke="#cdd4dc" stroke-width="1.3" stroke-linecap="round"/>`;}
+  else if(a.glasses==="round"){g+=`<g fill="rgba(240,246,255,.06)" stroke="#cdd4dc" stroke-width="1.3"><circle cx="42" cy="46.4" r="6.8"/><circle cx="58" cy="46.4" r="6.8"/></g><path d="M48.8,45.6 H51.2 M35.2,45 L31,43.8 M64.8,45 L69,43.8" fill="none" stroke="#cdd4dc" stroke-width="1.3" stroke-linecap="round"/>`;}
+  if(a.earrings){g+=`<circle cx="32.2" cy="53.6" r="1.7" fill="#c9b07c"/><circle cx="67.8" cy="53.6" r="1.7" fill="#c9b07c"/>`;}
+  return `<svg class="pf" width="${s}" height="${s}" viewBox="0 0 100 100" role="img" aria-label="${label||''}" style="border-radius:50%">${g}</svg>`;
+}
+const ART={
+  john:{skin:"#efc6a1",shade:"#d9a87f",hair:"#9ba3ab",eye:"#6b7a80",style:"short",fringe:"straight",crown:{cy:33.5,rx:18.6,ry:17.6},beard:"full",glasses:null,shirt:"#465260",collar:"#39434f",bg:"#2a3340"},
+  mary:{skin:"#e7b68d",shade:"#cf9a72",hair:"#7d4a2b",eye:"#6b4a2f",style:"long",fringe:"sweep",beard:null,glasses:"rect",shirt:"#3c4756",collar:"#313b48",bg:"#2f3742"},
+  winston:{skin:"#7d4f30",shade:"#653d24",hair:"#1e1a17",eye:"#4a3325",style:"receding",fringe:null,beard:"close",glasses:null,shirt:"#3c4a4b",collar:"#313d3e",bg:"#2f3a3c"},
+  sally:{skin:"#bd7c4e",shade:"#a06539",hair:"#241f1d",eye:"#3d2a1e",style:"curly",fringe:null,beard:null,glasses:null,earrings:true,shirt:"#4b4053",collar:"#3d3445",bg:"#383345"},
+  amelia:{skin:"#ebc09c",shade:"#d3a47e",hair:"#2c2521",eye:"#5c6b4a",style:"bun",fringe:"sweep",beard:null,glasses:"round",shirt:"#3f4b45",collar:"#343f3a",bg:"#333c3a"}
+};
+/* Harness-written role descriptions — from each agent's `role`, no next-move language (AD-21). */
+const TEAM=[
+  {id:"mary",name:"Mary",title:"Business Analyst",phase:"analysis",makes:"research · requirements",
+   desc:"Market and competitive research and requirements — the thinking done before a project is committed to."},
+  {id:"john",name:"John",title:"Product Manager",phase:"planning",makes:"PRD · epics · stories",
+   desc:"Turns the product vision into a validated PRD, then epics and stories development can execute."},
+  {id:"sally",name:"Sally",title:"UX Designer",phase:"planning",makes:"DESIGN.md · EXPERIENCE.md",
+   desc:"Turns user needs and the PRD into design and experience specifications that inform the architecture."},
+  {id:"winston",name:"Winston",title:"System Architect",phase:"solutioning",makes:"architecture",
+   desc:"Converts the PRD and UX into the technical decisions that keep implementation on track."},
+  {id:"amelia",name:"Amelia",title:"Senior Software Engineer",phase:"implementation",makes:"tested code",
+   desc:"Implements approved stories test-first and ships code that has been run and verified."}
+];
+const face=(p,s)=>portraitV2(ART[p.id],s,`${p.name}, ${p.title}`);
+const RECENT=[
+  {name:"bmad-harness",path:"~/Learnings",chip:"bmad · 5 agents",ago:"2h"},
+  {name:"simple_action",path:"~/Learnings",chip:"bmad · 5 agents",ago:"3d"},
+  {name:"bmad-first-project",path:"~/Learnings",chip:"no bmad install",ago:"9d"}
+];
+const recent=()=>RECENT.map(r=>`<li><button><span class="nm">${r.name}</span></button><span class="path">${r.path}</span><span class="r"><span class="chip">${r.chip}</span><span class="meta">${r.ago}</span></span></li>`).join("");
+["A","B","C"].forEach(k=>document.getElementById("recent"+k).innerHTML=recent());
+
+/* A */
+document.getElementById("teamA").innerHTML=TEAM.map(p=>`<div class="prow">${face(p,44)}<div class="body"><div class="line1"><span class="pname">${p.name}</span><span class="ptitle">${p.title}</span></div><div class="desc">${p.desc}</div></div></div>`).join("");
+
+/* B — lanes by phase */
+const PH=["analysis","planning","solutioning","implementation"];
+document.getElementById("laneB").innerHTML=PH.map((ph,i)=>`<div><div class="lane-h"><span class="label">${ph}</span><span class="n">${i+1}</span></div><div class="cards">${TEAM.filter(p=>p.phase===ph).map(p=>`<div class="card"><div class="who">${face(p,44)}<div><div class="pname">${p.name}</div><div class="ptitle">${p.title}</div></div></div><div class="desc">${p.desc}</div><div class="out">writes · <b>${p.makes}</b></div></div>`).join("")}</div></div>`).join("");
+
+/* C — interactive strip */
+const strip=document.getElementById("stripC"),intro=document.getElementById("introC");
+let sel="sally";
+function paintC(){
+  strip.innerHTML=TEAM.map(p=>`<button class="tile" data-id="${p.id}" aria-pressed="${p.id===sel}">${face(p,44)}<span class="pname">${p.name}</span><span class="ph">${p.phase}</span></button>`).join("");
+  const p=TEAM.find(x=>x.id===sel);
+  intro.innerHTML=`<div class="l1"><span class="pname">${p.name}</span><span class="ptitle">${p.title}</span><span class="phase" style="margin-left:auto">${p.phase}</span></div><div class="d">${p.desc}</div>`;
+}
+strip.addEventListener("click",e=>{const b=e.target.closest(".tile");if(b){sel=b.dataset.id;paintC();strip.querySelector(`[data-id="${sel}"]`).focus();}});
+strip.addEventListener("keydown",e=>{const i=TEAM.findIndex(x=>x.id===sel);let n=null;if(e.key==="ArrowRight")n=(i+1)%5;if(e.key==="ArrowLeft")n=(i+4)%5;if(n!==null){e.preventDefault();sel=TEAM[n].id;paintC();strip.querySelector(`[data-id="${sel}"]`).focus();}});
+paintC();
+/* C — drop affordance preview */
+const drop=document.getElementById("dropC");["dragenter","dragover"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("on");}));["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("on");}));
+</script>
+</body>
+</html>

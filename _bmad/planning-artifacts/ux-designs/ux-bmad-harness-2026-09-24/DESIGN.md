@@ -4,7 +4,7 @@ type: design-spine
 description: 'Dark, dense, hairline-ruled desktop shell whose entire restraint budget is spent on one thing: illustrated portraits of plausible colleagues.'
 status: final
 created: '2026-09-24'
-updated: '2026-09-25'
+updated: '2026-10-08'
 sources:
   - ../../../specs/spec-bmad-visual-harness/SPEC.md
   - ../../../specs/spec-bmad-visual-harness/ui-surfaces.md
@@ -13,6 +13,7 @@ sources:
   - ../../../specs/spec-bmad-visual-harness/scope-tiers.md
   - ../../architecture/architecture-bmad-harness-2026-09-23/ARCHITECTURE-SPINE.md
   - ../../../brainstorming/brainstorm-bmad-visual-harness-2026-09-22/harness-mockup.html
+  - mockups/welcome-screen-chosen.html
 companions:
   - EXPERIENCE.md
 
@@ -169,6 +170,10 @@ spacing:
   party-thread-max: 900px
   chat-sub-max: 72ch
   doc-read-max: 70ch
+  # Welcome (2026-10-08). The one surface that carries no simultaneous states, so the one surface with room.
+  welcome-col: 560px          # head, open action, recent
+  welcome-team-max: 960px     # the four phase lanes
+  welcome-window: '1080px × 720px'
   win-width: 'min(880px,92vw)'
   win-height: 'min(760px,80vh)'
   win-titlebar: 36px
@@ -310,6 +315,26 @@ components:
     speakingBackground: '#1b222c'
     speakingShadow: '0 0 0 1px rgba(127,166,232,.22), 0 6px 18px -10px rgba(0,0,0,.8)'
     portraitSize: 44px
+  welcome:
+    window: '{spacing.welcome-window}, opened by main, no project'
+    ground: '{colors.bg}'
+    topbar: 'brand · `│` · `no project open` in {typography.label} {colors.faint}; no chips, no view switch'
+    mark: '30px bordered square, ::after inset 5px, accent at .75 (the topbar mark at the larger size)'
+    title: '{typography.h1} text-strong'
+    tagline: '{typography.ident} sans, {colors.dim}'
+    column: '{spacing.welcome-col}'
+    teamMax: '{spacing.welcome-team-max}'
+    open-button: 'the composer send button, unchanged: #2c3a52 ground, #3b4d6b border, #cfe0f8 text, #334463 hover, {rounded.control}'
+    drop-zone: '1px dashed {colors.line}, {colors.panel} ground, {rounded.card}, padding 18px 20px'
+    drop-zone-active: 'border {colors.accent-border}, ground {colors.accent-bg}'
+    drop-hint: '{typography.meta} mono, {colors.dim}'
+    recent-row: 'name {typography.base} sans {colors.accent} · path {typography.ident} mono {colors.dim} · age {typography.meta} mono {colors.faint}, right'
+    recent-row-missing: 'name {colors.dim}, not underlined on hover, `folder missing` in {typography.label} mono {colors.dim} where the age was'
+    lane-label: '{typography.label} mono uppercase, {colors.faint}, then a 1px {colors.line} rule filling the row, then the lane number in {typography.badge} {colors.meta}'
+    lane-columns: '1fr 2fr 1fr 1fr, gap 10px (planning holds two cards)'
+    persona-card: '{colors.panel} ground, 1px {colors.line}, {rounded.card}, padding 12px 12px 11px, gap 8px'
+    portraitSize: 44px
+    opacity: '1 — these are not a room, so nothing is dimmed'
   document-window:
     radius: '{rounded.window}'
     background: '{colors.panel}'
@@ -477,6 +502,8 @@ AD-14 names layout literals as equal in force to the colours. These are the cont
 | Card body max-height | **230px** | Document-card body before it scrolls |
 | Composer field | **20px min, 120px max** | Autogrows between |
 
+| Welcome window | **1080 × 720** | Separate window, no project. Its column is **560px**, its lanes **960px** max |
+
 Portrait render sizes are a closed set: **32** transcript, **36** persona tile, **38** chat header, **44** cast card. Persona tiles are 56px tall, so roughly six fit the Team half before it scrolls. **Tiles are grouped by the agent's `module` and `team` fields** (AD-10; the grouping rule is EXPERIENCE.md → *Interaction Primitives → Persona tile order*). The six-tile scroll limit is not the reason for the grouping — it is what makes the grouping load-bearing.
 
 ### The party side panel — 288px is superseded
@@ -486,6 +513,10 @@ AD-14 binds **288px** as a literal for the party side panel. **That literal does
 The mockup designs three sections into that panel — *Room*, *Open disagreements*, *Decisions so far*. `scope-tiers.md` defers the latter two, so **v1 ships the Room section only**. What renders and what does not, and why, is EXPERIENCE.md's ruling (→ *Party Mode*); what follows here is the width that ruling leaves behind.
 
 Consequently the panel is resized to its remaining content: four key/value rows on a 74px key column at `label`/`body-ui`. **v1 width: 240px — decided.** No source specifies a replacement value; 240px is sized to the Room panel's own content, a 74px key column plus its values. The alternative considered and rejected was dropping the panel entirely and moving Room into the party header; narrowing wins because it leaves the deferred *Open disagreements* and *Decisions so far* sections somewhere to land later without a relayout. **288px must not be implemented**, and the panel must not be built with slots reserved for the deferred sections.
+
+### The welcome is the one surface that breathes
+
+Everything else in the product is dense on purpose: *whitespace here costs visible state* (below). The welcome carries no state — nothing is running, nothing is being written, nothing can change while it is open except the user's choice — so there is nothing for whitespace to cost, and it takes the VS Code start page's rhythm instead: a 560px centred column, 18–22px between blocks, a hairline `line` rule before the team. This is a scoped exception and not a loosening. **No other surface may borrow it**, and the welcome does not borrow the rail's density in return.
 
 ### Spacing is a ladder, not a scale
 
@@ -499,6 +530,8 @@ Desktop-first, one project per window, `body{overflow:hidden}` at full size. Two
 
 - **≤1180px** — the party side panel is hidden outright.
 - **≤1000px** — the shell unlocks scroll (`body{overflow:auto}`, `.app{height:auto}`), both views stack to a column, the chat column takes `min-height:62vh`, the rail moves below the chat and switches its `border-left` to a `border-top` with each half at `min-height:230px`, cast cards wrap at `flex:1 1 44%`, and the topbar wraps to `height:auto` with the breadcrumbs pushed to their own full-width row.
+
+- The **welcome** takes the second breakpoint only: at **≤1000px** its window scrolls (`overflow:auto`) and the four lanes stack to one column of cards. It adds no breakpoint of its own.
 
 There is no mobile target and no third breakpoint.
 
@@ -698,6 +731,30 @@ No hover lift, no entrance animation, no typewriter reveal. The thread caps at `
 
 `{rounded.card}` radius, `flex:1 1 0` at `min-width:148px`, on a `linear-gradient(180deg,#151920,#12161b)` strip that scrolls horizontally. 44px portrait, name at `{typography.name}`, title at `{typography.ident}`, status at `{typography.micro}`. **Default `opacity:.42`**, hover `.72`, speaking `1` with border `#41597e`, ground `#1b222c`, the accent glow, a `0 0 0 2px accent` ring on the portrait, and status in `accent` with the equaliser. Presence is expressed by dimming, never by removal — every chosen portrait stays visible for the life of the room.
 
+### Welcome
+
+A window of its own, opened by main when the harness starts without a project and each time the last project window closes. It has the topbar (brand mark, `│`, `no project open`) and nothing else in it that is shell: no chips, no view switch, no rail, no composer.
+
+**Head.** A 30px brand mark beside the title (`h1`, 20px/600, `text-strong`) and a one-line tagline (`ident`, sans, `dim`): `a visual harness for bmad projects`, which is the package description, said once.
+
+**The open action** is one button and one drop zone, side by side in the same 1px dashed `line` box. The button is the composer's send button with a folder glyph drawn the way the rail row's file icon is: one inline stroked path, 15px, `1.4` weight, round caps, in `accent`, with no font and no file and the chord `⌘O` in `meta` mono beside the label. The label is `open project folder…`. The drop zone's own text, `drop a project folder here`, is mono at `dim`: it is an instruction a user acts on, so it does not sit at `faint`. While a folder is dragged over the window the box takes `accent-border` and an `accent-bg` ground; that is the whole feedback, with no animation.
+
+**Recent** is a section label (`recent`, mono, `faint`) over rows. A row is the project's folder name in `accent`, the folder's parent path in mono at `dim` with the home directory written `~`, and its age at the right in `meta` mono (`2h`, `3d`). Hover underlines the name, as every link in the product does. A project whose folder is gone keeps its row, with the name at `dim`, no underline and the text `folder missing` in the age's place. **There is no install chip, count or version on a row**: the harness stats a folder here and runs no resolver for a row it has not opened.
+
+**The team** sits under a full-width `line` rule: the label `the team` and one meta line (`the five core personas, by phase of the method · a project's own install can add more`). Four **lanes**, in the order of the method — `analysis`, `planning`, `solutioning`, `implementation` — each headed by its label, a rule and its number. A **persona card** is a 44px portrait, the name at `name` and the title at `ident`, with a two-to-three-line description in `body-ui` at `dim`. Two cards share `planning`, so that lane is twice the width. Cards are content, not controls: they take no focus, have no hover state and open nothing. **Portraits are at full opacity** (the dimming of a cast card means *not speaking*, and nobody is in a room here) and are the same `artParamsFor` faces as everywhere, at the same 44.
+
+**The five descriptions are the harness's words about a role, not a persona's words.** They carry no first person, no quotation, and no instruction. They are written from each agent's `role`, shortened, and held as one table in the renderer (the welcome is the one place a roster is shown before any install has been read).
+
+| Persona | Lane | Description |
+|---|---|---|
+| Mary · Business Analyst | analysis | Market and competitive research and requirements — the thinking done before a project is committed to. |
+| John · Product Manager | planning | Turns the product vision into a validated PRD, then epics and stories development can execute. |
+| Sally · UX Designer | planning | Turns user needs and the PRD into design and experience specifications that inform the architecture. |
+| Winston · System Architect | solutioning | Converts the PRD and UX into the technical decisions that keep implementation on track. |
+| Amelia · Senior Software Engineer | implementation | Implements approved stories test-first and ships code that has been run and verified. |
+
+There is **no motion** on this window: no entrance, no hover transition on a card, no animated drop feedback. The page is at rest.
+
 ### Document window
 
 A separate OS window over a `scrim` fill at z-40, window at z-50, top `8vh`, `min(880px,92vw) × min(760px,80vh)`. `panel` ground, 1px `win-line` (`#333b46`), `{rounded.window}` (8px) radius, `0 30px 70px -20px rgba(0,0,0,.85)`.
@@ -757,4 +814,9 @@ Streaming prose arrives in frame-sized bursts, with the caret at the tail. **A p
 | Express absence and inattention with opacity | Remove a chosen persona's face from the room |
 | Build the party side panel with the *Room* section only, at its new width | Implement AD-14's 288px, or reserve slots for the deferred disagreement and decision sections |
 | Let the rail stay monochrome and dense | Turn the rail into a dashboard with colour-coded rows or badges |
+| Give the welcome its own breathing room, once, because it holds no state | Carry the welcome's spacing into the shell, or the shell's density into the welcome |
+| Draw the open button's folder glyph inline as one stroked path, as the rail row's file icon is | Add an icon font, an icon set, an emoji or an image file for it |
+| Show a drop target with a 1px dashed `line` border | Use a dashed border for anything but the welcome's drop zone |
+| Keep the five welcome portraits at 44px and full opacity | Render a larger "hero" face, or dim a face that is not in a room |
+| State a missing recent folder as `folder missing` | Show an install chip, agent count or version on a recent row, or run a resolver to fill one |
 | Ship dark only | Add a light palette, a `prefers-color-scheme` branch, or a high-contrast variant |

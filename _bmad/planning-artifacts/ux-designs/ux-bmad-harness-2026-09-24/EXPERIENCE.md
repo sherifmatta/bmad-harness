@@ -3,7 +3,7 @@ name: 'bmad-visual-harness'
 type: experience-spine
 status: final
 created: '2026-09-24'
-updated: '2026-10-03'
+updated: '2026-10-08'
 sources:
   - ../../../specs/spec-bmad-visual-harness/SPEC.md
   - ../../../specs/spec-bmad-visual-harness/ui-surfaces.md
@@ -12,6 +12,7 @@ sources:
   - ../../../specs/spec-bmad-visual-harness/scope-tiers.md
   - ../../architecture/architecture-bmad-harness-2026-09-23/ARCHITECTURE-SPINE.md
   - ../../../brainstorming/brainstorm-bmad-visual-harness-2026-09-22/harness-mockup.html
+  - mockups/welcome-screen-chosen.html
 companions:
   - DESIGN.md
 ---
@@ -35,6 +36,7 @@ Every rule below traces to a memlog decision, an architecture decision (AD-n), a
 | Interaction Primitives | every action, where it lives, what it dispatches, and tile order |
 | Banned everywhere | product-wide prohibitions |
 | State Patterns | tile, rail row, card, queued composer, roster, preflight, empty states |
+| Welcome | the window before a project: when it opens, the one action, recent projects, the five core personas |
 | Dead Air | what the card does through a multi-minute silence |
 | Failure, Stopping and Contention | the stop cost, terminal states, and the no-arbitration posture |
 | Run Completion When Unattended | the notification contract for the terminal events |
@@ -48,6 +50,8 @@ Every rule below traces to a memlog decision, an architecture decision (AD-n), a
 
 Desktop Electron shell. **macOS only in v1** — Windows and Linux are deferred, and the two platform escapes (`open -R`, `open -a`) are macOS calls confined to one module. **One project per window**; multi-project windows are deferred. **Dark only** — the mockup defines one palette, light theme is deferred, and no high-contrast variant exists.
 
+**The harness opens to a Welcome window, not to a native dialog.** It is where a project is chosen (*Welcome*, below). A project passed on the command line skips it for the first window.
+
 Two top-level views behind a single switch — **1:1 Conversation** and **Party Mode**. A **Help** entry point is reserved in the topbar layout but **does not render in v1**, because the Help *section* behind it is Should-tier and a control that opens nothing is a control that lies; *Accessibility Floor → Keyboard reach* therefore lists the view switch alone. An explicit **end-session** control exists and is the only way to clear a persisted conversation; it is a lifecycle control, not a next-step suggestion (AD-21).
 
 **This document designs for the user who is elsewhere.** The author works both at the window and in another app during a multi-minute run (memlog). The elsewhere case is strictly harder, and **a design that holds for it also holds for the attended case** — so every waiting state is specified for the unattended reading first and the attended reading second.
@@ -60,6 +64,7 @@ Two top-level views behind a single switch — **1:1 Conversation** and **Party 
 
 | Surface | Reached from | Contains | Notes |
 |---|---|---|---|
+| Welcome | launch with no project path · closing the last project window · macOS reactivation with no window | brand, `no project open`, the one open action and drop zone, recent projects, the five core personas by phase | its own window, no project; see *Welcome*. Not a view of the shell and not a step |
 | Topbar | always present | brand, project path, install chip, branch chip, view switch | `{spacing.topbar}`. The Help entry point is reserved but not rendered in v1 |
 | 1:1 Conversation | view switch | chat column + rail | default view |
 | Chat column | 1:1 | conversation entries in time order — persona turns, user turns, syslines, document cards; skill button row; composer | thread `{spacing.thread-max}` max-width |
@@ -69,7 +74,7 @@ Two top-level views behind a single switch — **1:1 Conversation** and **Party 
 | Document card | **inline in the conversation, in time order** | head / body / foot | run-scoped; never a panel |
 | Party Mode | view switch | cast, header, transcript, *Room* section | see *Party Mode* below |
 | Document window | click a rail row or a card path | read-only preview, reloads on write | separate OS window, outside the shell |
-| Preflight | launch failure | named missing prerequisite + remedy | see *State Patterns → Preflight* |
+| Preflight | launch failure, after a project is chosen | named missing prerequisite + remedy | see *State Patterns → Preflight* |
 
 **Nesting and lifetime**
 
@@ -169,6 +174,9 @@ Project **content** is untrusted because it is largely model-authored (AD-13). M
 | Cast chooser | party, on opening | chooses the room; defaults to the five core personas |
 | *Write summary to `_bmad/`* | party header | writes `_bmad/party/<date>-<topic>.md` |
 | End session | shell | `conversation.end(projectId)` — **project-scoped**, the only way to clear a persisted conversation |
+| *Open project folder…* · `⌘O` | welcome | the native folder chooser; a choice opens that project's window |
+| Drop a folder | welcome | opens that project's window |
+| Recent row | welcome | opens that project's window |
 
 **Chat turns and skill invocations are both turns into the same session.** There is no second run kind, and the composer and the skill row must not read as two modes (AD-18).
 
@@ -279,7 +287,7 @@ CAP-1 promises zero *configuration*, not zero *prerequisites*. Any failure is re
 
 **Check 3 is the subtle one and must not read as "no agents found".** BMad *is* installed, `claude` works, and the room is still empty. The cause is scope: agents resolve under `--setting-sources project,local`, so a **user-scoped** BMad install — one living in the home directory rather than in this project — resolves nothing here. The message must say all four things: **what** the harness looked for (agents), **where** it looked (this project, under `--setting-sources project,local`), **why** a correctly installed BMad can still resolve no agents there, and **what would change that**. Anything shorter leaves the user staring at a correct install and a blank rail.
 
-**Forbidden at launch:** any setup step, onboarding wizard, or "where are you in the process?" question. Pointing at a project root is the whole setup, and position and ownership are derived, never asked (AD-19).
+**Forbidden at launch:** any setup step, onboarding wizard, or "where are you in the process?" question. Pointing at a project root is the whole setup, and position and ownership are derived, never asked (AD-19). **The Welcome window is not one of these**: it asks one thing, which folder, it has no sequence and no second screen, it records no answer about the project, and what it says about the five personas is the same whichever project is chosen.
 
 ### Empty states
 
@@ -289,6 +297,86 @@ CAP-1 promises zero *configuration*, not zero *prerequisites*. Any failure is re
 | Document card | — | **there is no empty card body.** See *Dead Air* |
 | Subagent region (`system/task_progress`) | — | optional, not primary. It may be permanently empty on a given run; nothing may depend on it |
 | Party side panel | — | the two deferred sections are **not rendered at all**, not even as empty states |
+
+---
+
+## Welcome
+
+*Added 2026-10-08 from the welcome-screen mockups (`mockups/welcome-screen-chosen.html`). Anatomy and tokens: `DESIGN.md` → Components → Welcome.*
+
+Before this, the harness opened a native folder dialog the moment it started, and quit if the dialog was cancelled. The user met the product as an operating-system dialog and could not see what they were opening. The Welcome is the first thing the harness shows, and what it is for is one choice: **which project**.
+
+### When it opens, and when it does not
+
+| Moment | Behaviour |
+|---|---|
+| launch, no project path on the command line | the Welcome opens; no dialog opens |
+| launch with a project path | **no Welcome** for the first window; the project opens as it does today. A path that is not a folder fails as it does today: a line on stderr and exit 1, no window and no dialog |
+| the last project window closes | the Welcome opens (the old behaviour re-opened the dialog) |
+| reactivated from the Dock with no window | the Welcome opens |
+| a project window is open and another project is wanted | the Welcome is not reachable from a project window in v1: one project per window, and no project switcher. **[ASSUMPTION]** — it is reached by closing the window, as today |
+| the Welcome window is closed | the app quits. **[ASSUMPTION]** — the old chooser quit on cancel; closing the Welcome is the same decision, now made by the window and not by a dialog |
+| *Open project folder…* is cancelled in the native dialog | the user is back at the Welcome, unchanged. **Cancel no longer quits** |
+| a project is chosen | its window opens and the Welcome closes in the same moment. The Welcome never stays open behind a project |
+
+### The one action
+
+**Open project folder…** opens the native macOS folder chooser (as today: *open a bmad project*, folders only, *create folder* allowed, so a new project folder is made there and not here). `⌘O` reaches the same action while the Welcome has focus. **[ASSUMPTION]** — no source names a shortcut; it is the macOS convention and it belongs to the Welcome's menu only, so no project window's menu changes.
+
+A **dropped folder** opens as a chosen one does. Anything else dropped — a file, several items, a non-folder — opens nothing and says one line in the harness register, in the same place as the drop hint: `not a folder · <name>`. It is a fact, with no remedy attached, and it clears when the next thing is dropped or the next choice is made.
+
+The Welcome opens with focus on the *Open project folder…* button.
+
+### Recent
+
+A list of the projects opened before, newest first, **at most eight**. **[ASSUMPTION]** — the number is not specified; eight fits the column without scrolling the lanes out of the window.
+
+| Rule | Behaviour |
+|---|---|
+| what is recorded | a project's folder path and when its window opened, **by any route**, including a command-line path. Nothing else: no install state, no agent count, no branch |
+| where | in harness bookkeeping under `userData`, never in a project (AD-1, NFR3). Only the path and the time |
+| order | most recently opened first; a project opened again moves to the top and is not listed twice |
+| a row opens | that project's window, exactly as a chosen folder does |
+| folder gone | the row stays, shows `folder missing` where its age was, is announced as unavailable and does nothing when activated. It leaves the list only by being pushed off the end. **[ASSUMPTION]** — there is no *remove* or *clear recent* control in v1: it would be a settings surface for a list that ages out on its own |
+| none yet | the **recent section is not rendered**: no label, no empty line. Same rule as the deferred party sections: an absent thing is not shown as an empty one |
+
+**A row never says what is installed in the project.** To know, the harness would run a resolver for every row on every launch, and a count shown from an earlier launch could be false. What a project lacks is said once, by *Preflight*, after it is chosen.
+
+### The team
+
+Five cards under four lanes, in the order of the method: **analysis** (Mary), **planning** (John, Sally), **solutioning** (Winston), **implementation** (Amelia). Each shows the persona's portrait, name, title and one description (`DESIGN.md` has the table).
+
+- **They are the five core personas** the harness has curated faces for (FR78). They are read from no project, so the Welcome says nothing about what any project has installed — its meta line says only that *a project's own install can add more*.
+- **The lanes say where a persona works in the method, not where the project is.** Nothing here reads the project's artifacts, marks a lane current, or orders by relevance. Pipeline position is derived, never asked and never shown (AD-19, FR10).
+- **No lane, card or persona is highlighted, preselected or recommended** (AD-21). The order is the method's, and every card is the same.
+- **The descriptions are the harness's words about a role**, in the harness's register, not persona speech (FR21): no first person, no quotation, no invitation. They describe; they never suggest a persona to start with.
+- Cards are content. They are not controls, take no focus and open nothing. Choosing a persona happens in a project, in the rail.
+
+### Copy
+
+| Place | String |
+|---|---|
+| topbar | `no project open` |
+| tagline | `a visual harness for bmad projects` |
+| action | `open project folder…` · chord `⌘O` |
+| drop zone | `drop a project folder here` |
+| rejected drop | `not a folder · <name>` |
+| missing recent | `folder missing` |
+| team meta | `the five core personas, by phase of the method · a project's own install can add more` |
+
+Lower case, mono for harness strings, `·` as the separator, no terminal punctuation — and the personas' descriptions are the one place in sans, because they are said, not stated (*Voice and Tone*, rule 4). Nothing on the Welcome tells the user what to do next: no *get started*, no *welcome back*, no *try opening…*.
+
+### Accessibility
+
+- **Keyboard:** the Welcome's tab stops are the *Open project folder…* button and the recent list. The recent list is one tab stop; arrows move between its rows, `Enter` opens. A missing row is skipped by `Enter`, not by the arrows, so the user can read why. The drop zone has no tab stop of its own because the button beside it is its keyboard equivalent.
+- **Live region:** the Welcome has its own one polite region (*Accessibility Floor → 4*). It announces `not a folder · <name>` once.
+- **Focus:** on open, the button. After a cancelled dialog, the button again. Nothing moves focus when a recent row's folder turns out to be missing.
+- **Motion:** none, so there is nothing for `prefers-reduced-motion` to disable.
+- **Portraits** carry `aria-label="{name}, {title}"` at 44px, as at every size (§5).
+
+### Banned on the Welcome
+
+No tour, wizard, checklist, progress, *getting started* or *what's new*; no version number; no link out; no "start with…" or any recommended persona; no badge or count on a recent row; no *clear recent*; no sound; no animation; no light variant.
 
 ---
 
@@ -486,6 +574,7 @@ With no command palette (*Banned everywhere*) there is no `⌘K` escape hatch, s
 | Rail — Outputs half | one tab stop for the list; arrows move between rows; `Enter` opens the document window |
 | Document window | `Esc` closes. The three escapes are tab-reachable |
 | Party | cast chooser, header controls and composer all tab-reachable; no turn gate means no focus trap |
+| Welcome | *Open project folder…* and the recent list are the tab stops; arrows move between recent rows, `Enter` opens, `⌘O` opens the chooser. Persona cards are content and are not tab stops. See *Welcome → Accessibility* |
 
 No shortcut layer beyond this.
 
