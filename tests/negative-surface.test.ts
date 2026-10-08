@@ -2512,4 +2512,23 @@ describe("nothing this epic promised not to do: the audit's static half (Story 4
     const methods = [...preload.slice(preload.indexOf("const harness: HarnessApi = {"), preload.indexOf("contextBridge.exposeInMainWorld")).matchAll(/^ {2}(\w+):/gm)];
     expect([commands.length, events.length, channels.length, methods.length]).toEqual([7, 15, 22, 17]);
   });
+
+  it("says nothing of a reload: no restored or reconnected word, control, line or banner for a room that came back (Story 4.7)", () => {
+    const CONVERSATION = ["src/renderer/ui/chat/use-conversation.ts", STATE, VOICE, BRIDGE, "src/main/session-registry.ts"];
+    expect(wordsOf([...PARTY_TSX, ...CONVERSATION, COMPOSER]).filter((text) => /restor|reconnect|reload|rejoin|welcome back/i.test(text))).toEqual([]);
+    expect(offenders(PARTY_CSS, /restor|reconnect|reload/i)).toEqual([]);
+    // The room that comes back draws nothing of its own: `hydrate` makes no sysline and says no line, and main's snapshot says none.
+    const slice = (path: string, from: string, to: string): string => {
+      const text = code.get(path) ?? "";
+      expect(text.indexOf(from), from).toBeGreaterThanOrEqual(0);
+      expect(text.indexOf(to), to).toBeGreaterThan(text.indexOf(from));
+      return text.slice(text.indexOf(from), text.indexOf(to));
+    };
+    const hydrate = slice(STATE, "export function hydrate", "export function foldEvent");
+    expect(hydrate.length).toBeGreaterThan(0);
+    expect(hydrate).not.toMatch(/withHandoff|harness:said|LINES\./);
+    const getConversation = slice(BRIDGE, "function getConversation", "export function registerSessionBridge");
+    expect(getConversation.length).toBeGreaterThan(0);
+    expect(getConversation).not.toMatch(/registry\.say|\bsay\(|transcript\.record|LINES\./);
+  });
 });

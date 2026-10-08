@@ -63,10 +63,23 @@ export type TranscriptRecord = PersonaRecord | UserRecord | SyslineRecord
  * the sysline main wrote for it. `session.open` keeps its declaration in the
  * contract; the reply only gains this one optional field.
  */
-export type SessionOpenReply = CommandReply<{ sessionId: SessionId; handoff?: SyslineRecord }>
+export type SessionOpenReply = CommandReply<{
+  sessionId: SessionId
+  handoff?: SyslineRecord
+  /**
+   * Set on the answer to opening the room (Story 4.7), on a first open and on an open against a room
+   * already live alike: that room's own cast, in open order, and when it opened. Absent on a persona's.
+   */
+  room?: { cast: AgentId[]; openedAt: EpochMs }
+}>
 
 /** What opening a session resolves with in the renderer, once the envelope is unwrapped. */
-export type OpenedSession = { sessionId: SessionId; handoff?: SyslineRecord }
+export type OpenedSession = {
+  sessionId: SessionId
+  handoff?: SyslineRecord
+  /** The room's own cast and open time, as the open's reply carried them (Story 4.7). */
+  room?: { cast: AgentId[]; openedAt: EpochMs }
+}
 
 /**
  * One run card as the transcript file keeps it, with the moment main last
@@ -148,7 +161,13 @@ export type ConversationSnapshot = {
   entries: TranscriptRecord[]
   /** The sessions live in this launch, one per persona. */
   sessions: { agentId: AgentId; sessionId: SessionId }[]
-  /** The live sessions with a turn in flight. */
+  /**
+   * The window's room while it is live (Story 4.7): its session, its cast in open order and when it
+   * opened. Main's memory of this launch, never stored. Absent when the room is still starting, stopped,
+   * exited or from before a relaunch. The room is never among `sessions`.
+   */
+  room?: { sessionId: SessionId; cast: AgentId[]; openedAt: EpochMs }
+  /** The live sessions with a turn in flight, the room's included. */
   busy: SessionId[]
   /** The personas that are anything but `idle`, with when that state began. */
   personas: PersonaStateChanged[]

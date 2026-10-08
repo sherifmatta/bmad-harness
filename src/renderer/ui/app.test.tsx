@@ -79,7 +79,7 @@ function installBridge(): void {
     openSession: async (target: string | { room: readonly string[] }) => {
       if (typeof target !== 'string') {
         roomCasts.push(target.room)
-        return { sessionId: 'session-of-the-room' }
+        return { sessionId: 'session-of-the-room', room: { cast: [...target.room], openedAt: 1_700_000_000_000 } }
       }
       const agentId = target
       opened.push(agentId)

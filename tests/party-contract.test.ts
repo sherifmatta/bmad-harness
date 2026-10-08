@@ -50,6 +50,13 @@ describe('what the room did not add', () => {
     expect(commands).toMatch(/'session\.open': CommandSpec<\s*\[target: SessionTarget\],\s*'[^']+',\s*CommandReply<\{ sessionId: SessionId \}>\s*>/)
     expect(stripped(read('src/preload/harness-api.d.ts'))).toContain('openSession(target: SessionTarget): Promise<OpenedSession>')
   })
+
+  it('gains the live room on the open reply and the conversation snapshot as optional fields only (Story 4.7)', () => {
+    const conversation = stripped(read('src/shared/conversation.ts'))
+    expect(conversation).toMatch(/export type SessionOpenReply = CommandReply<\{[^}]*room\?: \{ cast: AgentId\[\]; openedAt: EpochMs \}/)
+    expect(conversation).toMatch(/export type OpenedSession = \{[^}]*room\?: \{ cast: AgentId\[\]; openedAt: EpochMs \}/)
+    expect(conversation).toMatch(/room\?: \{ sessionId: SessionId; cast: AgentId\[\]; openedAt: EpochMs \}\n\s*busy: SessionId\[\]/)
+  })
 })
 
 describe('the party view’s files', () => {

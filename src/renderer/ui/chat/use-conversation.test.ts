@@ -64,8 +64,17 @@ class FakeBridge implements ConversationBridge {
   /** The casts the room was asked for, in order; a room open is also an entry of `opens`, as `room`. */
   casts: (readonly string[])[] = []
 
+  /** When main says the room opened, in the reply of an open that does not name its own answer. */
+  roomOpenedAt = 5000
+  /** The room an open answers with, in place of the one it asked for; one entry is read per room open (Story 4.7). */
+  roomAnswers: ({ cast: string[]; openedAt: number } | undefined)[] = []
+
   openSession(target: SessionTarget): Promise<OpenedSession> {
     const handoff = this.handoffs[this.opens.length]
+    const room =
+      typeof target === 'string'
+        ? undefined
+        : (this.roomAnswers[this.casts.length] ?? { cast: [...target.room], openedAt: this.roomOpenedAt })
     if (typeof target !== 'string') {
       this.casts.push(target.room)
     }
@@ -73,9 +82,11 @@ class FakeBridge implements ConversationBridge {
     this.opens.push(agentId)
     const pending = deferred<string>()
     this.openResult.push(pending)
-    return pending.promise.then((sessionId) =>
-      handoff === undefined ? { sessionId } : { sessionId, handoff }
-    )
+    return pending.promise.then((sessionId) => ({
+      sessionId,
+      ...(handoff === undefined ? {} : { handoff }),
+      ...(room === undefined ? {} : { room })
+    }))
   }
   closed: string[] = []
   /** What the next close answers; one entry is consumed per close. */
@@ -1543,6 +1554,30 @@ describe('sendToRoom (Story 4.2)', () => {
     expect(held(last()).roomCast).toEqual(CAST)
   })
 
+  it('keeps the live room’s own cast and open time when an open is made with other ticks', async () => {
+    const { conversation, last } = await live()
+    bridge.roomAnswers[1] = { cast: [...CAST], openedAt: bridge.roomOpenedAt }
+    void conversation.openRoom([john.id])
+    bridge.openResult[1].resolve('r1')
+    await settle()
+
+    expect(bridge.casts).toEqual([CAST, [john.id]])
+    expect(held(last()).roomCast).toEqual(CAST)
+    expect(held(last()).roomOpenedAt).toBe(bridge.roomOpenedAt)
+  })
+
+  it('takes the cast and the time from the reply, not from the ticks asked for', async () => {
+    const made = build()
+    await connected(made.conversation)
+    bridge.roomAnswers[0] = { cast: [john.id, mary.id], openedAt: 777 }
+    void made.conversation.openRoom([mary.id])
+    bridge.openResult[0].resolve('r1')
+    await settle()
+
+    expect(held(made.last()).roomCast).toEqual([john.id, mary.id])
+    expect(held(made.last()).roomOpenedAt).toBe(777)
+  })
+
   it('shows one unqueued room entry, marks the room busy and sends the text to the room session, verbatim', async () => {
     const { conversation, last } = await live()
     conversation.sendToRoom('@john what about  this?')
@@ -1605,9 +1640,9 @@ describe('sendToRoom (Story 4.2)', () => {
     expect(held(last()).room).toBeUndefined()
   })
 
-  it('opens the room at the conversation’s clock when the reply came first, and reads the first message as the topic', async () => {
+  it('opens the room at the time main’s reply gave, and reads the first message as the topic', async () => {
     const { last, conversation } = await live()
-    expect(typeof held(last()).roomOpenedAt).toBe('number')
+    expect(held(last()).roomOpenedAt).toBe(bridge.roomOpenedAt)
     expect(held(last()).roomTopic).toBeUndefined()
 
     conversation.sendToRoom('  Payouts —\nmore  ')

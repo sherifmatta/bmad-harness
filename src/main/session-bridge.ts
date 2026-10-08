@@ -193,13 +193,16 @@ async function openRoom(
     return INVALID_CAST
   }
   const service = ctx.registry.serviceFor(sender, projectRoot)
-  if (service.room !== undefined) {
-    return service.room.ready
+  const live = service.room
+  if (live !== undefined) {
+    // The window's cast and open time are the live room's own, not what this open was asked for.
+    return withRoom(await live.ready, live)
   }
   const entry = ctx.registry.openRoom(
     sender,
     service,
     projectRoot,
+    cast.map(({ id }) => id),
     roomActivationTurn(
       cast,
       roster.map(({ id }) => id)
@@ -209,7 +212,15 @@ async function openRoom(
   if (reply.ok && !entry.closed) {
     ctx.registry.say(sender, entry, LINES.roomOpened(cast.map(({ id, name }) => (name === '' ? id : name))))
   }
-  return reply
+  return withRoom(reply, entry)
+}
+
+/** An ok answer to opening the room, with the room's own cast and open time on it (Story 4.7). */
+function withRoom(reply: OpenReply, entry: Entry): OpenReply {
+  if (!reply.ok || entry.roomCast === undefined || entry.openedAt === undefined) {
+    return reply
+  }
+  return { ...reply, room: { cast: [...entry.roomCast], openedAt: entry.openedAt } }
 }
 
 function openSession(ctx: Context) {
@@ -545,6 +556,9 @@ function getConversation(ctx: Context) {
     const personaSessions = live.flatMap(({ agentId, sessionId }) =>
       agentId === undefined ? [] : [{ agentId, sessionId }]
     )
+    // The live room is named beside them (Story 4.7), from main's memory alone: one still starting is
+    // not in `live`, and one that stopped, exited or came before a relaunch is not held at all.
+    const room = live.find((entry) => entry.agentId === undefined && entry.roomCast !== undefined && entry.openedAt !== undefined)
     const transcript = ctx.transcripts.forProject(projectRoot)
     const own = service?.runs.snapshot() ?? []
     const held = new Set(own.map((card) => card.runId))
@@ -553,7 +567,10 @@ function getConversation(ctx: Context) {
       snapshot: {
         entries: [...transcript.entries()],
         sessions: personaSessions,
-        busy: live.filter((entry) => entry.agentId !== undefined && entry.turn.busy).map((entry) => entry.sessionId),
+        ...(room?.roomCast === undefined || room.openedAt === undefined
+          ? {}
+          : { room: { sessionId: room.sessionId, cast: [...room.roomCast], openedAt: room.openedAt } }),
+        busy: live.filter((entry) => entry.turn.busy).map((entry) => entry.sessionId),
         personas: personaProjectionFor(sender, ctx.now).snapshot(),
         // The cards the transcript keeps that this window does not hold (the stored conversation's,
         // and those of an earlier window of this launch), each as it ended, then this window's own.

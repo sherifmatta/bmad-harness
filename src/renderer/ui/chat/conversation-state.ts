@@ -2,7 +2,7 @@ import type { ConversationSnapshot, RunCardSnapshot, SyslineRecord } from '../..
 import type { ContractEvent, PersonaState } from '../../../shared/events'
 import type { AgentView } from '../../../shared/install'
 import { roomDestination, roomTopicOf } from '../../../shared/room-destination'
-import { roomSummaryTurn } from '../../../shared/room-summary'
+import { isRoomSummaryTurn, roomSummaryTurn } from '../../../shared/room-summary'
 import { withPulled } from '../../../shared/section-plan'
 import type { RunCardEntry, TranscriptEntry, UserEntry } from './transcript-entry'
 
@@ -315,9 +315,9 @@ export function ended(state: ConversationState): ConversationState {
 /**
  * The reply to opening the room: the session it answered with is the room, whether the
  * events announced it already or it was live before this window loaded. The cast, when the
- * reply is the window's own (`cast`, which the chooser sends in roster order), is kept; a room met only through
- * an event keeps the cast it had. The room has no queue. `at` is the moment of the reply: it
- * is the room's open time only when no event gave one first (the first of the two stands).
+ * reply carries one (`cast`, which is main's own for the live room, never the chooser's ticks), is kept; a room met only through
+ * an event keeps the cast it had. The room has no queue. `at` is the room's open time as the reply or
+ * the event gave it: the first of the two stands (they are the one moment).
  */
 export function roomReady(
   state: ConversationState,
@@ -346,8 +346,9 @@ export function roomSent(
     return { state }
   }
   const sent = withRoomEntry(state, state.room, at, text)
-  // The first message is the topic, once: a room with one keeps it, and a message with no text in it is none.
-  const topic = state.roomTopic === undefined ? roomTopicOf(text) : state.roomTopic
+  // The first message is the topic, once: a room with one keeps it, a message with no text in it is none,
+  // and the summary ask is never one (`hydrate` derives the topic by this same rule).
+  const topic = state.roomTopic !== undefined || isRoomSummaryTurn(text) ? '' : roomTopicOf(text)
   return {
     state: topic === '' ? sent : { ...sent, roomTopic: topic },
     sessionId: state.room
@@ -548,6 +549,23 @@ export function orphansOf(
 }
 
 /**
+ * The topic of the room opened at `openedAt`, read back from the stored entries by the rule `roomSent`
+ * sets it live: the first user entry of the room (flagged `room`, at or after the open) that has text in
+ * it and is not the summary ask, in its `roomTopicOf` shape. `undefined` when there is none.
+ */
+function storedTopicOf(entries: readonly TranscriptEntry[], openedAt: number): string | undefined {
+  for (const entry of entries) {
+    if (entry.kind === 'user' && entry.room === true && entry.at >= openedAt && !isRoomSummaryTurn(entry.text)) {
+      const topic = roomTopicOf(entry.text)
+      if (topic !== '') {
+        return topic
+      }
+    }
+  }
+  return undefined
+}
+
+/**
  * Take what main holds as the conversation: the transcript, which sessions are
  * live, which have a turn in flight and which personas are not idle replace
  * whatever the window knew. What the window itself holds stays: a message typed
@@ -591,9 +609,16 @@ export function hydrate(
           }
   )
   const cards = snapshot.runs.map(runEntryOf)
+  const room = snapshot.room
   let next: ConversationState = {
     ...state,
     entries: [...stored, ...cards, ...state.entries],
+    // The live room as main names it (Story 4.7): its cast and open time are main's, its topic is read back
+    // from the stored entries. Without one there is no room, and nothing is made up.
+    room: room?.sessionId,
+    roomCast: room === undefined ? [] : [...room.cast],
+    roomOpenedAt: room?.openedAt,
+    roomTopic: room === undefined ? undefined : storedTopicOf(stored, room.openedAt),
     sessions: new Map(snapshot.sessions.map(({ agentId, sessionId }) => [agentId, sessionId])),
     busy: new Set(snapshot.busy),
     personas: new Map(

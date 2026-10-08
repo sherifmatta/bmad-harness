@@ -1,5 +1,5 @@
 import type { ContractEvent } from '../shared/events'
-import type { AgentId, RunId, SessionId } from '../shared/ids'
+import type { AgentId, EpochMs, RunId, SessionId } from '../shared/ids'
 import type { ArtifactObservation } from '../shared/rail'
 import type { TemplatePlan } from '../shared/section-plan'
 import type { SessionOpenReply } from '../shared/conversation'
@@ -86,6 +86,13 @@ export type Entry = {
   idleWaiters: (() => void)[]
   /** The last send into this room still running (Story 4.2): the next waits for it, so sends are written in the order made. */
   roomSends: Promise<unknown>
+  /**
+   * The room's cast in open order (Story 4.7), set when the room is made so a live room is never seen
+   * without it. Absent on a persona's entry. Memory only.
+   */
+  roomCast: readonly AgentId[] | undefined
+  /** When `session:opened` was announced for this entry, the same value as its `at`; `undefined` while starting. Memory only. */
+  openedAt: EpochMs | undefined
 }
 
 export type Service = {
@@ -158,10 +165,17 @@ export type SessionRegistry = {
   /** Start a session; its `ready` says how that went. */
   open(sender: Sender, service: Service, projectRoot: string, agentId: AgentId): Entry
   /**
-   * Start the window's room, a session with no agent whose first turn is `firstTurn`;
-   * its `ready` says how that went. The caller has checked there is none live.
+   * Start the window's room, a session with no agent whose first turn is `firstTurn`, for `cast`
+   * (kept on the entry, in the order given); its `ready` says how that went. The caller has checked
+   * there is none live.
    */
-  openRoom(sender: Sender, service: Service, projectRoot: string, firstTurn: string): Entry
+  openRoom(
+    sender: Sender,
+    service: Service,
+    projectRoot: string,
+    cast: readonly AgentId[],
+    firstTurn: string
+  ): Entry
   /** The harness says a line in its own voice about a session; a room's lines are flagged as the party thread's (Story 4.1). */
   say(sender: Sender, entry: Entry, text: string): void
   /** Kill every session of a window and close each one. */
@@ -364,9 +378,11 @@ function startProcess(
         return NOT_FOUND
       }
       entry.session = outcome.session
+      const at = kit.now()
+      entry.openedAt = at
       kit.announce(sender, service, {
         name: 'session:opened',
-        payload: { sessionId: entry.sessionId, ...(agentId === undefined ? {} : { agentId }), at: kit.now() }
+        payload: { sessionId: entry.sessionId, ...(agentId === undefined ? {} : { agentId }), at }
       })
       // The activation turn is in flight.
       kit.watch(sender, service, entry)
@@ -396,7 +412,12 @@ function newService(sender: Sender, projectRoot: string, now: () => number): Ser
 }
 
 /** A new entry for a session about to start: the persona's, or the room's when there is no `agentId`. */
-function newEntry(sessionId: SessionId, projectRoot: string, agentId: AgentId | undefined): Entry {
+function newEntry(
+  sessionId: SessionId,
+  projectRoot: string,
+  agentId: AgentId | undefined,
+  roomCast?: readonly AgentId[]
+): Entry {
   return {
     sessionId,
     ...(agentId === undefined ? {} : { agentId }),
@@ -412,7 +433,9 @@ function newEntry(sessionId: SessionId, projectRoot: string, agentId: AgentId | 
     afterStop: undefined,
     interrupting: false,
     idleWaiters: [],
-    roomSends: Promise.resolve()
+    roomSends: Promise.resolve(),
+    roomCast: roomCast === undefined ? undefined : [...roomCast],
+    openedAt: undefined
   }
 }
 
@@ -545,8 +568,8 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
     return begin(sender, service, entry)
   }
 
-  function openRoom(sender: Sender, service: Service, projectRoot: string, firstTurn: string): Entry {
-    const entry = newEntry(newSessionId(), projectRoot, undefined)
+  function openRoom(sender: Sender, service: Service, projectRoot: string, cast: readonly AgentId[], firstTurn: string): Entry {
+    const entry = newEntry(newSessionId(), projectRoot, undefined, cast)
     service.room = entry
     return begin(sender, service, entry, firstTurn)
   }

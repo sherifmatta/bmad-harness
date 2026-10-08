@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { roomDestination } from './room-destination'
-import { roomSummaryTurn } from './room-summary'
+import { isRoomSummaryTurn, roomSummaryTurn } from './room-summary'
 
 describe('roomSummaryTurn', () => {
   it('names the destination of a room with a topic, in the exact ask', () => {
@@ -20,5 +20,19 @@ describe('roomSummaryTurn', () => {
 
   it('is one paragraph', () => {
     expect(roomSummaryTurn('_bmad/party/x.md')).not.toMatch(/\n/)
+  })
+})
+
+describe('isRoomSummaryTurn', () => {
+  it('knows the ask for any destination, with or without a topic', () => {
+    expect(isRoomSummaryTurn(roomSummaryTurn(roomDestination(Date.parse('2026-10-08T14:31:00'), 'Payouts')))).toBe(true)
+    expect(isRoomSummaryTurn(roomSummaryTurn(roomDestination(undefined, undefined)))).toBe(true)
+  })
+
+  it('does not take the user’s own words for it', () => {
+    expect(isRoomSummaryTurn('')).toBe(false)
+    expect(isRoomSummaryTurn('Write a summary of this conversation to somewhere')).toBe(false)
+    expect(isRoomSummaryTurn(`${roomSummaryTurn('_bmad/party/x.md')} and then some more`)).toBe(false)
+    expect(isRoomSummaryTurn('Payouts')).toBe(false)
   })
 })

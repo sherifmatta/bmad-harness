@@ -129,6 +129,9 @@ const harness: HarnessApi = {
     if (reply.handoff !== undefined) {
       opened.handoff = reply.handoff
     }
+    if (reply.room !== undefined) {
+      opened.room = reply.room
+    }
     return opened
   },
 

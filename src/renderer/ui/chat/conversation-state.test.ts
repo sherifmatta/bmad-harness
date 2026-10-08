@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ConversationSnapshot, SyslineRecord } from '../../../shared/conversation'
 import type { ContractEvent, PersonaState } from '../../../shared/events'
 import type { AgentView } from '../../../shared/install'
+import { roomSummaryTurn } from '../../../shared/room-summary'
 import {
   canAnswer,
   cancelQueued,
@@ -644,6 +645,94 @@ describe('hydrate', () => {
       { text: 'to-busy', queuedFor: 'Mary' },
       { text: 'to-nobody', queuedFor: 'John' }
     ])
+  })
+})
+
+describe('hydrate: a live room (Story 4.7)', () => {
+  const ROOM = { sessionId: 'r1', cast: [john.id, mary.id], openedAt: 100 }
+  const snapshot = (over: Partial<ConversationSnapshot> = {}): ConversationSnapshot => ({
+    entries: [],
+    sessions: [],
+    busy: [],
+    personas: [],
+    runs: [],
+    room: ROOM,
+    ...over
+  })
+  const userIn = (id: string, at: number, text: string, room = true): ConversationSnapshot['entries'][number] => ({
+    kind: 'user',
+    id,
+    at,
+    text,
+    ...(room ? { room: true as const } : {})
+  })
+  const taken = (over: Partial<ConversationSnapshot> = {}): ConversationState =>
+    hydrate(initialConversation, snapshot(over), agentOf).state
+
+  it('takes the room, its cast in open order and its open time from main', () => {
+    const state = taken()
+
+    expect(state.room).toBe('r1')
+    expect(state.roomCast).toEqual([john.id, mary.id])
+    expect(state.roomOpenedAt).toBe(100)
+    expect(state.sessions.size).toBe(0)
+  })
+
+  it('has no room, cast, time or topic when the snapshot names none', () => {
+    const state = taken({ room: undefined, entries: [userIn('m-0', 150, 'topic')] })
+
+    expect(state).toMatchObject({ room: undefined, roomCast: [], roomOpenedAt: undefined, roomTopic: undefined })
+  })
+
+  it('is busy when main says it is, and its speaker is lit from the stored entries', () => {
+    const state = taken({
+      busy: ['r1'],
+      entries: [userIn('m-0', 110, 'hello'), { kind: 'persona', id: 'm-1', at: 120, agentId: john.id, messageId: 'a', text: 'Hi', room: true }]
+    })
+
+    expect(state.busy.has('r1')).toBe(true)
+    expect(speakerOf(state)).toBe(john.id)
+    expect(speakerOf(taken({ entries: [userIn('m-0', 110, 'hello')] }))).toBeUndefined()
+  })
+
+  it('counts the room’s persona entries from the open on as its turns', () => {
+    const state = taken({
+      entries: [
+        { kind: 'persona', id: 'm-0', at: 50, agentId: john.id, messageId: 'a', text: 'old', room: true },
+        { kind: 'persona', id: 'm-1', at: 120, agentId: john.id, messageId: 'b', text: 'new', room: true }
+      ]
+    })
+
+    expect(roomTurnsOf(state)).toBe(1)
+  })
+
+  it('derives the topic as the first non-blank, non-summary-ask room user entry at or after the open', () => {
+    const ask = roomSummaryTurn('_bmad/party/2026-01-01-x.md')
+    const state = taken({
+      entries: [
+        userIn('m-0', 50, 'an earlier room'),
+        userIn('m-1', 100, '   '),
+        userIn('m-2', 101, ask),
+        userIn('m-3', 102, 'not the room', false),
+        userIn('m-4', 103, '  Payouts —\nmore  '),
+        userIn('m-5', 104, 'second')
+      ]
+    })
+
+    expect(state.roomTopic).toBe('Payouts —')
+  })
+
+  it('has no topic when the room has had no message but the summary ask', () => {
+    expect(taken({ entries: [userIn('m-0', 110, roomSummaryTurn('_bmad/party/2026-01-01-<topic>.md'))] }).roomTopic).toBeUndefined()
+    expect(taken({ entries: [] }).roomTopic).toBeUndefined()
+  })
+
+  it('agrees with a room that was live: the summary ask typed first is no topic there either', () => {
+    const live = roomReady(foldEvent(initialConversation, { name: 'session:opened', payload: { sessionId: 'r1', at: 100 } }, agentOf).state, 'r1', [john.id])
+    const ask = roomSummaryTurn('_bmad/party/2026-01-01-<topic>.md')
+
+    expect(roomSent(live, 110, ask).state.roomTopic).toBeUndefined()
+    expect(roomSent(roomSent(live, 110, ask).state, 120, 'real').state.roomTopic).toBe('real')
   })
 })
 

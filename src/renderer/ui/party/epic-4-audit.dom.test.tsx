@@ -4,8 +4,10 @@ import { createRoot } from 'react-dom/client'
 import type { Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ConversationSnapshot, TranscriptRecord } from '../../../shared/conversation'
 import type { AgentView } from '../../../shared/install'
 import type { RailRow } from '../../../shared/rail'
+import { hydrate, initialConversation, roomTurnsOf, speakerOf } from '../chat/conversation-state'
 import type { TranscriptEntry } from '../chat/transcript-entry'
 import { DENOMINATOR, SPINNER_MARKUP, STAND_IN, spoken } from '../testing/audit-patterns'
 import '../testing/render-hook'
@@ -69,6 +71,40 @@ const BASE: Props = { room: 's1', roomCast: CAST, speaker: undefined, entries: [
 /** What the audit mounts: a name, the props, and whether the room is live. */
 type Case = { name: string; props: Props; live: boolean }
 
+/**
+ * A room the window got back after a reload (Story 4.7), built as the window builds it: `hydrate` over what
+ * main's snapshot says, with the stored transcript as records and nothing set by hand.
+ */
+function reloaded(busy: boolean, records: readonly TranscriptRecord[]): Props {
+  const snapshot: ConversationSnapshot = {
+    entries: [...records],
+    sessions: [],
+    busy: busy ? ['s1'] : [],
+    personas: [],
+    runs: [],
+    room: { sessionId: 's1', cast: CAST, openedAt: NOW }
+  }
+  const { state } = hydrate(initialConversation, snapshot, (id) => ROSTER.find((one) => one.id === id))
+  return {
+    room: state.room,
+    roomCast: state.roomCast,
+    speaker: speakerOf(state),
+    entries: state.entries,
+    topic: state.roomTopic,
+    openedAt: state.roomOpenedAt,
+    turns: roomTurnsOf(state),
+    rows: [],
+    agents: ROSTER
+  }
+}
+
+const RECORDS: TranscriptRecord[] = [
+  { kind: 'sysline', id: 'm-0', at: NOW, text: 'room opened by you · present · Mary · John · Winston', room: true },
+  { kind: 'user', id: 'm-1', at: NOW + 1, text: 'Should the payouts ship first', room: true },
+  { kind: 'persona', id: 'm-2', at: NOW + 2, agentId: MARY.id, messageId: 'a', text: 'The data we hold says yes.', room: true },
+  { kind: 'persona', id: 'm-3', at: NOW + 3, agentId: JOHN.id, messageId: 'b', text: 'I would hold it back a sprint.', room: true }
+]
+
 const CASES: Case[] = [
   { name: 'the chooser alone', props: { ...BASE, room: undefined, roomCast: [], openedAt: undefined, entries: [] }, live: false },
   { name: 'a live room just opened', props: BASE, live: true },
@@ -97,7 +133,9 @@ const CASES: Case[] = [
     name: 'a stopped room opened again',
     props: { ...BASE, room: 's2', entries: [...TURNS, STOPPED, { ...OPENED, id: 'm-10', at: NOW + 10 }], turns: 0 },
     live: true
-  }
+  },
+  { name: 'a live room after a reload, idle, built by hydrate from the snapshot', props: reloaded(false, RECORDS), live: true },
+  { name: 'a live room after a reload, mid-turn, its speaker lit from the stored entries', props: reloaded(true, RECORDS), live: true }
 ]
 
 let container: HTMLElement

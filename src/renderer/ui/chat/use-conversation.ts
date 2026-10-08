@@ -304,12 +304,13 @@ export function createConversation(deps: ConversationDeps): Conversation {
     const generation = endings
     const attempt: Promise<void> = bridge
       .openSession({ room: [...cast] })
-      .then(({ sessionId }) => {
+      .then(({ sessionId, room }) => {
         // An open that outlived the conversation it began in found it ended.
         if (generation !== endings) {
           return
         }
-        commit(roomReady(state, sessionId, cast, now()))
+        // The cast and the time are the room's own, as main answered: not the chooser's ticks (Story 4.7).
+        commit(roomReady(state, sessionId, room?.cast, room?.openedAt))
       })
       .catch((reason: unknown) => {
         if (generation !== endings) {

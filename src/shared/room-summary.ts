@@ -9,3 +9,19 @@
 export function roomSummaryTurn(destination: string): string {
   return `Write a summary of this conversation to ${destination}. Cover what was discussed, what was decided and what is still open. If the file name has <topic> in it, put a short name for the topic there; if the file already exists, add -2 to the name rather than overwrite it.`
 }
+
+/** The ask with a mark where its destination goes: what comes before it and what comes after. */
+const [ASK_HEAD, ASK_TAIL] = roomSummaryTurn('\u0000').split('\u0000')
+
+/**
+ * Whether `text` is the summary ask, whatever destination it names (Story 4.7). The ask is never a
+ * room's topic, so a window that reads the stored entries again must tell it from the user's own words.
+ */
+export function isRoomSummaryTurn(text: string): boolean {
+  return (
+    text.length >= ASK_HEAD.length + ASK_TAIL.length &&
+    text.startsWith(ASK_HEAD) &&
+    text.endsWith(ASK_TAIL) &&
+    !text.slice(ASK_HEAD.length, text.length - ASK_TAIL.length).includes('\n')
+  )
+}

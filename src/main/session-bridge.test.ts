@@ -2069,7 +2069,7 @@ describe('the room (Story 4.1)', () => {
     const sender = new FakeSender(1)
     const { reply, proc } = await openRoom(sender, Object.keys(FIVE))
 
-    expect(reply).toEqual({ ok: true, sessionId: 's1' })
+    expect(reply).toEqual({ ok: true, sessionId: 's1', room: { cast: Object.keys(FIVE), openedAt: 1001 } })
     expect(processes).toHaveLength(1)
     expect(proc.options.cwd).toBe('/project-1')
     expect(proc.options.agentId).toBeUndefined()
@@ -2107,7 +2107,9 @@ describe('the room (Story 4.1)', () => {
     const sender = new FakeSender(1)
     const { reply } = await openRoom(sender, Object.keys(FIVE))
 
+    // The answer is the live room's own cast and open time, not the cast this open asked for.
     await expect(open(sender, { room: ['bmad-agent-pm'] })).resolves.toEqual(reply)
+    expect(reply).toMatchObject({ room: { cast: Object.keys(FIVE), openedAt: 1001 } })
     expect(processes).toHaveLength(1)
     expect(said(sender)).toHaveLength(1)
   })
@@ -2118,8 +2120,9 @@ describe('the room (Story 4.1)', () => {
     const second = open(sender, { room: Object.keys(FIVE) })
     await processes[0].up()
 
-    await expect(first).resolves.toEqual({ ok: true, sessionId: 's1' })
-    await expect(second).resolves.toEqual({ ok: true, sessionId: 's1' })
+    const room = { cast: Object.keys(FIVE), openedAt: 1001 }
+    await expect(first).resolves.toEqual({ ok: true, sessionId: 's1', room })
+    await expect(second).resolves.toEqual({ ok: true, sessionId: 's1', room })
     expect(processes).toHaveLength(1)
     expect(said(sender)).toHaveLength(1)
   })
@@ -2178,22 +2181,67 @@ describe('the room (Story 4.1)', () => {
     expect(processes).toHaveLength(2)
   })
 
-  it('is not in the conversation snapshot, which lists persona sessions only', async () => {
-    const sender = new FakeSender(1)
-    await openRoom(sender, Object.keys(FIVE))
-    await opened(sender, 'bmad-agent-pm')
+  describe('in the conversation snapshot (Story 4.7)', () => {
+    const CAST = ['bmad-agent-dev', 'bmad-agent-analyst', 'bmad-agent-pm']
+    const snapshotOf = (sender: FakeSender) => {
+      const reply = get(sender)
+      if (!reply.ok) throw new Error('no snapshot')
+      return reply.snapshot
+    }
 
-    expect(get(sender)).toMatchObject({
-      ok: true,
-      snapshot: { sessions: [{ agentId: 'bmad-agent-pm', sessionId: 's2' }], personas: [{ agentId: 'bmad-agent-pm' }] }
+    it('names the live room beside the persona sessions, never among them, and counts it in busy', async () => {
+      const sender = new FakeSender(1)
+      const { reply } = await openRoom(sender, CAST)
+      await opened(sender, 'bmad-agent-pm')
+
+      const snapshot = snapshotOf(sender)
+      expect(snapshot.room).toEqual({ sessionId: reply.sessionId, cast: CAST, openedAt: 1001 })
+      expect(snapshot.sessions).toEqual([{ agentId: 'bmad-agent-pm', sessionId: 's2' }])
+      expect(snapshot.busy).toEqual([reply.sessionId, 's2'])
+      expect(snapshot.personas).toMatchObject([{ agentId: 'bmad-agent-pm' }])
+      expect(snapshot.entries).toEqual([{ kind: 'sysline', id: 'm-0', at: expect.any(Number), text: expect.any(String), room: true }])
     })
-    const snapshot = get(sender)
-    expect(snapshot.ok && snapshot.snapshot.entries).toEqual([
-      { kind: 'sysline', id: 'm-0', at: expect.any(Number), text: ROOM_SYSLINE, room: true }
-    ])
-    // A window that reloads finds the chooser: the snapshot omits the room, and opening again finds it.
-    const reopened = get(new FakeSender(2))
-    expect(reopened).toMatchObject({ ok: true, snapshot: { sessions: [] } })
+
+    it('does not throw when the room is stopped while a second open waits on it', async () => {
+      const sender = new FakeSender(1)
+      const first = open(sender, { room: CAST })
+      const second = open(sender, { room: ['bmad-agent-pm'] })
+      closeSession(sender, 's1')
+      await processes[0].up()
+
+      await expect(first).resolves.toMatchObject({ ok: false, error: { code: 'session/not-found' } })
+      await expect(second).resolves.toMatchObject({ ok: false, error: { code: 'session/not-found' } })
+    })
+
+    it('leaves a window that has no room of its own without one', async () => {
+      await openRoom(new FakeSender(1), CAST)
+
+      expect(snapshotOf(new FakeSender(2)).room).toBeUndefined()
+    })
+
+    it('is not there while the room is still starting', async () => {
+      const sender = new FakeSender(1)
+      const pending = open(sender, { room: CAST })
+
+      expect('room' in snapshotOf(sender)).toBe(false)
+      await processes[0].up()
+      await pending
+      expect(snapshotOf(sender).room).toMatchObject({ sessionId: 's1' })
+    })
+
+    it.each(['stopped', 'exited'])('is not there once the room %s, and nothing is invented', async (how) => {
+      const sender = new FakeSender(1)
+      const { reply, proc } = await openRoom(sender, CAST)
+      if (how === 'stopped') {
+        closeSession(sender, reply.sessionId)
+      }
+      proc.exit()
+
+      const snapshot = snapshotOf(sender)
+      expect('room' in snapshot).toBe(false)
+      expect(snapshot.busy).toEqual([])
+      expect(snapshot.sessions).toEqual([])
+    })
   })
 
   it('refuses a menu dispatch for it as session/not-found and never throws on the missing agent', async () => {
@@ -2372,22 +2420,6 @@ describe('the room (Story 4.1)', () => {
     )
 
     expect(marks).toEqual(['mark _bmad/party/note.md', 'clear'])
-  })
-
-  it('leaves a busy room out of the snapshot’s busy set, as it leaves it out of the sessions', async () => {
-    const sender = new FakeSender(1)
-    await openRoom(sender, Object.keys(FIVE))
-    // The room's activation turn is in flight; a persona's is too.
-    const snapshotOf = (): { sessions: unknown[]; busy: string[] } => {
-      const reply = get(sender)
-      if (!reply.ok) throw new Error('no snapshot')
-      return reply.snapshot
-    }
-    expect(snapshotOf().busy).toEqual([])
-
-    const persona = await opened(sender, 'bmad-agent-pm')
-
-    expect(snapshotOf()).toMatchObject({ sessions: [{ sessionId: persona.reply.sessionId }], busy: [persona.reply.sessionId] })
   })
 })
 

@@ -81,6 +81,20 @@ describe('PartyView focus', () => {
   })
 })
 
+describe('PartyView after a reload (Story 4.7)', () => {
+  it('is the live room on first render: header, strip, panel, composer and stop, no chooser, and nothing said of the reload', () => {
+    mount('s1', () => {}, () => {})
+
+    for (const part of ['.party-head', '.cast-strip', '.party-side', 'textarea']) {
+      expect(container.querySelectorAll(part), part).toHaveLength(1)
+    }
+    expect(container.querySelector('.cast-chooser')).toBeNull()
+    expect([...container.querySelectorAll('button')].map((node) => node.textContent)).toContain('stop room')
+    expect(container.textContent ?? '').not.toMatch(/restor|reconnect|reload/i)
+    expect([...container.querySelectorAll('.sysline')].map((node) => node.textContent)).toEqual([LINE.text])
+  })
+})
+
 describe('PartyView summary button (Story 4.4)', () => {
   const write = (): HTMLButtonElement => container.querySelector('button.party-write') as HTMLButtonElement
 
