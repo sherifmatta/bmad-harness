@@ -79,72 +79,72 @@ colors:
   legend-badge-border: 'rgba(201,167,138,.3)'
 
 colors-light:
-  # ── The light theme (2026-10-08, palette A "cool paper"). One twin per colour token in
+  # ── The light theme (2026-10-09, the dark theme reversed; was palette A "cool paper"). One twin per colour token in
   #    design/tokens.css, keyed by the CSS variable name without `--`. Lands in a third
   #    block, `:root[data-theme="light"]`; the verbatim block and the promoted block above
-  #    it are the dark theme and do not change. Surfaces step UP to white as they rise.
-  bg: '#f3f5f8'
-  chrome: '#eceff3'
-  panel: '#ffffff'
-  panel-2: '#f7f8fa'
-  panel-3: '#eef1f5'
-  line: '#d9dee5'
-  line-soft: '#e6e9ee'
-  text: '#2a323c'
-  text-strong: '#10151b'
-  dim: '#556070'
-  faint: '#6c7684'
-  accent: '#2f62c0'
-  accent-bg: 'rgba(47,98,192,.10)'
-  green: '#2a7547'
-  amber: '#8f6a0a'
-  red: '#a8443b'
-  note: '#3d5bc2'
-  disagree: '#a5574c'
-  disagree-border: 'rgba(168,68,59,.35)'
-  disagree-bg: 'rgba(168,68,59,.07)'
-  accent-border: '#b9caea'
-  accent-wash: 'rgba(47,98,192,.05)'
-  accent-edge: 'rgba(47,98,192,.5)'
-  halo-live: 'rgba(42,117,71,.16)'
-  halo-work: 'rgba(143,106,10,.16)'
-  meta: '#7b8592'
-  ink-doc: '#3a4552'
-  ink-doc-strong: '#10151b'
-  ink-doc-mute: '#7b8592'
-  ink-md: '#2a323c'
-  code-bg: '#eef1f5'
-  code-ink: '#2f3b4a'
-  initials-bg: '#dfe4eb'
-  initials-line: '#c7cfd9'
-  initials-ink: '#4a5666'
-  win-line: '#cdd3dc'
-  scrim: 'rgba(20,28,40,.35)'
-  legend-badge: '#8a6a45'
-  legend-badge-bg: 'rgba(138,106,69,.08)'
-  legend-badge-border: 'rgba(138,106,69,.3)'
-  cast-speaking-border: '#8fabdc'
-  cast-speaking-ground: '#ffffff'
-  grad-cast: 'linear-gradient(180deg,#eef1f5,#e8ecf1)'
-  grad-titlebar: 'linear-gradient(180deg,#f4f6f9,#e9edf2)'
-  brand-mark-line: '#b4bfd0'
-  topbar-sep: '#b9c0cb'
-  raised: '#e3e8ef'
-  scrollbar-thumb: '#c6ccd5'
-  scrollbar-thumb-hover: '#aab2be'
-  tile-current: '#e8eef8'
-  code-tag-bg: '#eef1f5'
-  composer-focus-line: '#7d9bd4'
-  composer-placeholder: '#8a94a1'
-  send-bg: '#dbe6f8'
-  send-line: '#b3c8ee'
-  send-ink: '#1f3f7d'
-  send-hover: '#cddcf4'
-  win-light: '#c3cad4'
-  ghost-border-hover: '#b5bdc8'
-  skill-button-hover-line: '#a8b2c0'
-  shadow-window: '0 30px 70px -20px rgba(20,30,50,.35)'
-  shadow-speaking: '0 0 0 1px rgba(47,98,192,.22), 0 6px 18px -10px rgba(20,30,50,.18)'
+  #    it are the dark theme and do not change. Surfaces mirror the dark ramp: each rising surface is a step darker than the ground.
+  bg: '#f2f2f2'
+  chrome: '#eeeeee'
+  panel: '#eaeaea'
+  panel-2: '#e5e5e5'
+  panel-3: '#dfdfdf'
+  line: '#d5d5d5'
+  line-soft: '#e0e0e0'
+  text: '#202020'
+  text-strong: '#0e0e0e'
+  dim: '#505050'
+  faint: '#696969'
+  accent: '#1b1b1b'
+  accent-bg: 'rgba(27,27,27,.12)'
+  green: '#4e7059'
+  amber: '#786737'
+  red: '#915a53'
+  note: '#454545'
+  disagree: '#a25042'
+  disagree-border: 'rgba(145,90,83,.3)'
+  disagree-bg: 'rgba(145,90,83,.09)'
+  accent-border: '#bcbcbc'
+  accent-wash: 'rgba(27,27,27,.045)'
+  accent-edge: 'rgba(27,27,27,.45)'
+  halo-live: 'rgba(78,112,89,.16)'
+  halo-work: 'rgba(120,103,55,.16)'
+  meta: '#858585'
+  ink-doc: '#3d3d3d'
+  ink-doc-strong: '#151515'
+  ink-doc-mute: '#858585'
+  ink-md: '#2b2b2b'
+  code-bg: '#dfdfdf'
+  code-ink: '#333333'
+  initials-bg: '#cdcdcd'
+  initials-line: '#bebebe'
+  initials-ink: '#4d4d4d'
+  win-line: '#c5c5c5'
+  scrim: 'rgba(8,8,8,.35)'
+  legend-badge: '#88603f'
+  legend-badge-bg: 'rgba(136,96,63,.08)'
+  legend-badge-border: 'rgba(136,96,63,.3)'
+  cast-speaking-border: '#a9a9a9'
+  cast-speaking-ground: '#dedede'
+  grad-cast: 'linear-gradient(180deg,#e6e6e6,#eaeaea)'
+  grad-titlebar: 'linear-gradient(180deg,#d6d6d6,#dddddd)'
+  brand-mark-line: '#b1b1b1'
+  topbar-sep: '#bebebe'
+  raised: '#d5d5d5'
+  scrollbar-thumb: '#cecece'
+  scrollbar-thumb-hover: '#bdbdbd'
+  tile-current: '#dadada'
+  code-tag-bg: '#dfdfdf'
+  composer-focus-line: '#b7b7b7'
+  composer-placeholder: '#858585'
+  send-bg: '#c6c6c6'
+  send-line: '#b4b4b4'
+  send-ink: '#212121'
+  send-hover: '#bdbdbd'
+  win-light: '#bebebe'
+  ghost-border-hover: '#bfbfbf'
+  skill-button-hover-line: '#aeaeae'
+  shadow-window: '0 30px 70px -20px rgba(8,8,8,.35)'
+  shadow-speaking: '0 0 0 1px rgba(27,27,27,.22), 0 6px 18px -10px rgba(8,8,8,.18)'
 
 typography:
   # Two families only. No webfonts, no icon font, no display face.
@@ -500,7 +500,7 @@ The restraint is not minimalism as taste. It is a budget. Real illustrated faces
 
 Information density is high and deliberate: the densest type tier is 10.5px and it is the most-used size in the product. This is a tool for an engineer reading state, not a consumer surface. Nothing is padded to feel generous.
 
-**Two themes, one design.** Dark is the theme the product was designed in; light (2026-10-08, palette A) is its twin and is chosen, not inferred: *System* (the default, following the OS), *Light* or *Dark* (EXPERIENCE.md → *Theme*). No stylesheet and no component reads `prefers-color-scheme`, and there is no high-contrast variant. Every rule in this document holds in both themes, and the restraint budget most of all: the portraits are the only thing with warmth in either one, which is why the light palette is cool.
+**Two themes, one design.** Dark is the theme the product was designed in; light (2026-10-08; repainted 2026-10-09 as the dark theme reversed) is its twin and is chosen, not inferred: *System* (the default, following the OS), *Light* or *Dark* (EXPERIENCE.md → *Theme*). No stylesheet and no component reads `prefers-color-scheme`, and there is no high-contrast variant. Every rule in this document holds in both themes, and the restraint budget most of all: the portraits are the only thing with warmth in either one, which is why the light palette is neutral grey.
 
 Two tonal rules govern everything below. **One accent, one friction colour.** The accent, a soft off-white, is the system's voice; the warm tone belongs to disagreement and to nothing else — friction is the one thing given its own colour, because friction is the feature most likely to be sanded off in implementation. **State is never decoration.** Four state colours exist and every one of them is driven by a real system fact.
 
@@ -553,36 +553,37 @@ The remaining tokens in the block above are not new colours. Each is a value alr
 
 ### The light theme
 
-*Palette A, "cool paper".* The mockups are `mockups/light-theme.html` (both palettes), `light-a-shell.html` and `light-a-welcome.html`. The twins are the `colors-light` map in the frontmatter, one for every colour token in `design/tokens.css`.
+*The dark theme reversed (2026-10-09).* It replaces palette A, "cool paper", the blue-tinted slate-and-white theme that shipped first; the idea behind the dark theme's neutral move now carries over: no tint, a neutral accent, muted status hues. The mockups are `mockups/light-a-shell.html` and `light-a-welcome.html`, repainted to this palette; `light-theme.html` and the `light-b-*` pair are kept as the record of the two palettes first compared. The twins are the `colors-light` map in the frontmatter, one for every colour token in `design/tokens.css`.
 
 **How it is built.** The verbatim `:root` block and the promoted block that follows it stay as they are: they are the dark theme. The light values arrive as a **third block, `:root[data-theme="light"]`**, overriding colour tokens only, with `color-scheme: light` stated to the user agent in the same block (so form controls, scrollbars and the caret agree). No dimension, radius, type size or motion changes with theme, and **no component names a theme**: a component that takes every colour from a token is correct in both. The attribute is set by main before a window is first shown, from the stored choice and the OS appearance; the page never asks the browser which scheme is preferred.
 
 **How it is derived.**
-- **The ramp inverts.** The dark ramp lifts surfaces as they rise; the light ramp does the same toward white: `bg #f3f5f8` → `panel #ffffff`, with `panel-2` and `panel-3` the two greys between. Five near-identical greys, hairline `line` rules, no new surface tier.
-- **One accent, deepened.** `accent #2f62c0` replaces `#e3e3e5`; accent is still a line, an edge, a chip border, almost never a surface. The send button stays quiet: a pale blue ground (`send-bg #dbe6f8`) with a dark blue glyph, not a filled accent button.
-- **The four state colours keep their meaning.** Green, amber, red and `note` are darkened until each clears 4.5:1 on `panel`. The halos around the live and work dots are strengthened from `.14`/`.13` to `.16`/`.16`, because a glow reads weaker on a light ground. `disagree` stays a distinct warm tone and is not `red`.
-- **Document ink inverts with the page.** `ink-doc` `#3a4552` on `panel`, `ink-doc-strong` and `text-strong` near black, `ink-doc-mute` at the `meta` grey. The document card's mono body and the markdown window read as dark-on-white.
-- **Shadows and the scrim go cool and low.** The window shadow becomes `0 30px 70px -20px rgba(20,30,50,.35)`, the speaking cast card's shadow likewise, the scrim `rgba(20,28,40,.35)`. A black shadow at the dark theme's alpha would read as dirt on white.
+- **Every grey is the dark grey mirrored.** Each dark neutral becomes its complement about the middle (`255 − x` per channel, then pure grey), so there is no blue in the ramp and no pure white or black anywhere: `bg #f2f2f2`, `chrome #eeeeee`, `panel #eaeaea`, `panel-2 #e5e5e5`, `panel-3 #dfdfdf`, hairlines `line #d5d5d5` and `line-soft #e0e0e0`. The ramp is reversed with the theme, so a surface that rises is **a step darker** than the ground, exactly as a dark surface is a step lighter: a card reads as set into the page, not lifted off it. Same five greys, same two hairlines, no new surface tier.
+- **The accent is a near-black.** `accent #1b1b1b` is the dark accent's `#e3e3e5` reversed. It is still a line, an edge, a chip border, almost never a surface, and `accent-bg` is its 12% wash. The send button stays quiet: `send-bg #c6c6c6` with `send-ink #212121`, no blue and no filled accent button.
+- **Text tiers are the dark ones reversed, then corrected where the mirror would fail.** `text #202020` and `text-strong #0e0e0e` are the plain mirrors. The mirrored `dim` and `faint` would be too light on a darker panel, so `dim` is `#505050` and `faint` is `#696969`, the lightest grey that still clears 4.5:1 on `panel`. `meta #858585` is the one tier left below 4.5, as in dark. `note` is `#454545`: a step darker than `dim`, distinct from the idle dot.
+- **The four state colours keep their meaning and stay muted.** Green `#4e7059`, amber `#786737` and red `#915a53` keep each dark hue and saturation and are darkened until each clears 4.5:1 on `panel`. The halos around the live and work dots are strengthened to `.16`, because a glow reads weaker on a light ground. `disagree #a25042` stays a distinct warm tone and is not `red`.
+- **Document ink reverses with the page.** `ink-doc #3d3d3d`, `ink-doc-strong #151515`, `ink-md #2b2b2b`; the document card's mono body and the markdown window read as dark-on-grey.
+- **Shadows and the scrim are neutral and low.** The window shadow is `0 30px 70px -20px rgba(8,8,8,.35)`, the speaking cast card's shadow likewise, the scrim `rgba(8,8,8,.35)`. A dark theme's alpha would read as dirt on a light ground.
 - **Portraits are identical in both themes.** Backdrops stay the dark tones in the parameter table, so on a light page the faces read as dark discs and remain the strongest thing on screen. `ArtParams` gains no theme field and a portrait's markup does not vary with theme.
 
 **Measured contrast** (WCAG ratio of the foreground against the surface it sits on, from the twins above; dark is the shipped theme):
 
 | Pair | Dark | Light |
 |---|---|---|
-| `text` on `bg` | 14.5 | 11.9 |
-| `text-strong` on `panel` | 16.2 | 18.3 |
-| `dim` on `panel` | 6.6 | 6.4 |
+| `text` on `bg` | 14.5 | 14.6 |
+| `text-strong` on `panel` | 16.2 | 16.0 |
+| `dim` on `panel` | 6.6 | 6.7 |
 | `faint` on `panel` | 3.5 | 4.6 |
-| `meta` on `bg` | 3.2 | 3.4 |
-| `accent` on `panel` | 14.2 | 5.8 |
-| `green` on `panel` | 6.4 | 5.6 |
-| `amber` on `panel` | 7.4 | 5.0 |
-| `red` on `panel` | 6.1 | 5.9 |
-| `note` on `panel` | 5.6 | 6.0 |
-| `ink-doc` on `panel` | 10.2 | 9.8 |
-| `disagree` on `panel` | 7.3 | 5.2 |
+| `meta` on `bg` | 3.2 | 3.3 |
+| `accent` on `panel` | 14.2 | 14.3 |
+| `green` on `panel` | 6.4 | 4.6 |
+| `amber` on `panel` | 7.4 | 4.6 |
+| `red` on `panel` | 6.1 | 4.6 |
+| `note` on `panel` | 5.6 | 8.0 |
+| `ink-doc` on `panel` | 10.2 | 9.0 |
+| `disagree` on `panel` | 7.3 | 4.6 |
 
-Every light pair that carries text clears 4.5 except `meta` (3.4), which holds only timestamps and micro-labels and, as in dark, never an actionable fact. The "no actionable fact at `faint` or `meta`" rule is unchanged and is *easier* to keep in light, where `faint` reaches 4.6.
+Every light pair that carries text clears 4.5 except `meta` (3.3), which holds only timestamps and micro-labels and, as in dark, never an actionable fact. The "no actionable fact at `faint` or `meta`" rule is unchanged and is *easier* to keep in light, where `faint` reaches 4.6. The three status hues sit exactly at the floor because they are muted on purpose: darkening them further would make them heavier than the dark theme's quiet marks.
 
 ### What has no colour
 

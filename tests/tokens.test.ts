@@ -906,27 +906,45 @@ describe('the light theme (Story 5.2, seam A)', () => {
     expect(mapped).toHaveLength(58)
     expect(mapped.filter((name) => light.get(name) !== designValue('colors-light', name.slice(2)))).toEqual([])
 
-    expect(light.get('--ghost-border-hover')).toBe('#b5bdc8')
-    expect(light.get('--skill-button-hover-line')).toBe('#a8b2c0')
-    expect(light.get('--shadow-window')).toBe('0 30px 70px -20px rgba(20,30,50,.35)')
+    expect(light.get('--ghost-border-hover')).toBe('#bfbfbf')
+    expect(light.get('--skill-button-hover-line')).toBe('#aeaeae')
+    expect(light.get('--shadow-window')).toBe('0 30px 70px -20px rgba(8,8,8,.35)')
     expect(light.get('--shadow-speaking')).toBe(
-      '0 0 0 1px rgba(47,98,192,.22), 0 6px 18px -10px rgba(20,30,50,.18)'
+      '0 0 0 1px rgba(27,27,27,.22), 0 6px 18px -10px rgba(8,8,8,.18)'
     )
     // Each of the four as the mockup spells it.
-    expect(mockup).toContain('border-color:#b5bdc8')
-    expect(mockup).toContain('border-color:#a8b2c0')
-    expect(mockup).toContain('box-shadow:0 30px 70px -20px rgba(20,30,50,.35)')
-    expect(mockup).toContain('box-shadow:0 0 0 1px rgba(47,98,192,.22), 0 6px 18px -10px rgba(20,30,50,.18)')
+    expect(mockup).toContain('border-color:#bfbfbf')
+    expect(mockup).toContain('border-color:#aeaeae')
+    expect(mockup).toContain('box-shadow:0 30px 70px -20px rgba(8,8,8,.35)')
+    expect(mockup).toContain('box-shadow:0 0 0 1px rgba(27,27,27,.22), 0 6px 18px -10px rgba(8,8,8,.18)')
   })
 
-  it('keeps the four state colours’ meanings, with stronger halos and a cool, low scrim', () => {
-    expect(light.get('--halo-live')).toBe('rgba(42,117,71,.16)')
-    expect(light.get('--halo-work')).toBe('rgba(143,106,10,.16)')
-    expect(light.get('--scrim')).toBe('rgba(20,28,40,.35)')
+  it('keeps the four state colours’ meanings, with stronger halos and a neutral, low scrim', () => {
+    expect(light.get('--halo-live')).toBe('rgba(78,112,89,.16)')
+    expect(light.get('--halo-work')).toBe('rgba(120,103,55,.16)')
+    expect(light.get('--scrim')).toBe('rgba(8,8,8,.35)')
     // `disagree` is a distinct warm tone and is not `red`.
     expect(light.get('--disagree')).not.toBe(light.get('--red'))
-    // The surfaces step up to white as they rise.
-    expect(light.get('--panel')).toBe('#ffffff')
+    // The surfaces mirror the dark ramp: the panel is a step below the ground, and neither is pure white.
+    expect(light.get('--panel')).toBe('#eaeaea')
+    expect(light.get('--bg')).toBe('#f2f2f2')
+  })
+
+  it('is the dark theme reversed: every grey is neutral, with no tint, and only the status hues carry any', () => {
+    const hued = new Set(['green', 'amber', 'red', 'disagree', 'legend-badge', 'disagree-border', 'disagree-bg', 'legend-badge-bg', 'legend-badge-border', 'halo-live', 'halo-work'])
+    const channels = (value: string): number[] =>
+      value.startsWith('#') ? [1, 3, 5].map((at) => parseInt(value.slice(at, at + 2), 16)) : (value.match(/\d+/g) ?? []).slice(0, 3).map(Number)
+    for (const [name, value] of light) {
+      if (hued.has(name.slice(2)) || value.startsWith('linear-gradient') || value.startsWith('0 ')) continue
+      const [r, g, b] = channels(value)
+      expect([r, g], `${name} ${value}`).toEqual([g, b])
+    }
+    // The gradients and the shadows, which are strings, are neutral too.
+    for (const name of ['--grad-cast', '--grad-titlebar', '--shadow-window', '--shadow-speaking']) {
+      for (const hex of light.get(name)!.match(/#[0-9a-f]{6}/g) ?? []) {
+        expect(channels(hex), `${name} ${hex}`).toEqual([channels(hex)[0], channels(hex)[0], channels(hex)[0]])
+      }
+    }
   })
 
   describe('contrast', () => {
@@ -959,21 +977,21 @@ describe('the light theme (Story 5.2, seam A)', () => {
       const below = PAIRS.filter(([foreground, background]) => ratio(foreground, background) < 4.5)
 
       expect(below).toEqual([['meta', 'bg']])
-      expect(ratio('meta', 'bg')).toBeCloseTo(3.4, 1)
+      expect(ratio('meta', 'bg')).toBeCloseTo(3.3, 1)
     })
 
     it('reproduces the figures DESIGN.md prints, to one place', () => {
-      expect(ratio('text', 'bg')).toBeCloseTo(11.9, 1)
-      expect(ratio('text-strong', 'panel')).toBeCloseTo(18.3, 1)
-      expect(ratio('dim', 'panel')).toBeCloseTo(6.4, 1)
+      expect(ratio('text', 'bg')).toBeCloseTo(14.6, 1)
+      expect(ratio('text-strong', 'panel')).toBeCloseTo(16.0, 1)
+      expect(ratio('dim', 'panel')).toBeCloseTo(6.7, 1)
       expect(ratio('faint', 'panel')).toBeCloseTo(4.6, 1)
-      expect(ratio('accent', 'panel')).toBeCloseTo(5.8, 1)
-      expect(ratio('green', 'panel')).toBeCloseTo(5.6, 1)
-      expect(ratio('amber', 'panel')).toBeCloseTo(5.0, 1)
-      expect(ratio('red', 'panel')).toBeCloseTo(5.9, 1)
-      expect(ratio('note', 'panel')).toBeCloseTo(6.0, 1)
-      expect(ratio('ink-doc', 'panel')).toBeCloseTo(9.8, 1)
-      expect(ratio('disagree', 'panel')).toBeCloseTo(5.2, 1)
+      expect(ratio('accent', 'panel')).toBeCloseTo(14.3, 1)
+      expect(ratio('green', 'panel')).toBeCloseTo(4.6, 1)
+      expect(ratio('amber', 'panel')).toBeCloseTo(4.6, 1)
+      expect(ratio('red', 'panel')).toBeCloseTo(4.6, 1)
+      expect(ratio('note', 'panel')).toBeCloseTo(8.0, 1)
+      expect(ratio('ink-doc', 'panel')).toBeCloseTo(9.0, 1)
+      expect(ratio('disagree', 'panel')).toBeCloseTo(4.6, 1)
     })
 
     it('measures what it says: a pair below the bar is seen to be below it', () => {

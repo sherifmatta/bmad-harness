@@ -81,7 +81,8 @@ describe('the rendered feed', () => {
     expect(uxNotes).toHaveLength(entryCount(uxMemlog))
     expect(rendered).toHaveLength(uxNotes.length)
     expect(children(rendered[0])[2][1]).toContain('Sources bound:')
-    expect(children(rendered[rendered.length - 1])[2][1]).toBe('spines finalized')
+    // Not the last row: a later update to the spines appends after the finalization event.
+    expect(rendered.map((row) => children(row)[2][1])).toContain('spines finalized')
   })
 
   it('renders a feed of forty or more entries, one row each', () => {

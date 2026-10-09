@@ -428,7 +428,7 @@ No tour, wizard, checklist, progress, *getting started* or *what's new*; no vers
 
 ## Theme
 
-*Added 2026-10-08 from the light-theme mockups (`mockups/light-theme.html`, palette A). Appearance and tokens: `DESIGN.md` → Colors → The light theme.*
+*Added 2026-10-08 from the light-theme mockups (`mockups/light-theme.html`, palette A; the palette was replaced on 2026-10-09 by the dark theme reversed, behaviour unchanged). Appearance and tokens: `DESIGN.md` → Colors → The light theme.*
 
 The product was designed in dark. It now has a light twin, and the user chooses which.
 
