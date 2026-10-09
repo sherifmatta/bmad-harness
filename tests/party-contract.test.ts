@@ -24,10 +24,10 @@ function filesUnder(dir: string): string[] {
 }
 
 describe('what the room did not add', () => {
-  it('leaves seven commands', () => {
+  it('leaves eight commands', () => {
     const source = stripped(read('src/shared/commands.ts'))
     const body = source.slice(source.indexOf('export type ContractCommands = {'))
-    expect([...body.matchAll(/^ {2}'([a-z]+\.[a-z]+)': CommandSpec</gm)]).toHaveLength(7)
+    expect([...body.matchAll(/^ {2}'([a-z]+\.[a-z]+)': CommandSpec</gm)]).toHaveLength(8)
   })
 
   it('leaves sixteen events', () => {
@@ -36,12 +36,12 @@ describe('what the room did not add', () => {
     expect([...body.matchAll(/^ {2}'([a-z-]+:[a-z-]+)': EventSpec</gm)]).toHaveLength(16)
   })
 
-  it('leaves the room no channel of its own: thirty-three in all, four the Welcome’s, three the theme’s, one the output folder’s and three the layout’s', () => {
-    expect(Object.values(channels)).toHaveLength(33)
+  it('leaves the room no channel of its own: thirty-four in all, four the Welcome’s, three the theme’s, one the output folder’s and three the layout’s', () => {
+    expect(Object.values(channels)).toHaveLength(34)
   })
 
-  it('leaves twenty-one preload methods, the eighteenth the output folder’s chooser and the last three the layout’s', () => {
-    expect([...read('src/preload/harness-api.d.ts').matchAll(/^ {2}[a-zA-Z]+\(/gm)]).toHaveLength(21)
+  it('leaves twenty-two preload methods, the eighteenth the output folder’s chooser and the last three the layout’s', () => {
+    expect([...read('src/preload/harness-api.d.ts').matchAll(/^ {2}[a-zA-Z]+\(/gm)]).toHaveLength(22)
   })
 
   it('widens the argument of session.open and leaves its reply as it was', () => {

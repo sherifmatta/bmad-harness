@@ -221,6 +221,9 @@ export function App(): JSX.Element | null {
       }
     })
   }
+  // The personas with a live session and a turn in flight, run or chat: main's own busy set, which the
+  // header's Stop reads (`turnsInFlight` leaves out a run that has said nothing yet).
+  const busyPersonas = new Set([...conversation.live].filter((agentId) => !conversation.canAnswer(agentId)))
   const room = roomState(snapshot, installFailure)
   if (room === 'pending') {
     return null
@@ -306,6 +309,8 @@ export function App(): JSX.Element | null {
         onCloseOrphan={closeSession}
         liveSessions={conversation.live}
         onCloseSession={closeSession}
+        turnsInFlight={busyPersonas}
+        onStopTurn={(agentId) => void conversation.stopTurn(agentId)}
         pinned={() =>
           pinnedEntry === null ? null : (
             <RunCard key={pinnedEntry.id} entry={pinnedEntry} prose={conversation.prose} onStop={conversation.stopRun} />

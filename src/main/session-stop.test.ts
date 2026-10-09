@@ -38,6 +38,7 @@ const {
   SESSION_CLOSE_CHANNEL,
   SESSION_OPEN_CHANNEL,
   TURN_SEND_CHANNEL,
+  TURN_STOP_CHANNEL,
   registerSessionBridge
 } = await import('./session-bridge')
 
@@ -75,6 +76,8 @@ type FakeSession = {
   /** Called inside `interrupt()`, before it returns: the CLI answering at once. */
   duringInterrupt: (() => void) | undefined
   interruptThrows: boolean
+  /** While set, a write is not answered until it settles: the turn is busy and its run has not begun. */
+  writeGate: Promise<boolean> | undefined
 }
 
 const MENU: Record<string, ResolvedMenuEntry> = {
@@ -120,6 +123,7 @@ beforeEach(() => {
     agentName: () => (roster ? 'John' : undefined),
     writeDiagnostic: () => {},
     menuEntryFor: (_window, _agentId, code) => (roster ? MENU[code] : undefined),
+    roster: () => [{ id: A, name: 'John' }, { id: B, name: 'Mary' }],
     readPlan: () => Promise.resolve(templatePlan),
     readText: () => Promise.resolve(memlogText),
     schedule: (run, ms) => {
@@ -135,13 +139,14 @@ beforeEach(() => {
         writes: [],
         kills: 0,
         duringInterrupt: undefined,
-        interruptThrows: false
+        interruptThrows: false,
+        writeGate: undefined
       }
       fakes.set(options.agentId as string, fake)
       const session: SessionProcess = {
         write: (text) => {
           fake.writes.push(text)
-          return Promise.resolve(true)
+          return fake.writeGate ?? Promise.resolve(true)
         },
         interrupt: () => {
           if (fake.interruptThrows) throw new Error('the pipe is gone')
@@ -1267,5 +1272,325 @@ describe('what a stop never does', () => {
     expect(sender.of('doc:committed')).toEqual([])
     expect(snapshot(sender).runs[0].documents).toEqual(held)
     expect(snapshot(sender).runs[0].documents[0]).toMatchObject({ path: 'prd.md', text: '# Vision\nWor' })
+  })
+})
+
+const stopTurn = (sender: FakeSender, sessionId: unknown) => call<Promise<unknown>>(TURN_STOP_CHANNEL, sender, sessionId)
+const TURN_NOT_FOUND = { ok: false, error: { code: 'turn/not-found', message: 'turn · no turn is in flight' } }
+
+/** One window, one persona's session open and its activation over, and a plain chat turn sent into it. */
+async function chatting(agent = A, sender = new FakeSender(1)) {
+  await call<Promise<unknown>>(SESSION_OPEN_CHANNEL, sender, agent)
+  const fake = fakes.get(agent)!
+  fake.feed(result())
+  const sessionId = `s${sessions}`
+  await expect(call<Promise<unknown>>(TURN_SEND_CHANNEL, sender, sessionId, 'tell me about tides')).resolves.toEqual({ ok: true })
+  sender.sent = []
+  return { sender, fake, sessionId }
+}
+
+describe('stopping a plain chat turn (Story 3.19)', () => {
+  it('asks the session for one interrupt, writes nothing as a turn and tells the window nothing until the result', async () => {
+    const { sender, fake, sessionId } = await chatting()
+    const written = fake.writes.length
+
+    const reply = stopTurn(sender, sessionId)
+    await flush()
+
+    expect(fake.interrupts).toHaveLength(1)
+    expect(fake.writes).toHaveLength(written)
+    expect(sender.sent).toEqual([])
+    expect(fake.kills).toBe(0)
+    fake.interrupts[0](true)
+    await expect(reply).resolves.toEqual({ ok: true })
+    expect(sender.sent).toEqual([])
+    expect(snapshot(sender).busy).toEqual([sessionId])
+  })
+
+  it('reads the failed result as the stop: one harness line before the session is free, no failure line, no run event, the session open', async () => {
+    const { sender, fake, sessionId } = await chatting()
+    const reply = stopTurn(sender, sessionId)
+    await flush()
+    fake.interrupts[0](true)
+    await reply
+
+    fake.feed(result(true))
+
+    expect(sender.names).toEqual(['harness:said', 'session:awaiting-turn'])
+    expect(sender.of('harness:said')).toEqual([{ sessionId, id: expect.any(String), text: LINES.stopped, at: clock }])
+    expect(fake.kills).toBe(0)
+    expect(snapshot(sender)).toMatchObject({ sessions: [{ agentId: A, sessionId }], busy: [], runs: [] })
+    expect(snapshot(sender).entries.filter((entry) => entry.kind === 'sysline')).toEqual([expect.objectContaining({ text: LINES.stopped })])
+  })
+
+  it('leaves the persona at rest and never `error`: no turn failed', async () => {
+    const { sender, fake, sessionId } = await chatting()
+    const reply = stopTurn(sender, sessionId)
+    await flush()
+    fake.interrupts[0](true)
+    await reply
+    fake.feed(result(true))
+
+    const states = sender.of('persona:state').map((event) => event.state)
+    expect(states).not.toContain('error')
+    expect(states.at(-1)).toBe('idle')
+  })
+
+  it('marks the turn before the interrupt is written: an answer and a failed result in the same tick are still the stop', async () => {
+    const { sender, fake, sessionId } = await chatting()
+    fake.duringInterrupt = () => fake.feed(result(true))
+
+    const reply = stopTurn(sender, sessionId)
+    await flush()
+    fake.interrupts[0](true)
+    await reply
+
+    expect(sender.names).toEqual(['harness:said', 'session:awaiting-turn'])
+    expect(sender.of('harness:said').map((line) => line.text)).toEqual([LINES.stopped])
+  })
+
+  it('accepts the next turn into the same process, and a later failed turn is a failure again', async () => {
+    const { sender, fake, sessionId } = await chatting()
+    const reply = stopTurn(sender, sessionId)
+    await flush()
+    fake.interrupts[0](true)
+    await reply
+    fake.feed(result(true))
+    const written = fake.writes.length
+
+    await expect(call<Promise<unknown>>(TURN_SEND_CHANNEL, sender, sessionId, 'pick that back up')).resolves.toEqual({ ok: true })
+    expect(fake.writes).toHaveLength(written + 1)
+    fake.feed(result(true))
+
+    expect(sender.of('harness:said').map((line) => line.text)).toEqual([LINES.stopped, LINES.failed('error_during_execution')])
+    expect(fakes.size).toBe(1)
+  })
+
+  it('writes no line for a turn that ended on its own before the stop was acknowledged, and kills nothing', async () => {
+    const { sender, fake, sessionId } = await chatting()
+    const reply = stopTurn(sender, sessionId)
+    await flush()
+
+    fake.feed(result(false))
+    fake.interrupts[0](true)
+    await reply
+    advance(STOP_RESULT_MS + STOP_ACK_MS)
+
+    expect(sender.names).toEqual(['session:awaiting-turn'])
+    expect(fake.kills).toBe(0)
+  })
+
+  it('writes the stopped line for a result that leaves the session busy with background tasks, once: the wake adds none and no fallback follows', async () => {
+    const { sender, fake, sessionId } = await chatting()
+    fake.feed(tasks('sub-1'))
+    const reply = stopTurn(sender, sessionId)
+    await flush()
+    fake.interrupts[0](true)
+    await reply
+
+    fake.feed(result(true))
+    expect(sender.of('harness:said').map((line) => line.text)).toEqual([LINES.stopped])
+    expect(snapshot(sender).busy).toEqual([sessionId])
+    advance(STOP_RESULT_MS)
+    await flush()
+    expect(fake.kills).toBe(0)
+
+    fake.feed(tasks())
+    fake.feed(result(false))
+    expect(sender.of('harness:said').map((line) => line.text)).toEqual([LINES.stopped])
+    expect(sender.names.at(-1)).toBe('session:awaiting-turn')
+    expect(snapshot(sender).busy).toEqual([])
+  })
+
+  it('stops a turn once: a second press while stopping writes nothing and is ok', async () => {
+    const { sender, fake, sessionId } = await chatting()
+    const first = stopTurn(sender, sessionId)
+    await flush()
+
+    await expect(stopTurn(sender, sessionId)).resolves.toEqual({ ok: true })
+    expect(fake.interrupts).toHaveLength(1)
+
+    fake.interrupts[0](true)
+    await first
+    fake.feed(result(true))
+    expect(sender.of('harness:said')).toHaveLength(1)
+  })
+
+  it('cancels the wait for the result when the turn ends, so a stale timer cannot end a later turn’s session', async () => {
+    const { sender, fake, sessionId } = await chatting()
+    const reply = stopTurn(sender, sessionId)
+    await flush()
+    fake.interrupts[0](true)
+    await reply
+    const pending = timers.filter((timer) => !timer.cancelled && timer.at === clock + STOP_RESULT_MS)
+    expect(pending).toHaveLength(1)
+
+    fake.feed(result(true))
+    expect(pending[0].cancelled).toBe(true)
+    await expect(call<Promise<unknown>>(TURN_SEND_CHANNEL, sender, sessionId, 'again')).resolves.toEqual({ ok: true })
+    advance(STOP_RESULT_MS * 2)
+    await flush()
+
+    expect(fake.kills).toBe(0)
+    expect(sender.of('session:closed')).toEqual([])
+  })
+
+  it.each([
+    ['a refusal', (fake: FakeSession) => fake.interrupts[0](false)],
+    ['silence for STOP_ACK_MS', () => advance(STOP_ACK_MS)]
+  ] as const)('on %s: kills the process, says so in the harness’s voice, closes the session and ends no run', async (_name, refuse) => {
+    const { sender, fake, sessionId } = await chatting()
+    const reply = stopTurn(sender, sessionId)
+    await flush()
+    refuse(fake)
+
+    await expect(reply).resolves.toEqual({ ok: true })
+    expect(fake.kills).toBe(1)
+    expect(sender.names).toEqual(['harness:said', 'session:closed'])
+    expect(sender.of('harness:said')).toEqual([{ sessionId, id: expect.any(String), text: LINES.stopTurnEnded, at: clock }])
+    expect(sender.of('session:closed')).toEqual([{ sessionId, agentId: A, reason: 'closed', at: clock }])
+  })
+
+  it('falls back when the interrupt cannot be asked: a throw is a stop that was not acknowledged', async () => {
+    const { sender, fake, sessionId } = await chatting()
+    fake.interruptThrows = true
+
+    await expect(stopTurn(sender, sessionId)).resolves.toEqual({ ok: true })
+
+    expect(sender.names).toEqual(['harness:said', 'session:closed'])
+    expect(fake.kills).toBe(1)
+  })
+
+  it('ends the session with the turn when the interrupt was acknowledged and the result never comes, STOP_RESULT_MS later', async () => {
+    const { sender, fake, sessionId } = await chatting()
+    const reply = stopTurn(sender, sessionId)
+    await flush()
+    fake.interrupts[0](true)
+    await reply
+
+    advance(STOP_RESULT_MS)
+    await flush()
+
+    expect(fake.kills).toBe(1)
+    expect(sender.names).toEqual(['harness:said', 'session:closed'])
+    expect(sender.of('harness:said')).toEqual([{ sessionId, id: expect.any(String), text: LINES.stopTurnUnfinished, at: clock }])
+  })
+
+  it('does not close the session a moment short of the deadlines', async () => {
+    const { sender, fake, sessionId } = await chatting()
+    const reply = stopTurn(sender, sessionId)
+    await flush()
+    advance(STOP_ACK_MS - 1)
+    fake.interrupts[0](true)
+    await reply
+    advance(STOP_RESULT_MS - 1)
+    await flush()
+
+    expect(sender.sent).toEqual([])
+    expect(fake.kills).toBe(0)
+  })
+
+  it('is not-found, writing nothing, for a session with no turn in flight, an unknown id, a closed session and a non-string id', async () => {
+    const { sender, fake, sessionId } = await chatting()
+    fake.feed(result())
+    sender.sent = []
+    const written = fake.writes.length
+
+    await expect(stopTurn(sender, sessionId)).resolves.toEqual(TURN_NOT_FOUND)
+    await expect(stopTurn(sender, 'nobody')).resolves.toEqual(TURN_NOT_FOUND)
+    await expect(stopTurn(sender, undefined)).resolves.toEqual(TURN_NOT_FOUND)
+    await expect(stopTurn(new FakeSender(2), sessionId)).resolves.toEqual(TURN_NOT_FOUND)
+    call(SESSION_CLOSE_CHANNEL, sender, sessionId)
+    await expect(stopTurn(sender, sessionId)).resolves.toEqual(TURN_NOT_FOUND)
+
+    expect(fake.interrupts).toHaveLength(0)
+    expect(fake.writes).toHaveLength(written)
+  })
+
+  it('has no effect on a room: not-found, and the room’s own rules stand', async () => {
+    const sender = new FakeSender(1)
+    const opened = await call<Promise<{ ok: boolean; sessionId?: string }>>(SESSION_OPEN_CHANNEL, sender, { room: [A, B] })
+    expect(opened.ok).toBe(true)
+    const room = fakes.get(undefined as unknown as string)!
+    room.feed(result())
+    sender.sent = []
+
+    await expect(stopTurn(sender, opened.sessionId)).resolves.toEqual(TURN_NOT_FOUND)
+    // Even with a speaker mid-turn: there is no header Stop for a room and the command is not for it.
+    await expect(call<Promise<unknown>>(TURN_SEND_CHANNEL, sender, opened.sessionId, 'one thing')).resolves.toEqual({ ok: true })
+    await expect(stopTurn(sender, opened.sessionId)).resolves.toEqual(TURN_NOT_FOUND)
+    expect(room.interrupts).toHaveLength(0)
+  })
+
+  it('stops a run in flight by the card’s own path: run:stopped on the failed result, never run:failed, no extra line, the same events as run.stop', async () => {
+    const viaHeader = await running()
+    const reply = stopTurn(viaHeader.sender, viaHeader.sessionId)
+    await flush()
+    expect(viaHeader.fake.interrupts).toHaveLength(1)
+    viaHeader.fake.interrupts[0](true)
+    await expect(reply).resolves.toEqual({ ok: true })
+    viaHeader.fake.feed(result(true))
+
+    const viaCard = await running(B, new FakeSender(2))
+    const cardReply = stopRun(viaCard.sender, viaCard.runId)
+    await flush()
+    viaCard.fake.interrupts[0](true)
+    await cardReply
+    viaCard.fake.feed(result(true))
+
+    const shape = (sender: FakeSender) => sender.sent.map((event) => event.name)
+    expect(shape(viaHeader.sender)).toEqual(shape(viaCard.sender))
+    expect(shape(viaHeader.sender)).toContain('run:stopped')
+    expect(shape(viaHeader.sender)).not.toContain('run:failed')
+    expect(shape(viaHeader.sender)).not.toContain('harness:said')
+    expect(snapshot(viaHeader.sender).runs[0].status).toBe('stopped')
+  })
+
+  it('ends a run as run:stopped, never run:failed, when the stop landed after the turn was written and before the run began', async () => {
+    const sender = new FakeSender(1)
+    await call<Promise<unknown>>(SESSION_OPEN_CHANNEL, sender, A)
+    const fake = fakes.get(A)!
+    fake.feed(result())
+    const sessionId = `s${sessions}`
+    let release: (written: boolean) => void = () => {}
+    fake.writeGate = new Promise<boolean>((resolve) => (release = resolve))
+    const dispatched = call<Promise<{ ok: true; runId: string }>>(MENU_DISPATCH_CHANNEL, sender, sessionId, 'CP')
+    await flush()
+    // The turn is busy and has no run yet: the header's stop is the plain turn's.
+    const reply = stopTurn(sender, sessionId)
+    await flush()
+    expect(fake.interrupts).toHaveLength(1)
+    release(true)
+    const { runId } = await dispatched
+    fake.interrupts[0](true)
+    await reply
+    sender.sent = []
+
+    fake.feed(result(true))
+
+    expect(sender.names).toEqual(['run:stopped', 'session:awaiting-turn'])
+    expect(sender.of('run:stopped')).toEqual([{ runId, sessionId, at: clock }])
+    expect(sender.of('run:failed')).toEqual([])
+    expect(sender.of('harness:said')).toEqual([])
+    expect(snapshot(sender).runs[0].status).toBe('stopped')
+  })
+
+  it('takes a second header press for a run already stopping as ok, and a header stop on an unacknowledged run falls back as the card’s does', async () => {
+    const stopping = await running()
+    const first = stopTurn(stopping.sender, stopping.sessionId)
+    await flush()
+    await expect(stopTurn(stopping.sender, stopping.sessionId)).resolves.toEqual({ ok: true })
+    expect(stopping.fake.interrupts).toHaveLength(1)
+    stopping.fake.interrupts[0](true)
+    await first
+
+    const refused = await running(B, new FakeSender(2))
+    const reply = stopTurn(refused.sender, refused.sessionId)
+    await flush()
+    refused.fake.interrupts[0](false)
+    await reply
+
+    expect(refused.sender.names).toEqual(['run:stopped', 'harness:said', 'session:closed'])
+    expect(refused.sender.of('harness:said')[0].text).toBe(LINES.stopEnded)
   })
 })

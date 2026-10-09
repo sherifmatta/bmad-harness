@@ -56,6 +56,7 @@ async function drawn(snapshot: ConversationSnapshot, onStop: (runId: string) => 
     sendTurn: refuse('sent'),
     dispatchMenu: refuse('dispatched'),
     stopRun: refuse('stopped'),
+    stopTurn: refuse('stopped'),
     getConversation: () => Promise.resolve(snapshot),
     endConversation: () => Promise.resolve(),
     onSessionEvent: () => () => {}

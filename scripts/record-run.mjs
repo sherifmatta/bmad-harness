@@ -9,12 +9,15 @@
 //   node scripts/record-run.mjs --scenario fast-path --subject <dir> \
 //     --turns <turns.json> [--out fixtures/runs] [--interrupt sigint|inband] \
 //     [--interrupt-after-bytes 20000] [--permission-mode bypassPermissions] \
-//     [--interrupt-when tasks-live|idle] [--interrupt-delay-ms 2000] \
+//     [--interrupt-when tasks-live|idle|text] [--interrupt-delay-ms 2000] \
 //     [--end-after-scripted] [--end-delay-ms 0] [--claude-arg <extra flag or value>]...
 //
 // `--interrupt-when tasks-live` interrupts (in-band unless `--interrupt sigint`) a
 // delay after the first `background_tasks_changed` frame that lists a live task, and
 // then polls the inbox whether or not a `result` ever follows.
+// `--interrupt-when text` interrupts (in-band unless `--interrupt sigint`) once the main
+// thread's `text_delta` bytes in the turn reach `--interrupt-after-bytes`: a plain chat turn
+// stopped mid-sentence, with no tool in flight. The count starts again with each turn.
 // `--interrupt-when idle` interrupts once the first turn has produced its `result`,
 // with no turn in flight, and holds the next scripted turn for the delay. Both need
 // `--interrupt` to say how. `--end-delay-ms` waits that long after the last scripted
@@ -109,6 +112,8 @@ let interrupted = false
 let holding = false
 const toolAt = new Map()
 const bytesAt = new Map()
+// The main thread's prose in the turn so far, for `--interrupt-when text`.
+let textBytes = 0
 
 function send(text) {
   const frame = { type: 'user', message: { role: 'user', content: [{ type: 'text', text }] } }
@@ -162,6 +167,7 @@ function inspect(line) {
     // A session also takes turns nobody sent (a background subagent finishing
     // wakes the main thread), so result rows cannot be matched to sends 1:1.
     resultCount += 1
+    textBytes = 0
     if (holding) return
     if (values['interrupt-when'] === 'idle' && !interrupted) {
       holding = true
@@ -180,6 +186,9 @@ function inspect(line) {
   if (ev?.type === 'content_block_start' && ev.content_block?.type === 'tool_use') {
     toolAt.set(ev.index, ev.content_block.name)
     bytesAt.set(ev.index, 0)
+  } else if (ev?.type === 'content_block_delta' && ev.delta?.type === 'text_delta') {
+    textBytes += ev.delta.text.length
+    if (values['interrupt-when'] === 'text' && values.interrupt && !interrupted && textBytes >= Number(values['interrupt-after-bytes'])) interrupt()
   } else if (ev?.type === 'content_block_delta' && ev.delta?.type === 'input_json_delta') {
     const total = (bytesAt.get(ev.index) ?? 0) + ev.delta.partial_json.length
     bytesAt.set(ev.index, total)

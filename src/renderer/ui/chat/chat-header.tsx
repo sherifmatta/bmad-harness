@@ -13,17 +13,23 @@ import { StateLine } from '../status/status-dot'
  *
  * The shell renders it `key={agent.id}` so that making another tile current
  * rebuilds it in the same frame. There is no hand-off and no composer here —
- * those are later stories'. The one control is `close session`, drawn while the
+ * those are later stories'. The one control is a native button, drawn while the
  * persona has a session open and the shell was given a way to close it: a turn
- * that never ends has no other way out. It is a native button, so `Enter` and
- * `Space` come with it, and it asks for no confirmation. Everything
- * project-supplied is React text.
+ * that never ends has no other way out. It reads `close session` and, while a turn
+ * is in flight (chat or run) and the shell was given a way to stop it, `Stop`
+ * (Story 3.19). It is the same element in both, only its label and press change,
+ * in the same render the turn starts or ends in, so focus stays on it. `Enter` and
+ * `Space` come with it. Neither asks for confirmation, and `Stop` shows no cost, no
+ * "stopping…" and no disabled or pending state. Everything project-supplied is
+ * React text.
  */
 export function ChatHeader({
   agent,
   state,
   since,
-  onClose
+  onClose,
+  turnInFlight = false,
+  onStop
 }: {
   agent: AgentView
   state: PersonaState
@@ -31,7 +37,12 @@ export function ChatHeader({
   since?: number | undefined
   /** Called when the user asks to end this persona's session; absent when it has none open. */
   onClose?: (() => void) | undefined
+  /** Whether the persona's session has a turn in flight, a run or a plain chat turn. */
+  turnInFlight?: boolean | undefined
+  /** Called when the user asks to stop the turn in flight; with none, the control stays `close session`. */
+  onStop?: (() => void) | undefined
 }): JSX.Element {
+  const stops = turnInFlight && onStop !== undefined
   return (
     <div className="chat-head">
       <Initials {...agent} size={22} />
@@ -47,10 +58,10 @@ export function ChatHeader({
           <button
             type="button"
             className="chat-close"
-            aria-label={`close session · ${agent.name}`}
-            onClick={onClose}
+            aria-label={`${stops ? 'Stop' : 'close session'} · ${agent.name}`}
+            onClick={stops ? onStop : onClose}
           >
-            close session
+            {stops ? 'Stop' : 'close session'}
           </button>
         )}
       </div>

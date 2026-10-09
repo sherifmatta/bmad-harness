@@ -48,6 +48,8 @@ let ended: string[]
 /** The runs the window asked main to stop, and what main answers a stop with (nothing: it took it). */
 let stopped: string[]
 let stopReply: (() => Promise<void>) | undefined
+/** The sessions the window asked main to stop the turn of. */
+let turnStopped: string[]
 /** The sessions the window asked main to close. */
 let closedSessions: string[]
 /** Who `onInstallChanged` subscribed, to be pushed a new install snapshot. */
@@ -113,6 +115,9 @@ function installBridge(): void {
       stopped.push(runId)
       await stopReply?.()
     },
+    stopTurn: async (sessionId: string) => {
+      turnStopped.push(sessionId)
+    },
     getConversation: async () => ({ entries: [], sessions: [], busy: [], personas: [], runs: [] }),
     endConversation: async (projectId: string) => {
       ended.push(projectId)
@@ -136,6 +141,7 @@ beforeEach(() => {
   sent = []
   ended = []
   stopped = []
+  turnStopped = []
   stopReply = undefined
   closedSessions = []
   installListeners = []
@@ -858,6 +864,9 @@ describe('App, the current persona’s close control', () => {
   it('is in the current persona’s header from session:opened, closes that session on the click, goes with session:closed, and lands focus in the composer', async () => {
     await mountAndOpenMary()
     push({ name: 'session:opened', payload: { sessionId: 's-mary', agentId: mary.id, at: 1 } })
+    // The activation turn is in flight until it ends, and the one control reads Stop meanwhile.
+    expect(closeButtons()[0].getAttribute('aria-label')).toBe('Stop · Mary')
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 's-mary', at: 2 } })
 
     expect(closeButtons()).toHaveLength(1)
     expect(closeButtons()[0].getAttribute('aria-label')).toBe('close session · Mary')
@@ -883,6 +892,8 @@ describe('App, the current persona’s close control', () => {
     await mountAndOpenMary()
     push({ name: 'session:opened', payload: { sessionId: 's-mary', agentId: mary.id, at: 1 } })
     push({ name: 'session:opened', payload: { sessionId: 's-john', agentId: john.id, at: 1 } })
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 's-mary', at: 2 } })
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 's-john', at: 2 } })
     expect(closeButtons().map((button) => button.getAttribute('aria-label'))).toEqual(['close session · Mary'])
 
     act(() => tile('John').click())
@@ -902,6 +913,55 @@ describe('App, the current persona’s close control', () => {
     push({ name: 'session:closed', payload: { sessionId: 's-mary', agentId: mary.id, reason: 'process-exited', at: 2 } })
 
     expect(closeButtons()).toHaveLength(0)
+  })
+
+  it('reads Stop while a turn is in flight and close session otherwise: the same element, focus kept, and Stop asks main to stop the turn of that session only (Story 3.19)', async () => {
+    await mountAndOpenMary()
+    push({ name: 'session:opened', payload: { sessionId: 's-mary', agentId: mary.id, at: 1 } })
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 's-mary', at: 2 } })
+    const button = closeButtons()[0]
+    expect(button.textContent).toBe('close session')
+    button.focus()
+
+    // A send into the idle session begins a turn: the control reads Stop on the same element, still focused.
+    type(field(), 'tell me more')
+    act(() => {
+      field().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    })
+    await settle()
+    expect(closeButtons()).toHaveLength(1)
+    expect(closeButtons()[0]).toBe(button)
+    expect(button.textContent).toBe('Stop')
+    expect(button.getAttribute('aria-label')).toBe('Stop · Mary')
+    expect(button.hasAttribute('disabled')).toBe(false)
+    expect(button.hasAttribute('title')).toBe(false)
+    button.focus()
+    expect(document.activeElement).toBe(button)
+
+    act(() => button.click())
+    await settle()
+    expect(turnStopped).toEqual(['s-mary'])
+    expect(closedSessions).toEqual([])
+    expect(stopped).toEqual([])
+    // Nothing is drawn between the press and the turn's end: the label, the element and the focus stay.
+    expect(closeButtons()[0]).toBe(button)
+    expect(button.textContent).toBe('Stop')
+    expect(document.activeElement).toBe(button)
+
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 's-mary', at: 9 } })
+    expect(closeButtons()[0]).toBe(button)
+    expect(button.textContent).toBe('close session')
+    expect(button.getAttribute('aria-label')).toBe('close session · Mary')
+    expect(document.activeElement).toBe(button)
+  })
+
+  it('reads Stop for a run in flight, even before it has said a word (Story 3.19)', async () => {
+    await mountAndOpenMary()
+    push({ name: 'session:opened', payload: { sessionId: 's-mary', agentId: mary.id, at: 1 } })
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 's-mary', at: 2 } })
+    push({ name: 'run:started', payload: { runId: 'r1', sessionId: 's-mary', agentId: mary.id, code: 'CP', at: 3 } })
+
+    expect(closeButtons()[0].textContent).toBe('Stop')
   })
 })
 

@@ -112,6 +112,8 @@ export function Shell({
   onCloseOrphan,
   liveSessions = NO_LIVE,
   onCloseSession,
+  turnsInFlight = NO_LIVE,
+  onStopTurn,
   composer,
   sends = 0,
   pinned,
@@ -154,6 +156,11 @@ export function Shell({
   liveSessions?: ReadonlySet<string>
   /** Called with the agent's id when the current persona's close control is activated. */
   onCloseSession?: (agentId: string) => void
+  /** The agent ids whose live session has a turn in flight, a run or a plain chat turn (main's busy set).
+      While the current persona is one of them the header's one control reads `Stop`. */
+  turnsInFlight?: ReadonlySet<string>
+  /** Called with the agent's id when the current persona's `Stop` is activated. */
+  onStopTurn?: (agentId: string) => void
   /** The composer for the current persona, rendered in the chat column under the thread, and
       handed that persona's menu entries for the skill row it carries. */
   composer?: (
@@ -256,6 +263,8 @@ export function Shell({
                   ? () => onCloseSession(current.id)
                   : undefined
               }
+              turnInFlight={turnsInFlight.has(current.id)}
+              onStop={onStopTurn === undefined ? undefined : () => onStopTurn(current.id)}
             />
           )}
           <FollowScroller

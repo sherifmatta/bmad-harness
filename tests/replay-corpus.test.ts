@@ -118,6 +118,7 @@ describe('the corpus as a whole', () => {
       'fast-path-opus',
       'fast-path-sonnet',
       'interrupt-inband',
+      'interrupt-inband-chat',
       'interrupt-inband-idle',
       'interrupt-inband-tasks-live',
       'interrupt-inband-tasks-live-mid-write',
@@ -275,6 +276,40 @@ describe('interrupt-inband: the turn is interrupted and the session carries on',
   it('writes the document after the interrupt', () => {
     const write = mainThreadTools('interrupt-inband').find((t) => t.name === 'Write' && String(t.input.content ?? '').length > 30_000)
     expect(write).toBeDefined()
+  })
+})
+
+describe('interrupt-inband-chat: a plain chat turn interrupted mid-prose, and the session carries on (Story 3.19)', () => {
+  const all = frames('interrupt-inband-chat')
+  const rows = results('interrupt-inband-chat')
+
+  it('has no tool call and no skill: the turn stopped is a plain chat turn, and every row of it is the main thread’s', () => {
+    expect(mainThreadTools('interrupt-inband-chat')).toEqual([])
+    expect(all.some((f) => f.event?.content_block?.type === 'tool_use')).toBe(false)
+    expect(all.some((f) => f.parent_tool_use_id)).toBe(false)
+    expect(all.some((f) => f.type === 'system' && (f.subtype ?? '').startsWith('task_'))).toBe(false)
+  })
+
+  it('streams prose, is interrupted in-band part-way through it, and ends the turn in error with the session alive', () => {
+    const ended = all.findIndex((f) => f.type === 'result')
+    const proseAt = all.flatMap((f, at) =>
+      at < ended && f.event?.type === 'content_block_delta' && f.event.delta?.type === 'text_delta' ? [at] : []
+    )
+    const answered = all.findIndex((f) => f.type === 'control_response')
+    expect(proseAt.length).toBeGreaterThan(10)
+    expect(answered).toBeGreaterThan(proseAt[0])
+    // The interrupt came while the prose was streaming: the answer follows the last delta, and no `result` came between.
+    expect(proseAt.at(-1)).toBeLessThan(answered)
+    expect(ended).toBeGreaterThan(answered)
+    expect(meta('interrupt-inband-chat').turns.some((t) => t.control !== undefined)).toBe(true)
+    expect(meta('interrupt-inband-chat').interrupt).toBe('inband')
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toMatchObject({ subtype: 'error_during_execution', is_error: true })
+  })
+
+  it('answers a follow-up turn after it', () => {
+    expect(rows[1]).toMatchObject({ subtype: 'success', is_error: false })
+    expect(meta('interrupt-inband-chat').turns.filter((t) => t.text !== undefined)).toHaveLength(2)
   })
 })
 

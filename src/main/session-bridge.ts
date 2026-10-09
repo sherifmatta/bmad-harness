@@ -10,7 +10,8 @@ import {
   SESSION_CLOSE_CHANNEL,
   SESSION_EVENT_CHANNEL,
   SESSION_OPEN_CHANNEL,
-  TURN_SEND_CHANNEL
+  TURN_SEND_CHANNEL,
+  TURN_STOP_CHANNEL
 } from '../shared/channels'
 import type { ContractCommands } from '../shared/commands'
 import type { ConversationReply, MenuDispatchReply } from '../shared/conversation'
@@ -60,12 +61,14 @@ export {
   SESSION_CLOSE_CHANNEL,
   SESSION_EVENT_CHANNEL,
   SESSION_OPEN_CHANNEL,
-  TURN_SEND_CHANNEL
+  TURN_SEND_CHANNEL,
+  TURN_STOP_CHANNEL
 }
 
 type CloseReply = ContractCommands['session.close']['reply']
 type SendReply = ContractCommands['turn.send']['reply']
 type StopReply = ContractCommands['run.stop']['reply']
+type StopTurnReply = ContractCommands['turn.stop']['reply']
 type EndReply = ContractCommands['conversation.end']['reply']
 
 export type SessionBridgeDeps = {
@@ -512,6 +515,29 @@ function stopRun(ctx: Context) {
   }
 }
 
+/**
+ * What a turn stop is told for a session with no turn to stop: none open by that id, a closed one, a
+ * room, one with nothing in flight or no process yet. A code of its own, which the window ignores as it
+ * ignores `run/not-found`.
+ */
+const TURN_NOT_FOUND = failure({ code: 'turn/not-found', message: 'turn · no turn is in flight' })
+
+// Stops the turn in flight in one session of this window (Story 3.19). The session is found by its id;
+// `session-stop` takes the run path when it has a run in flight (`run:stopped`, as the card's stop) and
+// stops a plain chat turn otherwise. The reply is sent once the interrupt is acknowledged or the session
+// was ended instead, as `run.stop`'s is. A second stop for a turn already stopping is ok.
+function stopTurn(ctx: Context) {
+  return async (event: IpcMainInvokeEvent, sessionId: unknown): Promise<StopTurnReply> => {
+    const sender = senderOf(event)
+    const service = ctx.registry.serviceOf(sender.id)
+    const entry = typeof sessionId === 'string' ? service?.bySession.get(sessionId) : undefined
+    if (service === undefined || entry === undefined || entry.closed) {
+      return TURN_NOT_FOUND
+    }
+    return (await ctx.registry.stopTurn(sender, service, entry)) === 'ok' ? { ok: true } : TURN_NOT_FOUND
+  }
+}
+
 // The one way a transcript is cleared (FR15). The file is cleared first: if
 // that fails nothing else happens and the window keeps everything it has.
 // Only then are the window's sessions killed and closed, so the reply, sent
@@ -605,7 +631,7 @@ function getConversation(ctx: Context) {
  * background task live (`fold/turn-end`), and a send in that window is refused,
  * never queued. A menu dispatch is a turn too, and the run it starts lives as
  * long as that turn (`session-run`). The registry holds the sessions and folds
- * their frames; this registers the seven handlers that speak for them, and hands
+ * their frames; this registers the eight handlers that speak for them, and hands
  * the composition root the way the rail's watcher reports a memlog changing.
  *
  * Nothing crosses the bridge from stderr, and a failed start carries the
@@ -652,6 +678,7 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): SessionBrid
   ipcMain.handle(TURN_SEND_CHANNEL, sendTurn(ctx))
   ipcMain.handle(MENU_DISPATCH_CHANNEL, dispatchMenu(ctx))
   ipcMain.handle(RUN_STOP_CHANNEL, stopRun(ctx))
+  ipcMain.handle(TURN_STOP_CHANNEL, stopTurn(ctx))
   ipcMain.handle(SESSION_CLOSE_CHANNEL, closeSession(ctx))
   ipcMain.handle(CONVERSATION_END_CHANNEL, endConversation(ctx))
   ipcMain.handle(CONVERSATION_GET_CHANNEL, getConversation(ctx))

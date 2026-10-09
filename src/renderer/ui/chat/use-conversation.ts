@@ -37,13 +37,14 @@ import type { ProseStore } from './prose-store'
 import { runLifecycleLine, subjectWritten } from './run-status'
 import type { TranscriptEntry } from './transcript-entry'
 
-/** The eight bridge methods the conversation needs, and nothing else of the bridge. */
+/** The nine bridge methods the conversation needs, and nothing else of the bridge. */
 export type ConversationBridge = {
   openSession(target: SessionTarget): Promise<OpenedSession>
   closeSession(sessionId: string): Promise<void>
   sendTurn(sessionId: string, text: string, mention?: string): Promise<void>
   dispatchMenu(sessionId: string, code: string): Promise<string>
   stopRun(runId: string): Promise<void>
+  stopTurn(sessionId: string): Promise<void>
   getConversation(): Promise<ConversationSnapshot>
   endConversation(projectId: string): Promise<void>
   onSessionEvent(listener: (event: ContractEvent) => void): () => void
@@ -99,6 +100,14 @@ export type Conversation = {
    * refusal is the failure line. Never rejects.
    */
   stopRun(runId: string): Promise<void>
+  /**
+   * The user pressed Stop in a persona's chat header (Story 3.19): main stops the turn in flight in
+   * its session, a run or a plain chat turn. Nothing is changed here: the turn ends on its own
+   * `result`. A session with no turn to stop (`turn/not-found`) or none at all (`session/not-found`)
+   * is said nothing of, since the control it was pressed on is already gone; any other refusal is the
+   * failure line. Never rejects.
+   */
+  stopTurn(agentId: string): Promise<void>
   /**
    * The user closes a persona's session: main ends that one session, and its
    * `session:closed` is what removes it here. Resolves true when it was closed;
@@ -484,6 +493,21 @@ export function createConversation(deps: ConversationDeps): Conversation {
       }
     },
 
+    async stopTurn(agentId) {
+      const sessionId = sessionOf(state, agentId)
+      if (sessionId === undefined) {
+        return
+      }
+      try {
+        await bridge.stopTurn(sessionId)
+      } catch (reason) {
+        const code = asHarnessError(reason).code
+        if (code !== 'turn/not-found' && code !== 'session/not-found') {
+          fail(reason)
+        }
+      }
+    },
+
     async close(agentId) {
       onFailure(null)
       const sessionId = sessionOf(state, agentId)
@@ -610,6 +634,8 @@ export function useConversation(
   runSkill: (agentId: string, code: string) => void
   /** Stop a run by its id; one that is no longer in flight is left alone, without a word. */
   stopRun: (runId: string) => Promise<void>
+  /** Stop the turn in flight in a persona's session, a run or a plain chat turn; one that is no longer in flight is left alone, without a word. */
+  stopTurn: (agentId: string) => Promise<void>
   /** Each run's document text, which the run cards write from. */
   prose: ProseStore
 } {
@@ -678,6 +704,7 @@ export function useConversation(
     []
   )
   const stopRun = useCallback(async (runId: string) => void (await conversation.current?.stopRun(runId)), [])
+  const stopTurn = useCallback(async (agentId: string) => void (await conversation.current?.stopTurn(agentId)), [])
   const end = useCallback(
     async (projectId: string) => (await conversation.current?.end(projectId)) ?? false,
     []
@@ -735,6 +762,7 @@ export function useConversation(
     sessionOf: liveSessionOf,
     runSkill,
     stopRun,
+    stopTurn,
     prose
   }
 }

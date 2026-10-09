@@ -26,7 +26,7 @@ Make the central beat real: press a skill button belonging to the persona you ar
 - Story 3.16: Tool steps, from the stream (done)
 - Story 3.17: The run list: steps and notes in the card body (done)
 - Story 3.18: Name the skill a run invoked (done)
-- Story 3.19: Stop a turn that is not a run (new)
+- Story 3.19: Stop a turn that is not a run (done)
 
 ## Requirements & Constraints
 

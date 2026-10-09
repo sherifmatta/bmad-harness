@@ -39,6 +39,8 @@ export const TURN_SEND_CHANNEL = 'turn:send'
 export const MENU_DISPATCH_CHANNEL = 'menu:dispatch'
 /** A run's stop pressed: its id goes to main, which finds the run's session by it. */
 export const RUN_STOP_CHANNEL = 'run:stop'
+/** A turn's stop pressed in the chat header: a session's id goes to main, which stops its run or its plain turn. */
+export const TURN_STOP_CHANNEL = 'turn:stop'
 export const SESSION_EVENT_CHANNEL = 'session:event'
 export const CONVERSATION_GET_CHANNEL = 'conversation:get'
 export const CONVERSATION_END_CHANNEL = 'conversation:end'

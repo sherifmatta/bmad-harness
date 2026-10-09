@@ -23,6 +23,12 @@ export const LINES = {
   stopEnded: 'stop not acknowledged · the session ended with the run',
   // Placeholder copy until `bmad-ux` writes it: said when an interrupt was acknowledged and the turn still did not end.
   stopUnfinished: 'stop sent · the turn did not end · the session ended with the run',
+  // Placeholder copy until `bmad-ux` writes it: said once for a plain chat turn the user stopped, at its failed `result`.
+  stopped: 'stopped · the turn ended early',
+  // Placeholder copy until `bmad-ux` writes it: said when an interrupt of a plain chat turn was not acknowledged and the session ended with it.
+  stopTurnEnded: 'stop not acknowledged · the session ended with the turn',
+  // Placeholder copy until `bmad-ux` writes it: said when an interrupt of a plain chat turn was acknowledged and the turn still did not end.
+  stopTurnUnfinished: 'stop sent · the turn did not end · the session ended with the turn',
   // Placeholder copy until `bmad-ux` writes it: said when a turn nobody sent begins after a stop the user asked for, and a run starts for it.
   carriedOn: 'carried on after the stop · a new run follows it',
   /**

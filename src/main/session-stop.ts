@@ -37,6 +37,15 @@ import { LINES } from './session-voice'
  * A second stop for a run already stopping is accepted and writes nothing. A run
  * that is not in flight is `'not-found'`, however it ended.
  *
+ * A turn that is not a run (`stopTurn`, Story 3.19) is stopped by the same module and the
+ * same rules. The one entry point finds the session's run and takes `stopRun`'s path when
+ * there is one, so the header's control and the card's end a run the same way, as
+ * `run:stopped`. With no run, a plain chat turn is marked `interrupting` before the interrupt
+ * is written, for the reason `stopRun` marks its run: the turn's failed `result` is then the
+ * user's stop and no failure, and the registry's fold says the one line of it. The fallback
+ * is the same, in words that say "the turn". A turn nobody is running, a room and a session
+ * with no process are `'not-found'`.
+ *
  * The project's files are none of this module's business: it holds no path and
  * offers no way back.
  */
@@ -104,6 +113,55 @@ export async function stopRun(
   return 'ok'
 }
 
+/**
+ * The user asked to stop whatever turn `entry` has in flight (`turn.stop`). A run in flight is the
+ * turn and is stopped as `stopRun` stops it. A plain persona turn is marked `interrupting` before
+ * the interrupt is written, so the registry's fold reads its failed `result` as a stop; the
+ * interrupt is acknowledged as a run's is (`STOP_ACK_MS`), and an acknowledged one whose turn
+ * does not end within `STOP_RESULT_MS` is the same fallback. The wait for the turn to end is the
+ * room's (`untilIdle`), cancelled when the turn ends.
+ *
+ * `'not-found'` for a closed entry, a room, a session with no process yet and a session with no
+ * turn in flight. A second stop for a turn already stopping is accepted and writes nothing. The
+ * reply is made once the interrupt is acknowledged or the fallback ran, not when the turn ended.
+ */
+export async function stopTurn(
+  kit: StopKit,
+  sender: Sender,
+  service: Service,
+  entry: Entry
+): Promise<'ok' | 'not-found'> {
+  if (entry.closed || entry.agentId === undefined) {
+    return 'not-found'
+  }
+  if (entry.run !== undefined) {
+    return stopRun(kit, sender, service, entry)
+  }
+  if (!entry.turn.busy || entry.session === undefined) {
+    return 'not-found'
+  }
+  if (entry.interrupting) {
+    return 'ok'
+  }
+  entry.interrupting = true
+  const accepted = await acknowledged(kit.runs, entry)
+  // The turn ended, or the session went, while the answer was awaited: nothing is left to stop.
+  if (entry.closed || !entry.interrupting) {
+    return 'ok'
+  }
+  if (!accepted) {
+    endWithSession(kit, sender, service, entry, LINES.stopTurnEnded)
+    return 'ok'
+  }
+  void untilIdle(kit.runs, entry).then((idle) => {
+    // The turn ended (the wait was released), or it already said its stop at a result that left tasks live.
+    if (!idle && !entry.closed && entry.interrupting) {
+      endWithSession(kit, sender, service, entry, LINES.stopTurnUnfinished)
+    }
+  })
+  return 'ok'
+}
+
 /** The fallback: the process group is killed, the card ends stopped, the harness says so and the session closes. */
 function endWithSession(kit: StopKit, sender: Sender, service: Service, entry: Entry, line: string): void {
   entry.session?.kill()
@@ -137,7 +195,20 @@ export async function interruptTurn(kit: Pick<RunKit, 'schedule'>, entry: Entry)
   if (!entry.turn.busy) {
     return true
   }
-  const idle = await new Promise<boolean>((resolve) => {
+  const idle = await untilIdle(kit, entry)
+  if (!idle) {
+    entry.interrupting = false
+  }
+  return idle
+}
+
+/**
+ * Wait for the session's turn to end: true when the registry released the entry's `idleWaiters`
+ * (the turn ended, or the session went), false when `STOP_RESULT_MS` passed first. The timer is
+ * cancelled and the waiter dropped whichever comes first, so a stale timer cannot outlive the turn.
+ */
+function untilIdle(kit: Pick<RunKit, 'schedule'>, entry: Entry): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
     const release = (): void => settle(true)
     const cancel = kit.schedule(() => settle(false), STOP_RESULT_MS)
     function settle(answer: boolean): void {
@@ -148,8 +219,4 @@ export async function interruptTurn(kit: Pick<RunKit, 'schedule'>, entry: Entry)
     }
     entry.idleWaiters.push(release)
   })
-  if (!idle) {
-    entry.interrupting = false
-  }
-  return idle
 }

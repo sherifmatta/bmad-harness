@@ -20,7 +20,8 @@ import {
   SESSION_CLOSE_CHANNEL,
   SESSION_EVENT_CHANNEL,
   SESSION_OPEN_CHANNEL,
-  TURN_SEND_CHANNEL
+  TURN_SEND_CHANNEL,
+  TURN_STOP_CHANNEL
 } from '../shared/channels'
 import type { ContractCommands } from '../shared/commands'
 import type {
@@ -65,7 +66,8 @@ export {
   SESSION_CLOSE_CHANNEL,
   SESSION_EVENT_CHANNEL,
   SESSION_OPEN_CHANNEL,
-  TURN_SEND_CHANNEL
+  TURN_SEND_CHANNEL,
+  TURN_STOP_CHANNEL
 }
 
 const harness: HarnessApi = {
@@ -212,6 +214,15 @@ const harness: HarnessApi = {
   // by it and asks the turn to stop. Nothing comes back but whether it did.
   stopRun: async (runId) => {
     const reply = (await ipcRenderer.invoke(RUN_STOP_CHANNEL, runId)) as ContractCommands['run.stop']['reply']
+    if (!reply.ok) {
+      throw reply.error
+    }
+  },
+
+  // A command (AD-13): the session's id goes to main, which stops the turn in
+  // flight there, a run or a plain chat turn. Nothing comes back but whether it did.
+  stopTurn: async (sessionId) => {
+    const reply = (await ipcRenderer.invoke(TURN_STOP_CHANNEL, sessionId)) as ContractCommands['turn.stop']['reply']
     if (!reply.ok) {
       throw reply.error
     }

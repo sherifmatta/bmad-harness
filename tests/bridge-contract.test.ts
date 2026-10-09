@@ -246,7 +246,7 @@ it('paints each of the three windows from main’s state as its preload loads, a
   }
 })
 
-it('exposes exactly twenty-one named methods, and no channel passthrough', () => {
+it('exposes exactly twenty-two named methods, and no channel passthrough', () => {
   const harness = exposedApis.get('harness')
 
   expect(harness).toBeDefined()
@@ -268,6 +268,7 @@ it('exposes exactly twenty-one named methods, and no channel passthrough', () =>
     'sendTurn',
     'dispatchMenu',
     'stopRun',
+    'stopTurn',
     'getConversation',
     'endConversation',
     'onSessionEvent',
@@ -319,7 +320,7 @@ it('exposes the Welcome exactly seven named methods, four of them its own and th
     }
   }
   // The counts of the other two are untouched by the Welcome's arrival.
-  expect(Object.keys(exposedApis.get('harness') ?? {})).toHaveLength(21)
+  expect(Object.keys(exposedApis.get('harness') ?? {})).toHaveLength(22)
   expect(Object.keys(exposedApis.get('docWindow') ?? {})).toHaveLength(5)
 })
 

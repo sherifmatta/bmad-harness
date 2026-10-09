@@ -114,6 +114,13 @@ class FakeBridge implements ConversationBridge {
     this.stops.push(runId)
     return this.stopResults.shift() ?? Promise.resolve()
   }
+  turnStops: string[] = []
+  /** What the next turn stop answers; one entry is consumed per stop. */
+  turnStopResults: (Promise<void> | undefined)[] = []
+  stopTurn(sessionId: string): Promise<void> {
+    this.turnStops.push(sessionId)
+    return this.turnStopResults.shift() ?? Promise.resolve()
+  }
   getConversation(): Promise<ConversationSnapshot> {
     this.reads += 1
     return this.conversation
@@ -1478,6 +1485,84 @@ describe('stopping a run (Story 3.7)', () => {
     await conversation.stopRun('r2')
 
     expect(bridge.stops).toEqual(['r-orphan', 'r2'])
+  })
+})
+
+describe('stopping a turn (Story 3.19)', () => {
+  const live = async () => {
+    const published: { entries: readonly unknown[] }[] = []
+    const failures: unknown[] = []
+    const conversation = createConversation({
+      bridge,
+      agentOf: (id) => agents.find((agent) => agent.id === id),
+      now: () => (clock += 1),
+      publish: (state) => void published.push(state),
+      onFailure: (error) => void failures.push(error)
+    })
+    await connected(conversation)
+    void conversation.activate(mary.id)
+    bridge.openResult[0].resolve('s1')
+    await settle()
+    bridge.push(opened('s1', mary.id))
+    failures.length = 0
+    return { conversation, published, failures }
+  }
+
+  it('asks main to stop the turn of the persona’s session, by the session’s id alone, and changes nothing the window holds', async () => {
+    const { conversation, published, failures } = await live()
+    const before = published.length
+
+    await conversation.stopTurn(mary.id)
+
+    expect(bridge.turnStops).toEqual(['s1'])
+    expect(bridge.stops).toEqual([])
+    expect(published).toHaveLength(before)
+    expect(failures).toEqual([])
+  })
+
+  it('leaves a message queued while the turn ran as it was: still the user’s to take back, and sent when the session is next free', async () => {
+    const { conversation, published } = await live()
+    conversation.send(mary.id, 'while you work')
+    const queued = published.at(-1)?.entries as { id: string; kind: string; queuedFor?: string }[]
+    expect(queued.at(-1)).toMatchObject({ kind: 'user', queuedFor: expect.any(String) })
+    expect(bridge.sends).toEqual([])
+
+    await conversation.stopTurn(mary.id)
+
+    expect(published.at(-1)?.entries).toEqual(queued)
+    expect(bridge.sends).toEqual([])
+    // Still cancellable: it is taken back, and never sent.
+    const id = queued.at(-1)!.id
+    conversation.cancel(id)
+    expect((published.at(-1)?.entries as { id: string }[]).some((entry) => entry.id === id)).toBe(false)
+    conversation.send(mary.id, 'and again')
+    bridge.push(awaiting('s1'))
+    expect(bridge.sends).toEqual([['s1', 'and again']])
+  })
+
+  it('asks nothing for a persona with no session', async () => {
+    const { conversation } = await live()
+    await conversation.stopTurn(john.id)
+    expect(bridge.turnStops).toEqual([])
+  })
+
+  it.each(['turn/not-found', 'session/not-found'])('says nothing when main answers %s: the control it was pressed on is already gone', async (code) => {
+    const { conversation, failures } = await live()
+    bridge.turnStopResults = [Promise.reject({ code, message: 'turn · gone' })]
+
+    await expect(conversation.stopTurn(mary.id)).resolves.toBeUndefined()
+
+    expect(failures).toEqual([])
+  })
+
+  it('shows any other refusal as the failure line, and never rejects', async () => {
+    const { conversation, failures } = await live()
+    const refusal = { code: 'bridge/unexpected', message: 'bridge · something went wrong' }
+    bridge.turnStopResults = [Promise.reject(refusal)]
+
+    await expect(conversation.stopTurn(mary.id)).resolves.toBeUndefined()
+
+    expect(failures).toEqual([refusal])
   })
 })
 

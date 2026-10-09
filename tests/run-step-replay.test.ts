@@ -219,7 +219,7 @@ describe.each(SCENARIOS)('%s, replayed through main as dispatched runs', (scenar
       calls += running.length
     }
     // The recording has calls to count, or this proves nothing about it.
-    if (!['interrupt-inband-idle'].includes(scenario)) expect(calls).toBeGreaterThan(0)
+    if (!['interrupt-inband-idle', 'interrupt-inband-chat'].includes(scenario)) expect(calls).toBeGreaterThan(0)
   }, 120_000)
 
   it('holds a step label of the table’s verbs only, 48 characters at most, with no path, URL or argument of the recording', async () => {

@@ -13,6 +13,8 @@ import { mount } from '../testing/render-hook'
 import type { Mounted } from '../testing/render-hook'
 import { createProseStore } from './prose-store'
 import type { ProseStore } from './prose-store'
+import { ChatHeader } from './chat-header'
+import { OrphanHeader } from './orphan-header'
 import { RunCard } from './run-card'
 import { RunCardLine } from './run-card-line'
 import type { RunCardEntry } from './transcript-entry'
@@ -503,5 +505,31 @@ describe('a card that names its skill (Story 3.18, FR27)', () => {
     expect(named.text).not.toContain(NAME)
     expect(named).toEqual(lineOf(undefined))
     expect(named.fields).toEqual(['status-dot', 'run-card-line-name', 'run-card-line-sep', 'run-card-line-reason', 'run-card-line-sep', 'run-card-elapsed'])
+  })
+})
+
+describe('the chat header’s Stop (Story 3.19, FR125)', () => {
+  const MARY = { id: PM, module: 'bmm', name: 'Mary', title: 'Analyst', icon: 'i', description: 'd' }
+
+  it('reads Stop over a turn in flight with no confirmation, cost, stopping state, title, disabled or pending mark, and no second control', () => {
+    mounted = mount(createElement(ChatHeader, { agent: MARY, state: 'work', since: NOW, onClose: () => {}, onStop: () => {}, turnInFlight: true }))
+    const buttons = [...mounted.container.querySelectorAll('button')]
+    const text = mounted.container.textContent ?? ''
+
+    expect(buttons.map((button) => button.textContent)).toEqual(['Stop'])
+    expect(buttons[0].getAttribute('aria-label')).toBe('Stop · Mary')
+    expect(buttons[0].outerHTML).not.toMatch(/disabled|title=|aria-busy|aria-disabled|tabindex/i)
+    expect(text).not.toMatch(/stopping|confirm|are you sure|cost|\$|tokens|spend|undo|revert/i)
+    expect(mounted.container.querySelector('dialog, [role="dialog"]')).toBeNull()
+    expect(mounted.container.innerHTML).not.toMatch(LIVE_REGIONS)
+    expect(mounted.container.innerHTML).not.toMatch(SPINNER_MARKUP)
+  })
+
+  it('draws no Stop in the orphan header, which keeps its own close session and its note line', () => {
+    mounted = mount(createElement(OrphanHeader, { agent: MARY, onClose: () => {} }))
+
+    expect([...mounted.container.querySelectorAll('button')].map((button) => button.textContent)).toEqual(['close session'])
+    expect(mounted.container.textContent).toContain('no longer in the install · session still open')
+    expect(mounted.container.textContent).not.toMatch(/\bStop\b/)
   })
 })

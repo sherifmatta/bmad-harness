@@ -941,7 +941,7 @@ describe("the handoff says only what is true and parses no skill (Story 2.9)", (
     // Thirteen before Story 2.11, whose one new method is closeSession, Story 3.1's
     // dispatchMenu, Story 3.7's stopRun, Story 3.10's onRunRevealed and Story 5.4's chooseOutputFolder;
     // none is the handoff's. Story 5.5 added the layout's three: getLayout, setPanelWidth and setFolded.
-    expect([...preload.matchAll(/^ {2}([a-zA-Z]+): (?:async )?\(/gm)]).toHaveLength(21);
+    expect([...preload.matchAll(/^ {2}([a-zA-Z]+): (?:async )?\(/gm)]).toHaveLength(22);
     expect(code.get("src/shared/commands.ts") ?? "").not.toMatch(/handoff|sysline/i);
     expect(code.get("src/shared/events.ts") ?? "").not.toMatch(/handoff|sysline/i);
   });
@@ -1252,6 +1252,8 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
         "src/renderer/ui/chat/use-conversation.ts: asHarnessError(reason).code",
         "src/renderer/ui/chat/use-conversation.ts: asHarnessError(reason).code",
         // Story 4.2: the room's send is refused as busy or not, as a persona's is.
+        "src/renderer/ui/chat/use-conversation.ts: asHarnessError(reason).code",
+        // Story 3.19: the header's stop is refused as not-found or not, as a run's is.
         "src/renderer/ui/chat/use-conversation.ts: asHarnessError(reason).code",
       ]);
       const descriptions = rest.flatMap((path) =>
@@ -1873,7 +1875,11 @@ describe("the collapsed run card is one line, one expanding button and the stop 
     // The room's own stop (Story 4.5) is a different control, handed to the party view and not to the run card.
     expect(
       stopLines(APP).filter(
-        (line) => !line.includes("onStop={conversation.stopRun}") && !line.includes("onStop={() => void conversation.stopRoom()}"),
+        (line) =>
+          !line.includes("onStop={conversation.stopRun}") &&
+          !line.includes("onStop={() => void conversation.stopRoom()}") &&
+          // The chat header's own Stop (Story 3.19): it stops the turn of a session, which the card's does not.
+          !line.includes("onStopTurn={(agentId) => void conversation.stopTurn(agentId)}"),
       ),
     ).toEqual([]);
     expect(stopLines(APP).length).toBeGreaterThanOrEqual(2);
@@ -2118,7 +2124,7 @@ describe("two writers, one file: the rail reports it and nothing arbitrates (Sto
     expect(offenders([OWNER_LABEL], /§|\bof\b|\btotal\b|\bcount\b/)).toEqual([]);
   });
 
-  it("adds no command, event, channel or bridge method: the counts stay seven, sixteen, thirty-three and twenty-one", () => {
+  it("adds no command, event, channel or bridge method: the counts stay eight, sixteen, thirty-four and twenty-two", () => {
     const commands = [...(code.get(COMMANDS) ?? "").matchAll(/^\s+'([a-z]+\.[a-z]+)':\s*CommandSpec/gm)].map(([, name]) => name);
     const events = [...(code.get(EVENTS) ?? "").matchAll(/^\s+'([a-z]+:[a-z-]+)':\s*EventSpec/gm)].map(([, name]) => name);
     const channels = [...(code.get(CHANNELS) ?? "").matchAll(/^export const (\w+) = '/gm)].map(([, name]) => name);
@@ -2132,11 +2138,12 @@ describe("two writers, one file: the rail reports it and nothing arbitrates (Sto
     // Story 5.1 added the Welcome's four channels (twenty-six) and no method to the shell's;
     // Story 5.2 added the theme's three (twenty-nine) and none to the shell's; Story 5.4 added the
     // output folder's one channel (thirty) and the one method that asks for its chooser (eighteen);
-    // Story 5.5 added the layout's three channels (thirty-three) and its three methods (twenty-one).
-    expect(commands).toHaveLength(7);
+    // Story 5.5 added the layout's three channels (thirty-three) and its three methods (twenty-one);
+    // Story 3.19 added `turn.stop` (eight commands), its channel (thirty-four) and `stopTurn` (twenty-two).
+    expect(commands).toHaveLength(8);
     expect(events).toHaveLength(16);
-    expect(channels).toHaveLength(33);
-    expect(methods).toHaveLength(21);
+    expect(channels).toHaveLength(34);
+    expect(methods).toHaveLength(22);
     // And none of them is named for it.
     expect(offenders(CONTRACT, /contend|contention|\bowners\b|arbitrat/i)).toEqual([]);
     expect(offenders(MAIN_CODE, /ipcMain\.handle\(\s*["'`][^"'`]*(?:contend|contention|owners|arbitrat)/i)).toEqual([]);
@@ -2370,7 +2377,7 @@ describe("told once, quietly, when you are elsewhere: one silent banner, one scr
     expect(revealing).not.toMatch(/setCurrentId|setComposerFocus|openDoc|activate\(|send\(|runSkill|stopRun|close\(/);
   });
 
-  it("gives the preload and the shared contract no word of it, and no new command or event: seven, sixteen, thirty-three channels, twenty-one methods", () => {
+  it("gives the preload and the shared contract no word of it, and no new command or event: eight, sixteen, thirty-four channels, twenty-two methods", () => {
     expect(
       offenders(
         [...sources("src/preload/"), ...sources("src/shared/")],
@@ -2384,11 +2391,11 @@ describe("told once, quietly, when you are elsewhere: one silent banner, one scr
     const methods = [...preload.slice(preload.indexOf("const harness: HarnessApi = {"), preload.indexOf("contextBridge.exposeInMainWorld")).matchAll(/^ {2}(\w+):/gm)].map(
       ([, name]) => name,
     );
-    expect(commands).toHaveLength(7);
+    expect(commands).toHaveLength(8);
     expect(events).toHaveLength(16);
-    expect(channels).toHaveLength(33);
+    expect(channels).toHaveLength(34);
     expect(channels).toContain("RUN_REVEALED_CHANNEL");
-    expect(methods).toHaveLength(21);
+    expect(methods).toHaveLength(22);
     expect(methods).toContain("onRunRevealed");
     // The channel is a push to a window and nothing answers on it: no handler, no invoke.
     expect(offenders(MAIN_CODE, /ipcMain\.handle\(\s*RUN_REVEALED_CHANNEL/)).toEqual([]);
@@ -2538,13 +2545,13 @@ describe("nothing this epic promised not to do: the audit's static half (Story 3
     expect((code.get(ROW) ?? "").match(/<button\b/g)).toHaveLength(1);
   });
 
-  it("holds the contract at seven commands, sixteen events, thirty-three channels and twenty-one bridge methods", () => {
+  it("holds the contract at eight commands, sixteen events, thirty-four channels and twenty-two bridge methods", () => {
     const commands = [...(code.get(COMMANDS) ?? "").matchAll(/^\s+'([a-z]+\.[a-z]+)':\s*CommandSpec/gm)];
     const events = [...(code.get(EVENTS) ?? "").matchAll(/^\s+'([a-z]+:[a-z-]+)':\s*EventSpec/gm)];
     const channels = [...(code.get(CHANNELS) ?? "").matchAll(/^export const (\w+) = '/gm)];
     const preload = code.get(PRELOAD) ?? "";
     const methods = [...preload.slice(preload.indexOf("const harness: HarnessApi = {"), preload.indexOf("contextBridge.exposeInMainWorld")).matchAll(/^ {2}(\w+):/gm)];
-    expect([commands.length, events.length, channels.length, methods.length]).toEqual([7, 16, 33, 21]);
+    expect([commands.length, events.length, channels.length, methods.length]).toEqual([8, 16, 34, 22]);
   });
 
   it("says what carried on after a stop in lower case, `·`-separated, unpunctuated, and offers nothing: no resume, continue, retry or guidance word", () => {
@@ -2770,13 +2777,13 @@ describe("nothing this epic promised not to do: the audit's static half (Story 4
     expect(offenders(PARTY_CSS, /spinner|skeleton|shimmer|loader|badge|@keyframes\s+(?!eq\b)/i)).toEqual([]);
   });
 
-  it("holds the contract at seven commands, sixteen events, thirty-three channels and twenty-one bridge methods", () => {
+  it("holds the contract at eight commands, sixteen events, thirty-four channels and twenty-two bridge methods", () => {
     const commands = [...(code.get(COMMANDS) ?? "").matchAll(/^\s+'([a-z]+\.[a-z]+)':\s*CommandSpec/gm)];
     const events = [...(code.get(EVENTS) ?? "").matchAll(/^\s+'([a-z]+:[a-z-]+)':\s*EventSpec/gm)];
     const channels = [...(code.get(CHANNELS) ?? "").matchAll(/^export const (\w+) = '/gm)];
     const preload = code.get(PRELOAD) ?? "";
     const methods = [...preload.slice(preload.indexOf("const harness: HarnessApi = {"), preload.indexOf("contextBridge.exposeInMainWorld")).matchAll(/^ {2}(\w+):/gm)];
-    expect([commands.length, events.length, channels.length, methods.length]).toEqual([7, 16, 33, 21]);
+    expect([commands.length, events.length, channels.length, methods.length]).toEqual([8, 16, 34, 22]);
   });
 
   it("says a refused message once, as a fact, in the window's own register, and never sends, queues or retries it (Story 4.8)", () => {
@@ -2874,5 +2881,61 @@ describe("the thread follows what is being said, and says nothing of it (Story 5
     expect(css).toContain("var(--fs-label)");
     expect(css).toContain("var(--mono)");
     expect(css).not.toMatch(/prefers-color-scheme|data-theme/);
+  });
+});
+
+describe("stopping a turn that is not a run (Story 3.19, FR125, AD-23)", () => {
+  const STOP = "src/main/session-stop.ts";
+  const HEADER = "src/renderer/ui/chat/chat-header.tsx";
+
+  it("sends no SIGINT and writes one interrupt: `session-stop` is the only place, and its one caller is the one acknowledgement both stops share", () => {
+    expect(offenders([...code.keys()], /\bSIGINT\b/)).toEqual([]);
+    expect(offenders(MAIN_CODE, /\.interrupt\(/)).toEqual([`${STOP}: .interrupt(`]);
+    const stop = code.get(STOP) ?? "";
+    expect(stop.match(/\.interrupt\(/g)).toHaveLength(1);
+    // The run's stop, the plain turn's stop and the room's send all ask through the one `acknowledged`.
+    expect(stop.match(/\backnowledged\(/g)?.length).toBeGreaterThanOrEqual(3);
+    // The registry and the bridge write no interrupt: they hand the entry to `session-stop`.
+    expect(offenders(["src/main/session-registry.ts", "src/main/session-bridge.ts"], /\.interrupt\(|\backnowledged\(/)).toEqual([]);
+  });
+
+  it("names the one stop path: the bridge handler asks the registry, which hands a run and a plain turn to `session-stop`", () => {
+    expect(code.get("src/main/session-bridge.ts")).toMatch(/registry\.stopTurn\(/);
+    expect(code.get("src/main/session-registry.ts")).toMatch(/stopTurn\(\{ runs, say, finish \}/);
+    expect(code.get(STOP)).toMatch(/export async function stopTurn\(/);
+    // A run in flight takes `stopRun`'s own path; the plain turn's wait is the room's, written once.
+    expect(code.get(STOP)).toMatch(/return stopRun\(kit, sender, service, entry\)/);
+    expect(code.get(STOP)?.match(/entry\.idleWaiters\.push\(/g)).toHaveLength(1);
+    expect(offenders(MAIN_CODE, /["']turn\.stop["']/)).toEqual(["src/main/session-bridge.ts: 'turn.stop'"]);
+  });
+
+  it("marks the entry `interrupting` before the interrupt is written, and no line of the stop is a persona's voice", () => {
+    const stop = code.get(STOP) ?? "";
+    const turn = stop.slice(stop.indexOf("export async function stopTurn("), stop.indexOf("function endWithSession"));
+    expect(turn.indexOf("entry.interrupting = true")).toBeGreaterThan(-1);
+    expect(turn.indexOf("entry.interrupting = true")).toBeLessThan(turn.indexOf("acknowledged("));
+    // Said by the harness (`say`), never through a persona event.
+    expect(offenders(MAIN_CODE.filter((path) => path !== "src/main/session-voice.ts"), /\bLINES\.stopped\b/)).toEqual(["src/main/session-registry.ts: LINES.stopped"]);
+    expect(code.get("src/main/session-registry.ts")?.match(/\bLINES\.stopped\b/g)).toHaveLength(1);
+    expect(code.get("src/main/session-registry.ts")).toMatch(/say\(sender, entry, LINES\.stopped\)/);
+  });
+
+  it("draws the header's one control as one native button, with no confirmation, cost, `stopping…`, title, disabled or pending state, and in the thread of no room or orphan", () => {
+    const header = code.get(HEADER) ?? "";
+    expect(header.match(/<button\b/g)).toHaveLength(1);
+    expect(header).not.toMatch(/confirm|dialog|cost|stopping|pending|disabled|title=|aria-disabled|aria-busy|toast|tooltip|spinner/i);
+    expect(offenders(["src/renderer/ui/chat/orphan-header.tsx", ...sources("src/renderer/ui/party/")], /\bStop\b|\bstopTurn\b|\bonStopTurn\b|\bturnInFlight\b/)).toEqual([]);
+    // The one place that hands the header a way to stop is the shell, which hands it to the current persona's header only.
+    expect(offenders(RENDERER_CODE, /<ChatHeader\b/)).toEqual(["src/renderer/ui/shell/shell.tsx: <ChatHeader"]);
+    expect(code.get("src/renderer/ui/shell/shell.tsx")?.match(/onStopTurn\(current\.id\)/g)).toHaveLength(1);
+    // Its stylesheet is the close control's: nothing new is drawn for a stop.
+    expect(offenders(sources("src/renderer/ui/chat/", [".css"]), /chat-stop|\.stop-turn/)).toEqual([]);
+  });
+
+  it("clears no queue and cancels no message on a stop", () => {
+    const hook = code.get("src/renderer/ui/chat/use-conversation.ts") ?? "";
+    const stopTurn = hook.slice(hook.indexOf("async stopTurn(agentId)"), hook.indexOf("async close(agentId)"));
+    expect(stopTurn.length).toBeGreaterThan(0);
+    expect(stopTurn).not.toMatch(/commit\(|cancelQueued|dropQueued|setState|publish/);
   });
 });

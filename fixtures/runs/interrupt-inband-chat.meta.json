@@ -1,0 +1,60 @@
+{
+  "scenario": "interrupt-inband-chat",
+  "recordedAt": "2026-10-09T20:24:54.044Z",
+  "claudeVersion": "2.1.285 (Claude Code)",
+  "argv": [
+    "claude",
+    "-p",
+    "--input-format",
+    "stream-json",
+    "--output-format",
+    "stream-json",
+    "--include-partial-messages",
+    "--verbose",
+    "--setting-sources",
+    "project,local",
+    "--permission-mode",
+    "bypassPermissions",
+    "--model",
+    "sonnet",
+    "--disallowedTools",
+    "Bash,Task,Agent,WebFetch,WebSearch,NotebookEdit,Write,Edit,Read,Glob,Grep"
+  ],
+  "contractVersion": null,
+  "cwd": "/private/tmp/claude-501/-Users-sherifmatta-Learnings-bmad-harness/e5578745-2159-4e9a-b2af-89b967f2ec16/scratchpad/subject-chat",
+  "interrupt": "inband",
+  "notes": [
+    "In-band control_request interrupt on a plain chat turn (no skill, no tool) once its text_delta bytes reached 600; a second turn follows"
+  ],
+  "turns": [
+    {
+      "afterLine": 0,
+      "text": "Explain in plain prose, in at least 500 words, how ocean tides work. No tools, no files, no lists, no headings: just paragraphs."
+    },
+    {
+      "afterLine": 53,
+      "control": {
+        "type": "control_request",
+        "request_id": "rec-53",
+        "request": {
+          "subtype": "interrupt"
+        }
+      }
+    },
+    {
+      "afterLine": 57,
+      "text": "Reply with exactly the word PONG and nothing else."
+    }
+  ],
+  "model": "claude-sonnet-5-5",
+  "claudeSessionId": "98361bf1-8be8-4600-885b-b532785c7bcc",
+  "interruptedAtLine": 53,
+  "exit": {
+    "code": 0,
+    "signal": null
+  },
+  "lines": 69,
+  "resultRows": 2,
+  "inboxTurns": 0,
+  "finishedAt": "2026-10-09T20:25:00.658Z"
+}

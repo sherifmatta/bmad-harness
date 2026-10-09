@@ -118,14 +118,14 @@ describe('what a stop never touches', () => {
     ])
   })
 
-  it('changes no status, event or command of the contract: four run statuses, one stopped payload, seven commands', () => {
+  it('changes no status, event or command of the contract: four run statuses, one stopped payload, eight commands', () => {
     const conversation = code(join(SRC, 'shared/conversation.ts'))
     const events = code(join(SRC, 'shared/events.ts'))
     const commands = code(join(SRC, 'shared/commands.ts'))
 
     expect(conversation).toContain("export type RunStatus = 'running' | 'finished' | 'stopped' | 'failed'")
     expect(events).toContain('export type RunStopped = { runId: RunId; sessionId: SessionId; at: EpochMs }')
-    expect([...commands.matchAll(/^\s{2}'([a-z]+\.[a-z]+)': CommandSpec/gm)]).toHaveLength(7)
+    expect([...commands.matchAll(/^\s{2}'([a-z]+\.[a-z]+)': CommandSpec/gm)]).toHaveLength(8)
     expect(commands).toContain("'run.stop': CommandSpec<[runId: RunId], 'once per stop request', CommandReply>")
   })
 

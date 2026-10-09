@@ -28,7 +28,7 @@ export type CommandSpec<Args extends unknown[], Cardinality extends string, Repl
  */
 export type SessionTarget = AgentId | { room: readonly AgentId[] }
 
-/** The seven commands in, by name. */
+/** The eight commands in, by name. */
 export type ContractCommands = {
   'session.open': CommandSpec<
     [target: SessionTarget],
@@ -51,6 +51,7 @@ export type ContractCommands = {
     CommandReply<{ runId: RunId }>
   >
   'run.stop': CommandSpec<[runId: RunId], 'once per stop request', CommandReply>
+  'turn.stop': CommandSpec<[sessionId: SessionId], 'once per stop request', CommandReply>
   'doc.open': CommandSpec<[path: string], 'once per open request', CommandReply>
   'conversation.end': CommandSpec<
     [projectId: ProjectId],

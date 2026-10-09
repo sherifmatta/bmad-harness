@@ -37,6 +37,7 @@ const COMMANDS = [
   'turn.send',
   'menu.dispatch',
   'run.stop',
+  'turn.stop',
   'doc.open',
   'conversation.end'
 ]
@@ -115,7 +116,7 @@ describe('the commands in', () => {
   const body = mapBody(withoutComments(read('src/shared/commands.ts')), 'ContractCommands')
   const declared = entries(body)
 
-  it('are exactly the seven', () => {
+  it('are exactly the eight', () => {
     expect([...declared.keys()]).toEqual(COMMANDS)
   })
 
@@ -132,6 +133,7 @@ describe('the commands in', () => {
     expect(args('turn.send')).toBe('sessionId,text,mention?')
     expect(args('menu.dispatch')).toBe('sessionId,code')
     expect(args('run.stop')).toBe('runId')
+    expect(args('turn.stop')).toBe('sessionId')
     expect(args('doc.open')).toBe('path')
     expect(args('conversation.end')).toBe('projectId')
   })

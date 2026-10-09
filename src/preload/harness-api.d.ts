@@ -102,6 +102,14 @@ export interface HarnessApi {
    */
   stopRun(runId: RunId): Promise<void>
   /**
+   * Ask main to stop the turn in flight in a session, a run or a plain chat
+   * turn: the one interrupt that ends it, never a signal. Resolves when main
+   * has acted; rejects with the `HarnessError` envelope (`turn/not-found` for a
+   * session with no turn in flight, a room or no such session, which the
+   * window ignores).
+   */
+  stopTurn(sessionId: SessionId): Promise<void>
+  /**
    * The conversation as main holds it for this window's project: the
    * transcript, the live and busy sessions and the personas that are not idle.
    * Rejects with the `HarnessError` envelope. Made once on connecting; events

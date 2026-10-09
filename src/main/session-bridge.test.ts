@@ -2531,6 +2531,11 @@ describe('a send into the room (Story 4.2)', () => {
     expect(proc.killed).toBe(false)
     expect(lines(sender).filter((text) => text.startsWith('turn failed'))).toEqual([])
     expect(sender.names).not.toContain('turn:failed')
+    // A room's interrupt is the send's doing: it writes no stopped line, in the window or in the transcript (Story 3.19).
+    expect(lines(sender).filter((text) => text.startsWith('stopped'))).toEqual([])
+    expect(
+      transcriptOf(sender).filter((entry) => entry.kind === 'sysline' && entry.text.startsWith('stopped'))
+    ).toEqual([])
     expect(sender.events.filter((event) => event.name === 'session:closed')).toEqual([])
     // Neither the acknowledgement's timer nor the turn's is left running.
     expect(live().filter((timer) => timer.ms === STOP_ACK_MS || timer.ms === STOP_RESULT_MS)).toEqual([])

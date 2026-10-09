@@ -15,7 +15,7 @@ import { createRunProjection } from './projections/runs'
 import type { RunProjection } from './projections/runs'
 import { createMemlogCounts, createRunKit, deliver, endRun, observeMemlog, startRun } from './session-run'
 import type { ActiveRun, MemlogCounts, RunKit, StoppedRun } from './session-run'
-import { interruptTurn, stopRun } from './session-stop'
+import { interruptTurn, stopRun, stopTurn } from './session-stop'
 import type { RosterMember } from './install-model'
 import type { TranscriptRegistry } from './projections/transcript'
 import { initialRouteState, routeFrame } from './fold/route-frame'
@@ -77,9 +77,10 @@ export type Entry = {
    */
   afterStop: StoppedRun | undefined
   /**
-   * A send into a busy room is interrupting its turn (Story 4.2): set from the interrupt's ask
-   * until the turn ends, or the send gives up. The failed `result` such an interrupt ends the
-   * turn with is the user's own doing, so it says nothing and is no failure. Memory only.
+   * A send into a busy room is interrupting its turn (Story 4.2), or the user stopped a persona's
+   * plain chat turn (Story 3.19): set from the interrupt's ask until the turn ends, or the send
+   * gives up. The failed `result` such an interrupt ends the turn with is the user's own doing, so
+   * it is no failure: a room's says nothing, a persona's says one stopped line. Memory only.
    */
   interrupting: boolean
   /** Whoever is waiting for this session's turn to end: released when it does, and when the session closes. */
@@ -208,6 +209,12 @@ export type SessionRegistry = {
    */
   stop(sender: Sender, service: Service, entry: Entry): Promise<'ok' | 'not-found'>
   /**
+   * The user asked to stop whatever turn `entry` has in flight (Story 3.19): its run, by the same
+   * path as `stop`, or a plain chat turn, marked `interrupting` and interrupted (`session-stop`).
+   * `'not-found'` for a room, a closed entry or a session with no turn in flight.
+   */
+  stopTurn(sender: Sender, service: Service, entry: Entry): Promise<'ok' | 'not-found'>
+  /**
    * The rail's watcher saw a file of the window's project; a memlog is read for
    * the notes of the run in flight. Resolves once it is accounted for.
    */
@@ -260,10 +267,19 @@ function foldFrame(
   // one that freed it: the run is the user's turn, and the user's turn is over.
   const failedResult =
     signal?.kind === 'failed-while-pending' || (signal?.kind === 'ended' && signal.failed)
-  const stopped = failedResult && entry.run?.stopping === true
+  // A stop that landed after the turn was written and before its run began marked the entry, not the run
+  // (`turn.stop` found no run): the run is the user's turn all the same, so it ends stopped.
+  const stopped = failedResult && (entry.run?.stopping === true || (entry.interrupting && entry.run !== undefined))
   // A room's turn the user's own send interrupted ends on a failed `result` as well, and that is no
   // failure either: the send is what the user asked for.
   const interrupted = failedResult && entry.interrupting
+  // A persona's plain turn the user stopped says so once, at its first failed `result`: the harness's
+  // own line, before the session is free. The mark is spent with it, so a wake that follows a result
+  // which left tasks live adds none, and the stop's wait for the turn to end finds it done.
+  if (interrupted && entry.agentId !== undefined && entry.run === undefined) {
+    entry.interrupting = false
+    say(sender, entry, LINES.stopped)
+  }
   // A failed result is told whether or not it freed the session: a line in the
   // transcript, and the persona reads `error` once it is no longer working.
   if (failedResult && !stopped && !interrupted) {
@@ -470,7 +486,6 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
       text,
       ...(entry.agentId === undefined ? { room: true as const } : {})
     })
-  const roomWrote = (service: Service, paths: readonly string[]): void => service.annotations.roomWrote(paths)
   const clock = createQuietClock<Sender, Entry>({
     schedule: deps.schedule ?? defaultSchedule,
     quietMs: deps.quietMs ?? QUIET_MS,
@@ -558,7 +573,7 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
   }
 
   function onFrame(sender: Sender, service: Service, entry: Entry, frame: unknown): void {
-    foldFrame({ now, announce, say, roomWrote, runs, newRunId, roster: (sender) => deps.roster?.(sender.id) ?? [] }, sender, service, entry, frame)
+    foldFrame({ now, announce, say, roomWrote: (service, paths) => service.annotations.roomWrote(paths), runs, newRunId, roster: (sender) => deps.roster?.(sender.id) ?? [] }, sender, service, entry, frame)
     watch(sender, service, entry)
   }
 
@@ -591,6 +606,7 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
     watch,
     startRun: (sender, service, entry, ...started) => startRun(runs, sender, service, entry, ...started),
     stop: (sender, service, entry) => stopRun({ runs, say, finish }, sender, service, entry),
+    stopTurn: (sender, service, entry) => stopTurn({ runs, say, finish }, sender, service, entry),
     interruptTurn: (entry) => interruptTurn(runs, entry),
     observe: (sender, projectRoot, observation) =>
       observeMemlog(runs, sender, () => serviceFor(sender, projectRoot), projectRoot, observation),
