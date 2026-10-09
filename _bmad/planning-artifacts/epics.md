@@ -13,6 +13,8 @@ inputDocuments:
   - _bmad/planning-artifacts/ux-designs/ux-bmad-harness-2026-09-24/mockups/portrait.html
   - _bmad/planning-artifacts/ux-designs/ux-bmad-harness-2026-09-24/mockups/document-card-dead-air.html
   - _bmad/planning-artifacts/ux-designs/ux-bmad-harness-2026-09-24/mockups/paperclip-board.html
+  - _bmad/planning-artifacts/ux-designs/ux-bmad-harness-2026-09-24/mockups/chat-thread-reference.png
+  - _bmad/implementation-artifacts/spec-chat-look-flat-rows-and-initials.md
 ---
 
 # bmad-harness - Epic Breakdown
@@ -22,6 +24,8 @@ inputDocuments:
 This document provides the complete epic and story breakdown for the **BMad Visual Harness**, decomposing the requirements from the SPEC (which stands in for a PRD on this project — it is the declared canonical, preservation-validated contract), the UX design contract (DESIGN.md + EXPERIENCE.md), and the Architecture Spine into implementable stories.
 
 **Requirements source note.** This project ran brief -> spec -> architecture -> UX rather than brief -> PRD. `SPEC.md` and its four companions are the requirements source; FRs below are derived from capabilities CAP-1..CAP-12 and the companions' load-bearing detail, and NFRs from the SPEC's Constraints and Assumptions plus the Architecture Spine's cross-cutting rules.
+
+**Amended 2026-10-09 (chat look and the architecture's AD-22 to AD-25).** The Architecture Spine gained four invariants and amended two, and the UX spines took the chat look from `mockups/chat-thread-reference.png`. Five requirements are added (FR124 to FR128, under *Chat look, run steps and turn stop*), three UX design requirements (UX-DR49 to UX-DR51), and six stories: Epic 2 gains 2.14 and 2.15 and Epic 3 gains 3.16 to 3.19. Existing stories and requirements keep their numbers and are amended in place, each with a dated note, in the way earlier amendments were.
 
 ## Requirements Inventory
 
@@ -53,7 +57,7 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 #### CAP-3 — Personas have faces and identities
 
 - **FR18:** A persona tile renders portrait, name, title and a state line. The current persona is marked `aria-current="true"` with an accent left edge.
-- **FR19:** The chat header renders the current persona's portrait, name, title and state.
+- **FR19:** The chat header renders the current persona's portrait, name, title and state. *Amended 2026-10-09 by FR128 and Story 2.14: the header is one line carrying the persona's 22px initials disc, name, `title · story <id>` (the story reference only when a source exists) and the state pill, with the Stop / `close session` slot of FR125. The portrait left the chat header; it stays on the tiles, cast cards, cast chooser and Welcome (AD-16).*
 - **FR20:** `identity` and `communication_style` are never harness-injected. The persona session activates the agent's own skill, which loads them itself.
 - **FR21:** The harness never authors words attributed to a persona. Only main-thread `text_delta` may render as a persona turn; the UI never styles, frames, prefixes, summarises or classifies a persona's words.
 - **FR22:** Persona tiles are grouped by the agent's `module` and by `team` where present; within each group, the order is the order agents appear in the resolved config. There is no relevance sort, recency sort, pinning or highlighting.
@@ -64,7 +68,7 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **FR24:** A menu entry carries `code` (the key), `description` (the button label) and **exactly one of `skill` or `prompt`**. The button shows `description` with a leading code chip carrying `code`, and dispatches `menu.dispatch(sessionId, code)` — it knows nothing about what it invokes.
 - **FR25:** Menu entries resolve in main, never in the renderer. Main resolves the `code` against the currently resolved configuration and decides `skill` versus `prompt`: `skill` is sent as `/<skill-name>`, `prompt` is sent as its text verbatim. Both dispatch as a turn into the live persona session.
 - **FR26:** A menu entry carrying neither `skill` nor `prompt` is surfaced to the user as a discovery error naming the entry `code` and what is missing, in the harness's own register. It is never a silent no-op and never spoken by a persona.
-- **FR27:** No tooltip or preview derived from a resolved skill name is shown anywhere — it would go stale the instant the install is re-resolved. The user is never shown whether an entry is `skill` or `prompt`.
+- **FR27:** No tooltip or preview derived from a resolved skill name is shown anywhere — it would go stale the instant the install is re-resolved. The user is never shown whether an entry is `skill` or `prompt`. *Amended 2026-10-09 (AD-24, FR126): this holds for the skill buttons. A card of a run already started may name the skill it invoked, as a recorded fact that nothing re-resolves and nothing dispatches by; for a `prompt` entry there is no name, so the card does not tell the two apart either.*
 - **FR28:** Skill buttons are disabled whenever **any** turn is in flight in that session. The `live` persona state does **not** disable them. The composer is never disabled.
 - **FR29:** `+N more` expands the button row in place; the remaining entries appear as ordinary skill buttons and **no transcript entry is created**. The control toggles back reading `fewer`. The row must look correct at 1 through 10 entries.
 - **FR30:** There is no separate skills list, launcher or command palette anywhere in the product. Skills are reachable only as the current persona's buttons.
@@ -79,7 +83,7 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **FR36:** Section names and the predicted plan come from the skill's own template under its `assets/` directory, then from the run's `.memlog.md` concern-scan entry. Observed headings win and the plan grows; a section the user has already seen is never renumbered. **The template is not a flat list of sections and a naive heading parse is wrong**: `bmad-prd/assets/prd-template.md` carries 14 h1/h2 headings of which three are scaffolding (`# PRD Template`, `## Essential Spine`, `## Adapt-In Menu`) rather than document sections; the real spine is the ten numbered `## 0.`–`## 9.` headings, and the Adapt-In clusters that expand a run to 15 sections are not counted in it at all. Heading text also carries markdown emphasis (`*(almost always present)*`) that must be stripped, or the card head renders it verbatim.
 - **FR37:** A revision `Edit` of the subject sets the head to `revising · §N <Name>`, **patches that document's buffer (its `old_string` replaced by its `new_string`)**, re-parses sections and never advances the section counter. A `Write` replaces **that path's** buffer and may open new sections. **Each path has its own buffer; an `Edit` or `Write` of another path never changes the subject's body.** An `Edit` whose `old_string` is not in the buffer leaves the buffer as it was.
 - **FR38:** Deltas are coalesced in main before emission; the card commits accumulated text to one node per animation frame. No render is driven by an individual `input_json_delta`.
-- **FR39:** The card body has two modes and **is never empty**: *prose mode* while document prose streams, and *run-note mode* — the `.memlog.md` run-note feed — when it does not. A placeholder sentence is a spinner wearing a sentence and is forbidden.
+- **FR39:** The card body has two modes and **is never empty**: *prose mode* while document prose streams, and *run-note mode* — the `.memlog.md` run-note feed — when it does not. A placeholder sentence is a spinner wearing a sentence and is forbidden. *Amended 2026-10-09 (FR124, Story 3.17): when prose is not streaming the body is the run list, the run's tool steps and its run notes in one time-ordered list; the never-empty rule and the ban on a placeholder stand.*
 - **FR40:** A run note renders three slots: time (tabular figures), a kind tag, and the reason — the decision and the reason it was made, with the load-bearing clause emphasised. Entries stack in time order, newest last. **The `.memlog.md` format carries no per-entry timestamp**, so the time slot is derived from when the harness observed the append; a note with no observed time (a dead card after a restart) renders without one, and the row must stay legible with the time column empty. The entry parser also tolerates the `(kind by author)` form the writer emits when authorship is recorded.
 - **FR41:** **The memlog kind vocabulary is open, not closed** — `_bmad/scripts/memlog.py` states that the host skill supplies the vocabulary and the writer enforces none. The feed therefore renders **every** entry whatever its kind, under four named treatments: `decision` takes the accent treatment; `assumption` takes the neutral treatment; `question` and `gap` take the warm friction treatment (replacing the `open` tag named in the UX contract, which does not occur in the real format); and **any unrecognised kind falls back to neutral**. The fallback must cover the common observed kinds `event`, `constraint`, `capability`, `change`, `version`, `technique`, `note`, `override` and `direction`. A new kind appearing in a future BMad release must never break the feed.
 - **FR42:** During dead air the head keeps path, elapsed and a working stop control; a phase word (`researching`, `reviewing`) renders **only when a feed actually states it**. The foot reads `0 words on disk · <phase> · autosave on` plus the named next sections.
@@ -111,7 +115,7 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 
 - **FR60:** Clicking another persona's tile opens that persona's session, rebuilds the skill row, and expands that persona's card — within one unbroken conversation. No handoff presents as a restart, a new thread or a cleared history.
 - **FR61:** `@<name>` in the composer hands off to that persona in the 1:1 view, and directs the question at that persona in party mode. It addresses a **persona** and never names a skill; it is the product's only text-driven navigation.
-- **FR62:** A handoff writes a sysline naming the artifacts that carry the continuity — `handed off · John -> Amelia · picking up from PRD.md, epics.md` — and never claims that context continues, which under the session model would be false.
+- **FR62:** A handoff writes a sysline naming the artifacts that carry the continuity — `handed off · John -> Amelia · picking up from PRD.md, epics.md` — and never claims that context continues, which under the session model would be false. *Amended 2026-10-09 (built on `chat-look`; user's wording): the line reads `handed to <Name>` and nothing more, with no files and no arrow. A skill name is not part of it: a tile click or `@name` never names one, so `handed to <persona> · <skill>` has no v1 producer and stays unbuilt (AD-24). Story 2.9's file clause is superseded.*
 - **FR63:** A sysline is a harness-authored transcript entry in the harness's own register. It is never styled as, or attributed to, a persona. Syslines carry session-resumed, handoff and room-opened notices.
 
 #### CAP-9 — Party mode
@@ -134,14 +138,14 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **FR76:** The approved v2 geometry is implemented as specified: tapered-jaw face path at a 0.76 width/height ratio; one upper-left light source carried by four shapes (right-contour shadow, cheek highlight, jaw shadow on the neck, inner-ear shadows); almond eyes with socket shadow, iris, pupil, catchlight and weighted upper lid; filled tapered brows; three-part nose; resting mouth with lower-lip highlight; hair mass with a highlight arc (omitted for `receding`), with back mass for `long`/`bun` and seven circles for `curly`. Draw order is fixed.
 - **FR77:** The parameter set is: paired `skin`+`shade` (8 pairs), `eye` (8 values), `hair` (8 colours), `style` (`short · long · curly · bun · receding`), `fringe` (`straight · sweep · null`, forced `null` for `receding`), optional `crown` override, `beard` (`full · close · null`), `glasses` (`rect · round · null`), `earrings` (boolean), and paired `shirt`+`collar`+`bg` (8 triples). `hairDark`, `hairLite`, `lite` and `dark` are derived at render, never passed. The palette is muted and desaturated throughout.
 - **FR78:** The five core personas carry curated parameters. Every other installed agent derives deterministically from its `agentId` via a 32-bit FNV-1a hash salted per field, indexed modulo a constrained palette, with `style` drawn from the weighted six-entry list `short · short · long · curly · bun · receding`, `beard` firing at 32%, `glasses` at 34% and `earrings` at 28%. The same agent wears the same face across sessions and machines.
-- **FR79:** Portraits render at the closed set of sizes **32** (transcript), **36** (persona tile), **38** (chat header) and **44** (cast card). The legibility floor is 32px; the 20px case is served by the initials token instead.
+- **FR79:** Portraits render at the closed set of sizes **32** (transcript), **36** (persona tile), **38** (chat header) and **44** (cast card). The legibility floor is 32px; the 20px case is served by the initials token instead. *Amended 2026-10-09 (AD-16 as amended, FR128): portraits render at **36** (persona tile) and **44** (cast card, cast chooser, Welcome) only; the legibility floor is 36px; the 32 and 38 sizes are retired because the chat thread and chat header carry initials discs, not portraits.*
 - **FR80:** The `icon` field is never rendered as a portrait, at any size, as a fallback or otherwise.
 - **FR81:** v1 renders a **single neutral expression for every face** at every state. The state dot carries state; the face does not. `state` is nonetheless accepted by the signature from the start.
-- **FR82:** The initials token replaces the portrait at 20px (stacked faces, handoff chip) and renders at 32px as the user's own avatar. It reveals name and role identically on `:hover` and `:focus-visible`, carries `tabindex="0"`, `role="img"` and `aria-label="{name}, {title}"`, and stacks with a negative overlap and a ring cutting each disc out of the one behind it.
+- **FR82:** The initials token replaces the portrait at 20px (stacked faces, handoff chip) and renders at 32px as the user's own avatar. It reveals name and role identically on `:hover` and `:focus-visible`, carries `tabindex="0"`, `role="img"` and `aria-label="{name}, {title}"`, and stacks with a negative overlap and a ring cutting each disc out of the one behind it. *Amended 2026-10-09 (FR128): the token also renders as a decorative disc, `aria-hidden` and not focusable, at 26px beside a chat turn and 22px in the chat header, for a persona and for the user (tinted); the 32px user avatar is retired. The 20px small-reference form keeps the reveal, `tabindex` and `role`.*
 
 #### CAP-11 — A running skill can be stopped
 
-- **FR83:** A stop control is present on **both** the full card head (beside elapsed run time) and the collapsed line, and dispatches `run.stop(runId)`, which writes one in-band interrupt request to the run's session on stdin — `{"type":"control_request","request_id":"<id>","request":{"subtype":"interrupt"}}` — and so ends the turn, not the session. `SIGINT` ends a session and is never the stop mechanism. (`ARCHITECTURE-SPINE.md` AD-18, *Stop (settled, Story 1.1)*; `execution-model.md` *Stop and failure*; `_bmad/spikes/spike-stop-semantics.md`.)
+- **FR83:** A stop control is present on **both** the full card head (beside elapsed run time) and the collapsed line, and dispatches `run.stop(runId)`, which writes one in-band interrupt request to the run's session on stdin — `{"type":"control_request","request_id":"<id>","request":{"subtype":"interrupt"}}` — and so ends the turn, not the session. `SIGINT` ends a session and is never the stop mechanism. *Amended 2026-10-09 (FR125): the chat header's `Stop` dispatches `turn.stop(sessionId)`, which interrupts whatever turn is in flight, a run or not, by the same path; a run it stops ends `run:stopped`.* (`ARCHITECTURE-SPINE.md` AD-18, *Stop (settled, Story 1.1)*; `execution-model.md` *Stop and failure*; `_bmad/spikes/spike-stop-semantics.md`.)
 - **FR84:** Stopping costs the turn, not the conversation, so the control reads a plain `stop` on the full card head and on the collapsed line, with no confirmation. If stopping ever costs more than the turn, that cost is stated **on the control, before it is pressed**, never in a modal and never hidden. If the interrupt is not acknowledged — no `control_response`, or one whose `subtype` is not `success` — the harness falls back to ending the session and states that in its own register. (`ARCHITECTURE-SPINE.md` AD-18.)
 - **FR85:** There is no confirmation dialog and no "stopping…" transitional state; the card reaches its terminal state directly.
 - **FR86:** Stopping leaves the file **byte-for-byte as written** — never reverted, never patched, never restored — and nothing is offered to restore it.
@@ -165,7 +169,7 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **FR98:** Turns the harness sends are strictly serialised — at most one in flight, chat or run — so a queued message is sent only after the turn before it is over. A session can also take turns nobody sent (a background subagent finishing wakes the main thread and produces its own `result` row), so a `result` row ends *a* turn and not necessarily the one the harness sent. Different sessions run concurrently. (`ARCHITECTURE-SPINE.md` AD-11; `fixtures/runs/README.md`, "A session takes turns nobody sent".)
 - **FR99:** A message typed during a run lands in the transcript **immediately**, in the user-turn treatment, dimmed and marked `queued · sends when <Persona> finishes`. It is cancellable. It sends on `session:awaiting-turn`, and the dim and marker are removed **in place** — the entry never moves, re-renders or reappears lower in the thread.
 - **FR100:** Sessions are reclaimed when the persona is closed or the session ended, and are **not** held across app restarts. After a restart the transcript is present, every persona reads `idle`, every card renders dead with no elapsed ticking and no stop control, and nothing is offered to resume.
-- **FR101:** One contract crosses the bridge — events out, commands in — declared once in `src/shared/` with an explicit payload type and a stated cardinality. Events: `session:opened`, `session:awaiting-turn`, `session:closed`, `persona:said`, `persona:state`, `run:started`, `run:note`, `doc:section-opened`, `doc:prose`, `doc:committed`, `run:finished`, `run:stopped`, `run:failed`, `rail:changed`. Commands: `session.open(agentId)`, `session.close(sessionId)`, `turn.send(sessionId, text)`, `menu.dispatch(sessionId, code)`, `run.stop(runId)`, `doc.open(path)`, `conversation.end(projectId)`. Main folds raw `stream-json` into domain events; the renderer never parses a raw frame.
+- **FR101:** One contract crosses the bridge — events out, commands in — declared once in `src/shared/` with an explicit payload type and a stated cardinality. Events: `session:opened`, `session:awaiting-turn`, `session:closed`, `persona:said`, `persona:state`, `run:started`, `run:note`, `doc:section-opened`, `doc:prose`, `doc:committed`, `run:finished`, `run:stopped`, `run:failed`, `rail:changed`. Commands: `session.open(agentId)`, `session.close(sessionId)`, `turn.send(sessionId, text)`, `menu.dispatch(sessionId, code)`, `run.stop(runId)`, `doc.open(path)`, `conversation.end(projectId)`. *Amended 2026-10-09: the list omitted `harness:said`, which `src/shared/events.ts` already declares, so the contract held fifteen events and not fourteen; `run:step` (FR124) makes sixteen. `turn.stop(sessionId)` (FR125) makes eight commands, and `turn.send` takes an optional third argument, `mention` (FR127). The additions are additive and `CONTRACT_VERSION` is unchanged.* Main folds raw `stream-json` into domain events; the renderer never parses a raw frame.
 - **FR102:** Stream routing is fixed so the same bytes are never rendered twice or lost: main-thread `text_delta` outside a tool call is `persona:said`; prose inside a document write comes from `input_json_delta` on that call and is `doc:prose`; writes to `.memlog.md` are `run:note` and **never** `doc:prose`, so memlog text can never enter the document buffer or its section parser; anything with `parent_tool_use_id` is subagent activity.
 - **FR103:** Persona state is a projection with exactly one source each: `idle` (no session, or nothing running), `work` (any turn in flight, persisting through quiet subagent phases), `live` (a long-running attached process the session started), `note` (the watcher saw a change to a file this persona owns **that its own run did not make: a change observed while one of its runs is in flight, or within the watcher's settle window after that run's terminal event, is the run's own and raises no `note`**), `error` (this persona's last run failed or was stopped). Five states, four colours.
 - **FR104:** A persona tile aggregates every session carrying its `agentId` — a tile may stand for more than one session.
@@ -197,6 +201,16 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **FR122:** Recent activity lists persona events across the project, newest first: a run started, finished, stopped or failed, each with the persona's name and its time as `HH:MM`, built from the stored runs the transcript already keeps. It reads the same after a relaunch as it did live. It lists nothing the harness cannot show from a run, so no approval, no split, no question asked.
 - **FR123:** A story's **owner** is the persona of the run that is, or was last, on it. A story no run has been on has none and shows none. A story with a run in flight shows the owner's initials, `working · <elapsed>` and the amber pulse dot; a card with an owner is a button that opens that persona's thread, and a card with none is not a control. The rule that links a run to a story is settled by Story 6.1 and stated in its spike note.
 
+#### Chat look, run steps and turn stop
+
+*Added 2026-10-09 from `ARCHITECTURE-SPINE.md` AD-22 to AD-25 and AD-16 (amended), and from `EXPERIENCE.md` → State Patterns → The run list and Layout, chat and Board → The chat look.*
+
+- **FR124:** A run's tool calls are shown as steps. Main folds every main-thread tool call of a run into `run:step`, keyed by `callId`: exactly one `running` carrying a short label when the call's input has finished streaming, then exactly one `done` or `failed` on its `tool_result`. A plain chat turn, a call aimed at `.memlog.md` and any subagent frame raise none; a document `Write` or `Edit` raises one beside its `doc:*` events. The label is verb plus target, built in main from an allow-listed field (never an argument or a raw input), and nothing else about a call's input reaches the renderer. A step left running when its run ends is closed as failed on the card. Steps live in the run's card, interleave with its notes by fold order, number at most 300, and survive a reload and a relaunch with the card. The card body in run-list mode is one time-ordered list of steps and run notes, with no pending step and no `n of m`. (AD-22.)
+- **FR125:** Any turn in flight, a chat turn or a run, can be stopped. `turn.stop(sessionId)` interrupts it by the in-band path of FR83; a run it stops ends `run:stopped`, never `run:failed`, and a stopped plain chat turn is not an error: the session stays, the persona does not read `error`, and one line of the harness's own says so in the transcript. The chat header's slot reads `Stop` while a turn is in flight and `close session` otherwise. Queued messages are untouched. (AD-23.)
+- **FR126:** `run:started` carries an optional `skill`, the name of the skill main invoked, set only for a menu entry that resolved to a skill and kept on the run's card so a stored run reads as it did live. It is a record and never an input: the renderer still sends only `code`. With none, the card head reads `run` alone. The handoff sysline names no skill. (AD-24.)
+- **FR127:** A handoff typed as `@name text` keeps its `@name` in the user's turn. `turn.send` takes an optional `mention`, the literal token typed; the turn records it beside the text sent and displays as the mention in a chip followed by that text, so what is shown is always what was typed plus what was sent. The persona receives only the text. Main drops a mention that does not name the receiving persona. The field survives a queue, a reload and a relaunch. (AD-25.)
+- **FR128:** The chat thread and the chat header carry initials discs and no portrait: a 26px disc beside every turn and a 22px disc in the header, for a persona and for the user (tinted). A turn is a flat row with no container, the clock time inline after the role, and the header is one line. Portraits stay on the Team tiles, cast cards, cast chooser and Welcome. (AD-16 as amended.)
+
 ### NonFunctional Requirements
 
 - **NFR1 (Architecture paradigm):** Read-only projection — an event-sourced read model with **no write side**. The harness owns no state of its own; it observes three external sources of truth (the project filesystem, the BMad install, a session's event stream), folds each into a read model, and renders it.
@@ -226,7 +240,7 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **NFR25 (No guidance surface):** No highlighting, badging, sorting, recommending or next-step suggestion anywhere; no unread counts or quest markers.
 - **NFR26 (Silence):** No audio anywhere in the product.
 - **NFR27 (Responsive):** Desktop-first, `body{overflow:hidden}` at full size, two breakpoints only — `<=1180px` hides the party side panel, `<=1000px` unlocks scroll and stacks both views to a column. No mobile target, no third breakpoint. Type is fixed px; v1 does not respond to a text-scaling or zoom rule.
-- **NFR28 (Product test, outranking all of the above):** *If it reads as a chat box with a portrait glued on, it has failed regardless of feature completeness.* Restraint in the shell is the budget the portraits spend; nothing may buy shell decoration with it.
+- **NFR28 (Product test, outranking all of the above):** *If it reads as a chat box with a portrait glued on, it has failed regardless of feature completeness.* Restraint in the shell is the budget the portraits spend; nothing may buy shell decoration with it. *Amended 2026-10-09: the portraits are spent on the Team tiles, the cast and the Welcome; the chat itself carries initials (AD-16).*
 
 ### Additional Requirements
 
@@ -271,7 +285,7 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 #### Components to build
 
 - **UX-DR14 — Portrait:** per FR73–FR81; reference implementation `mockups/portrait.html`, with DESIGN.md winning on any disagreement. `viewBox="0 0 100 100"`, `role="img"`, `aria-label="{name}, {title}"`, `border-radius:50%`, wrapper at `line-height:0`.
-- **UX-DR15 — Initials token:** 20px small-reference / 32px user avatar, `initials-bg` fill with a 1px `initials-line` border, mono in `initials-ink`, 11px glyph at 32px and 9.5px at 20px, `-5px` stacked overlap with a `0 0 0 1.5px panel-2` ring, hover/focus parity on the name-and-role reveal.
+- **UX-DR15 — Initials token** *(amended 2026-10-09: the chat discs are 26px beside a turn and 22px in the header, decorative, sans 600 in `text-strong`, and the user's is tinted; the 32px user avatar is retired)*: 20px small-reference / 32px user avatar, `initials-bg` fill with a 1px `initials-line` border, mono in `initials-ink`, 11px glyph at 32px and 9.5px at 20px, `-5px` stacked overlap with a `0 0 0 1.5px panel-2` ring, hover/focus parity on the name-and-role reveal.
 - **UX-DR16 — Status dot:** 6px circle carrying the entire state vocabulary. Five states, four colours; the halo appears only on the two "something is happening" states (`work`, `live`); the amber fill is unique to `work`. Every dot is accompanied by a text state string.
 - **UX-DR17 — Persona tile:** 56px row, 36px portrait, name at 12.5px/600 with the title beside it in `dim`, state line below with its dot. Transparent default, `panel-2` hover revealing the menu hint (`max-height 0 → 60px` over .16s), `aria-current` current state with a 2px accent left bar.
 - **UX-DR18 — Rail row:** two visually distinct registers on one line because the architecture forbids merging them — the disk state in the row's own typography, the run annotation optional and able to be absent without the row looking broken. While a file is being written: name to `text-strong`, meta to `amber`, icon stroke to `amber`, dot pulsing. 12×14 two-path inline SVG file icon at .75 opacity.
@@ -291,7 +305,7 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 
 - **UX-DR30 — Microcopy:** implement the harness-voice string table — `writing · §4 Functional Requirements` not "Writing section 4 of 9…"; `saved · 3d` not "Last saved 3 days ago ✓"; `not yet written` not "Waiting for content…"; `no files under _bmad/ yet` not "Get started by running a skill"; `stop` not a confirm modal; `queued · sends when John finishes` not "Message will be delivered shortly". Lower case, mono, `·` separator, no terminal punctuation.
 - **UX-DR31 — Stale copy cut:** the mockup's rail footer ("Read from each agent's `customize.toml`…") and composer hint ("skills read from `.claude/skills/…/customize.toml`") are factually wrong under the resolver contract. **Both strings are cut and nothing replaces them.** No config file path appears in copy anywhere.
-- **UX-DR32 — Handoff sysline correction:** the mockup's "conversation and context continue" is false under the session model. The shipped line names the real mechanism — the artifacts — in write order: `handed off · John -> Amelia · picking up from PRD.md, epics.md`.
+- **UX-DR32 — Handoff sysline correction** *(amended 2026-10-09: the shipped line is `handed to <Name>`, with no files, by the user's decision)*: the mockup's "conversation and context continue" is false under the session model. The shipped line names the real mechanism — the artifacts — in write order: `handed off · John -> Amelia · picking up from PRD.md, epics.md`.
 - **UX-DR33 — Dead-air treatment (Option A):** the run-note feed **becomes the card body** when prose is not streaming. Reference implementation `mockups/document-card-dead-air.html`, with EXPERIENCE.md winning on any disagreement. Options B (a separate reasoning band with an empty prose body) and C (foot-anchored reasons) are rejected and must not be built.
 - **UX-DR34 — Collapsed card field set:** persona · **last run note's reason** · elapsed · stop. The last reason **replaces** the section name rather than sitting beside it — the section is already carried by the rail row, and a one-line card cannot hold five fields without becoming a paragraph. Before the first run note arrives, field 2 falls back to the section name; the reason truncates to one line with the full entry in the expanded card.
 - **UX-DR35 — Reduced-motion mitigations:** with animation globally disabled, `work` is carried by the amber fill (unique among the five states) plus the **elapsed counter**, which is changing data and must keep ticking; a `changing` rail row is carried by its always-present text state string; streaming prose is carried by body growth with the caret rendering static-**on**, never static-off.
@@ -308,6 +322,9 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **UX-DR46 — The splitter and the folder heading** (`DESIGN.md` → Components → Splitter, Folder heading; `EXPERIENCE.md` → Resizing and folding): a 9px hit area on the panel's inner border, 1px `line` at rest and 3px `accent-border` / `accent` on hover / drag and focus, with the shared ring, no motion, a `separator` with its value, minimum and maximum exposed; a folder heading as a button with a stroked chevron, `badge`-tier mono at `dim`, `aria-expanded` and `aria-controls`, the amber dot and `changing` while folded over a changing row, and no count; neither announced through the live region; no splitter at ≤1000px or where its panel is hidden.
 - **UX-DR47 — The Board's anatomy** (`DESIGN.md` → Components → *Proposed: layout, thread and Board anatomy* → Board, which this epic promotes from proposed to built): one scrolling column on `bg` at `16px 18px 20px`; every region a panel (`panel` ground, 1px `line`, `card` radius, head on `panel-2`); the overview as two equal cells, not three (the third, *decisions open*, is deferred; the anatomy's "three equal cells" is amended to two when 6.5 lands); five status columns in one panel with 1px `line-soft` between them and the status as the file writes it in `micro` uppercase `faint` with no count; story cards on `bg` at `control` radius; the owner's initials disc and `working · <elapsed>` in the foot, and a card with a run on it takes the amber pulse dot and a 1px `accent-border`; epic rows as text; agent rows with the tile's anatomy; activity rows with the dot, the persona's name, what it did and `HH:MM`. Every value reaches the design system through a token (NFR23), and nothing is added to the closed motion inventory (UX-DR12).
 - **UX-DR48 — The Board's reach and prohibitions** (`EXPERIENCE.md` → *Layout, chat and Board* → Accessibility, Banned here): the view switch is one control of three in the roving order; each column is a list under its status heading and each card with an owner is a button; the Board's figures and rows are text and are not announced through the live region; the keyboard chord is `g` then `b`, bound only while no field has focus. Banned: a count, badge or highlight on a figure, a column or a card; a progress bar on a card or an epic row; any spend, budget or cost figure; any editing affordance; a recommended or highlighted next story; a skill list or `/` command; relative times; drag to move.
+- **UX-DR49 — Run step** (`DESIGN.md` → Components → *Run step*; `EXPERIENCE.md` → State Patterns → *The run list*): a row on a grid `14px · 1fr · auto` at 9px gap and 3px vertical padding, no rule between rows; mark in mono (`✓` `green` done, the amber `work` dot with the existing pulse while running, `✕` `red` failed), label in mono at `ident` (`dim` once done, `text` while running), elapsed in mono at `meta` with tabular figures (`faint` once done, `now` in `dim` while running, so it carries the liveness under reduced motion). No shimmer, bar, pending row or `n of m`; steps and notes interleave in one list, and prose mode keeps them above it.
+- **UX-DR50 — Chat header** (`DESIGN.md` → *Chat header*): 46px, `chrome`, 1px `line` below, `0 16px`, 10px gaps, one line: the 22px initials disc, the name at `name`, `title · story <id>` in `dim` (the story reference only with a source), the status pill, then a ghost button that reads `Stop` while a turn is in flight and `close session` otherwise; name and line truncate with an ellipsis.
+- **UX-DR51 — Conversation turn** (`DESIGN.md` → *Conversation turn*, *Initials*): a flat row, with a 26px initials disc (the user's tinted) and a head of name, role and clock time on one baseline, 8px apart, the words below at `base`, turns 16px apart, no container, radius, ground or rule; the room's live turn alone keeps its accent edge `[OPEN]`; the user's `@name` of a handoff renders as a chip before the sent text (Story 2.15), its anatomy to be added to `DESIGN.md`.
 
 ### FR Coverage Map
 
@@ -438,8 +455,13 @@ Every one of the 123 FRs maps to exactly one epic.
 | FR121 | Epic 6 | The Agents panel: state, what it is on, elapsed; idle dims |
 | FR122 | Epic 6 | Recent activity from stored runs, newest first, surviving a relaunch |
 | FR123 | Epic 6 | A story's owner and live run on its card; a card with an owner opens that thread |
+| FR124 | Epic 3 | Tool steps: `run:step` from main, a short label, carried by the card; the run list in the card body |
+| FR125 | Epic 3 | `turn.stop`: any turn in flight can be stopped; the header's `Stop` / `close session` slot |
+| FR126 | Epic 3 | `run:started.skill`, a recorded fact; the card head reads `<skill> run` |
+| FR127 | Epic 2 | The `@name` of a handoff stays in the user's turn, through `mention` on `turn.send` |
+| FR128 | Epic 2 | The chat look: initials discs, flat rows, clock time, one-line header, `handed to <Name>` |
 
-**Coverage by epic:** Epic 1 — 42 FRs · Epic 2 — 20 FRs · Epic 3 — 34 FRs · Epic 4 — 9 FRs · Epic 5 — 11 FRs · Epic 6 — 7 FRs · **Total 123.**
+**Coverage by epic:** Epic 1 — 42 FRs · Epic 2 — 22 FRs · Epic 3 — 37 FRs · Epic 4 — 9 FRs · Epic 5 — 11 FRs · Epic 6 — 7 FRs · **Total 128.**
 
 ## Standing Constraint on Story Creation
 
@@ -471,7 +493,7 @@ Point the harness at any BMad-installed project and get a real room: the install
 - The rail ships with the annotation slot present but empty — FR50 requires a row to read as complete without it, which is exactly what makes this epic standalone. Epic 3 populates it.
 - **The rail projection accepts an annotation input from day one and is tested against a stub annotation source.** FR49–FR51 are AD-2, the architecture's central rule, and without this the epic that *owns* the invariant could not exercise it — there is no session stream until Epic 3. Epic 3 substitutes the real stream for the stub and changes nothing else.
 - The document window is a separate OS window and shares no files with the shell.
-- **The portrait acceptance test is named and falsifiable**, despite the criterion sounding subjective: the generator matches the approved `mockups/portrait.html` reference and is reviewed at all four render sizes (32/36/38/44) plus the derived-agent grid. "Reads as a plausible colleague" has a concrete reference and a named judge.
+- **The portrait acceptance test is named and falsifiable**, despite the criterion sounding subjective: the generator matches the approved `mockups/portrait.html` reference and is reviewed at all four render sizes (32/36/38/44) plus the derived-agent grid *(amended 2026-10-09: the sizes that remain are 36 and 44; Story 1.6)*. "Reads as a plausible colleague" has a concrete reference and a named judge.
 - **The eight spec amendments the architecture requires are applied in this epic** as documentation work. They are already-true decisions, so nothing blocks them — but owned by no epic they leave `SPEC.md` diverging permanently from what gets built, and the next planning pass reads the wrong contract.
 - **The run-note feed is built here, not in Epic 3.** It is a render over file content — time, kind, reason — so it needs a `.memlog.md`, not a session; eleven real ones exist in this repo to point it at. Building it in Epic 1 is the earliest point at which "you watch the why instead of being told it" can be judged thrilling rather than a changelog, and it means the next format surprise lands with nothing built on top of it. Epic 3 mounts the same component in the card body and feeds it live.
 - **The stop-semantics spike ran at the front of this epic, ahead of the scaffold.** It was one subprocess, one turn and a stop attempted two ways, and it decided whether FR90 is a valid requirement at all. *Settled (Story 1.1):* `SIGINT` ends the session; an in-band interrupt on the session's stdin halts the turn and keeps it, so FR90 stands for stops (`ARCHITECTURE-SPINE.md` AD-18). It had no dependency on anything the harness builds, so nothing was gained by holding it until Epic 2.
@@ -484,17 +506,18 @@ Hold a real conversation with any installed persona in their own voice, hand off
 
 **Standalone:** the conversational half of the product, usable on its own.
 
-**FRs covered:** FR6, FR15, FR16, FR20, FR21, FR60, FR61, FR62, FR63, FR95, FR96, FR97, FR98, FR99, FR100, FR101, FR102, FR103, FR104, FR105
+**FRs covered:** FR6, FR15, FR16, FR20, FR21, FR60, FR61, FR62, FR63, FR95, FR96, FR97, FR98, FR99, FR100, FR101, FR102, FR103, FR104, FR105, FR127, FR128
 
 **NFRs addressed:** NFR2, NFR5, NFR6, NFR10, NFR17, NFR18, NFR20, NFR21, NFR22, NFR24, NFR26
 
-**UX-DRs addressed:** UX-DR9, UX-DR16, UX-DR22, UX-DR25, UX-DR29, UX-DR30, UX-DR32, UX-DR35
+**UX-DRs addressed:** UX-DR9, UX-DR16, UX-DR22, UX-DR25, UX-DR29, UX-DR30, UX-DR32, UX-DR35, UX-DR50, UX-DR51
 
 **Implementation notes:**
 - The full events-out/commands-in contract is declared **once** here, including the `doc:*` events Epic 3 consumes — a renderer-only event is a smell, and the contract version stamps every persisted log from this point on.
 - **The stop-semantics spike moved to the front of Epic 1 and is settled.** This epic consumes its answer: a stop (the in-band interrupt) ends the turn and leaves the session, so the session lifecycle here has no stop-ends-the-session case. A session ends only through `session.close`, `conversation.end` or process exit (`ARCHITECTURE-SPINE.md` AD-18, AD-21).
 - **One of the three open items resolves here** — whether a conversation continuous in transcript and artifacts, but not in process, satisfies CAP-8. Stop semantics resolve earlier, in Epic 1. The third, whether a queued message reads as honest, **cannot resolve here**: it asks about a message typed during a twelve-minute run, and this epic has no runs. It resolves in Epic 3.
 - Recording the `fixtures/runs/` replay corpus starts here — `fold/` interpreters are pure functions over recorded sequences, so the corpus is a build dependency for Epic 3, not a test nicety. **Fixtures store raw CLI `stream-json` frames, not domain events.** The version stamp is metadata for forensics, not a validity constraint — storing domain events would mean any later contract bump invalidated the corpus, and re-recording a scenario like a failure inside the reviewer gate is not cheap.
+- **Added 2026-10-09 (Stories 2.14 and 2.15).** The chat look (initials discs, flat rows, a one-line header) is built on `chat-look` and Story 2.14 is its acceptance; Story 2.15 keeps a handoff's typed `@name` in the user's turn through an optional `mention` on `turn.send` (AD-25). Neither changes what a persona receives or says (FR21).
 - **Negative-surface check:** this epic's final story verifies the UX-DR38 prohibitions on its own surfaces — no refusal-with-handoff, no sound, no tooltip derived from a resolved skill name, no composer that parses skill names, and a decision-option block with no recommended styling, no default selection and no surviving chosen state.
 
 ### Epic 3: Run a skill — watch it write, stop it, understand however it ends
@@ -503,11 +526,11 @@ Press a button belonging to whoever you are talking to and watch the document be
 
 **Standalone:** the product's core and the success signal's demonstrable form.
 
-**FRs covered:** FR23, FR24, FR25, FR26, FR27, FR28, FR29, FR30, FR31, FR32, FR33, FR34, FR35, FR36, FR37, FR38, FR39, FR42, FR43, FR44, FR45, FR46, FR47, FR83, FR84, FR85, FR86, FR87, FR88, FR89, FR90, FR92, FR93, FR94
+**FRs covered:** FR23, FR24, FR25, FR26, FR27, FR28, FR29, FR30, FR31, FR32, FR33, FR34, FR35, FR36, FR37, FR38, FR39, FR42, FR43, FR44, FR45, FR46, FR47, FR83, FR84, FR85, FR86, FR87, FR88, FR89, FR90, FR92, FR93, FR94, FR124, FR125, FR126
 
 **NFRs addressed:** NFR2, NFR9, NFR10, NFR17, NFR18, NFR25
 
-**UX-DRs addressed:** UX-DR19, UX-DR20, UX-DR24, UX-DR33, UX-DR34, UX-DR38
+**UX-DRs addressed:** UX-DR19, UX-DR20, UX-DR24, UX-DR33, UX-DR34, UX-DR38, UX-DR49, UX-DR50
 
 **Implementation notes:**
 - This deliberately merges live authoring with stop and failure legibility. They share `fold/`, the document card head, and the rail annotation, and EXPERIENCE.md pre-designs all six card states — so there is no feedback loop between them, and splitting would build the card head across three separate epics.
@@ -520,6 +543,7 @@ Press a button belonging to whoever you are talking to and watch the document be
 - **The run-note feed component arrives from Epic 1 already built and already judged.** This epic mounts it in the card body and feeds it live from `run:note`; it does not re-specify the note. The `.memlog.md` format is a verified constraint, not an assumption — open kind vocabulary (13 kinds observed, `event`/`constraint`/`capability` ranking 2nd/3rd/4th) and **no per-entry timestamp**.
 - **Sequencing directive: a thin vertical slice of Flow 1 lands first in this epic, not last** — dispatch a menu entry, birth a card, stream prose, reach `saved`. This is the first point in the whole build at which the product's thesis is testable, and the structure is already three epics deep before it arrives. Depth (dead air, revisions, stop costs, failure states) comes after the slice proves the beat.
 - **Follow-ups from the Story 3.1 live judgement land before 3.2:** Stories 3.12 (one document per card), 3.13 (`live` after a run) and 3.14 (pinned card), from `sprint-change-proposal-2026-10-03-beat-judgement.md`. Story 3.4 stands as planned: the live run's dead air was 1 min 40 s to the first note, with a 20-minute middle in which the body must not freeze on a stale buffer, which 3.12 prevents.
+- **Added 2026-10-09 (Stories 3.16 to 3.19).** The run list: Story 3.16 folds each tool call into `run:step` in main and carries it on the card (AD-22), Story 3.17 renders it beside the run notes, Story 3.18 names the skill a run invoked (AD-24), and Story 3.19 adds `turn.stop` so the chat header's `Stop` works for a turn that is not a run (AD-23). 3.17 depends on 3.16 and 3.18 on 3.17; 3.19 depends on Story 2.14's header. Each carries its own negative-surface criteria and extends the Story 3.11 audit, which stays the epic's check.
 - **Negative-surface check:** this epic's final story verifies the UX-DR38 prohibitions most at risk here — no spinner at any point including a sentence doing a spinner's job, no progress bar or denominator, no per-section tick-through or staggered reveal of an atomic commit, no per-character typewriter, no undo or resolve/merge dialog, no Dock badge.
 
 ### Epic 4: Convene the room — party mode
@@ -830,6 +854,21 @@ So that the product's central claim — a room where a team visibly works — su
 **When** the generator is reviewed against `_bmad/planning-artifacts/ux-designs/ux-bmad-harness-2026-09-24/mockups/portrait.html` at all four render sizes plus a derived grid of at least twelve agents
 **Then** the user confirms the faces read as plausible colleagues rather than as a cartoon, and that confirmation is the story's acceptance.
 
+*Amended 2026-10-09 (`ARCHITECTURE-SPINE.md` AD-16 as amended; FR79, FR82 and UX-DR15 as amended; built on `chat-look`, Story 2.14).* The criteria on the closed set of sizes, on the initials token and on the portrait review are superseded by:
+
+**Given** the closed set of render sizes
+**Then** portraits render at **36** (persona tile) and **44** (cast card, cast chooser, Welcome) only (`PortraitSize = 36 | 44`), with no code path rendering one below 36px, which is the legibility floor
+**And** no portrait renders in the chat thread, the party thread or either chat header, where an initials disc stands in, and the 32 and 38 sizes are retired
+**And** the `icon` field from config is never rendered as a portrait at any size.
+
+**Given** the initials token
+**Then** it renders as a decorative disc at **26px** beside a chat turn and **22px** in the chat header (`aria-hidden`, no `tabindex`, no reveal), its glyphs sans 600 in `text-strong` on `initials-bg` with a 1px `initials-line`, the same for every persona, and the user's disc tinted (`accent-bg`, `accent-border`, `accent` ink)
+**And** the 20px small-reference form (stacked faces) keeps its mono glyphs, `-5px` overlap, `panel-2` ring, `tabindex="0"`, `role="img"` and the name-and-role reveal identical on `:hover` and `:focus-visible`
+**And** the initials are a pure function of the roster's display name with no I/O, and a persona is still keyed by `agentId`.
+
+**Given** the art-direction review
+**Then** it is held at the sizes that remain, 36 and 44, plus the derived grid of at least twelve agents; the 32 and 38 reviews are no longer required.
+
 ### Story 1.7: The team, read from the project's own install
 
 As someone opening a project the harness has never seen,
@@ -971,6 +1010,17 @@ So that the room reads as people rather than as a list of capabilities.
 **Then** the chat header rebuilds to that persona in the same frame
 **And** the name and title come from the resolved roster, never from a harness-side table.
 
+*Amended 2026-10-09 (FR19 and FR128; Stories 2.14 and 3.19).* The criterion on the chat header ("renders the current persona's portrait at 38px … its second line is constrained to 72ch") is superseded by:
+
+**Given** the chat header
+**Then** it is one line, 46px tall, carrying the persona's 22px initials disc, their name at `name`, `title · story <id>` in `dim` (the story reference only when a source exists), the status pill, and the slot that reads `close session` and, while a turn is in flight, `Stop` (Story 3.19)
+**And** there is no portrait and no second description line, and the name and the line truncate with an ellipsis, so the 72ch cap has nothing to constrain.
+
+**Given** the active persona changes
+**Then** the header rebuilds to that persona in the same frame, its name and title from the resolved roster and never from a harness-side table.
+
+The tile's 36px portrait, its anatomy and every other criterion above stand.
+
 ### Story 1.11: The project's files, changing as they change
 
 As someone whose work produces files,
@@ -1080,6 +1130,17 @@ So that nobody implements a rule that has already been superseded.
 **Given** every amendment
 **Then** each edit cites the source that overrides it
 **And** no amendment changes any capability's intent.
+
+*Amended 2026-10-09 (`ARCHITECTURE-SPINE.md` AD-16 as amended; Spec Amendments Required, new row).* The third criterion records the portrait floor "as 32px in place of AD-16's 20px"; that is superseded, and one criterion is added:
+
+**Given** the two UX supersessions of architecture invariants
+**Then** the party side panel is recorded as 240px in place of AD-14's 288px, and the portrait floor as **36px** (portraits at 36 and 44 only) in place of AD-16's original 20px and the 32px recorded here before, each naming the decision that overrode it
+**And** AD-14 no longer restates layout numbers, which `tokens.css` and `DESIGN.md` own.
+
+**Given** the Architecture Spine's *Spec Amendments Required* table now has a ninth row
+**When** the amendments are applied
+**Then** `SPEC.md` CAP-3 ("a portrait in the chat header") and CAP-10 ("portraits at every size the UI uses") and `ui-surfaces.md` → *Portraits* (32 in the transcript, 38 in the chat header, the party transcript's `portrait + name + role + timestamp`) are updated to say the chat thread and header carry initials discs and the portraits are on the Team tiles, cast cards, cast chooser and Welcome, at 36 and 44
+**And** each edit cites the 2026-10-09 UX decision that overrides it, and "all eight" above reads nine.
 
 ### Story 1.14: Nothing the product promised not to do
 
@@ -1213,6 +1274,8 @@ So that two consumers can never assume different shapes, and a change in the CLI
 **When** the fold is tested
 **Then** every rule is verified without requiring a live session or a recorded run.
 
+*Amended 2026-10-09 (`ARCHITECTURE-SPINE.md` AD-3 as amended; FR101 as amended).* The first criterion listed fourteen events; `src/shared/events.ts` declares fifteen, `harness:said` being the one it left out, and seven commands. The contract now reads sixteen events out, adding `run:step`, and eight commands in, adding `turn.stop(sessionId)`, with `turn.send(sessionId, text, mention?)`. The additions are declared by Stories 3.16, 3.19 and 2.15 and are additive, so `CONTRACT_VERSION` is unchanged. The routing criterion gains one clause: every main-thread tool call of a run is a `run:step`, except one aimed at `.memlog.md`, and a subagent frame raises none.
+
 ### Story 2.3: The turn and the composer
 
 As someone reading and writing in this window all day,
@@ -1254,6 +1317,8 @@ So that the surface I look at more than any other is not the one nobody specifie
 **Given** the conversation turn is named nowhere in the UX contract's component list — it appears once in DESIGN.md, as an entry in the radius table
 **Then** this story's specification is its contract
 **And** DESIGN.md is updated to carry the conversation turn as a named component, alongside the spec amendments applied in Epic 1.
+
+*Amended 2026-10-09 (Story 2.14, built on `chat-look`).* The first two criteria are superseded. A persona's turn is a flat row with no radius, padding, ground or border: a 26px initials disc, then the name, the role and the clock time (`HH:MM`) inline after it, then the words in the sans register at `base`. The user's turn is the same row, its disc tinted, with no `accent-wash` ground and no left rule. No portrait renders in the thread. The criteria on never styling the words, the composer, `Enter` and `Shift+Enter`, keyboard reach and the 940px width stand; the header's second line, and so its 72ch, are gone (Story 1.10).
 
 ### Story 2.4: Open a session and hear back
 
@@ -1334,6 +1399,8 @@ So that a long turn never makes the composer feel broken.
 **And** different sessions run concurrently without interfering.
 
 The same premise is removed from FR98, AD-11, AD-18 and FR87.
+
+*Amended 2026-10-09 (Story 2.15; Story 3.19).* A queued handoff keeps its typed `@name`: the queued message carries `mention` and shows its chip while queued, and sends it with the turn when the session is free. Stopping a turn (Story 3.19) does not cancel a queued message. The criteria above stand.
 
 ### Story 2.6: Every indicator means something
 
@@ -1468,6 +1535,17 @@ So that planning and building happen in one window without a restart or a re-bri
 
 **And** every sysline never claims that context continues, which would be false — a handoff starts a new session and continuity is carried by the artifacts on disk.
 
+*Amended 2026-10-09 (FR62 as amended; built on `chat-look`, Story 2.14; user's wording).* The fourth criterion and its amendment above are superseded in what the sysline says and stand in when it is written:
+
+**Given** a sysline is written for a handoff, under the conditions above (a conversation that already has turns, another persona, a name for each, once per switch)
+**Then** it reads `handed to <Name>` and nothing more: no files, no arrow, no `<from>` and no skill
+**And** it never claims that context continues, and is never styled as or attributed to a persona.
+
+**Given** `@<name>` resolves to another persona
+**Then** it hands off as above, and the typed `@name` stays in the user's turn (Story 2.15).
+
+The file list, `service.written` and `fold/written-paths` no longer feed the line and wait for a cleanup story; transcripts stored before the change keep the old wording. The skill half of `handed to <persona> · <skill>` has no producer in v1 (AD-24).
+
 ### Story 2.10: When a persona stops to ask
 
 As someone whose decision a persona is waiting on,
@@ -1565,6 +1643,105 @@ So that the negative surface holds where it is easiest to erode.
 **Given** the decision-option block
 **Then** no option carries a recommended style, a default selection or a sort order, and the block leaves no residue once answered.
 
+### Story 2.14: The chat look: flat rows, initials discs, one-line header
+
+*Added 2026-10-09 to record work built on branch `chat-look` (`_bmad/implementation-artifacts/spec-chat-look-flat-rows-and-initials.md`, status `done`) from `mockups/chat-thread-reference.png`, by the user's decision recorded in `EXPERIENCE.md` → Layout, chat and Board → The chat look. Built; this story is its acceptance.*
+
+As someone reading a long conversation,
+I want turns as flat rows with a small initials disc, a one-line header and a plain handoff line,
+So that the chat reads as colleagues talking and not as a chat box with a portrait glued on.
+
+**Implements:** FR128, FR19 (amended), FR62 (amended) · UX-DR15 (amended), UX-DR50 (the header, without `Stop`), UX-DR51 · NFR28 (amended)
+
+**Evidence:** `ARCHITECTURE-SPINE.md` AD-16 as amended: portraits only on the Team tiles, cast cards, cast chooser and Welcome, at 36 and 44; initials discs elsewhere. The change replaced 32px portraits, boxed turns, a right-aligned time, a two-line header with a 38px portrait and the `handed off · A → B · picking up from <files>` line, and re-pinned the tests it turned red (`tests/conversation-contract.test.ts`, `tests/persona.test.ts`, `tests/tokens.test.ts`, `tests/negative-surface.test.ts`, `tests/team-contract.test.ts` and the component tests).
+
+**Acceptance Criteria:**
+
+**Given** any chat turn or chat header, in the 1:1 view or the party view
+**Then** no portrait SVG is drawn, and the disc is `aria-hidden` and not focusable.
+
+**Given** a persona's turn
+**Then** it is a flat row: a 26px initials disc, then the name at `name`, the role at `ident` in `faint` and the clock time (`HH:MM`, from `formatTurnTime`) in mono at `meta`, on one baseline and 8px apart, with the words below at `base` in sans
+**And** it has no radius, padding, ground, border or rule, successive turns are 16px apart, and no relative time (`4m ago`) exists.
+
+**Given** the user's turn
+**Then** it is the same row, its disc tinted (`accent-bg`, `accent-border`, `accent` ink) and no wash or left rule on the turn
+**And** its words render plain, whatever they begin with, through the same `<Words text={text} />` the persona's use.
+
+**Given** a persona's turn in flight and a room's live turn
+**Then** the pending turn is the disc, the head and the caret as the whole body, with its state line beneath
+**And** the room's speaker's live turn keeps its accent edge and `party-live-ground`, the one turn row with either `[ASSUMPTION — OPEN, EXPERIENCE.md Open item 2]`.
+
+**Given** the chat header
+**Then** it is one line 46px tall on `chrome`: the persona's 22px disc, the name, `title · story <id>` in `dim` (the story reference omitted when no source exists, as none does yet), the status pill, and `close session`
+**And** the roster's `description` is no longer drawn there, and the name and the line truncate with an ellipsis; the orphan header keeps its note line.
+
+**Given** the Team tiles, cast cards, the cast chooser and the Welcome
+**Then** they still draw portraits at 36 or 44.
+
+**Given** a handoff by tile click or `@name`
+**Then** the sysline reads `handed to <Name>` and nothing more: no files, no arrow, no skill, in the harness's register and never attributed to a persona.
+
+**Given** the unchanged rules
+**Then** neither a persona's words nor the user's are parsed, framed or styled (FR21, AD-18).
+
+**Given** the full suite, lint and both typechecks
+**Then** all pass, the three tests that were red on the spines' update included.
+
+**Left in place on purpose:** the tokens `accent-wash`, `accent-edge`, `--inset-turn-user`, `--chat-sub-max` and `--turn-padding` are declared and unspent because a pinned test carries them, and `service.written` and `fold/written-paths` no longer feed the handoff line; removing either is a cleanup story, not this one. Transcripts stored before the change keep the old `handed off` wording.
+
+**Boundaries:** no `Stop` (Story 3.19), no run list (Story 3.17), no mention chip (Story 2.15), no story reference until a source exists (Epic 6), no skill name in the sysline.
+
+### Story 2.15: The @name you typed stays in your turn
+
+*Added 2026-10-09 from `ARCHITECTURE-SPINE.md` AD-25 and `EXPERIENCE.md` Open item 5. Depends on Stories 2.5, 2.9 and 2.14.*
+
+As someone who handed work to a persona by typing `@amelia implement story 5.6`,
+I want my turn to still read `@amelia implement story 5.6`,
+So that what I typed is what I see, now and after a reload.
+
+**Implements:** FR127 · FR62 · UX-DR51
+
+**Evidence:** `handoffTarget` (`src/renderer/ui/chat/handoff-target.ts`) strips the `@name` and the composer (`src/renderer/ui/app.tsx`) hands off and then sends only the text after it, so the turn recorded in the window's state and, through `sendTurn` → `recordUserTurn` (`src/main/session-bridge.ts`), in the main transcript never holds the `@`. A free display text beside the sent text was rejected, because it could differ from what the persona received (AD-18); the record keeps the typed token instead. `DESIGN.md` refers to a `mention` component whose anatomy its frontmatter does not define.
+
+**Acceptance Criteria:**
+
+**Given** the composer resolves `@<name>` to a persona other than the current one
+**When** text follows the name
+**Then** the composer hands off, and then sends `turn.send(sessionId, text, mention)`, where `text` is what follows the name and `mention` is the literal token as typed, `@` included and case kept
+**And** a message that is not a handoff (no match, two matches, the current persona, `@` mid-text, trailing punctuation on the name) sends no `mention` and renders plain.
+
+**Given** `turn.send`
+**Then** it is declared `[sessionId, text, mention?]`, `mention` is optional and additive, and the persona receives only `text`
+**And** a test on the bytes written to the session's stdin finds no `@name` in them.
+
+**Given** main receives a `mention`
+**When** it is not `@` followed by one token that names the persona whose session receives the turn, compared case-insensitively with the roster's `name`
+**Then** main drops it and the turn goes unchanged, with no refusal
+**And** a room never takes one.
+
+**Given** the user's turn
+**Then** `UserRecord` holds the optional `mention`, and the turn displays as the mention in a chip and then the sent text, so the words shown are always the words typed plus the words sent and nothing else
+**And** the chip is drawn by its own element and the words still go through `<Words text={text} />` unparsed.
+
+**Given** a handoff typed while the persona's session is busy
+**Then** the queued message carries `mention` in `QueuedMessage` and `UserEntry`, shows the chip while queued, and sends it with the turn when the session is free.
+
+**Given** a window reload, or an app relaunch
+**Then** the restored turn reads exactly as it did live, chip included, from the stored record
+**And** a transcript file written before the field existed loads with plain turns, and `TRANSCRIPT_VERSION` is unchanged.
+
+**Given** a handoff with no text after the name
+**Then** no turn is sent and none is shown; the sysline `handed to <Name>` is all.
+
+**Given** the chip
+**Then** its anatomy is first added to `DESIGN.md` as a named component, whose phantom reference is replaced `[default: mono at ident, panel-2 ground, 1px line, chip radius, text colour; copy for bmad-ux]`
+**And** it is not a control: no tab stop, no hover, no action.
+
+**Decisions to confirm before build (defaults in brackets):** the chip's anatomy [above]; a mention naming a persona other than the receiving one is dropped silently [yes]; `@name` typed in a non-handoff stays plain text [yes].
+
+**Boundaries:** no skill names parsed or chipped (the composer never parses a skill, Story 2.9); no change to what a persona receives; nothing written into the project.
+
 ---
 
 ## Epic 3: Run a skill — watch it write, stop it, understand however it ends
@@ -1613,6 +1790,8 @@ So that the product's central claim can be judged end to end before anything els
 **Given** the slice is complete
 **When** the user runs it against a real skill end to end
 **Then** a judgement is recorded on whether the beat lands, before stories 3.2 onward proceed.
+
+*Amended 2026-10-09 (Stories 3.16 to 3.18).* `run:started` carries `skill` when the entry resolved to a skill (3.18); the card's body in run-note mode is the run list, the run's steps among its notes (3.17); the `menu.dispatch` criterion is unchanged: the button still sends a code and nothing else.
 
 ### Story 3.12: A card follows one document
 
@@ -1802,6 +1981,8 @@ So that a long silence reads as work rather than as a hang.
 **When** it is replayed
 **Then** the card shows content for the entire quiet window and at no point renders a spinner, a skeleton or an empty body.
 
+*Amended 2026-10-09 (Story 3.17).* The body in run-note mode is the run list: steps and run notes in one time-ordered list, which gives a quiet run something real to show from its first tool call. The never-empty rule, the ban on a placeholder sentence, the head and the foot stand. The fifth criterion's register split is amended: document prose is mono, run notes are sans, and a step is mono, so in prose mode a step and a line of prose are told apart by structure and not by typeface alone.
+
 ### Story 3.5: The run you are not looking at
 
 As someone who has switched to another persona or another application,
@@ -1925,6 +2106,8 @@ So that stopping is a decision rather than a gamble.
 **And** this is the relaunch clause of Story 2.7, which could not fail while no card existed.
 
 *Accepted limit (Sherif, 2026-10-03, sprint change proposal decision 6):* the "remain until the user closes the session" clause holds only while the shell is mounted, i.e. while at least one agent still resolves. When the last agent vanishes the shell unmounts and `close session` is unreachable.
+
+*Amended 2026-10-09 (Story 3.19; FR125).* The stop control is no longer only a run's. The chat header's slot reads `Stop` while any turn is in flight and dispatches `turn.stop(sessionId)`; a run it stops ends `run:stopped` by the same path as `run.stop(runId)`, so the card and the header never disagree. Everything above, including the card's own stop control and the orphan rules, stands.
 
 ### Story 3.8: Understand a run that ended early
 
@@ -2103,6 +2286,249 @@ So that I never believe a run has halted while the persona is still writing.
 
 **Boundaries:** no new event name or command; no change to the stop mechanism, `STOP_ACK_MS` or `STOP_RESULT_MS`; the harness prevents nothing and interrupts nothing on its own.
 
+*Amended 2026-10-09 (Story 3.18; Story 3.16).* The continuation run takes the stopped run's `skill` with its `code` and plan, and `StoppedRun` holds it only as long as it holds them. It is an ordinary run, so it carries steps like any other. The boundary "no new event name or command" described that story's own work and is not a limit on Stories 3.16 and 3.19.
+
+### Story 3.16: Tool steps, from the stream
+
+*Added 2026-10-09 from `ARCHITECTURE-SPINE.md` AD-22 and `EXPERIENCE.md` → State Patterns → The run list. Precondition for Story 3.17. Sequencing: lands after Story 3.15.*
+
+As a developer on the harness,
+I want every tool call a run makes folded in main into one event with a short label,
+So that the card can show real work as it happens without the renderer ever parsing a frame or seeing a raw tool input.
+
+**Implements:** FR124 · FR101 (amended) · FR16 · NFR5, NFR12
+
+**Evidence:** `src/main/fold/frame.ts` already narrows each main-thread `tool_use` (id, name) and `tool_result` (callId, `is_error`), and `src/main/fold/route-frame.ts` emits nothing for a call that is not a document write; the label's target arrives as `input_json_delta` and `src/main/fold/json-string-fields.ts` already decodes named fields from it. `readFrame` returns nothing for any frame with a non-null `parent_tool_use_id` before its `switch`, so subagent calls never reach the fold. `RunCardSnapshot` (`src/shared/conversation.ts`) has `notes` and `documents` and no steps; the transcript file's `isStoredRun` (`src/main/sources/persistence/transcript-file.ts`) requires only the fields it already has, so an added optional field loads from an old file as absent. The run card is folded twice, in `src/main/fold/run-card.ts` and in the renderer's `conversation-state.ts`, and `tests/run-card-parity.test.ts` holds the two equal.
+
+**Acceptance Criteria:**
+
+**Given** `src/shared/events.ts`
+**Then** it declares `run:step` as a union on `status`: `{ runId, sessionId, callId, status: 'running', label, at }` and `{ runId, sessionId, callId, status: 'done' | 'failed', at }`, with the cardinality stated in the type: inside a run, exactly one `running` per main-thread tool call, then exactly one `done` or `failed`
+**And** the contract now has sixteen events, `CONTRACT_VERSION` is unchanged (the change is additive), and no renderer-only event exists.
+
+**Given** a main-thread tool call inside a run
+**When** its input has finished streaming (`content_block_stop`)
+**Then** `run:step` `running` is emitted with its label, and not before: the label is whole and the tool is executing
+**And** when its `tool_result` arrives it emits `done`, or `failed` when the CLI's own `is_error` is true, with the injected instant as `at` (no clock is read in `fold/`).
+
+**Given** a plain chat turn, which has no `runId`
+**Then** no `run:step` is emitted for its tool calls
+**And** a call whose input is aimed at `.memlog.md` emits none either, because that text is `run:note` and memlog text never enters any other event (AD-3).
+
+**Given** a `Write` or `Edit` of a document in a run
+**Then** it emits a `run:step` beside its `doc:section-opened`, `doc:prose` and `doc:committed` events, and all of them carry the same `callId`
+**And** the step's `failed` and a rejected `doc:committed` come from the same `tool_result`.
+
+**Given** frames carrying a non-null `parent_tool_use_id`, tool calls and tool results alike
+**When** they are folded
+**Then** they open no step and close none
+**And** the main-thread call that spawns a subagent is one step like any other.
+
+**Given** the label
+**Then** it is derived in main by a pure module in `fold/` from a closed table of tool name to verb plus one allow-listed input field: `file_path` as the project-relative path (a path outside the project reduces to its basename), a skill call as its skill name, a subagent spawn as its subagent type, a fetch as its host only, `Bash` as the program name only, and search tools and any tool not in the table as the verb or the tool's own name alone
+**And** control characters are stripped and the label is capped at about 48 characters, a path truncated from the left
+**And** a test serialises every event emitted for a call whose input carries a secret-looking argument, a long command line and an absolute path outside the project, and finds none of them in any payload but as the label allows.
+
+**Given** a call whose input is still streaming
+**Then** the fold holds only the one decoded target field, in a bounded buffer, and forwards no other part of the input.
+
+**Given** a run that ends with a call that never reported a result
+**Then** the card closes that step as `failed` at the run's terminal event's `at`, with no event of its own, so no step reads running after its run has ended (AD-20)
+**And** a card that has ended takes no more steps.
+
+**Given** a run's card
+**Then** it holds `steps`, each `{ callId, label, status, startedAt, endedAt?, notesBefore }`, where `notesBefore` is the number of notes the card held when the step began, so steps and notes interleave in the order the card folded them and never by timestamp
+**And** the card holds at most 300 steps, dropping the oldest finished ones and never a running one.
+
+**Given** the card is folded in main and in the renderer
+**Then** both folds produce equal cards from the same events, and `tests/run-card-parity.test.ts` is extended to steps, including the cap and the terminal close.
+
+**Given** the transcript file
+**Then** a stored run round-trips its steps, a file written before steps existed loads with none and without counting a dropped record, and `TRANSCRIPT_VERSION` is unchanged
+**And** a run that was still running when the app went away is read back with its running steps `failed` at its last event (`deadOf`), as the run is.
+
+**Given** a window that reloads mid-run
+**Then** `conversation:get` hands it every card with its steps as main holds them, and the renderer reconstructs nothing (AD-7).
+
+**Given** the replay corpus in `fixtures/runs/`
+**When** each recording is replayed through the real bridge and registry
+**Then** for every recording the number of `running` steps equals the main-thread tool calls not aimed at `.memlog.md`, counted from the raw frames by an independent reader in the test, each paired with exactly one `done` or `failed`
+**And** in `interrupt-inband-tasks-live-mid-write` the call in flight at the interrupt ends `failed` on its run's `run:stopped`.
+
+**Given** persona state and the rail's annotations
+**Then** a `run:step` changes neither, and a test fails if it does.
+
+**Given** a document write of 5,795 deltas
+**Then** no `run:step` is emitted per delta, so AD-15 holds unchanged.
+
+**Decisions to confirm before build (defaults in brackets):** the 300-step cap [yes]; `Bash` shows its program name and nothing after it [yes]; `running` at the end of the call's input rather than its start [yes]; calls issued together share one result frame, so their durations are approximate [yes].
+
+**Boundaries:** no renderer rendering (Story 3.17); no new file or store; nothing written into the project (AD-1); no `n of m`, no pending step and no plan of steps to come.
+
+### Story 3.17: The run list: steps and notes in the card body
+
+*Added 2026-10-09 from `EXPERIENCE.md` → State Patterns → The run list and `DESIGN.md` → Run step (`mockups/chat-thread-reference.png`). Depends on Story 3.16.*
+
+As someone watching a run that is working,
+I want to see each thing it does, in order, among the reasons it writes down,
+So that a long run reads as work being done and not as a wait.
+
+**Implements:** FR124, FR39 (amended) · UX-DR49, UX-DR33 (amended) · UX-DR38 (constraint)
+
+**Evidence:** the card body's two modes are Story 3.4's; its run-note feed is Story 1.5's component; the steps and their order come from Story 3.16's `RunCardSnapshot.steps` and `notesBefore`. In `mockups/chat-thread-reference.png` a step is a mark, a few words and an elapsed time, and the running one reads `now`.
+
+**Acceptance Criteria:**
+
+**Given** the card body in run-list mode (document prose not streaming)
+**Then** it is one list in time order, newest last, of two kinds of row: a step, and a run note with its time, kind tag and reason unchanged
+**And** a note sits between the steps it fell among by the card's fold order (`notesBefore`), never by comparing times.
+
+**Given** a step row
+**Then** its grid is `14px · 1fr · auto` at 9px gap, 3px vertical padding and no rule between rows: the mark, the label in mono at `ident`, and the elapsed in mono at `meta` with tabular figures, right-aligned.
+
+**Given** a finished step
+**Then** the mark is `✓` in `green`, the label `dim`, and the elapsed the call's duration (`0:03`) in `faint`
+**And** a failed step takes `✕` in `red` `[ASSUMPTION — no source says; the run's own failure mark is red]`.
+
+**Given** the step in flight
+**Then** the mark is the amber `work` status dot with its existing pulse, the label `text`, and the elapsed reads `now` in `dim`
+**And** under `prefers-reduced-motion` the pulse stops and `now` still carries the liveness, which is why it may not sit at `faint`.
+
+**Given** the list
+**Then** no pending step is drawn, because no plan of steps to come exists
+**And** there is no shimmer, no bar, no `n of m` and no placeholder row; the pulse on the running step is the only motion the list adds.
+
+**Given** document prose starts to stream
+**Then** the body becomes the prose, and the steps and notes accrued before it stay above it in the same scroll container
+**And** a step row and a line of prose, both mono, are told apart by structure (a short row with a mark and an elapsed column against unbroken pre-wrapped lines), and no step label is longer than a few words.
+
+**Given** a run that writes no document
+**Then** the card's head reads the run-list form (`run`, then `working` and the elapsed, and the stop control) and the card has no foot `[ASSUMPTION — the screenshot draws none]`
+**And** Story 3.18 adds the skill's name to that head when one is known.
+
+**Given** a finished run
+**Then** the card collapses to its one line, and the collapsed line's field set is unchanged.
+
+**Given** a window reload mid-run, or a relaunch with the run's card stored
+**Then** the same list renders from main's card; after a relaunch the card is dead, nothing pulses, nothing ticks, and a step the cut-off left running reads `✕`.
+
+**Given** a card past 300 steps
+**Then** the earliest finished steps are gone from the list and nothing says so `[default; UX to confirm — a note saying "n earlier" is an n of m by another name]`.
+
+**Given** the card's body before its first step or note
+**Then** it renders as Story 3.4 already specifies, and this story adds no placeholder or sentence.
+
+**Given** keyboard and assistive technology
+**Then** a step row takes no tab stop, nothing in the list is announced (the live-region policy is unchanged), and the list scrolls with the card body
+**And** colour never carries a step's state alone: `✓`, `✕` and `now` are text.
+
+**Given** the negative-surface audit (`epic-3-audit.dom.test.tsx`, `tests/negative-surface.test.ts`)
+**Then** it covers a card with steps in each of its states, built by the folds from recorded events and not by hand, and finds no spinner, denominator, progress bar, shimmer, pending step or placeholder.
+
+**Decisions to confirm before build (defaults in brackets):** a failed step is `✕` in `red` [yes]; no foot on a run that writes no document [yes]; nothing marks that earlier steps were dropped [yes]; steps are not announced [yes].
+
+**Boundaries:** no new event or field (Story 3.16's); no change to the prose mode, the collapsed card or the foot of a run that writes a document; steps are never persona words and never styled as them.
+
+### Story 3.18: Name the skill a run invoked
+
+*Added 2026-10-09 from `ARCHITECTURE-SPINE.md` AD-24 and `EXPERIENCE.md` Open item 3. Depends on Stories 3.1, 3.15 and 3.17.*
+
+As someone reading a card,
+I want it to say which skill the run invoked when the harness knows,
+So that `bmad-build run` is a fact on the card and not a guess.
+
+**Implements:** FR126, FR27 (amended) · UX-DR19 (the head)
+
+**Evidence:** `menu.dispatch` resolves the code in main (`src/main/session-bridge.ts`, `ctx.menuEntryFor`), so the skill name is known there for a `skill` entry and absent for a `prompt` entry. `RunStarted` today is `{ runId, sessionId, agentId?, code, plan?, at }`. A run started as the carry-on of a stopped one takes its `code` and plan from `StoppedRun` (`src/main/session-run.ts`). `MenuEntryView` (`src/shared/install.ts`) is `{ code, description }` and stays so.
+
+**Acceptance Criteria:**
+
+**Given** a menu entry that resolves to a skill
+**When** it is dispatched
+**Then** `run:started` carries `skill`, the name main invoked, and a menu entry that resolves to a `prompt` carries none
+**And** the field is optional and additive, and a skill name that is not a plain name (a bounded, plain charset) is left off rather than sent.
+
+**Given** the run's card
+**Then** it holds `skill`, so a stored run reads as it did live, and a relaunch after the install has changed or the entry has vanished still reads the same.
+
+**Given** the card head in run-list form
+**Then** it reads `<skill> run` with the name in `ident` at `text-strong` weight 600 and `run` in `dim`, and `run` alone with no skill.
+
+**Given** a run started as the carry-on of a stopped run (Story 3.15)
+**Then** it carries the stopped run's `skill` with its `code` and plan, and `StoppedRun` holds it only as long as it holds them.
+
+**Given** FR27
+**Then** the skill buttons still show no tooltip or preview derived from a resolved skill name, and the renderer still sends only a `code`
+**And** the name appears only on the card of a run that has already started, as a record, and nothing re-resolves it or dispatches by it (AD-24).
+
+**Given** a handoff by tile click or `@name`
+**Then** the sysline stays `handed to <Name>` and names no skill, because no producer of a handoff names one in v1.
+
+**Given** the negative-surface audit
+**Then** it finds no skills list, launcher, palette or tooltip built from the field.
+
+**Decisions to confirm before build (defaults in brackets):** a card with no known skill reads `run` alone [yes]; the handoff sysline's skill half stays unbuilt until a producer exists [yes].
+
+**Boundaries:** no skill name on any event but `run:started`; no `skill` input to any command; Story 6.1's evidence is re-read against the new shape.
+
+### Story 3.19: Stop a turn that is not a run
+
+*Added 2026-10-09 from `ARCHITECTURE-SPINE.md` AD-23; the header control is the one decided with the UX owner on 2026-10-09 (`Stop` during any turn). Depends on Stories 2.14 and 3.7.*
+
+As someone who has seen enough of a persona's answer,
+I want to stop the turn from the chat header whether or not it is a run,
+So that the control in front of me always does what it says.
+
+**Implements:** FR125, FR83 (amended), FR84 (amended) · UX-DR50
+
+**Evidence:** `src/shared/commands.ts` has `run.stop(runId)` and `session.close` only, and a plain chat turn has no `runId`. The interrupt is one in-band `control_request` (Story 1.1; `session-stop.ts`), and the room already uses it for a send into a speaker's turn, with the entry's `interrupting` mark making the failed `result` a stop and not a failure (`src/main/session-registry.ts`). The built header's one control is `close session`.
+
+**Acceptance Criteria:**
+
+**Given** `src/shared/commands.ts`
+**Then** it declares `turn.stop(sessionId)`, once per stop request, replying `ok` or `not-found`
+**And** the contract now has eight commands in, and `run.stop(runId)` is unchanged.
+
+**Given** a run in flight
+**When** it is stopped from the card or from the header
+**Then** both reach one path in `session-stop.ts` and the run ends `run:stopped`, never `run:failed`, whichever control was pressed
+**And** the card's own stop control (Story 3.7) is unchanged.
+
+**Given** a plain chat turn in flight
+**When** `turn.stop` is sent
+**Then** main marks the entry as interrupting before it writes the interrupt, the turn ends on its `result`, and the session stays open and takes the next turn
+**And** no failure line is written, the persona does not read `error` (AD-20), and what the persona had said stays as it was.
+
+**Given** a stopped plain chat turn
+**Then** main writes one line of its own into the transcript (`harness:said`), so a reloaded or relaunched window reads it where it fell
+**And** the wording is copy for `bmad-ux` `[placeholder: stopped · the turn ended early]`, never in a persona's voice.
+
+**Given** nothing is in flight in that session
+**Then** `turn.stop` answers `not-found` and the renderer says nothing of it, as it does for `run.stop`.
+
+**Given** the interrupt is not acknowledged
+**Then** the harness falls back as Story 3.7 specifies, ending the session and saying so in its own register, and `STOP_ACK_MS` and `STOP_RESULT_MS` are unchanged.
+
+**Given** the chat header
+**Then** its slot reads `Stop` while a turn is in flight, chat or run, and `close session` otherwise, in the same frame the turn starts and ends, and it is one button whose label changes so focus stays on it
+**And** `Stop` has no confirmation, no cost copy and no "stopping…" state, and carries the shared focus treatment as its own tab stop.
+
+**Given** messages the user queued while the turn ran
+**Then** a stop does not cancel them; each is still the user's to take back (Story 2.5) and sends when the session is next free.
+
+**Given** a room
+**Then** its behaviour is unchanged: a send interrupts the speaker, and no header `Stop` is added to the party view.
+
+**Given** an orphaned session's header (Story 2.11)
+**Then** it keeps its own `close session` and note line, and its run keeps the card's stop.
+
+**Given** the replay corpus
+**Then** an interrupted plain chat turn is replayed through the real bridge and registry (recorded first if none of the `interrupt-inband-*` recordings is one) and yields no `run:*` event, no failure line, the one harness line and a session that takes the next turn.
+
+**Decisions to confirm before build (defaults in brackets):** the stopped-turn line is written [yes]; a stop leaves queued messages alone [yes]; the slot is one button whose label changes [yes].
+
+**Boundaries:** no confirmation dialog, no cost on the control, no `SIGINT` except as the unacknowledged fallback; the file on disk is left as written (AD-12); no change to the party view.
+
 ---
 
 ## Epic 4: Convene the room — party mode
@@ -2168,6 +2594,8 @@ So that the room reads as a room rather than as a speaker queue.
 
 **Given** the harness
 **Then** it never stages, ranks, classifies or amplifies disagreement, and never authors words attributed to any persona in the room.
+
+*Amended 2026-10-09 (Story 2.14; `EXPERIENCE.md` → The chat look: the party thread takes the same treatment as the 1:1 thread).* The party transcript turn criterion is superseded: a turn is a flat row with the speaker's 26px initials disc, name, role, clock time and the persona's words, and nothing else, and no portrait renders in the thread. The cast cards keep their portraits, dimming, lit speaker and equaliser, and every other criterion stands. The speaker's live turn keeps its accent edge and `party-live-ground`, which is an open UX item (`EXPERIENCE.md` Open item 2). A room takes no `mention` (Story 2.15).
 
 ### Story 4.3: What the room is about, on screen
 
@@ -2841,6 +3269,8 @@ So that Story 6.8 shows an owner only when the harness can stand behind it.
 
 **Boundaries:** no code in `src/`; no new event or field; nothing written into a project (AD-1).
 
+*Amended 2026-10-09 (Stories 3.16 and 3.18).* The shapes quoted in the evidence change before this spike runs. `RunStarted` gains an optional `skill`, and `RunCardSnapshot` gains `skill` and `steps` (each `{ callId, label, status, startedAt, endedAt?, notesBefore }`, at most 300). The spike reads the shapes as they stand at build time. A step's label is a display fact, capped and with a path truncated from the left, and is **not** evidence for a story key: a rule that needs a path reads the card's documents, as above. The boundary "no new event or field" describes this spike's own output.
+
 ### Story 6.2: The sprint status, read once in main
 
 As someone who wants to see where the work stands,
@@ -3089,6 +3519,8 @@ So that I can see what happened without scrolling every thread.
 
 **Boundaries:** no *question asked* row (the Inbox is deferred); no approval or split row; no relative time; no new stored file; nothing written into the project.
 
+*Amended 2026-10-09 (Story 3.16).* A stored run now also carries its `steps`, up to 300 per card, so a transcript file grows with them and is rewritten whole on each debounce. Recent activity reads only a run's status, `code` and times, so steps change no row. Story 3.16's replay measures the stored file's size against the longest recorded run, and if it is a problem the cap lowers there and not here. The *Decisions to confirm* line on how many runs a transcript keeps stands. The context panel's *Run* figures (`EXPERIENCE.md` → The room: three columns) are not planned in Epic 6; if a later story adds a tool-calls figure, the run's `steps` are its first honest source, and Story 6.6's rule that no Agents row shows a count of tool calls stands.
+
 ### Story 6.8: The persona on a story
 
 As someone looking at a story,
@@ -3131,6 +3563,8 @@ So that the board connects to the room, and I can open that persona's thread fro
 **Decisions to confirm before build (defaults in brackets):** activating a card is the same act as activating its persona's tile [yes]; focus lands on the tile [yes]; an ended run shows the persona's name and no time [yes].
 
 **Boundaries:** no assignment, reassignment or filter by owner; no per-owner count; nothing written to `sprint-status.yaml`.
+
+*Amended 2026-10-09 (Stories 3.16 and 3.18).* The owner rule stays Story 6.1's. The fields the card gains, `steps` and `skill`, are not inputs to it unless 6.1 adopts one by name, and nothing here stores an owner.
 
 ### Story 6.9: Nothing this epic promised not to do
 

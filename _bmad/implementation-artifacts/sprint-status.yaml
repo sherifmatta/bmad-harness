@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-25-2026 17:00
-last_updated: 10-09-2026 12:00
+last_updated: 10-09-2026 14:32
 project: bmad-harness
 project_key: NOKEY
 tracking_system: file-system
@@ -52,7 +52,7 @@ development_status:
   1-14-nothing-the-product-promised-not-to-do: done
   epic-1-retrospective: done
 
-  epic-2: done
+  epic-2: in-progress
   2-1-a-recorded-corpus-to-build-against: done
   2-2-one-contract-across-the-bridge: done
   2-3-the-turn-and-the-composer: done
@@ -66,9 +66,11 @@ development_status:
   2-11-a-session-outlives-the-install-changing-under-it: done
   2-12-confirm-continuity-actually-holds: done
   2-13-nothing-this-epic-promised-not-to-do: done
+  2-14-the-chat-look-flat-rows-initials-discs-one-line-header: review
+  2-15-the-name-you-typed-stays-in-your-turn: backlog
   epic-2-retrospective: done
 
-  epic-3: done
+  epic-3: in-progress
   3-1-press-a-button-and-watch-a-document-write-itself: done
   3-12-a-card-follows-one-document: done
   3-13-a-finished-run-leaves-its-persona-live: done
@@ -83,7 +85,11 @@ development_status:
   3-9-two-writers-one-file-no-arbitration: done
   3-10-told-once-quietly-when-you-are-elsewhere: done
   3-11-nothing-this-epic-promised-not-to-do: done
-  3-15-the-work-that-carries-on-after-a-stop: done
+  3-15-the-work-that-carries-on-after-a-stop-has-a-card: done
+  3-16-tool-steps-from-the-stream: backlog
+  3-17-the-run-list-steps-and-notes-in-the-card-body: backlog
+  3-18-name-the-skill-a-run-invoked: backlog
+  3-19-stop-a-turn-that-is-not-a-run: backlog
   epic-3-retrospective: done
 
   epic-4: done
@@ -93,13 +99,13 @@ development_status:
   4-4-take-the-room-away-with-you: done
   4-5-the-room-ends-it-does-not-pause: done
   4-6-nothing-this-epic-promised-not-to-do: done
-  4-7-the-room-is-still-the-room-after-a-reload: done
+  4-7-the-room-is-still-the-room-after-the-window-reloads: done
   4-8-a-message-the-room-refused-says-so: done
   epic-4-retrospective: done
 
   epic-5: done
   5-1-choose-a-project-from-a-welcome-not-a-dialog: done
-  5-2-choose-light-dark-or-the-systems-theme: done
+  5-2-choose-light-dark-or-the-system-s-theme: done
   5-3-the-thread-follows-what-is-being-said: done
   5-4-choose-the-folder-that-holds-the-output: done
   5-5-size-the-side-panels-fold-the-output-folders: done
