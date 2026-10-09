@@ -599,8 +599,8 @@ describe('the document window (Story 1.12)', () => {
     expect(mockup).toContain('gap:12px;padding:0 11px;')
     expect(tokens.get('--ghost-padding')).toBe('4px 10px')
     expect(mockup).toContain('padding:4px 10px;font-size:11.5px')
-    expect(tokens.get('--ghost-border-hover')).toBe('#39414c')
-    expect(mockup).toContain('.ghost-btn:hover{color:var(--text-strong);border-color:#39414c}')
+    expect(tokens.get('--ghost-border-hover')).toBe('#404040')
+    expect(mockup).toContain('.ghost-btn:hover{color:var(--text-strong);border-color:#404040}')
     expect(tokens.get('--md-h1-gap')).toBe('22px')
     expect(mockup).toContain('margin-bottom:22px;padding-bottom:14px')
     expect(tokens.get('--md-h2-margin')).toBe('24px 0 7px')
@@ -860,8 +860,9 @@ describe('the light theme (Story 5.2, seam A)', () => {
     // The promoted block as it stood before Story 5.2, plus the follow control's two
     // dimensions (Story 5.3), the Outputs head's one padding (Story 5.4) and the splitter's and the folder heading's
     // five dimensions (Story 5.5) at its end, held by its digest: any byte moved in it, a
-    // value or a comment, changes the dark theme's source.
-    expect(createHash('sha256').update(promotedBlock()).digest('hex')).toBe('69752673bc1f4bb99acca2692fe6c7d656b35188dec0328030b78ae3cd7f7216')
+    // value or a comment, changes the dark theme's source. Re-pinned when the dark palette
+    // moved from blue-tinted slate to neutral near-black and near-white (2026-10-08).
+    expect(createHash('sha256').update(promotedBlock()).digest('hex')).toBe('43e67829cb56b49bde35b05b5a2ec77e428e2f7462021106ed3dba210d792ab0')
   })
 
   it('states color-scheme: light in its own block, and the dark theme still states dark', () => {

@@ -23,55 +23,57 @@ companions:
 
 colors:
   # ── The :root block, verbatim from harness-mockup.html, source order.
+  #    2026-10-08: the dark palette is neutral near-black and near-white (no #000, no #fff);
+  #    the earlier blue-tinted slate and blue accent are gone. Status hues stay, muted.
   #    AD-14: design/tokens.css opens with this block copied unchanged.
-  bg: '#101317'
-  chrome: '#14181d'
-  panel: '#171b21'
-  panel-2: '#1b2027'
-  panel-3: '#20262e'
-  line: '#272d36'
-  line-soft: '#1f242c'
-  text: '#dce2ea'
-  text-strong: '#f1f4f8'
-  dim: '#96a0ad'
-  faint: '#6b7480'
-  accent: '#7fa6e8'
-  accent-bg: 'rgba(127,166,232,.12)'
-  green: '#6aa87f'
-  amber: '#c6a350'
-  red: '#c47c72'
+  bg: '#0d0d0e'
+  chrome: '#111112'
+  panel: '#151516'
+  panel-2: '#1a1a1b'
+  panel-3: '#202021'
+  line: '#29292b'
+  line-soft: '#1e1e20'
+  text: '#dedee0'
+  text-strong: '#f1f1f2'
+  dim: '#9b9b9f'
+  faint: '#6d6d71'
+  accent: '#e3e3e5'
+  accent-bg: 'rgba(227,227,229,.12)'
+  green: '#7aa387'
+  amber: '#b9a367'
+  red: '#b88a84'
   # (--mono, --sans and --r live in `typography` and `rounded`; they are part of
   #  the same verbatim :root block and are not restated here.)
 
   # ── NEW. The token AD-14 names as missing. The mockup writes the accent hex
-  #    literally into stateDot("note"); this separates blue-as-state from blue-as-accent.
-  note: '#7f9ce8'
+  #    literally into stateDot("note"); this separates the note state from the accent.
+  note: '#8e8e93'
 
   # ── NEW. The warm friction tone. Currently three literals in the mockup.
   #    Distinct from `red`: red is failure, disagree is friction.
   disagree: '#d0968c'
-  disagree-border: 'rgba(196,124,114,.3)'
-  disagree-bg: 'rgba(196,124,114,.09)'
+  disagree-border: 'rgba(184,138,132,.3)'
+  disagree-bg: 'rgba(184,138,132,.09)'
 
   # ── Promoted literals. Each already exists in the mockup as a hardcoded value;
   #    AD-14 calls a literal in a component a defect, so each recurring one gets a name.
-  accent-border: '#33455f'      # option key, skill-button code chip, run-note `kind:decision` tag
-  accent-wash: 'rgba(127,166,232,.045)'   # user-turn background
-  accent-edge: 'rgba(127,166,232,.45)'    # user-turn 2px inset rule
-  halo-live: 'rgba(106,168,127,.14)'
-  halo-work: 'rgba(198,163,80,.13)'
-  meta: '#5b636e'               # 5 uses; the tier below `faint`, timestamps and micro-labels
-  ink-doc: '#b9c4d1'            # document-card prose body
-  ink-doc-strong: '#e4ebf3'     # heading inside document-card prose
-  ink-doc-mute: '#6e7783'       # muted run of document-card prose
-  ink-md: '#cdd6e0'             # rendered markdown body in the document window
-  code-bg: '#1c2128'
-  code-ink: '#c3cedd'
-  initials-bg: '#2b333d'
-  initials-line: '#39424e'
-  initials-ink: '#aab4c1'
-  win-line: '#333b46'
-  scrim: 'rgba(8,10,13,.55)'
+  accent-border: '#434343'      # option key, skill-button code chip, run-note `kind:decision` tag
+  accent-wash: 'rgba(227,227,229,.045)'   # user-turn background
+  accent-edge: 'rgba(227,227,229,.45)'    # user-turn 2px inset rule
+  halo-live: 'rgba(122,163,135,.14)'
+  halo-work: 'rgba(185,163,103,.13)'
+  meta: '#626262'               # 5 uses; the tier below `faint`, timestamps and micro-labels
+  ink-doc: '#c2c2c2'            # document-card prose body
+  ink-doc-strong: '#eaeaea'     # heading inside document-card prose
+  ink-doc-mute: '#767676'       # muted run of document-card prose
+  ink-md: '#d4d4d4'             # rendered markdown body in the document window
+  code-bg: '#202020'
+  code-ink: '#cccccc'
+  initials-bg: '#323232'
+  initials-line: '#414141'
+  initials-ink: '#b2b2b2'
+  win-line: '#3a3a3a'
+  scrim: 'rgba(8,8,9,.55)'
   legend-badge: '#c9a78a'
   legend-badge-bg: 'rgba(201,167,138,.08)'
   legend-badge-border: 'rgba(201,167,138,.3)'
@@ -294,7 +296,7 @@ components:
   persona-tile:
     background: 'transparent'
     hoverBackground: '{colors.panel-2}'
-    currentBackground: '#1f262f'
+    currentBackground: '#252525'
     currentEdge: '2px {colors.accent}'
     portraitSize: 36px
     height: 56px
@@ -353,7 +355,7 @@ components:
     radius: '{rounded.control}'
     fontSize: '{typography.body-ui.fontSize}'
     hoverBackground: '{colors.panel-3}'
-    hoverBorder: '#475364'
+    hoverBorder: '#515151'
     codeChip: '{typography.micro} {colors.accent}, border {colors.accent-border}, radius {rounded.micro}'
     moreVariant: '{colors.faint}'
   conversation-turn:
@@ -378,12 +380,12 @@ components:
     background: '{colors.panel}'
     border: '1px solid {colors.line}'
     radius: '{rounded.card}'
-    focusBorder: '#3c4a60'
-    placeholder: '#5c646f'
-    sendBackground: '#2c3a52'
-    sendBorder: '#3b4d6b'
-    sendColor: '#cfe0f8'
-    sendHover: '#334463'
+    focusBorder: '#484848'
+    placeholder: '#636363'
+    sendBackground: '#393939'
+    sendBorder: '#4b4b4b'
+    sendColor: '#dedede'
+    sendHover: '#424242'
     min: '{spacing.composer-min}'
     max: '{spacing.composer-max}'
     inner: '{spacing.thread-max}'
@@ -393,9 +395,9 @@ components:
     opacityIdle: '0.42'
     opacityHover: '0.72'
     opacitySpeaking: '1'
-    speakingBorder: '#41597e'
-    speakingBackground: '#1b222c'
-    speakingShadow: '0 0 0 1px rgba(127,166,232,.22), 0 6px 18px -10px rgba(0,0,0,.8)'
+    speakingBorder: '#565656'
+    speakingBackground: '#212121'
+    speakingShadow: '0 0 0 1px rgba(227,227,229,.22), 0 6px 18px -10px rgba(6,6,7,.8)'
     portraitSize: 44px
   welcome:
     window: '{spacing.welcome-window}, opened by main, no project'
@@ -406,7 +408,7 @@ components:
     tagline: '{typography.ident} sans, {colors.dim}'
     column: '{spacing.welcome-col}'
     teamMax: '{spacing.welcome-team-max}'
-    open-button: 'the composer send button, unchanged: #2c3a52 ground, #3b4d6b border, #cfe0f8 text, #334463 hover, {rounded.control}'
+    open-button: 'the composer send button, unchanged: #393939 ground, #4b4b4b border, #dedede text, #424242 hover, {rounded.control}'
     drop-zone: '1px dashed {colors.line}, {colors.panel} ground, {rounded.card}, padding 18px 20px'
     drop-zone-active: 'border {colors.accent-border}, ground {colors.accent-bg}'
     drop-hint: '{typography.meta} mono, {colors.dim}'
@@ -457,9 +459,9 @@ components:
     radius: '{rounded.window}'
     background: '{colors.panel}'
     border: '1px solid {colors.win-line}'
-    shadow: '0 30px 70px -20px rgba(0,0,0,.85)'
-    titlebar: 'linear-gradient(180deg,#232a33,#1d232b), height {spacing.win-titlebar}'
-    lights: '10px {rounded.full} #3a424e'
+    shadow: '0 30px 70px -20px rgba(6,6,7,.85)'
+    titlebar: 'linear-gradient(180deg,#292929,#222222), height {spacing.win-titlebar}'
+    lights: '10px {rounded.full} #414141'
     bodyPadding: '26px 34px 40px'
     readWidth: '{spacing.doc-read-max}'
     scrim: '{colors.scrim}'
@@ -484,7 +486,7 @@ components:
     type: 'control (12px) sans, dim'
     shape: 'DEFAULT radius (5px) container, 1px line, panel-2 ground, overflow hidden'
     divider: '1px line-soft between buttons, none on :last-child'
-    pressed: '[aria-pressed=true] -> #242b34 ground, text-strong, inset 0 -2px 0 accent'
+    pressed: '[aria-pressed=true] -> #2a2a2a ground, text-strong, inset 0 -2px 0 accent'
 ---
 
 ## Brand & Style
@@ -497,7 +499,7 @@ Information density is high and deliberate: the densest type tier is 10.5px and 
 
 **Two themes, one design.** Dark is the theme the product was designed in; light (2026-10-08, palette A) is its twin and is chosen, not inferred: *System* (the default, following the OS), *Light* or *Dark* (EXPERIENCE.md → *Theme*). No stylesheet and no component reads `prefers-color-scheme`, and there is no high-contrast variant. Every rule in this document holds in both themes, and the restraint budget most of all: the portraits are the only thing with warmth in either one, which is why the light palette is cool.
 
-Two tonal rules govern everything below. **One accent, one friction colour.** Blue is the system's voice; the warm tone belongs to disagreement and to nothing else — friction is the one thing given its own colour, because friction is the feature most likely to be sanded off in implementation. **State is never decoration.** Four state colours exist and every one of them is driven by a real system fact.
+Two tonal rules govern everything below. **One accent, one friction colour.** The accent, a soft off-white, is the system's voice; the warm tone belongs to disagreement and to nothing else — friction is the one thing given its own colour, because friction is the feature most likely to be sanded off in implementation. **State is never decoration.** Four state colours exist and every one of them is driven by a real system fact.
 
 **The ownership convention, stated once and used throughout.** Anatomy and appearance are specified here, in DESIGN.md. Triggers, transitions, data sources and keyboard behaviour are specified in EXPERIENCE.md. Where a state is named here, what drives it and when it changes live there; where a component is named there, what it looks like lives here.
 
@@ -511,40 +513,40 @@ The `:root` block above is copied from `harness-mockup.html` unchanged, in sourc
 
 **Hairlines** are two: `line` for a visible separation between two things, `line-soft` for a rule inside one thing (a card's head from its body). The distinction is load-bearing at this contrast — using `line` internally makes a card read as three stacked cards.
 
-**Text** steps `text-strong → text → dim → faint`, with a fifth informal tier `{colors.meta}` (`#5b636e`) below `faint` used for timestamps and micro-labels. The ramp is fixed and **a component may not adjust it**. **Within the text ramp, hierarchy comes from which tier you pick, not from opacity** — this is a rule about text only. Opacity carries *presence* elsewhere in the product, deliberately and by its own rule (see *Elevation & Depth*).
+**Text** steps `text-strong → text → dim → faint`, with a fifth informal tier `{colors.meta}` (`#626262`) below `faint` used for timestamps and micro-labels. The ramp is fixed and **a component may not adjust it**. **Within the text ramp, hierarchy comes from which tier you pick, not from opacity** — this is a rule about text only. Opacity carries *presence* elsewhere in the product, deliberately and by its own rule (see *Elevation & Depth*).
 
-> **Contrast risk, accepted.** `faint` (`#6b7480`) on `bg` (`#101317`) is a low-contrast pairing that the locked ramp bakes in, and `{colors.meta}` is lower still. Stakes here are hobby and no WCAG conformance target is set, but the risk is real and named: do not put anything at `faint` or below that is the *only* carrier of a fact. Every `faint` string in the product must be a restatement of something also legible at `dim` or above, or a label whose absence costs nothing.
+> **Contrast risk, accepted.** `faint` (`#6d6d71`) on `bg` (`#0d0d0e`) is a low-contrast pairing that the locked ramp bakes in, and `{colors.meta}` is lower still. Stakes here are hobby and no WCAG conformance target is set, but the risk is real and named: do not put anything at `faint` or below that is the *only* carrier of a fact. Every `faint` string in the product must be a restatement of something also legible at `dim` or above, or a label whose absence costs nothing.
 
 ### Accent
 
-`accent` (`#7fa6e8`) is the single chromatic voice: the current-persona edge on a tile, the pressed underline on the segmented control, the caret at the tail of words being written (a document card's prose, a persona's turn in flight), the skill-button code chip, the decision-option key, the requirement ids in rendered markdown (`.fr`), and the speaking ring on a cast portrait. `accent-bg` is its 12% fill and is the only accent *fill* in the product — accent is a line, an edge, a chip border, almost never a surface.
+`accent` (`#e3e3e5`) is the single chromatic voice: the current-persona edge on a tile, the pressed underline on the segmented control, the caret at the tail of words being written (a document card's prose, a persona's turn in flight), the skill-button code chip, the decision-option key, the requirement ids in rendered markdown (`.fr`), and the speaking ring on a cast portrait. `accent-bg` is its 12% fill and is the only accent *fill* in the product — accent is a line, an edge, a chip border, almost never a surface.
 
 Accent is not a state. That distinction is the reason for the next token.
 
 ### `note` — the token AD-14 says is missing
 
-The mockup writes `background:#7fa6e8` literally inside `stateDot("note")`, reusing the accent hex as the blue-dot state. AD-14 names this as the one token that must be *added* rather than copied, "so blue-as-accent and blue-as-state are distinguishable."
+The mockup writes `background:#e3e3e5` literally inside `stateDot("note")`, reusing the accent hex as the note-dot state. AD-14 names this as the one token that must be *added* rather than copied, so the accent and the note state are distinguishable (AD-14 wrote "blue-as-accent and blue-as-state"; the dark accent is no longer blue, the need is the same).
 
-**`note: #7f9ce8`.** Slightly cooler and less luminous than `accent`, distinguishable side by side, not distinguishable as an error. It is used by exactly one thing: the persona-tile dot meaning *a document this persona owns changed on disk*. Nothing else may use it, and the `note` dot may not use `accent`.
+**`note: #8e8e93`.** Dimmer than `accent` and a step above `dim`, distinguishable side by side, not distinguishable as an error. It is used by exactly one thing: the persona-tile dot meaning *a document this persona owns changed on disk*. Nothing else may use it, and the `note` dot may not use `accent`.
 
-State **colours** in the product are therefore **four and only four**: `green` live, `amber` work, `red` error, `note` blue. Every indicator anywhere resolves to one of those or to `faint` idle — so with idle counted there are **five dot states in all**, carried by four colours (EXPERIENCE.md → *State Patterns*).
+State **colours** in the product are therefore **four and only four**: `green` live, `amber` work, `red` error, `note` (a mid grey). Every indicator anywhere resolves to one of those or to `faint` idle — so with idle counted there are **five dot states in all**, carried by four colours (EXPERIENCE.md → *State Patterns*).
 
 ### `red` vs `disagree` — two warm tones, two different meanings
 
-`--red: #c47c72` is in the verbatim `:root` block and must be shipped there. **It is never referenced by `var()` anywhere in the mockup.** That is worth stating rather than quietly fixing: the mockup's only warm-toned element is the disagreement tag, which is written as three literals — `#d0968c` text, `rgba(196,124,114,.3)` border, `rgba(196,124,114,.09)` background — and `--red` sat unused because the two are not the same colour and never were.
+`--red: #b88a84` is in the verbatim `:root` block and must be shipped there. **It is never referenced by `var()` anywhere in the mockup.** That is worth stating rather than quietly fixing: the mockup's only warm-toned element is the disagreement tag, which is written as three literals — `#d0968c` text, `rgba(184,138,132,.3)` border, `rgba(184,138,132,.09)` background — and `--red` sat unused because the two are not the same colour and never were.
 
 They are now two tokens with two jobs and they must not be conflated:
 
-- **`red` (`#c47c72`) is failure.** The persona-tile `error` dot; a run that failed or was stopped. It is an alert and carries no substance — the substance of a failure belongs in the conversation in the persona's own voice (AD-20, CAP-12). No error text is ever tinted red.
+- **`red` (`#b88a84`) is failure.** The persona-tile `error` dot; a run that failed or was stopped. It is an alert and carries no substance — the substance of a failure belongs in the conversation in the persona's own voice (AD-20, CAP-12). No error text is ever tinted red.
 - **`disagree` (`#d0968c` / `.3` border / `.09` fill) is friction.** The party transcript's `disagrees · <name>` and `disagrees · framing` tags, and the `kind:open` tag in the run-note feed. An unresolved question is friction, not failure. This is **the only warm-toned chip on screen; friction is the one thing given its own colour.**
 
 The tell is: red says *something broke*, disagree says *someone is pushing back*. A product whose premise is that team disagreement is a thrill cannot render disagreement in its error colour.
 
-`disagree` is derived from the same base as `red` (`rgba(196,124,114,…)` is `#c47c72` with alpha) but resolves lighter and warmer on `panel`. Keep both.
+`disagree` is derived from the same base as `red` (`rgba(184,138,132,…)` is `#b88a84` with alpha) but resolves lighter and warmer on `panel`. Keep both.
 
 ### Promoted literals
 
-The remaining tokens in the block above are not new colours. Each is a value already hardcoded in the mockup that a component would otherwise have to restate — `accent-border` (`#33455f`, shared by the option key, the skill-button code chip and the run note's `kind:decision` tag), the two dot halos, the document-card and markdown ink tiers, the initials trio, the window border and scrim, the legend badge. AD-14: *"A literal colour, dimension, radius or font stack in a component is a defect."* Naming them is how that rule is satisfied, not a palette expansion.
+The remaining tokens in the block above are not new colours. Each is a value already hardcoded in the mockup that a component would otherwise have to restate — `accent-border` (`#434343`, shared by the option key, the skill-button code chip and the run note's `kind:decision` tag), the two dot halos, the document-card and markdown ink tiers, the initials trio, the window border and scrim, the legend badge. AD-14: *"A literal colour, dimension, radius or font stack in a component is a defect."* Naming them is how that rule is satisfied, not a palette expansion.
 
 ### The light theme
 
@@ -554,7 +556,7 @@ The remaining tokens in the block above are not new colours. Each is a value alr
 
 **How it is derived.**
 - **The ramp inverts.** The dark ramp lifts surfaces as they rise; the light ramp does the same toward white: `bg #f3f5f8` → `panel #ffffff`, with `panel-2` and `panel-3` the two greys between. Five near-identical greys, hairline `line` rules, no new surface tier.
-- **One accent, deepened.** `accent #2f62c0` replaces `#7fa6e8`; accent is still a line, an edge, a chip border, almost never a surface. The send button stays quiet: a pale blue ground (`send-bg #dbe6f8`) with a dark blue glyph, not a filled accent button.
+- **One accent, deepened.** `accent #2f62c0` replaces `#e3e3e5`; accent is still a line, an edge, a chip border, almost never a surface. The send button stays quiet: a pale blue ground (`send-bg #dbe6f8`) with a dark blue glyph, not a filled accent button.
 - **The four state colours keep their meaning.** Green, amber, red and `note` are darkened until each clears 4.5:1 on `panel`. The halos around the live and work dots are strengthened from `.14`/`.13` to `.16`/`.16`, because a glow reads weaker on a light ground. `disagree` stays a distinct warm tone and is not `red`.
 - **Document ink inverts with the page.** `ink-doc` `#3a4552` on `panel`, `ink-doc-strong` and `text-strong` near black, `ink-doc-mute` at the `meta` grey. The document card's mono body and the markdown window read as dark-on-white.
 - **Shadows and the scrim go cool and low.** The window shadow becomes `0 30px 70px -20px rgba(20,30,50,.35)`, the speaking cast card's shadow likewise, the scrim `rgba(20,28,40,.35)`. A black shadow at the dark theme's alpha would read as dirt on white.
@@ -699,7 +701,7 @@ Shadows exist for exactly three jobs, and only three:
 
 1. **State halos** — a 3px spread ring at very low alpha around a live (`halo-live`) or work (`halo-work`) status dot. This is the dot reading as lit, not as raised.
 2. **Inset rules** — `inset 0 -2px 0 accent` under the pressed segmented button; `inset 2px 0 0 accent-edge` on a user turn; `inset 2px 0 0 accent` on the live party turn. These are edges drawn with a shadow, not depth.
-3. **True separation** — the document window, which is a separate OS window over a scrim and is the only element in the product entitled to a real shadow: `0 30px 70px -20px rgba(0,0,0,.85)` over a `scrim` fill. The speaking cast card gets a restrained version — `0 0 0 1px rgba(127,166,232,.22), 0 6px 18px -10px rgba(0,0,0,.8)` — because it must read as lifted out of a row of dimmed peers, and the 2px accent ring on its portrait belongs to the same gesture.
+3. **True separation** — the document window, which is a separate OS window over a scrim and is the only element in the product entitled to a real shadow: `0 30px 70px -20px rgba(6,6,7,.85)` over a `scrim` fill. The speaking cast card gets a restrained version — `0 0 0 1px rgba(227,227,229,.22), 0 6px 18px -10px rgba(6,6,7,.8)` — because it must read as lifted out of a row of dimmed peers, and the 2px accent ring on its portrait belongs to the same gesture.
 
 Two z-indexes exist: **40** for the scrim, **50** for the window. Nothing else stacks, and nothing else may: **a surface that needs a z-index is a window**, and is built as one.
 
@@ -787,7 +789,7 @@ The palette is **muted and desaturated throughout** — backgrounds are dark sla
 The small-reference token, and the thing that made the 32px portrait floor affordable.
 
 - **20px** circle for small agent references (stacked faces, handoff chip). **32px** for the user's own avatar in the transcript, which is where the mockup's `.initials` originates.
-- `initials-bg` (`#2b333d`) fill, 1px `initials-line` (`#39424e`) border, `mono` in `initials-ink` (`#aab4c1`), centred.
+- `initials-bg` (`#323232`) fill, 1px `initials-line` (`#414141`) border, `mono` in `initials-ink` (`#b2b2b2`), centred.
 - Glyph size **11px at 32px**; **9.5px at 20px** `[ASSUMPTION]` — the mockup only specifies the 32px form.
 - Stacked: `margin-right: -5px` overlap with a `0 0 0 1.5px panel-2` ring cutting each disc out of the one behind it.
 - The name-and-role reveal renders **identically on `:hover` and on `:focus-visible`**; the focus treatment is *Focus*, below. Why that parity is mandatory, and the ARIA that carries it, are EXPERIENCE.md's (→ *Accessibility Floor → The initials token — focus parity*).
@@ -808,7 +810,7 @@ The small-reference token, and the thing that made the 32px portrait floor affor
 
 ### Persona tile
 
-56px row: 36px portrait, name at `name` (12.5px/600) with the title beside it at `ident` in `dim`, and a state line below at `label` with its dot. Default ground is transparent; hover is `panel-2` and reveals the menu hint; **current** is `[aria-current="true"]` → `#1f262f` ground with a 2px `accent` left bar via `::before`. The menu hint expands `max-height: 0 → 60px` over `.16s`.
+56px row: 36px portrait, name at `name` (12.5px/600) with the title beside it at `ident` in `dim`, and a state line below at `label` with its dot. Default ground is transparent; hover is `panel-2` and reveals the menu hint; **current** is `[aria-current="true"]` → `#252525` ground with a 2px `accent` left bar via `::before`. The menu hint expands `max-height: 0 → 60px` over `.16s`.
 
 ### Rail row (Outputs half)
 
@@ -865,7 +867,7 @@ It is specified for **every surface EXPERIENCE.md requires to be keyboard-operab
 
 ### Skill button
 
-`panel-2` ground, 1px `line`, `{rounded.control}` (4px) radius, `{typography.body-ui}`. Carries a leading code chip in `{typography.micro}` mono, `accent` on transparent with an `accent-border` border at `{rounded.micro}` (2px) radius — one step tighter than its parent. Hover: border `#475364`, ground `panel-3`. The `+N more` variant renders in `faint`.
+`panel-2` ground, 1px `line`, `{rounded.control}` (4px) radius, `{typography.body-ui}`. Carries a leading code chip in `{typography.micro}` mono, `accent` on transparent with an `accent-border` border at `{rounded.micro}` (2px) radius — one step tighter than its parent. Hover: border `#515151`, ground `panel-3`. The `+N more` variant renders in `faint`.
 
 The row must look right at **1 to 10 entries**. Its overflow behaviour — in-place expansion, and what must never happen instead — is EXPERIENCE.md's (→ *Component Patterns → `+N more`, in detail*).
 
@@ -887,11 +889,11 @@ No hover lift, no entrance animation, no typewriter reveal. The thread caps at `
 
 ### Composer
 
-`panel` ground, 1px `line`, `{rounded.card}` (6px) radius. Focus-within moves the border to `#3c4a60`. Placeholder `#5c646f`. Textarea autogrows 20px→120px, clamped in CSS and sized from its content. It is never disabled and takes the shared focus ring itself; the field's border shift is a second cue, not a replacement. `Enter` sends, `Shift+Enter` is a newline, and no other chord sends. Send button: `#2c3a52` ground, `#3b4d6b` border, `#cfe0f8` glyph, `{rounded.control}` radius, `#334463` on hover. Hint lines below at `{typography.label}` in `{colors.meta}`.
+`panel` ground, 1px `line`, `{rounded.card}` (6px) radius. Focus-within moves the border to `#484848`. Placeholder `#636363`. Textarea autogrows 20px→120px, clamped in CSS and sized from its content. It is never disabled and takes the shared focus ring itself; the field's border shift is a second cue, not a replacement. `Enter` sends, `Shift+Enter` is a newline, and no other chord sends. Send button: `#393939` ground, `#4b4b4b` border, `#dedede` glyph, `{rounded.control}` radius, `#424242` on hover. Hint lines below at `{typography.label}` in `{colors.meta}`.
 
 ### Cast card
 
-`{rounded.card}` radius, `flex:1 1 0` at `min-width:148px`, on a `linear-gradient(180deg,#151920,#12161b)` strip that scrolls horizontally. 44px portrait, name at `{typography.name}`, title at `{typography.ident}`, status at `{typography.micro}`. **Default `opacity:.42`**, hover `.72`, speaking `1` with border `#41597e`, ground `#1b222c`, the accent glow, a `0 0 0 2px accent` ring on the portrait, and status in `accent` with the equaliser. Presence is expressed by dimming, never by removal — every chosen portrait stays visible for the life of the room.
+`{rounded.card}` radius, `flex:1 1 0` at `min-width:148px`, on a `linear-gradient(180deg,#191919,#151515)` strip that scrolls horizontally. 44px portrait, name at `{typography.name}`, title at `{typography.ident}`, status at `{typography.micro}`. **Default `opacity:.42`**, hover `.72`, speaking `1` with border `#565656`, ground `#212121`, the accent glow, a `0 0 0 2px accent` ring on the portrait, and status in `accent` with the equaliser. Presence is expressed by dimming, never by removal — every chosen portrait stays visible for the life of the room.
 
 ### Welcome
 
@@ -943,9 +945,9 @@ In the Outputs half, a directory group's heading is a button: a chevron, the dir
 
 ### Document window
 
-A separate OS window over a `scrim` fill at z-40, window at z-50, top `8vh`, `min(880px,92vw) × min(760px,80vh)`. `panel` ground, 1px `win-line` (`#333b46`), `{rounded.window}` (8px) radius, `0 30px 70px -20px rgba(0,0,0,.85)`.
+A separate OS window over a `scrim` fill at z-40, window at z-50, top `8vh`, `min(880px,92vw) × min(760px,80vh)`. `panel` ground, 1px `win-line` (`#3a3a3a`), `{rounded.window}` (8px) radius, `0 30px 70px -20px rgba(6,6,7,.85)`.
 
-Title bar 36px on `linear-gradient(180deg,#232a33,#1d232b)`: three 10px `#3a424e` circles, the **full path** in `mono` `{typography.ident}` (not the basename), then ghost buttons. Body `26px 34px 40px`. Foot 28px at `{typography.meta}`.
+Title bar 36px on `linear-gradient(180deg,#292929,#222222)`: three 10px `#414141` circles, the **full path** in `mono` `{typography.ident}` (not the basename), then ghost buttons. Body `26px 34px 40px`. Foot 28px at `{typography.meta}`.
 
 **Rendered markdown** is constrained to `70ch` at `doc-read` (sans 13.5/1.72) in `ink-md`. h1 20px/600 at `-.01em` with a mono `ident` sub-line in `faint` over a bottom rule; h2 14.5px/600; h3 12.5px/600 uppercase `.03em` in `dim`; tables collapsed at 12.5px with `panel-2` headers in uppercase `ident` at `.04em`; requirement ids `.fr` in `mono body-ui` `accent`, nowrap.
 
@@ -953,11 +955,11 @@ The renderer's visual range is **exactly what sanitized markdown-it output can b
 
 ### Shell furniture
 
-**Topbar** 42px `chrome`, 1px `line` bottom, 14px gaps. The brand mark is pure CSS — a 16px bordered square with an `::after` accent square inset 3px, at `.75` opacity. Breadcrumb separator is the literal `│`. **Segmented control** at `{typography.control}` (12px) size, `{rounded.DEFAULT}` radius; pressed is `[aria-pressed="true"]` → `#242b34` ground, `text-strong`, `inset 0 -2px 0 accent`. **Legend footer** 24px `chrome` with the badge in `legend-badge` on `legend-badge-bg`, uppercase `{typography.badge}` at `.08em`.
+**Topbar** 42px `chrome`, 1px `line` bottom, 14px gaps. The brand mark is pure CSS — a 16px bordered square with an `::after` accent square inset 3px, at `.75` opacity. Breadcrumb separator is the literal `│`. **Segmented control** at `{typography.control}` (12px) size, `{rounded.DEFAULT}` radius; pressed is `[aria-pressed="true"]` → `#2a2a2a` ground, `text-strong`, `inset 0 -2px 0 accent`. **Legend footer** 24px `chrome` with the badge in `legend-badge` on `legend-badge-bg`, uppercase `{typography.badge}` at `.08em`.
 
 **Sysline** is the harness's own voice in the transcript: centred `{typography.label}` (10.5px) mono in `faint`, with a 1px `line` rule filling the space either side via `::before` / `::after`, margin `14px 2px 10px`. It carries session-resumed, handoff and room-opened notices. It is never styled as, or attributed to, a persona — see `EXPERIENCE.md` → *Voice and Tone*.
 
-**Scrollbars** are custom: 10px wide, `#2b323b` thumb (`#3a434e` on hover), `{rounded.scrollbar}` (10px) radius, with a 3px transparent inset border and `background-clip: content-box` so the thumb reads as narrower than its track.
+**Scrollbars** are custom: 10px wide, `#313131` thumb (`#424242` on hover), `{rounded.scrollbar}` (10px) radius, with a 3px transparent inset border and `background-clip: content-box` so the thumb reads as narrower than its track.
 
 ### Motion
 
@@ -983,7 +985,7 @@ Streaming prose arrives in frame-sized bursts, with the caret at the tail; a per
 |---|---|
 | Reference a token for every colour, dimension, radius and font stack | Write a literal colour, dimension, radius or font stack in a component — AD-14 calls this a **defect**, not a style preference |
 | Ship `--red` in the verbatim `:root` block even though nothing referenced it in the mockup | Use `red` for disagreement, or `disagree` for failure — they are two tones with two meanings |
-| Use `note` (`#7f9ce8`) for the blue *state* dot | Reuse the `accent` hex as a state, which is the exact defect AD-14 names |
+| Use `note` (`#8e8e93`) for the *state* dot | Reuse the `accent` hex as a state, which is the exact defect AD-14 names |
 | Keep four state **colours** — green, amber, red, note — and five dot states counting `faint` idle | Invent a fifth state colour, or colour-code by persona, module, file type or recency |
 | Pick the right radius for the kind of object — eleven declarations, ten values, by role | Normalise everything to one radius "for consistency" — the variation is the encoding |
 | Set document prose in `mono` and run notes in `sans` in the same card body | Separate the two feeds with a container, rule or label — the typeface register **is** the mechanism |

@@ -1,19 +1,19 @@
   :root{
-    --bg:#101317;
-    --chrome:#14181d;
-    --panel:#171b21;
-    --panel-2:#1b2027;
-    --panel-3:#20262e;
-    --line:#272d36;
-    --line-soft:#1f242c;
-    --text:#dce2ea;
-    --text-strong:#f1f4f8;
-    --dim:#96a0ad;
-    --faint:#6b7480;
-    --accent:#7fa6e8;    --accent-bg:rgba(127,166,232,.12);
-    --green:#6aa87f;
-    --amber:#c6a350;
-    --red:#c47c72;
+    --bg:#0d0d0e;
+    --chrome:#111112;
+    --panel:#151516;
+    --panel-2:#1a1a1b;
+    --panel-3:#202021;
+    --line:#29292b;
+    --line-soft:#1e1e20;
+    --text:#dedee0;
+    --text-strong:#f1f1f2;
+    --dim:#9b9b9f;
+    --faint:#6d6d71;
+    --accent:#e3e3e5;    --accent-bg:rgba(227,227,229,.12);
+    --green:#7aa387;
+    --amber:#b9a367;
+    --red:#b88a84;
     --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
     --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     --r:5px;
@@ -51,7 +51,7 @@
   /* ── Dark only (NFR15), stated to the user agent and not just to the
      stylesheet. The palette below covers what this document paints; it does
      not reach what the browser paints for it — form controls, scrollbars, the
-     caret and text selection — which stay light against a #101317 ground
+     caret and text selection — which stay light against a #0d0d0e ground
      until `color-scheme` says otherwise. This is the declaration, not a theme
      *branch* — no theme media query appears in this file, and the test below
      reads this comment too, so it must not name one either. */
@@ -61,33 +61,33 @@
      accent hex literally into stateDot("note"); this separates blue-as-state
      from blue-as-accent. Used by the persona-tile note dot and nothing else,
      and that dot may not use --accent. */
-  --note:#7f9ce8;
+  --note:#8e8e93;
 
   /* ── The friction tone (UX-DR3). Separate from --red by decision, never
      derived from it: red is failure, disagree is someone pushing back. */
   --disagree:#d0968c;
-  --disagree-border:rgba(196,124,114,.3);
-  --disagree-bg:rgba(196,124,114,.09);
+  --disagree-border:rgba(184,138,132,.3);
+  --disagree-bg:rgba(184,138,132,.09);
 
   /* ── Promoted literals (UX-DR4). Each already exists in the mockup as a
      hardcoded value a component would otherwise have to restate. */
-  --accent-border:#33455f;
-  --accent-wash:rgba(127,166,232,.045);
-  --accent-edge:rgba(127,166,232,.45);
-  --halo-live:rgba(106,168,127,.14);
-  --halo-work:rgba(198,163,80,.13);
-  --meta:#5b636e;
-  --ink-doc:#b9c4d1;
-  --ink-doc-strong:#e4ebf3;
-  --ink-doc-mute:#6e7783;
-  --ink-md:#cdd6e0;
-  --code-bg:#1c2128;
-  --code-ink:#c3cedd;
-  --initials-bg:#2b333d;
-  --initials-line:#39424e;
-  --initials-ink:#aab4c1;
-  --win-line:#333b46;
-  --scrim:rgba(8,10,13,.55);
+  --accent-border:#434343;
+  --accent-wash:rgba(227,227,229,.045);
+  --accent-edge:rgba(227,227,229,.45);
+  --halo-live:rgba(122,163,135,.14);
+  --halo-work:rgba(185,163,103,.13);
+  --meta:#626262;
+  --ink-doc:#c2c2c2;
+  --ink-doc-strong:#eaeaea;
+  --ink-doc-mute:#767676;
+  --ink-md:#d4d4d4;
+  --code-bg:#202020;
+  --code-ink:#cccccc;
+  --initials-bg:#323232;
+  --initials-line:#414141;
+  --initials-ink:#b2b2b2;
+  --win-line:#3a3a3a;
+  --scrim:rgba(8,8,9,.55);
   --legend-badge:#c9a78a;
   --legend-badge-bg:rgba(201,167,138,.08);
   --legend-badge-border:rgba(201,167,138,.3);
@@ -242,8 +242,8 @@
   --cast-strip-padding:12px 16px;
   --cast-card-padding:9px 11px;
   --cast-status-top:3px;
-  --cast-speaking-border:#41597e;
-  --cast-speaking-ground:#1b222c;
+  --cast-speaking-border:#565656;
+  --cast-speaking-ground:#212121;
   --cast-ring:2px;
   --eq-height:8px;
   --eq-bar-width:2px;
@@ -279,8 +279,8 @@
      version because it must read as lifted out of a row of dimmed peers. */
   --shadow-halo-live:0 0 0 3px var(--halo-live);
   --shadow-halo-work:0 0 0 3px var(--halo-work);
-  --shadow-window:0 30px 70px -20px rgba(0,0,0,.85);
-  --shadow-speaking:0 0 0 1px rgba(127,166,232,.22), 0 6px 18px -10px rgba(0,0,0,.8);
+  --shadow-window:0 30px 70px -20px rgba(6,6,7,.85);
+  --shadow-speaking:0 0 0 1px rgba(227,227,229,.22), 0 6px 18px -10px rgba(6,6,7,.8);
 
   /* Presence and absence are opacity, never removal (UX-DR11). A persona who
      is not speaking is still in the room. Within the text ramp, hierarchy
@@ -293,8 +293,8 @@
   /* The only two gradients in the product (UX-DR13): the cast strip and the
      document window's titlebar. No other gradient, and no shadow carrying
      hue. */
-  --grad-cast:linear-gradient(180deg,#151920,#12161b);
-  --grad-titlebar:linear-gradient(180deg,#232a33,#1d232b);
+  --grad-cast:linear-gradient(180deg,#191919,#151515);
+  --grad-titlebar:linear-gradient(180deg,#292929,#222222);
 
   /* ── The motion inventory (UX-DR12), closed at five declarations, each bound
      to a real event: a turn in flight, a caret at the tail of prose being
@@ -336,15 +336,15 @@
      literal (NFR23). Each is read off harness-mockup.html and named for its
      role rather than the selector that first spelled it.
 
-     The brand mark: `.brand .mark` (:51) is a 16px square with a `#445062`
+     The brand mark: `.brand .mark` (:51) is a 16px square with a `#4e4e4e`
      border, and its `::after` (:52) is inset 3px. */
   --brand-mark-size:16px;
   --brand-mark-inset:3px;
-  --brand-mark-line:#445062;
+  --brand-mark-line:#4e4e4e;
 
-  /* The breadcrumb separator: `.crumbs .sep` (:56), `#3a424d` — quieter than
+  /* The breadcrumb separator: `.crumbs .sep` (:56), `#414141` — quieter than
      --faint, so the bar reads as one line and not two facts. */
-  --topbar-sep:#3a424d;
+  --topbar-sep:#414141;
 
   /* The chip: `.chip` (:58-63) — 20px tall, padded 0 7px. */
   --chip-height:20px;
@@ -356,9 +356,9 @@
   --chip-max:240px;
 
   /* The view switch: `.segmented button` (:65-68) is padded 5px 13px, and its
-     pressed ground (:70) is `#242b34`, one step above --panel-2. */
+     pressed ground (:70) is `#2a2a2a`, one step above --panel-2. */
   --switch-padding:5px 13px;
-  --raised:#242b34;
+  --raised:#2a2a2a;
 
   /* The inset rule under the pressed switch button (:70; DESIGN.md:495) — an
      edge drawn with a shadow, not depth. Named apart from the --shadow- family
@@ -393,8 +393,8 @@
      --radius-scrollbar. */
   --scrollbar-size:10px;
   --scrollbar-inset:3px;
-  --scrollbar-thumb:#2b323b;
-  --scrollbar-thumb-hover:#3a434e;
+  --scrollbar-thumb:#313131;
+  --scrollbar-thumb-hover:#424242;
 
   /* The visually-hidden pair: the standard clip needs a 1px box and a -1px
      margin, and the live region's wrapper spends it. */
@@ -412,19 +412,19 @@
 
   /* The persona tile: DESIGN.md `components.persona-tile` (`height`,
      `currentBackground`, `currentEdge`) and `.ptile` (:108-130) in the mockup.
-     The tile is padded 9px 11px (:109), its current ground is `#1f262f` (:114),
+     The tile is padded 9px 11px (:109), its current ground is `#252525` (:114),
      its accent bar is 2px (:115), and the state line sits 2px under the name
      (`.state`, :121). */
   --tile-height:56px;
   --tile-padding:9px 11px;
-  --tile-current:#1f262f;
+  --tile-current:#252525;
   --tile-edge-width:2px;
   --tile-state-top:2px;
 
   /* The menu hint opens to at most 60px (`.ptile:hover .menu-hint`, :127), and
-     each code tag sits on `#1b2028` padded 0 4px (`.code-tag`, :129-130). */
+     each code tag sits on `#1f1f1f` padded 0 4px (`.code-tag`, :129-130). */
   --tile-hint-max:60px;
-  --code-tag-bg:#1b2028;
+  --code-tag-bg:#1f1f1f;
   --code-tag-padding:0 4px;
 
   /* The group heading over a run of tiles or rows: `.fgroup` (:147), padded
@@ -470,20 +470,20 @@
 
   /* The composer: `.composer` (:246) is padded 9px 16px 11px, `.inputwrap`
      (:257) 7px 8px 7px 11px, and the textarea (:259-262) 2px 0. The field's focus
-     border is #3c4a60 (:258) and the placeholder #5c646f (:263). The send
-     button (:264-265) is padded 4px 12px on #2c3a52, bordered #3b4d6b, glyph
-     #cfe0f8, hovering to #334463. The hint line (:266) sits 6px under the
+     border is #484848 (:258) and the placeholder #636363 (:263). The send
+     button (:264-265) is padded 4px 12px on #393939, bordered #4b4b4b, glyph
+     #dedede, hovering to #424242. The hint line (:266) sits 6px under the
      field with a 14px gap. */
   --composer-padding:9px 16px 11px;
   --composer-field-padding:7px 8px 7px 11px;
   --composer-text-padding:2px 0;
-  --composer-focus-line:#3c4a60;
-  --composer-placeholder:#5c646f;
+  --composer-focus-line:#484848;
+  --composer-placeholder:#636363;
   --send-padding:4px 12px;
-  --send-bg:#2c3a52;
-  --send-line:#3b4d6b;
-  --send-ink:#cfe0f8;
-  --send-hover:#334463;
+  --send-bg:#393939;
+  --send-line:#4b4b4b;
+  --send-ink:#dedede;
+  --send-hover:#424242;
   --composer-hint-top:6px;
   --composer-hint-gap:14px;
 
@@ -515,11 +515,11 @@
   --win-top:8vh;
 
   /* The three lights in the titlebar: `.win .lights` is a 6px gap (:351) of
-     10px circles coloured `#3a424e` (:352; DESIGN.md
+     10px circles coloured `#414141` (:352; DESIGN.md
      `components.document-window.lights`). They are decoration, not controls. */
   --win-lights-gap:6px;
   --win-light-size:10px;
-  --win-light:#3a424e;
+  --win-light:#414141;
 
   /* The body is padded `26px 34px 40px` (`.win .wbody`, :355; DESIGN.md
      `components.document-window.bodyPadding`), and the foot `0 11px`
@@ -528,9 +528,9 @@
   --win-foot-padding:0 11px;
 
   /* The ghost button: `.ghost-btn` is padded `4px 10px` (:74) and its hover
-     border is `#39414c` (:76). The other values are existing tokens. */
+     border is `#404040` (:76). The other values are existing tokens. */
   --ghost-padding:4px 10px;
-  --ghost-border-hover:#39414c;
+  --ghost-border-hover:#404040;
 
   /* Rendered markdown's rhythm, from `.md` (:356-367): the gap under the first
      heading's rule (`.md .sub` margin-bottom, :358), h2 and h3 margins (:359,
@@ -593,10 +593,10 @@
   --caret-drop:-2px;
 
   /* The skill button: padded `4px 9px 4px 6px` (`.skillbtn`, :250-253), its
-     hover border `#475364` (:254; DESIGN.md `hoverBorder`). Its code chip is
+     hover border `#515151` (:254; DESIGN.md `hoverBorder`). Its code chip is
      padded `0 4px` (:255), which --code-tag-padding already is. */
   --skill-button-padding:4px 9px 4px 6px;
-  --skill-button-hover-line:#475364;
+  --skill-button-hover-line:#515151;
 
   /* ── The Welcome (Story 5.1), read off DESIGN.md's `components.welcome` block
      and mockups/welcome-screen-chosen.html's `.D` rules, promoted so no

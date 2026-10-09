@@ -122,7 +122,7 @@ describe('the composer', () => {
     expect(body).toContain('border-radius: var(--radius-card)')
     expect(declared.get('--rule-width')).toBe('1px')
     expect(ruleBody(composerCss, '.composer-field:focus-within')).toContain('border-color: var(--composer-focus-line)')
-    expect(declared.get('--composer-focus-line')).toBe('#3c4a60')
+    expect(declared.get('--composer-focus-line')).toBe('#484848')
   })
 
   it('grows from --composer-min to --composer-max and takes its placeholder from a token', () => {
@@ -136,7 +136,7 @@ describe('the composer', () => {
     expect(declared.get('--composer-min')).toBe('20px')
     expect(declared.get('--composer-max')).toBe('120px')
     expect(ruleBody(composerCss, '.composer-input::placeholder')).toContain('color: var(--composer-placeholder)')
-    expect(declared.get('--composer-placeholder')).toBe('#5c646f')
+    expect(declared.get('--composer-placeholder')).toBe('#636363')
   })
 
   it('gives the send button its own ground, border, glyph and hover, at the control radius', () => {
@@ -152,7 +152,7 @@ describe('the composer', () => {
       declared.get('--send-line'),
       declared.get('--send-ink'),
       declared.get('--send-hover')
-    ]).toEqual(['#2c3a52', '#3b4d6b', '#cfe0f8', '#334463'])
+    ]).toEqual(['#393939', '#4b4b4b', '#dedede', '#424242'])
   })
 
   it('sets the hint at the label rung in meta, mono', () => {

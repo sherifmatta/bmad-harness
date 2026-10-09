@@ -75,7 +75,7 @@ describe('the view switch', () => {
     expect(body).toContain('color: var(--text-strong)')
     expect(body).toContain('box-shadow: var(--inset-pressed)')
     expect(tokensCss).toMatch(/--inset-pressed\s*:\s*inset 0 -2px 0 var\(--accent\)/)
-    expect(tokensCss).toMatch(/--raised\s*:\s*#242b34/)
+    expect(tokensCss).toMatch(/--raised\s*:\s*#2a2a2a/)
   })
 
   it('is one rule, and hover comes before it so the pressed text is not overridden', () => {
