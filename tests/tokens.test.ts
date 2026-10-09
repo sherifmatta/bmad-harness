@@ -380,6 +380,7 @@ describe('the layout constants', () => {
     // UX-DR28 cuts the legend footer from v1, so a constant for its height
     // would size a surface that does not ship. UX-DR7's list is the scope.
     const constants = [
+      'sidebar',
       'rail',
       'topbar',
       'rail-head',
@@ -861,8 +862,9 @@ describe('the light theme (Story 5.2, seam A)', () => {
     // dimensions (Story 5.3), the Outputs head's one padding (Story 5.4) and the splitter's and the folder heading's
     // five dimensions (Story 5.5) at its end, held by its digest: any byte moved in it, a
     // value or a comment, changes the dark theme's source. Re-pinned when the dark palette
-    // moved from blue-tinted slate to neutral near-black and near-white (2026-10-08).
-    expect(createHash('sha256').update(promotedBlock()).digest('hex')).toBe('43e67829cb56b49bde35b05b5a2ec77e428e2f7462021106ed3dba210d792ab0')
+    // moved from blue-tinted slate to neutral near-black and near-white (2026-10-08), and again for the three-column room
+    // (2026-10-09): `--sidebar` added, `--rail` 348px to 300px, and the state strip's one padding at the block's end.
+    expect(createHash('sha256').update(promotedBlock()).digest('hex')).toBe('948ddef5301e711a692c93a97c4fa726afeb71f5293b930a872bd270298c989f')
   })
 
   it('states color-scheme: light in its own block, and the dark theme still states dark', () => {

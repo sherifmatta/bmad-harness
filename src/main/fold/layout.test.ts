@@ -4,7 +4,7 @@ import { allFolded, foldedOf, widthsOf, withFolded, withWidth } from './layout'
 
 describe('widthsOf', () => {
   it('reads a width per panel, each judged by its own range', () => {
-    expect(widthsOf({ widths: { rail: 400, room: 300 } })).toEqual({ rail: 400, room: 300 })
+    expect(widthsOf({ widths: { sidebar: 220, rail: 400, room: 300 } })).toEqual({ sidebar: 220, rail: 400, room: 300 })
     expect(widthsOf({ widths: { rail: 400 } })).toEqual({ rail: 400 })
   })
 
@@ -25,6 +25,8 @@ describe('widthsOf', () => {
     expect(widthsOf({ widths: { rail: 'x', room: null } })).toEqual({})
     // A width good for the rail is not good for the room.
     expect(widthsOf({ widths: { room: 500 } })).toEqual({})
+    // The old rail's widths: 560 is past the new rail's cap, and the sidebar's is lower still.
+    expect(widthsOf({ widths: { sidebar: 450, rail: 560 } })).toEqual({})
   })
 })
 
@@ -58,7 +60,8 @@ describe('withWidth', () => {
   const store = { widths: { rail: 400, room: 300 }, folded: { '/work/a': ['_bmad/'] } }
 
   it('sets one panel’s width and leaves the other and every fold as they were', () => {
-    expect(withWidth(store, 'rail', 500)).toEqual({ widths: { rail: 500, room: 300 }, folded: { '/work/a': ['_bmad/'] } })
+    expect(withWidth(store, 'rail', 450)).toEqual({ widths: { rail: 450, room: 300 }, folded: { '/work/a': ['_bmad/'] } })
+    expect(withWidth(store, 'sidebar', 220)).toEqual({ widths: { sidebar: 220, rail: 400, room: 300 }, folded: { '/work/a': ['_bmad/'] } })
   })
 
   it('removes a panel’s width for null', () => {

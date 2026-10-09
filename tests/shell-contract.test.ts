@@ -149,6 +149,8 @@ describe('the shell stylesheet', () => {
     expect(ruleBody(shellCss, '.topbar')).toMatch(/height: var\(--topbar\)/)
     expect(ruleBody(shellCss, '.topbar')).toMatch(/background: var\(--chrome\)/)
     expect(ruleBody(shellCss, '.topbar')).toMatch(/border-bottom: var\(--rule-width\) solid var\(--line\)/)
+    expect(ruleBody(shellCss, '.sidebar')).toMatch(/flex: 0 0 var\(--sidebar\)/)
+    expect(ruleBody(shellCss, '.sidebar')).toMatch(/border-right: var\(--rule-width\) solid var\(--line\)/)
     expect(ruleBody(shellCss, '.rail')).toMatch(/flex: 0 0 var\(--rail\)/)
     expect(ruleBody(shellCss, '.rail')).toMatch(/border-left: var\(--rule-width\) solid var\(--line\)/)
     expect(ruleBody(shellCss, '.rail-half')).toMatch(/flex: 1 1 var\(--rail-half-basis\)/)
@@ -186,6 +188,15 @@ describe('the two breakpoints', () => {
     expect(ruleBody(block, '.app')).toMatch(/min-height: var\(--viewport-tall\)/)
     expect(ruleBody(block, '.view')).toMatch(/flex-direction: column/)
     expect(ruleBody(block, '.chat')).toMatch(/min-height: var\(--stack-chat-min\)/)
+    // Stacked in the order chat, sidebar, rail, the splitters gone.
+    expect(ruleBody(block, '.chat')).toMatch(/order: 1/)
+    expect(ruleBody(block, '.sidebar')).toMatch(/order: 2/)
+    expect(ruleBody(block, '.rail')).toMatch(/order: 3/)
+    expect(ruleBody(block, '.sidebar')).toMatch(/flex: 0 0 auto/)
+    expect(ruleBody(block, '.sidebar')).toMatch(/width: auto/)
+    expect(ruleBody(block, '.sidebar')).toMatch(/border-right: 0/)
+    expect(ruleBody(block, '.sidebar')).toMatch(/border-top: var\(--rule-width\) solid var\(--line\)/)
+    expect(block).toMatch(/\.panel-splitter--sidebar,\s*\.panel-splitter--rail\s*\{\s*display: none;/)
     expect(ruleBody(block, '.rail')).toMatch(/flex: 0 0 auto/)
     expect(ruleBody(block, '.rail')).toMatch(/width: auto/)
     expect(ruleBody(block, '.rail')).toMatch(/border-left: 0/)
@@ -282,10 +293,10 @@ describe('the shell furniture stays within scope', () => {
   it('has no third view, Help, inline style, spinner or announcement of its own', () => {
     for (const path of shipped) {
       const text = code(path)
-      // The one inline style is the rail's own width while the user has chosen one (Story 5.5): the token's
-      // property overridden, set by `usePanelWidth` and by nothing in the shell.
-      expect(text.replace('style={railStyle}', ''), path).not.toMatch(/style=\{/)
-      expect(text.match(/style=\{/g)?.length ?? 0, path).toBe(path.endsWith('/shell.tsx') ? 1 : 0)
+      // The two inline styles are the sidebar's and the rail's own width while the user has chosen one
+      // (Story 5.5): the token's property overridden, set by `usePanelWidth` and by nothing in the shell.
+      expect(text.replace('style={sidebarStyle}', '').replace('style={railStyle}', ''), path).not.toMatch(/style=\{/)
+      expect(text.match(/style=\{/g)?.length ?? 0, path).toBe(path.endsWith('/shell.tsx') ? 2 : 0)
       expect(text, path).not.toMatch(/aria-live/)
       expect(text, path).not.toMatch(/\bHelp\b/)
       expect(text, path).not.toMatch(/spinner|skeleton/i)

@@ -102,8 +102,9 @@ describe('the assembled shell, all five persona states', () => {
   it('has no count chip beyond the install chip', () => {
     expect(count(markup, /class="chip"/g)).toBe(1)
     expect(markup).toContain('>bmad · 5 agents<')
-    // A bare number, or a `+N`, as the whole of an element is a count chip.
-    expect(markup).not.toMatch(/>\+?\d+</)
+    // A bare number, or a `+N`, as the whole of an element is a count chip. The state strip's four figures
+    // are the one place a number stands alone: plain counts, in text, and each is a `team-strip-figure`.
+    expect(markup.replace(/(<span class="team-strip-figure">)\d+(<\/span>)/g, '$1$2')).not.toMatch(/>\+?\d+</)
   })
 
   it('writes every state as a word, so no state rests on its dot', () => {

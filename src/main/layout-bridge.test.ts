@@ -82,36 +82,38 @@ function snapshotOf(dir: string): Record<string, string | null> {
 
 describe('the layout bridge: the read', () => {
   it('answers each window synchronously, with the defaults while nothing is stored', () => {
-    expect(read(WINDOW_A)).toEqual({ rail: null, room: null, folded: [] })
+    expect(read(WINDOW_A)).toEqual({ sidebar: null, rail: null, room: null, folded: [] })
   })
 
   it('answers with the stored widths, and the folded set of the asking window’s own project', () => {
+    setWidth(WINDOW_A, 'sidebar', 220)
     setWidth(WINDOW_A, 'rail', 400)
     setWidth(WINDOW_A, 'room', 300)
     setFolded(WINDOW_A, ['_bmad/'])
     setFolded(WINDOW_B, ['docs/', 'docs/x/'])
 
-    expect(read(WINDOW_A)).toEqual({ rail: 400, room: 300, folded: ['_bmad/'] })
+    expect(read(WINDOW_A)).toEqual({ sidebar: 220, rail: 400, room: 300, folded: ['_bmad/'] })
     // The widths are the user's, so the other window has them; the fold is the project's, so it has its own.
-    expect(read(WINDOW_B)).toEqual({ rail: 400, room: 300, folded: ['docs/', 'docs/x/'] })
+    expect(read(WINDOW_B)).toEqual({ sidebar: 220, rail: 400, room: 300, folded: ['docs/', 'docs/x/'] })
   })
 
   it('answers a window with no project the widths and nothing folded', () => {
     setWidth(WINDOW_A, 'rail', 400)
     setFolded(WINDOW_A, ['_bmad/'])
 
-    expect(read(WELCOME)).toEqual({ rail: 400, room: null, folded: [] })
+    expect(read(WELCOME)).toEqual({ sidebar: null, rail: 400, room: null, folded: [] })
   })
 
   it.each([
     ['a file that is not JSON', 'not json'],
     ['a file of the wrong shape', '[1,2,3]'],
-    ['widths out of range', JSON.stringify({ version: 1, widths: { rail: 12, room: 9999 }, folded: 'x' })],
-    ['widths that are not integers', JSON.stringify({ version: 1, widths: { rail: 300.5, room: '250' } })]
+    ['widths out of range', JSON.stringify({ version: 1, widths: { sidebar: 12, rail: 12, room: 9999 }, folded: 'x' })],
+    ['the old rail’s widths, which the new rail does not hold', JSON.stringify({ version: 1, widths: { rail: 560 } })],
+    ['widths that are not integers', JSON.stringify({ version: 1, widths: { sidebar: 244.5, rail: 300.5, room: '250' } })]
   ])('reads %s as the defaults and nothing folded, silently', (_name, content) => {
     writeFileSync(join(userData, 'layout.json'), content)
 
-    expect(read(WINDOW_A)).toEqual({ rail: null, room: null, folded: [] })
+    expect(read(WINDOW_A)).toEqual({ sidebar: null, rail: null, room: null, folded: [] })
     expect(diagnostics).toEqual([])
   })
 })
@@ -122,8 +124,9 @@ describe('the layout bridge: a width', () => {
     expect(stored()).toEqual({ version: 1, widths: { rail: 400 }, folded: {} })
 
     setWidth(WINDOW_A, 'room', 300)
-    setWidth(WINDOW_A, 'rail', 500)
-    expect(stored()).toEqual({ version: 1, widths: { rail: 500, room: 300 }, folded: {} })
+    setWidth(WINDOW_A, 'rail', 450)
+    setWidth(WINDOW_A, 'sidebar', 220)
+    expect(stored()).toEqual({ version: 1, widths: { rail: 450, room: 300, sidebar: 220 }, folded: {} })
   })
 
   it('forgets a width for null, which is the reset, and leaves the other', () => {
@@ -137,13 +140,17 @@ describe('the layout bridge: a width', () => {
 
   it('ignores a panel that is not one and a width the panel would not read, and writes nothing', () => {
     for (const args of [
-      ['sidebar', 400],
+      ['sidebar', 199],
+      ['sidebar', 401],
+      ['sidebar', 244.5],
       ['rail', 12],
       ['rail', 9999],
+      ['rail', 560],
       ['rail', 300.5],
       ['rail', '400'],
       ['rail', undefined],
       ['room', 500],
+      ['chat', 300],
       [undefined, 400],
       [{ toString: () => 'rail' }, 400],
       []

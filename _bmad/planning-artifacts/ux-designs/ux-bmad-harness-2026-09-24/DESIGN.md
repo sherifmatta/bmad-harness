@@ -236,10 +236,13 @@ spacing:
   xl: 12px
   xxl: 14px
   # Binding layout constants (AD-14 names these as literals equal in force to the colours).
-  rail: 348px                 # the DEFAULT width: resizable, see rail-min / rail-max
-  rail-min: 280px
-  rail-max: 560px
-  chat-min: 420px             # the chat column never narrows below this when the rail grows
+  sidebar: 244px              # the Team sidebar's DEFAULT width: resizable, see sidebar-min / sidebar-max
+  sidebar-min: 200px
+  sidebar-max: 400px
+  rail: 300px                 # the Outputs panel's DEFAULT width: resizable, see rail-min / rail-max
+  rail-min: 260px
+  rail-max: 480px
+  chat-min: 420px             # the chat column never narrows below this when either side panel grows
   topbar: 42px
   rail-head: 30px
   legend: 24px
@@ -445,7 +448,7 @@ components:
     focus: 'the 3px accent line plus the shared ring {components.focus.ring}'
     motion: 'none — the panel follows the pointer one frame at a time; no easing, no snap'
     reset: 'double-click, or Enter when focused, returns the panel to its default width'
-    keys: 'ArrowLeft grows the panel 16px, ArrowRight shrinks it 16px, Shift 64px; Home min, End max'
+    keys: 'ArrowLeft grows a panel on the right 16px, ArrowRight shrinks it 16px; the Team sidebar, on the left, is the reverse (ArrowRight grows); Shift 64px; Home min, End max'
     aria: 'role=separator, aria-orientation=vertical, aria-label, aria-valuemin/max/now'
     hidden: 'at ≤1000px (stacked layout) and wherever the panel is hidden (party side ≤1180px)'
   folder-heading:
@@ -662,7 +665,7 @@ Portrait render sizes are a closed set: **32** transcript, **36** persona tile, 
 
 ### Resizing the side panels
 
-Both side panels, the rail in 1:1 and the Room panel in Party Mode, have a **splitter** on their inner edge (Components → Splitter). The widths above are **defaults**, and the old rule *348px is binding* (AD-14) and *288px must not be implemented* both survive as statements about the defaults. The ranges are fixed constants and the panels never overlap the column they border: the maximum is the smaller of the cap and what leaves the neighbouring column its minimum. The two widths are independent, and each is remembered per user.
+The side panels, the Team sidebar and the rail in 1:1 and the Room panel in Party Mode, each have a **splitter** on their inner edge (Components → Splitter). The widths above are **defaults**. *Updated 2026-10-09:* the 1:1 view's single 348px rail became a 244px sidebar and a 300px rail, so the rule *348px is binding* (AD-14) no longer holds for it and a stored rail width is read against the new range (inside 260–480px it is kept as stored, outside it reads as the default; nothing is migrated); *288px must not be implemented* still stands for the party panel's default. The ranges are fixed constants and the panels never overlap the column they border: the maximum is the smaller of the cap and what leaves the neighbouring column its minimum, where in 1:1 the sidebar and the rail each leave the chat column its 420px given the other's width. The three widths are independent, and each is remembered per user.
 
 ### The party side panel — 288px is superseded
 
@@ -981,17 +984,17 @@ Streaming prose arrives in frame-sized bursts, with the caret at the tail; a per
 
 ### Proposed: layout, thread and Board anatomy
 
-*Added 2026-10-09. **Proposed, not built.** The behaviour, the data sources and the list of what is not adopted are in `EXPERIENCE.md` → *Layout, chat and Board*. Which of these become stories is not yet chosen, so nothing here is in `design/tokens.css` or the frontmatter above. Prototypes: `mockups/paperclip-layout-chat.html` and `mockups/paperclip-board.html`; they draw items the spec does not adopt, and **this section follows the spec.** Every value below is an existing token; a dimension marked *new* becomes a token when a story builds it (NFR23).*
+*Added 2026-10-09. **Partly built:** the Team sidebar with its state strip, and the right panel holding the Outputs half alone (the three-column room), are in `design/tokens.css` (`--sidebar`, `--rail`, `--team-strip-padding`) and the frontmatter above (`spacing.sidebar`, `sidebar-min`, `sidebar-max`, the new `rail` values). The Nav rows, the Properties, Run and Goal trace sections and the rest are **proposed, not built**. The behaviour, the data sources and the list of what is not adopted are in `EXPERIENCE.md` → *Layout, chat and Board*. Which of the rest become stories is not yet chosen. Prototypes: `mockups/paperclip-layout-chat.html` and `mockups/paperclip-board.html`; they draw items the spec does not adopt, and **this section follows the spec.** Every value below is an existing token; a dimension marked *new* becomes a token when a story builds it (NFR23).*
 
-**Team sidebar.** `panel` ground, a 1px `line` on its right edge, default width *new* 244px, its own splitter (*Splitter*). Head: the rail head (`{spacing.rail-head}`, `panel-2`, `line-soft` below, the label at `{typography.label}` uppercase `dim`). Below it:
+**Team sidebar.** *Built.* `panel` ground, a 1px `line` on its right edge, default width 244px (`{spacing.sidebar}`, 200–400px), its own splitter (*Splitter*). Head: the rail head (`{spacing.rail-head}`, `panel-2`, `line-soft` below, the label at `{typography.label}` uppercase `dim`). Below it:
 
 | Part | Anatomy |
 |---|---|
-| State strip | a four-cell grid, 1px `line-soft` between cells. Each cell: the figure at `{typography.head}`, weight 600, tabular, `text-strong`; the label at `{typography.micro}` uppercase `faint`. No cell takes colour, a fill or the accent: it is a count, not an alert |
+| State strip | *Built.* a four-cell grid (working, idle, error, changed), 1px `line-soft` between cells and below. Each cell, centred: the figure at `{typography.head}`, weight 600, tabular, `text-strong`; the label at `{typography.micro}` uppercase `faint`, tracked `.04em`, the state's own word in lower case in the markup. Cell padding `--team-strip-padding` (8px 4px), so the longest label fits at the default width. No cell takes colour, a fill or the accent: it is a count, not an alert |
 | Nav row (*Inbox*, *Sprint board*) | padding `6px 11px`, `{typography.control}` in `dim`, a 1px `line-soft` below, `panel-2` on hover; the current row takes `panel-2` and `text-strong`. A trailing key hint is a chip: `{typography.label}` in `faint`, 1px `line`, `{rounded.chip}`. **No count** on either row |
 | Persona tile | the existing tile, unchanged, in config order. Idle tiles dim at `{opacity.idle}`. No group heading by state |
 
-**Context panel.** `panel` ground, a 1px `line` on its left edge, default width *new* 300px, scrolling inside, its own splitter. Head as the sidebar's. Sections are separated by `line-soft` with padding `9px 12px`; a section label is `{typography.micro}` uppercase `faint`, its right-hand note `{typography.meta}` in `faint`.
+**Context panel.** `panel` ground, a 1px `line` on its left edge, default width 300px (`{spacing.rail}`, 260–480px, *built*, as the class `.rail` holding the Outputs half only), scrolling inside, its own splitter. Head as the sidebar's. Sections are separated by `line-soft` with padding `9px 12px`; a section label is `{typography.micro}` uppercase `faint`, its right-hand note `{typography.meta}` in `faint`.
 
 | Section | Anatomy |
 |---|---|

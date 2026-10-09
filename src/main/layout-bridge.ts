@@ -36,7 +36,7 @@ function foldedFrom(value: unknown): string[] | null {
 }
 
 /**
- * Answer a window's layout (Story 5.5): its two panel widths, per user, and the
+ * Answer a window's layout (Story 5.5): its panel widths, per user, and the
  * Outputs directories it folded, per project. The read is synchronous
  * (`ipcMain.on` with a return value, as the theme's is) so the first paint is
  * already at the stored width; the two writes are requests, validated here and
@@ -58,12 +58,13 @@ export function registerLayoutBridge(deps: LayoutBridgeDeps): void {
   }
 
   ipcMain.on(LAYOUT_GET_CHANNEL, (event: IpcMainEvent) => {
-    let answer: Layout = { rail: null, room: null, folded: [] }
+    let answer: Layout = { sidebar: null, rail: null, room: null, folded: [] }
     try {
       const raw = readLayoutFile(filePath())
       const widths = widthsOf(raw)
       const projectKey = projectPathFor((event.sender as unknown as { id: number }).id)
       answer = {
+        sidebar: widths.sidebar ?? null,
         rail: widths.rail ?? null,
         room: widths.room ?? null,
         folded: projectKey === undefined ? [] : foldedOf(raw, projectKey)

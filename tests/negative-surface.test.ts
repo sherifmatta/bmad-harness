@@ -752,6 +752,10 @@ describe("the text ramp", () => {
       kind: "decoration",
       why: "the lane's ordinal at the end of its rule; the four lanes are in the method's order and each is named by its label",
     },
+    "ui/team/team.css: .team-strip-label": {
+      kind: "label",
+      why: "the word under a state strip count (Working, Idle, Error, Changed); the figure above it is at --text-strong, and the tiles below state each persona's own state in words at --dim",
+    },
     "ui/chat/skill-row.css: .skill-more": {
       kind: "restated",
       why: "the `+N more` / `fewer` toggle on a long menu; the entries it hides are the same buttons it reveals, and the row reads as complete at five without it",

@@ -217,16 +217,19 @@ describe('Shell', () => {
   })
 
   it('draws nothing the rail halves and party view do not own', () => {
+    const sidebar = markup.slice(markup.indexOf('<div class="sidebar"'), markup.indexOf('<div class="chat">'))
     const rail = markup.slice(
       markup.indexOf('<div class="rail">'),
       markup.indexOf('<section class="view view-party"')
     )
     const outputs = rail.slice(rail.indexOf('>Outputs<'))
 
-    // The Team half holds one tile button per agent; the Outputs half holds none.
-    expect(count(rail, /<button/g)).toBe(5)
+    // The Team half, in the sidebar, holds one tile button per agent; the Outputs half, alone in the rail, holds none.
+    expect(count(sidebar, /<button/g)).toBe(5)
+    expect(count(rail, /<button/g)).toBe(0)
+    expect(rail).not.toContain('>Team<')
     expect(outputs).not.toContain('<button')
-    expect(rail).not.toMatch(/<a |<input|<textarea/)
+    expect(`${sidebar}${rail}`).not.toMatch(/<a |<input|<textarea/)
   })
 
   it('owns no live region and no second switch', () => {
@@ -634,8 +637,9 @@ describe('Shell, the orphan headers', () => {
 
     expect(count(html, /orphan-head"/g)).toBe(2)
     expect(html.indexOf('Xena')).toBeLessThan(html.indexOf('Yves'))
-    expect(html.indexOf('Yves')).toBeLessThan(html.indexOf('bmad-agent-0'))
-    expect(html.indexOf('bmad-agent-0')).toBeLessThan(html.indexOf('class="scroll"'))
+    const chat = html.slice(html.indexOf('<div class="chat">'))
+    expect(chat.indexOf('Yves')).toBeLessThan(chat.indexOf('bmad-agent-0'))
+    expect(chat.indexOf('bmad-agent-0')).toBeLessThan(chat.indexOf('class="scroll"'))
     expect(html).toContain('aria-label="close session · Xena"')
     expect(html).toContain('aria-label="close session · Yves"')
   })
@@ -713,7 +717,7 @@ describe('Shell, the pinned slot (Story 3.14)', () => {
 
   it('is outside the scrolling thread, and holds no attribute but its class', () => {
     const html = markup({ pinned })
-    const slot = html.slice(html.indexOf('<div class="pinned">'), html.indexOf('</section></div>') + 1)
+    const slot = html.slice(html.indexOf('<div class="pinned">'), html.indexOf('</section></div>', html.indexOf('<div class="pinned">')) + 1)
 
     expect(html.slice(html.indexOf('class="scroll"'))).not.toContain('run-card')
     // The slot's own tag carries a class and nothing else: no tab stop, role or live attribute.

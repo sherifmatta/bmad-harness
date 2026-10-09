@@ -57,7 +57,7 @@ function Folding({ snapshot, initial = [] }: { snapshot: RailSnapshot; initial?:
     push = setShown
   }, [setShown])
   const value: LayoutContextValue = {
-    widths: { rail: null, room: null },
+    widths: { sidebar: null, rail: null, room: null },
     folded,
     saveWidth: () => {},
     saveFolded: (next) => {
@@ -386,7 +386,7 @@ describe('kept through the bridge', () => {
     ;(window as unknown as { harness: unknown }).harness = {
       openDoc,
       onDocClosed: () => () => {},
-      getLayout: () => ({ rail: null, room: null, folded: ['gone/'] }),
+      getLayout: () => ({ sidebar: null, rail: null, room: null, folded: ['gone/'] }),
       setFolded
     }
     function App(): ReactElement {

@@ -1,6 +1,6 @@
 import type { KeyboardEvent, MouseEvent } from 'react'
 
-import { effectiveWidth, keyedWidth } from '../../../shared/layout'
+import { effectiveWidth, growsRight, keyedWidth } from '../../../shared/layout'
 import type { PanelId } from '../../../shared/layout'
 
 /** The class on `body` while a splitter is dragged: the cursor and text selection are the stylesheet's. */
@@ -40,8 +40,9 @@ export type PanelDrag = {
  * began and how to end it.
  *
  * A drag follows the pointer: the width at each move is the width it started at
- * plus how far the pointer has gone left (the panels sit on the window's right),
- * held at the limits, with no easing, snapping or transition. It ends on release
+ * plus how far the pointer has gone toward the panel's inner side (left for the
+ * panels on the window's right, right for the sidebar; `growsRight`), held at
+ * the limits, with no easing, snapping or transition. It ends on release
  * (the width reached is kept) or on `Escape`, the window losing focus or
  * `dispose` (the width it started at is back, nothing is kept); in every case
  * `body` is given back its cursor and its text selection.
@@ -76,7 +77,8 @@ export function createPanelDrag(panel: PanelId, host: PanelHost): PanelDrag {
       host.dragging(false)
     }
     const move = (moved: globalThis.MouseEvent): void => {
-      reached = effectiveWidth(panel, startWidth + (startX - moved.clientX), state.available)
+      const travelled = growsRight(panel) ? moved.clientX - startX : startX - moved.clientX
+      reached = effectiveWidth(panel, startWidth + travelled, state.available)
       host.show(reached)
     }
     const release = (): void => {

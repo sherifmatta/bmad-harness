@@ -4,7 +4,7 @@ import './panel-splitter.css'
 import type { SplitterProps } from './use-panel-width'
 
 /** What each splitter says it resizes: the harness's own words. */
-const LABEL = { rail: 'rail width', room: 'room panel width' } as const
+const LABEL = { sidebar: 'sidebar width', rail: 'rail width', room: 'room panel width' } as const
 
 /**
  * A side panel's splitter (Story 5.5): a `separator` on the panel's inner edge,

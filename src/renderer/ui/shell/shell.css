@@ -6,7 +6,7 @@
  * are zero and CSS keywords. The one place a dimension is spelled is the
  * condition of a media rule, which cannot read a custom property, and there
  * are exactly two of those (NFR27): the party side panel (and its splitter) goes
- * at the first, the layout stacks (and the rail's splitter goes) at the second. No mobile rule exists.
+ * at the first, the layout stacks (and the sidebar's and the rail's splitters go) at the second. No mobile rule exists.
  *
  * Nothing here draws or styles keyboard focus: the shared ring is
  * design/focus.css's, and it reaches the view switch untouched. No stacking
@@ -228,7 +228,20 @@
   padding: var(--thread-padding);
 }
 
-/* ---------- 1:1 : the rail ---------- */
+/* ---------- 1:1 : the side panels ---------- */
+
+/* The Team sidebar on the left and the Outputs rail on the right of the chat
+   column: one column of one half each. Each width is its token, overridden
+   inline when the user has chosen one. */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 var(--sidebar);
+  width: var(--sidebar);
+  min-height: 0;
+  border-right: var(--rule-width) solid var(--line);
+  background: var(--panel);
+}
 
 .rail {
   display: flex;
@@ -245,10 +258,6 @@
   flex-direction: column;
   flex: 1 1 var(--rail-half-basis);
   min-height: 0;
-}
-
-.rail-half + .rail-half {
-  border-top: var(--rule-width) solid var(--line);
 }
 
 .rail-head {
@@ -322,15 +331,26 @@
   }
 
   .chat {
+    order: 1;
     min-height: var(--stack-chat-min);
   }
 
-  /* The layout stacks: the rail takes the column's width, so no splitter and no chosen width. */
+  /* The layout stacks, in the order chat, sidebar, rail: each panel takes the column's width, so no splitter and no chosen width. */
+  .panel-splitter--sidebar,
   .panel-splitter--rail {
     display: none;
   }
 
+  .sidebar {
+    order: 2;
+    flex: 0 0 auto;
+    width: auto;
+    border-right: 0;
+    border-top: var(--rule-width) solid var(--line);
+  }
+
   .rail {
+    order: 3;
     flex: 0 0 auto;
     width: auto;
     border-left: 0;

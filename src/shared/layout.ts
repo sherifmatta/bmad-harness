@@ -1,5 +1,5 @@
 /**
- * The two side panels' widths (Story 5.5), as one pure rule over four things:
+ * The side panels' widths (Story 5.5), as one pure rule over four things:
  * the width the user chose (or none), the panel's range, what the neighbouring
  * column needs and what the container holds. The drag, the keys, a narrowed
  * window and the stored value all go through it, so they cannot disagree.
@@ -8,29 +8,31 @@
  * module into the preload, which cannot load a second file.
  */
 
-/** The panel that can be sized: the 1:1 view's rail and the party view's Room panel. */
-export type PanelId = 'rail' | 'room'
+/** The panel that can be sized: the 1:1 view's Team sidebar and Outputs rail, and the party view's Room panel. */
+export type PanelId = 'sidebar' | 'rail' | 'room'
 
 /** A panel's default, range and what its neighbouring column keeps. */
 export type PanelLimits = {
-  /** The width the token gives it; equal to `--rail` / `--party-side`, tied by a test. */
+  /** The width the token gives it; equal to `--sidebar` / `--rail` / `--party-side`, tied by a test. */
   default: number
   min: number
   cap: number
-  /** The least the column beside it keeps: the chat column for the rail, the party column for the Room panel. */
+  /** The least the column beside it keeps: the chat column for the sidebar and the rail, the party column for the Room panel. */
   neighbourMin: number
 }
 
 export const PANELS: Readonly<Record<PanelId, PanelLimits>> = {
-  rail: { default: 348, min: 280, cap: 560, neighbourMin: 420 },
+  sidebar: { default: 244, min: 200, cap: 400, neighbourMin: 420 },
+  rail: { default: 300, min: 260, cap: 480, neighbourMin: 420 },
   room: { default: 240, min: 200, cap: 400, neighbourMin: 480 }
 }
 
 /** The panels, in the order the layout names them. */
-export const PANEL_IDS: readonly PanelId[] = ['rail', 'room']
+export const PANEL_IDS: readonly PanelId[] = ['sidebar', 'rail', 'room']
 
 /** What the window holds of the layout: a chosen width per panel (or none) and the folded Outputs directories. */
 export type Layout = {
+  sidebar: number | null
   rail: number | null
   room: number | null
   /** Project-relative directory paths, as the Outputs half groups them (trailing `/`). */
@@ -38,11 +40,21 @@ export type Layout = {
 }
 
 /** The layout of a window that has stored nothing. */
-export const NO_LAYOUT: Layout = { rail: null, room: null, folded: [] }
+export const NO_LAYOUT: Layout = { sidebar: null, rail: null, room: null, folded: [] }
 
 /** Whether a value is one of the panels. */
 export function isPanelId(value: unknown): value is PanelId {
-  return value === 'rail' || value === 'room'
+  return value === 'sidebar' || value === 'rail' || value === 'room'
+}
+
+/**
+ * Whether a panel's width grows when its splitter moves right: the sidebar sits
+ * on the window's left, so its edge moves right to grow it; the rail and the Room
+ * panel sit on the right and grow as their edge moves left. One rule for the drag
+ * and the keys.
+ */
+export function growsRight(panel: PanelId): boolean {
+  return panel === 'sidebar'
 }
 
 /** What a key on a focused splitter moves by: the step, and the larger one with `Shift`. */
@@ -94,8 +106,9 @@ export function readWidth(value: unknown, panel: PanelId): number | null {
 
 /**
  * What a key does to a focused splitter, given the panel's current (effective)
- * width. The panel sits at the window's right edge, so `←` moves its edge left
- * and grows it. A width, `null` for the default (`Enter`), or `undefined` for a
+ * width. A panel on the window's right (the rail, the Room panel) has `←`
+ * move its edge left and grow it; the sidebar, on the left, grows on `→`
+ * (`growsRight`). A width, `null` for the default (`Enter`), or `undefined` for a
  * key the splitter does not claim. A chord with a modifier other than `Shift`
  * is not the splitter's.
  */
@@ -108,10 +121,12 @@ export function keyedWidth(
 ): number | null | undefined {
   const step = shift ? KEY_STEP_SHIFT : KEY_STEP
   const { min, max } = limitsFor(panel, available)
+  const grow = growsRight(panel) ? 'ArrowRight' : 'ArrowLeft'
+  const shrink = growsRight(panel) ? 'ArrowLeft' : 'ArrowRight'
   switch (key) {
-    case 'ArrowLeft':
+    case grow:
       return clampWidth(panel, current + step, available)
-    case 'ArrowRight':
+    case shrink:
       return clampWidth(panel, current - step, available)
     case 'Home':
       return min

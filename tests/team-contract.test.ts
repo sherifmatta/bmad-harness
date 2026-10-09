@@ -333,7 +333,7 @@ describe('the shell mounts the team', () => {
     expect(shell).toContain('<Team')
     expect(shell).toContain('<ChatHeader key={current.id}')
     expect(shell.indexOf('<ChatHeader')).toBeLessThan(shell.indexOf('className="scroll"'))
-    expect(shell).toMatch(/<RailHalf label="Team">\s*<Team/)
+    expect(shell).toMatch(/<RailHalf label="Team" beneath=\{<TeamStrip[^>]*\/>\}>\s*<Team/)
     expect(shell).toMatch(/<RailHalf\s+label="Outputs"[\s\S]*?>\s*<ConnectedOutputs/)
   })
 

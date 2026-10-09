@@ -33,6 +33,7 @@ function readInitial(): Layout {
   }
   const record = typeof got === 'object' && got !== null ? (got as Record<string, unknown>) : {}
   return {
+    sidebar: readWidth(record['sidebar'], 'sidebar'),
     rail: readWidth(record['rail'], 'rail'),
     room: readWidth(record['room'], 'room'),
     folded: Array.isArray(record['folded'])

@@ -173,7 +173,8 @@
      keeps its surface's own name. Component dimensions — the 6px status dot,
      the 56px tile, portrait sizes, card paddings — are not here; they belong to
      the stories that build those components. */
-  --rail:348px;
+  --sidebar:244px;
+  --rail:300px;
   --topbar:42px;
   --rail-head:30px;
   --thread-max:940px;
@@ -651,6 +652,12 @@
   --splitter-line:3px;
   --splitter-inset:3px;
   --chevron-size:9px;
+
+  /* ── The Team sidebar (three-column room). --sidebar and --rail are the two side panels'
+     DEFAULTS in the 1:1 view (DESIGN.md spacing `sidebar`, `rail`); a chosen width overrides
+     the property inline on the panel. The state strip's one dimension is its cell's padding;
+     its rules are --rule-width and its type --fs-head and --fs-micro as they are. */
+  --team-strip-padding:var(--space-md) var(--space-xxs);
 }
 
 /*
