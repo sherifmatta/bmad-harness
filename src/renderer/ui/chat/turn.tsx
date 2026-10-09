@@ -2,10 +2,7 @@ import type { JSX } from 'react'
 
 import './turn.css'
 import type { AgentView } from '../../../shared/install'
-import { artParamsFor } from '../persona/art-params'
 import { Initials } from '../persona/initials'
-import { portrait } from '../persona/portrait'
-import type { PersonaState } from '../persona/portrait'
 import { Caret } from './caret'
 import { DecisionBlock } from './decision-block'
 import type { Decision } from './decision'
@@ -14,8 +11,8 @@ import type { UserIdentity } from './transcript-entry'
 import { TurnState } from './turn-state'
 
 /**
- * The conversation turn — UX-DR25, DESIGN.md's *Conversation turn*. One
- * container, two grounds: a persona's turn and the user's own.
+ * The conversation turn — UX-DR25, DESIGN.md's *Conversation turn*. A flat row:
+ * an initials disc, a head line and the words, for a persona and for the user.
  *
  * **The words are not the harness's to touch.** `text` is rendered exactly as
  * given: split only on blank lines into paragraphs, set with `pre-wrap`, and
@@ -72,7 +69,7 @@ export function Head({ name, ident, at }: { name: string; ident: string; at: num
 }
 
 /**
- * A persona's turn: their 32px portrait, name, role, time, and their words. A
+ * A persona's turn: their initials disc, name, role, time, and their words. A
  * decision they raised draws after the words, inside the turn; the words are
  * rendered whole either way. While the turn is still in flight (`writing`), the
  * caret sits at the tail of the words and the `work` state line under them.
@@ -81,7 +78,6 @@ export function PersonaTurn({
   agent,
   at,
   text,
-  state = 'idle',
   writing,
   decision,
   onChoose
@@ -89,7 +85,6 @@ export function PersonaTurn({
   agent: AgentView
   at: number
   text: string
-  state?: PersonaState
   /** Set while this is the turn in flight: the words so far, with the caret and the state line. */
   writing?: Writing
   /** The question this turn ends in, when it can be answered now. */
@@ -99,7 +94,9 @@ export function PersonaTurn({
 }): JSX.Element {
   return (
     <div className="turn turn--persona">
-      <div className="turn-av">{portrait(artParamsFor(agent.id), 32, state, agent)}</div>
+      <div className="turn-av">
+        <Initials {...agent} size={26} />
+      </div>
       <div className="turn-body">
         <Head name={agent.name} ident={agent.title} at={at} />
         <Words text={text} caret={writing !== undefined} />
@@ -113,7 +110,7 @@ export function PersonaTurn({
 }
 
 /**
- * A persona's turn in flight before its first word: the same portrait and head
+ * A persona's turn in flight before its first word: the same disc and head
  * (timed from when the turn began), the caret as the whole body, and the `work`
  * state line under it. It is no entry: it is drawn from the persona's state and
  * goes when the words arrive or the turn ends. Hidden from a reader as a whole,
@@ -122,7 +119,9 @@ export function PersonaTurn({
 export function PendingTurn({ agent, since }: { agent: AgentView; since: number }): JSX.Element {
   return (
     <div className="turn turn--persona turn--pending" aria-hidden="true">
-      <div className="turn-av">{portrait(artParamsFor(agent.id), 32, 'idle', agent)}</div>
+      <div className="turn-av">
+        <Initials {...agent} size={26} />
+      </div>
       <div className="turn-body">
         <Head name={agent.name} ident={agent.title} at={since} />
         <Words text="" caret />
@@ -137,8 +136,8 @@ export type { UserIdentity } from './transcript-entry'
 const YOU: UserIdentity = { name: 'You', title: 'you' }
 
 /**
- * The user's turn: the same container on the accent wash with its left rule,
- * and the 32px initials disc, since the person has no generated face.
+ * The user's turn: the same flat row as a persona's, with the initials disc
+ * tinted for you alone, since the person has no generated face.
  */
 export function UserTurn({
   at,
@@ -157,7 +156,7 @@ export function UserTurn({
   return (
     <div className={queuedFor === undefined ? 'turn turn--user' : 'turn turn--user turn--queued'}>
       <div className="turn-av">
-        <Initials {...user} size={32} />
+        <Initials {...user} size={26} you />
       </div>
       <div className="turn-body">
         <Head name={user.name} ident={user.title} at={at} />

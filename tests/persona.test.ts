@@ -465,7 +465,11 @@ describe('the visual contract, read at run time', () => {
 
   it('renders at exactly the sizes DESIGN.md names, and at no other', () => {
     expect(portraitBlock['sizes'], 'DESIGN.md components.portrait.sizes').toBeTypeOf('string')
-    const named = [...portraitBlock['sizes'].matchAll(/\b(\d+)\b/g)].map(([, size]) => Number(size))
+    // The sizes are the numbers before the note that the chat thread and its header carry none
+    // (their 26 and 22 are initials discs, not portraits).
+    const [rendered = ''] = portraitBlock['sizes'].split(/\bnone in\b/)
+    const named = [...rendered.matchAll(/\b(\d+)\b/g)].map(([, size]) => Number(size))
+    expect(portraitBlock['sizes']).toMatch(/none in the chat thread or its header/)
 
     const union = portraitSource.match(/export type PortraitSize = ([^\n]+)/)
     expect(union, 'portrait.tsx must export the size union').not.toBeNull()
@@ -653,10 +657,12 @@ describe('the two new stylesheets', () => {
 
     expect(initials).toContain('width: var(--initials-size)')
     expect(initials).toContain('height: var(--initials-size)')
-    expect(initials).toContain('width: var(--initials-size-user)')
-    expect(initials).toContain('height: var(--initials-size-user)')
+    expect(initials).toContain('width: var(--initials-size-thread)')
+    expect(initials).toContain('height: var(--initials-size-thread)')
+    expect(initials).toContain('width: var(--initials-size-header)')
+    expect(initials).toContain('height: var(--initials-size-header)')
     expect(initials).toContain('font-size: var(--fs-micro)')
-    expect(initials).toContain('font-size: var(--fs-ident)')
+    expect(initials).toContain('font-size: var(--fs-label)')
     expect(initials).toContain('margin-right: var(--initials-overlap)')
     // The one thing `--lh-none` exists for, and nothing else referenced it.
     expect(portraitCss).toContain('line-height: var(--lh-none)')
@@ -815,11 +821,13 @@ describe('the faces in the running app', () => {
     }
   })
 
-  it('draws a persona’s face on each of their turns, from the roster’s own agent', () => {
+  it('draws a persona’s initials disc on each of their turns, from the roster’s own agent, and no portrait', () => {
     const turn = read('src/renderer/ui/chat/turn.tsx')
 
-    expect(turn).toContain('portrait(artParamsFor(agent.id), 32, state, agent)')
-    expect(turn).toMatch(/<Initials \{\.\.\.user\} size=\{32\} \/>/)
+    expect(turn).not.toMatch(/portrait\(|artParamsFor/)
+    expect(turn.match(/<Initials \{\.\.\.agent\} size=\{26\} \/>/g)).toHaveLength(2)
+    expect(turn).toMatch(/<Initials \{\.\.\.user\} size=\{26\} you \/>/)
+    expect(read('src/renderer/ui/party/party-turn.tsx')).toContain('<Initials {...agent} size={26} />')
   })
 
   it('renders the install errors and the install failure, and no persona menu', () => {

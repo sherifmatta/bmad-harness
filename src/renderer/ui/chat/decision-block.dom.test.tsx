@@ -163,7 +163,7 @@ describe('Turns, decision', () => {
       'a queued message',
       { kind: 'user', id: 'q', at: 2, text: 'hm', queuedFor: 'John' } as TranscriptEntry
     ],
-    ['a sysline', { kind: 'sysline', id: 's', at: 2, text: 'handed off' } as TranscriptEntry]
+    ['a sysline', { kind: 'sysline', id: 's', at: 2, text: 'handed to John' } as TranscriptEntry]
   ])('is absent once %s follows it', (_what, later) => {
     turns([asked(), later], () => true)
 

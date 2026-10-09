@@ -743,7 +743,7 @@ it('copies the room’s own cast and open time from the reply into the opened se
 })
 
 it('resolves openSession with the handoff sysline when main answered with one, and with no other field', async () => {
-  const handoff = { kind: 'sysline', id: 'm-3', at: 9, text: 'handed off · Mary → John' }
+  const handoff = { kind: 'sysline', id: 'm-3', at: 9, text: 'handed to John' }
   invoke.mockClear()
   invoke.mockResolvedValue({ ok: true, sessionId: 's2', handoff, stray: 'x' })
   const openSession = exposedApis.get('harness')?.openSession as (id: string) => Promise<unknown>

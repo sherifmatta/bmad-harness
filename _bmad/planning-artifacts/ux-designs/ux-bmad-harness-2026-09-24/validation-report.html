@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<!--
+  UX Design Validation Report — skeleton template.
+
+  This file is a starter the synthesis pass fills in directly. There is no
+  substitution engine. The LLM:
+    1. Reads {doc_workspace}/review-rubric.md and every review-{slug}.md from
+       additional reviewers.
+    2. Copies this skeleton.
+    3. Replaces the placeholder content (everything between TEMPLATE markers)
+       with the consolidated review, preserving the structure and CSS.
+    4. Writes the result to {doc_workspace}/validation-report.html.
+    5. Writes a markdown twin to {doc_workspace}/validation-report.md.
+
+  Visual rules the LLM must preserve:
+    - The container width, the color tokens, the typography.
+    - One dimension = one collapsible <section class="dimension">.
+    - Verdict pill uses the verdict-* class matching its judgment.
+    - Severity badge uses the badge-sev-* class matching its level.
+    - Each extra reviewer (accessibility, adversarial, etc.) gets its own
+      collapsible section below the rubric dimensions.
+    - The footer always shows the artifact paths and timestamp.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>UX Design Validation: bmad-harness</title>
+<style>
+  :root {
+    --bg: #fafaf9;
+    --surface: #ffffff;
+    --border: #e7e5e4;
+    --text: #1c1917;
+    --muted: #78716c;
+
+    --verdict-strong: #16a34a;
+    --verdict-adequate: #65a30d;
+    --verdict-thin: #d97706;
+    --verdict-broken: #dc2626;
+
+    --sev-low: #64748b;
+    --sev-medium: #ca8a04;
+    --sev-high: #ea580c;
+    --sev-critical: #dc2626;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    font-size: 15px;
+  }
+  .container { max-width: 960px; margin: 0 auto; padding: 32px 24px 64px; }
+
+  header.report-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+  }
+  .title h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+  .title .subtitle { color: var(--muted); font-size: 13px; margin-top: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+
+  .synthesis {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--muted);
+    border-radius: 8px;
+    padding: 18px 22px;
+    margin-bottom: 24px;
+    font-size: 15.5px;
+  }
+  .synthesis p { margin: 0 0 10px; }
+  .synthesis p:last-child { margin-bottom: 0; }
+
+  .dimension-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+    margin-bottom: 24px;
+  }
+  .dim-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .dim-card .dim-name { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .dim-card .dim-verdict { font-size: 14px; font-weight: 600; }
+
+  section.dimension, section.reviewer-section { margin-bottom: 14px; }
+  section.dimension details, section.reviewer-section details {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  section summary {
+    padding: 14px 20px;
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  section summary::-webkit-details-marker { display: none; }
+  section summary::before {
+    content: "▸";
+    display: inline-block;
+    color: var(--muted);
+    transition: transform 0.15s ease;
+  }
+  section details[open] summary::before { transform: rotate(90deg); }
+  section summary h2 {
+    display: inline;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    flex: 1;
+  }
+  .verdict-pill {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: white;
+  }
+  .verdict-strong { background: var(--verdict-strong); }
+  .verdict-adequate { background: var(--verdict-adequate); }
+  .verdict-thin { background: var(--verdict-thin); }
+  .verdict-broken { background: var(--verdict-broken); }
+
+  .dim-body { padding: 4px 20px 18px; }
+  .dim-judgment { color: var(--text); font-size: 14.5px; }
+  .dim-judgment p { margin: 0 0 10px; }
+
+  .findings-list { padding: 0 20px 4px; }
+  article.finding {
+    padding: 14px 0;
+    border-top: 1px solid var(--border);
+  }
+  article.finding:first-child { border-top: none; }
+  article.finding header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+  }
+  .badge {
+    font-size: 10.5px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    line-height: 1.4;
+  }
+  .badge-sev-low { background: rgba(100, 116, 139, 0.12); color: var(--sev-low); }
+  .badge-sev-medium { background: rgba(202, 138, 4, 0.14); color: var(--sev-medium); }
+  .badge-sev-high { background: rgba(234, 88, 12, 0.14); color: var(--sev-high); }
+  .badge-sev-critical { background: rgba(220, 38, 38, 0.14); color: var(--sev-critical); }
+  .finding-title { margin: 0; font-size: 15px; font-weight: 500; flex: 1; min-width: 200px; }
+  .finding-location { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; color: var(--muted); }
+  .finding-note, .finding-fix { margin-top: 6px; font-size: 14px; }
+  .finding-fix strong { color: var(--muted); font-weight: 500; }
+
+  .reviewer-source {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  .mechanical {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-top: 24px;
+    font-size: 14px;
+  }
+  .mechanical h3 { margin: 0 0 10px; font-size: 14px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .mechanical ul { margin: 0; padding-left: 20px; }
+  .mechanical li { margin-bottom: 4px; color: var(--text); }
+
+  footer.report-footer {
+    margin-top: 40px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--muted);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  footer .meta { display: flex; gap: 24px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+  <div class="container">
+    <header class="report-header">
+      <div class="title">
+        <h1>bmad-harness — UX Design Validation Report</h1>
+        <div class="subtitle">_bmad/planning-artifacts/ux-designs/ux-bmad-harness-2026-09-24/ (DESIGN.md + EXPERIENCE.md)</div>
+      </div>
+    </header>
+
+    <div class="synthesis">
+      <p>The pair is usable as a contract. No colour token lacks a hex, every token reference (including the new initials sizes) resolves except the pre-existing opacity group, DESIGN.md&#x27;s section order is canonical, and EXPERIENCE.md has every required default. Nothing is critical; two findings are high.</p>
+      <p>The 2026-10-09 chat-look edit landed cleanly where it rewrote things (flat row, initials disc, inline clock time, the handoff wording, the run-list mode names). It left residue where it did not rewrite (the Layout binding-constants table, Typography head, Shapes card, Elevation&#x27;s inset rule, the portrait mockup&#x27;s description) and it opened three real gaps: a header Stop with no command for a plain chat turn, a handoff line whose skill half no v1 flow can produce, and a party live turn whose ground and edge are undecided.</p>
+    </div>
+
+    <div class="dimension-summary">
+      <div class="dim-card">
+        <div class="dim-name">Flow coverage · 4</div>
+        <div class="dim-verdict" style="color: var(--verdict-adequate)">adequate</div>
+      </div>
+      <div class="dim-card">
+        <div class="dim-name">Token completeness · 6</div>
+        <div class="dim-verdict" style="color: var(--verdict-adequate)">adequate</div>
+      </div>
+      <div class="dim-card">
+        <div class="dim-name">Component coverage · 6</div>
+        <div class="dim-verdict" style="color: var(--verdict-thin)">thin</div>
+      </div>
+      <div class="dim-card">
+        <div class="dim-name">State coverage · 5</div>
+        <div class="dim-verdict" style="color: var(--verdict-adequate)">adequate</div>
+      </div>
+      <div class="dim-card">
+        <div class="dim-name">Visual reference coverage · 3</div>
+        <div class="dim-verdict" style="color: var(--verdict-adequate)">adequate</div>
+      </div>
+      <div class="dim-card">
+        <div class="dim-name">Bloat &amp; overspecification · 4</div>
+        <div class="dim-verdict" style="color: var(--verdict-adequate)">adequate</div>
+      </div>
+      <div class="dim-card">
+        <div class="dim-name">Inheritance discipline · 5</div>
+        <div class="dim-verdict" style="color: var(--verdict-adequate)">adequate</div>
+      </div>
+      <div class="dim-card">
+        <div class="dim-name">Shape fit · 2</div>
+        <div class="dim-verdict" style="color: var(--verdict-adequate)">adequate</div>
+      </div>
+    </div>
+
+    <section class="dimension">
+      <details>
+        <summary>
+          <h2>Flow coverage</h2>
+          <span class="verdict-pill verdict-adequate">adequate</span>
+        </summary>
+        <div class="dim-body">
+          <div class="dim-judgment">
+            <p>SPEC.md has no UJ list, so the inventory is CAP-1 to CAP-12 plus the three narrated sessions. Each of the three flows has a named protagonist, numbered steps, an explicit climax beat and, for Flows 1 and 3, a failure path.</p>
+          </div>
+        </div>
+        <div class="findings-list">
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">medium</span>
+              <h3 class="finding-title">Key Flows claim overreaches; CAP-1 and CAP-7 have no flow</h3>
+              <span class="finding-location">EXPERIENCE.md:58, 997</span>
+            </header>
+            <div class="finding-note">The intro says the three flows are what every rule was derived from, but Welcome, Theme, Output folder, Resizing, the Board and the chat look came later with no flow, and zero-config discovery with its preflight failure (CAP-1) and reviewing a finished document in its own window (CAP-7) have none.</div>
+            <div class="finding-fix"><strong>Fix:</strong> Reword the claim, and add one short Flow 4: Welcome, open a folder, a Preflight check 3 failure, a second open that succeeds, a document opened from the rail.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">medium</span>
+              <h3 class="finding-title">Tile click and @name triggers for the handoff are not in the tables</h3>
+              <span class="finding-location">EXPERIENCE.md:147, 178</span>
+            </header>
+            <div class="finding-note">Flow 3 says a tile click opens a new process and emits the sysline. Neither Component Patterns nor Interaction Primitives says that, and nothing says what a click on a persona who already has a live session does.</div>
+            <div class="finding-fix"><strong>Fix:</strong> Add the trigger and the already-has-a-session case to the Persona tile row and the @&lt;name&gt; row.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">low</span>
+              <h3 class="finding-title">Flow 2 has no failure path</h3>
+              <span class="finding-location">EXPERIENCE.md Flow 2</span>
+            </header>
+            <div class="finding-note">Party has a stop and a summary write that can be refused (output folder gone).</div>
+            <div class="finding-fix"><strong>Fix:</strong> One italic Failure line.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">low</span>
+              <h3 class="finding-title">Flow 1 step 4 describes the card body as the run-note feed alone</h3>
+              <span class="finding-location">EXPERIENCE.md:286</span>
+            </header>
+            <div class="finding-note">With the run list in force, steps join the list once the main-side event exists.</div>
+            <div class="finding-fix"><strong>Fix:</strong> One clause.</div>
+          </article>
+        </div>
+      </details>
+    </section>
+    <section class="dimension">
+      <details>
+        <summary>
+          <h2>Token completeness</h2>
+          <span class="verdict-pill verdict-adequate">adequate</span>
+        </summary>
+        <div class="dim-body">
+          <div class="dim-judgment">
+            <p>All 40 dark and 66 light colour tokens carry hex and every dark token has a light twin. All references resolve programmatically except the opacity group. A measured contrast table exists for the load-bearing pairs.</p>
+          </div>
+        </div>
+        <div class="findings-list">
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-high">high</span>
+              <h3 class="finding-title">26 light-theme token names have no dark entry in colors</h3>
+              <span class="finding-location">DESIGN.md:126-151, 311, 370, 392-396, 406-408, 471, 497, 932, 994, 998</span>
+            </header>
+            <div class="finding-note">The dark values of cast-speaking-*, send-*, tile-current, scrollbar-thumb*, win-light, status-pill-*, party-live-ground and others live only as literals in components and prose. That is the defect AD-14 names and it breaks &#x27;no component names a theme&#x27;: a component with #393939 is correct in dark only. Verified: 26 light-only names.</div>
+            <div class="finding-fix"><strong>Fix:</strong> Add the dark values to colors under the same 26 names and make the components reference them. The code&#x27;s tokens.css already names both sets.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">medium</span>
+              <h3 class="finding-title">{opacity.idle} points at a group that does not exist</h3>
+              <span class="finding-location">DESIGN.md:1028, 1057; EXPERIENCE.md:669</span>
+            </header>
+            <div class="finding-note">The cast-card opacities .42/.72/1 and the file icon .75 are literals. EXPERIENCE also states a CSS variable name, which its own rule forbids.</div>
+            <div class="finding-fix"><strong>Fix:</strong> Add an opacity group (idle, hover, speaking, icon) and reference it; in EXPERIENCE use {opacity.idle}.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">medium</span>
+              <h3 class="finding-title">Chat header and Run step have no components entry; dimensions are prose literals</h3>
+              <span class="finding-location">DESIGN.md:858, 919-922</span>
+            </header>
+            <div class="finding-note">Header 46px, 0 16px, 10px gaps, Stop 3px 10px; step grid 14px · 1fr · auto, 9px gap, 3px padding. Run note has a grid token; these two do not. initials.threadFont is a prose string with literals. Document-card has no run-list head tokens.</div>
+            <div class="finding-fix"><strong>Fix:</strong> Add chat-header and run-step to components, add spacing.chat-head, express threadFont through role tokens.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">medium</span>
+              <h3 class="finding-title">Binding constants table is stale against the frontmatter</h3>
+              <span class="finding-location">DESIGN.md:659, 666, 674, 255, 703</span>
+            </header>
+            <div class="finding-note">Rail 348px, two halves, &#x27;portrait 32 transcript / 38 chat header&#x27;, &#x27;chat sub-line max 72ch&#x27; all predate the three-column layout and the one-line header. The responsive bullet still describes the rail moving below with two halves.</div>
+            <div class="finding-fix"><strong>Fix:</strong> Rewrite the rows (sidebar, rail, header, portrait sizes), delete spacing.chat-sub-max, align the responsive bullet with EXPERIENCE.md:673.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">medium</span>
+              <h3 class="finding-title">Running step&#x27;s elapsed is drawn at faint while EXPERIENCE says it carries the liveness</h3>
+              <span class="finding-location">EXPERIENCE.md:283; DESIGN.md:862, 933</span>
+            </header>
+            <div class="finding-note">Under reduced motion &#x27;now&#x27; carries the liveness, but faint is 3.5:1 and the accessibility rule forbids a faint string as the only carrier of a fact. The contrast table has no row for the initials discs.</div>
+            <div class="finding-fix"><strong>Fix:</strong> Draw the running step&#x27;s elapsed at dim; add the two disc pairs to the table; state the clock time restates nothing load-bearing.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">low</span>
+              <h3 class="finding-title">accent-wash and accent-edge retained with no owner</h3>
+              <span class="finding-location">DESIGN.md:61-62, 107-108</span>
+            </header>
+            <div class="finding-note">Kept &#x27;until a story removes it&#x27;; the code still has --inset-turn-user.</div>
+            <div class="finding-fix"><strong>Fix:</strong> Delete them from the contract and let the removing story cite the memlog.</div>
+          </article>
+        </div>
+      </details>
+    </section>
+    <section class="dimension">
+      <details open>
+        <summary>
+          <h2>Component coverage</h2>
+          <span class="verdict-pill verdict-thin">thin</span>
+        </summary>
+        <div class="dim-body">
+          <div class="dim-judgment">
+            <p>Every component name was checked against DESIGN.md Components and EXPERIENCE.md Component Patterns. The thin verdict comes mostly from the pattern table missing rows for components whose behaviour lives in dedicated sections.</p>
+          </div>
+        </div>
+        <div class="findings-list">
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-high">high</span>
+              <h3 class="finding-title">Header Stop has no command for a plain chat turn</h3>
+              <span class="finding-location">EXPERIENCE.md:154, 690</span>
+            </header>
+            <div class="finding-note">The spine says Stop dispatches run.stop(runId) and is the same stop for the turn in flight. A plain chat turn is not a run and has no runId. Verified: commands.ts has only run.stop and session.close.</div>
+            <div class="finding-fix"><strong>Fix:</strong> Decide: Stop appears only while a run is in flight (a chat turn in flight shows close session), or hand a turn.stop command to bmad-architecture. Resolve together with the open Stop vs close session item.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">medium</span>
+              <h3 class="finding-title">No behavioural row for Conversation turn, Chat header, Run step, Run note, Status dot, Tags, Follow control, Splitter, Folder heading, Outputs head, Welcome</h3>
+              <span class="finding-location">EXPERIENCE.md Component Patterns</span>
+            </header>
+            <div class="finding-note">Behaviour exists in dedicated sections, but a consumer extracting from the table finds nothing and no pointer. Chat header and Run step are the two just added.</div>
+            <div class="finding-fix"><strong>Fix:</strong> Add one row each, pointing to the owning section.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">medium</span>
+              <h3 class="finding-title">Two phantom components: the handoff chip and stacked faces</h3>
+              <span class="finding-location">DESIGN.md:293, 628, 738-740, 804-807, 891</span>
+            </header>
+            <div class="finding-note">Specified in DESIGN with no Components row and no EXPERIENCE behaviour; their only named v1 consumers are cut (refusal-with-handoff is banned for v1, the party stack-face panel is deferred).</div>
+            <div class="finding-fix"><strong>Fix:</strong> Mark both deferred with the source of need, or remove them and rounded.pill.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">medium</span>
+              <h3 class="finding-title">Named but never given a visual spec: install chip, branch chip, status pill, run chip, end-session control, close session</h3>
+              <span class="finding-location">EXPERIENCE.md:81, 191; DESIGN.md:627, 732, 922</span>
+            </header>
+            <div class="finding-note">The status pill has only light-theme tokens and the header spec says &#x27;the existing status pill&#x27;.</div>
+            <div class="finding-fix"><strong>Fix:</strong> Add anatomy rows, or mark each &#x27;as built, not respecified&#x27;.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">medium</span>
+              <h3 class="finding-title">Document card head disagrees across the two files</h3>
+              <span class="finding-location">DESIGN.md:836; EXPERIENCE.md:263, 800</span>
+            </header>
+            <div class="finding-note">DESIGN draws the run-list head as skill name, run, working, elapsed, always. EXPERIENCE says a phase word shows only if a feed states one, else path or skill name and elapsed, and never says where the phase word sits relative to working.</div>
+            <div class="finding-fix"><strong>Fix:</strong> State one head grammar for run-list mode: the slot for the phase word, whether working is always shown, its colour.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">low</span>
+              <h3 class="finding-title">DESIGN Tags specify labels that EXPERIENCE says v1 ships none of</h3>
+              <span class="finding-location">DESIGN.md:867-872; EXPERIENCE.md:131, 899</span>
+            </header>
+            <div class="finding-note">evidence, concedes · partly, disagrees · &lt;name&gt;, unresolved.</div>
+            <div class="finding-fix"><strong>Fix:</strong> Label the deferred ones in DESIGN.</div>
+          </article>
+        </div>
+      </details>
+    </section>
+    <section class="dimension">
+      <details>
+        <summary>
+          <h2>State coverage</h2>
+          <span class="verdict-pill verdict-adequate">adequate</span>
+        </summary>
+        <div class="dim-body">
+          <div class="dim-judgment">
+            <p>Notification permission, resolver failure, orphaned session, folder missing, preflight, queued composer, dead card, empty rail and Welcome are all covered; offline does not apply.</p>
+          </div>
+        </div>
+        <div class="findings-list">
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">medium</span>
+              <h3 class="finding-title">Two run-card states are undefined</h3>
+              <span class="finding-location">EXPERIENCE.md:265, 761, 823</span>
+            </header>
+            <div class="finding-note">(1) Between run:started and the first note or step the expanded body has nothing to draw, contradicting &#x27;the card never has an empty body&#x27;. (2) The finished row says &#x27;saved · just now · N sections&#x27;, false for a run that writes no document, and Voice and Tone rule 3 forbids claiming what did not happen.</div>
+            <div class="finding-fix"><strong>Fix:</strong> Define the empty-at-start body (the head&#x27;s working plus elapsed is already there; say so), and add a &#x27;finished, no document&#x27; row.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">medium</span>
+              <h3 class="finding-title">Steps are absent from the accessibility policy; the keyboard table omits several controls</h3>
+              <span class="finding-location">EXPERIENCE.md:976, 939-954</span>
+            </header>
+            <div class="finding-note">Notes are announced politely; steps are not covered and the check and cross marks need accessible names. The Keyboard reach table omits the header Stop/close session, Inbox rows, Board cards and Message actions.</div>
+            <div class="finding-fix"><strong>Fix:</strong> Add rows; decide steps are not announced (the run lifecycle is) and say why.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">low</span>
+              <h3 class="finding-title">Unspecified failure states</h3>
+            </header>
+            <div class="finding-note">Board with a missing or malformed sprint-status.yaml; a document window whose file is deleted while open; a session that exits unexpectedly mid-session.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">low</span>
+              <h3 class="finding-title">Three elapsed formats with no rule</h3>
+              <span class="finding-location">EXPERIENCE.md:312</span>
+            </header>
+            <div class="finding-note">&#x27;working · 0s&#x27;, &#x27;4m 12s&#x27; and &#x27;0:03&#x27;.</div>
+            <div class="finding-fix"><strong>Fix:</strong> One format note in Typography or Voice and Tone.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">low</span>
+              <h3 class="finding-title">Run list ordering and rules not fully stated</h3>
+              <span class="finding-location">DESIGN.md:845, 858</span>
+            </header>
+            <div class="finding-note">A running step stays where it started when a note arrives under it; steps have no rule between rows while consecutive notes have a line-soft rule, and the two are interleaved.</div>
+          </article>
+        </div>
+      </details>
+    </section>
+    <section class="dimension">
+      <details>
+        <summary>
+          <h2>Visual reference coverage</h2>
+          <span class="verdict-pill verdict-adequate">adequate</span>
+        </summary>
+        <div class="dim-body">
+          <div class="dim-judgment">
+            <p>Linked with a stated purpose: welcome-screen-chosen, light-theme, follow-the-thread, output-folder, rail-resize-collapse, paperclip-layout-chat, paperclip-board, document-card-dead-air (EXPERIENCE only), portrait (DESIGN only), light-a-* (DESIGN only), chat-thread-reference.png (EXPERIENCE only).</p>
+          </div>
+        </div>
+        <div class="findings-list">
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">medium</span>
+              <h3 class="finding-title">DESIGN.md says &#x27;the screenshot&#x27; five times but never names or links it; both sources lists are incomplete</h3>
+              <span class="finding-location">DESIGN.md Conversation turn, Initials, Chat header, Run step, Document card</span>
+            </header>
+            <div class="finding-note">A DESIGN-only reader cannot resolve it. DESIGN&#x27;s sources omits files its body links; EXPERIENCE&#x27;s omits document-card-dead-air.html and the PNG.</div>
+            <div class="finding-fix"><strong>Fix:</strong> Link the PNG at Conversation turn and Chat header; reconcile both sources lists.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">medium</span>
+              <h3 class="finding-title">Three linked mockups still draw what the spine now rejects</h3>
+              <span class="finding-location">follow-the-thread, rail-resize-collapse, light-a-shell; DESIGN.md:750</span>
+            </header>
+            <div class="finding-note">Container turns, a washed user turn with a left rule, and 32px portraits in the thread. portrait.html is described as showing portraits &#x27;in context on tiles, turns and cast cards&#x27;. The spines-win sentence appears per mockup, not once.</div>
+            <div class="finding-fix"><strong>Fix:</strong> State spines-win once near the top of each file and add &#x27;turn rendering here is superseded by the chat look&#x27; to the four links.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">low</span>
+              <h3 class="finding-title">Orphans</h3>
+              <span class="finding-location">DESIGN.md:563</span>
+            </header>
+            <div class="finding-note">welcome-screen.html is unreferenced; light-b-shell and light-b-welcome appear only as the unlinked glob light-b-*.</div>
+          </article>
+        </div>
+      </details>
+    </section>
+    <section class="dimension">
+      <details>
+        <summary>
+          <h2>Bloat &amp; overspecification</h2>
+          <span class="verdict-pill verdict-adequate">adequate</span>
+        </summary>
+        <div class="dim-body">
+          <div class="dim-judgment">
+            <p>The decisions are specific and tied to sources. The main cost is history carried inside the contract.</p>
+          </div>
+        </div>
+        <div class="findings-list">
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">medium</span>
+              <h3 class="finding-title">The contract carries its own changelog</h3>
+              <span class="finding-location">44 dated annotations; EXPERIENCE.md:657, 756-775, 136</span>
+            </header>
+            <div class="finding-note">&#x27;Amended / Replaces / Added&#x27; prose, Dead Air options B and C, the 68,394-byte evidence narrative, the Paperclip provenance paragraph, the palette-A history. The memlog already holds this.</div>
+            <div class="finding-fix"><strong>Fix:</strong> Keep the current rule and one reason; move history to .memlog.md.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">low</span>
+              <h3 class="finding-title">Portrait geometry restates the mockup and AD-16</h3>
+              <span class="finding-location">DESIGN.md:765-775</span>
+            </header>
+            <div class="finding-note">Draw order, per-shape opacities and colours.</div>
+            <div class="finding-fix"><strong>Fix:</strong> Keep invariants only: purity, light source, parameters, derivation.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">low</span>
+              <h3 class="finding-title">Proposed anatomy specifies unbuilt surfaces to token level</h3>
+              <span class="finding-location">DESIGN.md:1018-1060</span>
+            </header>
+            <div class="finding-note">&#x27;Which become stories is not yet chosen.&#x27;</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">low</span>
+              <h3 class="finding-title">Light-theme derivation list restates the hexes in colors-light</h3>
+              <span class="finding-location">DESIGN.md:563-574</span>
+            </header>
+          </article>
+        </div>
+      </details>
+    </section>
+    <section class="dimension">
+      <details>
+        <summary>
+          <h2>Inheritance discipline</h2>
+          <span class="verdict-pill verdict-adequate">adequate</span>
+        </summary>
+        <div class="dim-body">
+          <div class="dim-judgment">
+            <p>sources resolve, AD and CAP ids are used consistently. The drift is mostly surface names and clauses the chat look contradicts upstream.</p>
+          </div>
+        </div>
+        <div class="findings-list">
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">medium</span>
+              <h3 class="finding-title">Source clauses the chat look contradicts are not acknowledged as superseded</h3>
+              <span class="finding-location">SPEC.md CAP-3, CAP-10; ui-surfaces.md; scope-tiers.md</span>
+            </header>
+            <div class="finding-note">CAP-3 (&#x27;portrait, name, title and state render in the chat header&#x27;), CAP-10, ui-surfaces portrait sizes and the party transcript line, &#x27;dark theme only&#x27;. The memlog override names only AD-16; the spines name no CAP. Architecture and story-dev derive from CAP-3.</div>
+            <div class="finding-fix"><strong>Fix:</strong> Add a short Supersedes list, as done for 288px and the 20px floor, naming each clause and the date.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">medium</span>
+              <h3 class="finding-title">Name drift left by the edit</h3>
+              <span class="finding-location">DESIGN.md:636, 645; EXPERIENCE.md:146, 178, 474, 655, 702, 899, 908, 942</span>
+            </header>
+            <div class="finding-note">Typography head is &#x27;chat-header persona name&#x27; at 14px but the header uses name at 12.5px; Voice and Tone says persona voice is body-ui while turn words are base; role vs title; stale names &#x27;Persona tile | rail&#x27;, &#x27;Rail — Team half&#x27;, &#x27;View switch toggles 1:1 ↔ Party&#x27;, &#x27;one switch, no third view&#x27;; Context panel vs rail vs right panel.</div>
+            <div class="finding-fix"><strong>Fix:</strong> Pick one term each and sweep.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">medium</span>
+              <h3 class="finding-title">EXPERIENCE says it never uses a literal size yet restates several; the new initials tokens are never referenced from it</h3>
+              <span class="finding-location">EXPERIENCE.md:32, 149, 681, 987</span>
+            </header>
+            <div class="finding-note">26px, 22px, 20px, the 24px follow threshold, 16/64px key steps.</div>
+            <div class="finding-fix"><strong>Fix:</strong> Use the tokens; keep behavioural numbers as behaviour constants and say so.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">low</span>
+              <h3 class="finding-title">&#x27;the dedicated note-blue token&#x27; is stale</h3>
+              <span class="finding-location">EXPERIENCE.md:239</span>
+            </header>
+            <div class="finding-note">note is #8e8e93 grey.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">low</span>
+              <h3 class="finding-title">Ids cited that are not in sources</h3>
+              <span class="finding-location">FR78, FR94, NFR23, NFR27, UX-DR12, Story 1.1, Story 3.14, epics.md</span>
+            </header>
+            <div class="finding-fix"><strong>Fix:</strong> Add epics.md to sources or cite the capability instead.</div>
+          </article>
+        </div>
+      </details>
+    </section>
+    <section class="dimension">
+      <details>
+        <summary>
+          <h2>Shape fit</h2>
+          <span class="verdict-pill verdict-adequate">adequate</span>
+        </summary>
+        <div class="dim-body">
+          <div class="dim-judgment">
+            <p>DESIGN order is canonical; EXPERIENCE has every required default; invented sections each carry a decision no default holds; Inspiration is covered inline.</p>
+          </div>
+        </div>
+        <div class="findings-list">
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">low</span>
+              <h3 class="finding-title">DESIGN has a Responsive subsection; EXPERIENCE has no Responsive section</h3>
+              <span class="finding-location">EXPERIENCE Resizing, Following the thread, Layout</span>
+            </header>
+            <div class="finding-note">Behaviour at ≤1180 and ≤1000px is spread across three sections.</div>
+            <div class="finding-fix"><strong>Fix:</strong> A three-line pointer section.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">low</span>
+              <h3 class="finding-title">Both files are status: final while four items are open</h3>
+              <span class="finding-location">both frontmatters</span>
+            </header>
+            <div class="finding-note">Stop vs close session, party live turn, skill-name source, register split.</div>
+            <div class="finding-fix"><strong>Fix:</strong> Keep final with an Open items list (see below).</div>
+          </article>
+        </div>
+      </details>
+    </section>
+    <section class="reviewer-section">
+      <details open>
+        <summary>
+          <h2>Consistency of the 2026-10-09 chat-look edit</h2>
+          <span class="reviewer-source">review-rubric.md §9</span>
+        </summary>
+        <div class="dim-body">
+          <div class="dim-judgment">
+            <p>Checked against items (a) to (h) of the review brief. (c) clock time is consistent everywhere, no contradiction. (e) names, marks and modes of the run list line up across both files. (f) every new token reference resolves. AD-7, AD-9, AD-16, AD-20 and AD-21 are cited correctly.</p>
+          </div>
+        </div>
+        <div class="findings-list">
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">medium</span>
+              <h3 class="finding-title">(a) Portrait residue in four places</h3>
+              <span class="finding-location">DESIGN.md:674, 750, 636, 255, 1057</span>
+            </header>
+            <div class="finding-note">Binding constants still lists 32 transcript and 38 chat header; portrait.html described as showing &#x27;turns&#x27;; Typography head is the chat-header name; Board Agents says &#x27;portrait or initials&#x27; without choosing.</div>
+            <div class="finding-fix"><strong>Fix:</strong> See token 4, visual 2 and inheritance 2.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">low</span>
+              <h3 class="finding-title">(a) CAP-3, CAP-10 and ui-surfaces still require portraits in the header and transcript</h3>
+              <span class="finding-location">SPEC.md; ui-surfaces.md</span>
+            </header>
+            <div class="finding-fix"><strong>Fix:</strong> See inheritance 1.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">medium</span>
+              <h3 class="finding-title">(b) The party live turn is half-decided</h3>
+              <span class="finding-location">DESIGN.md:716, 734, 146, 914; EXPERIENCE.md:692</span>
+            </header>
+            <div class="finding-note">Conversation turn keeps &#x27;the one inset rule left&#x27; as an assumption, but Elevation states it as fact, Shapes card still lists conversation turn and party turn as 6px containers, and party-live-ground is neither kept nor removed. A flat row with a ground and a rule is not a flat row.</div>
+            <div class="finding-fix"><strong>Fix:</strong> Decide edge and ground together, drop both from the card row, flag Elevation.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">low</span>
+              <h3 class="finding-title">(b) No Do&#x27;s and Don&#x27;ts row for the flat row; message actions anchor to a box</h3>
+              <span class="finding-location">DESIGN.md:1044</span>
+            </header>
+            <div class="finding-fix"><strong>Fix:</strong> Add the row; say &#x27;the turn row&#x27;.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">medium</span>
+              <h3 class="finding-title">(d) The &#x27;· &lt;skill&gt;&#x27; half of the handoff line has no v1 producer</h3>
+              <span class="finding-location">EXPERIENCE.md:178, 182, Flow 3; Voice and Tone Do example</span>
+            </header>
+            <div class="finding-note">Tile click and @name never name a skill, and Flow 3 says none is named, yet the Do example shows &#x27;handed to Amelia · bmad-build&#x27;. The skill-name source is not handed to architecture.</div>
+            <div class="finding-fix"><strong>Fix:</strong> Say the skill half is dormant until a handoff-with-skill exists or drop it from the example. Handed to the architecture task.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">low</span>
+              <h3 class="finding-title">(e) Run-list leftovers</h3>
+              <span class="finding-location">DESIGN.md:1072, 612</span>
+            </header>
+            <div class="finding-note">The Do&#x27;s and Don&#x27;ts register-split row and the &#x27;do not add a label&#x27; sentence were not amended for steps; head grammar, elapsed colour and states are covered above.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">low</span>
+              <h3 class="finding-title">(g) The four open items carry different tags</h3>
+              <span class="finding-location">both files</span>
+            </header>
+            <div class="finding-note">Stop vs close session is ASSUMPTION — OPEN; the party edge, skill-name source and register split are tagged inconsistently or not at all, so a grep finds one of four.</div>
+            <div class="finding-fix"><strong>Fix:</strong> Tag all four [OPEN] and list them once near the top of each file.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">low</span>
+              <h3 class="finding-title">(h) AD-3 overstated for skill names</h3>
+              <span class="finding-location">EXPERIENCE.md Voice and Tone</span>
+            </header>
+            <div class="finding-note">AD-3 keeps resolved names out of the renderer; main does resolve skill entries. The real gap is that the renderer&#x27;s event carries only the menu code.</div>
+            <div class="finding-fix"><strong>Fix:</strong> Say that.</div>
+          </article>
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">low</span>
+              <h3 class="finding-title">(h) AD-11 mis-cited for the stop control and &#x27;four mandated fields&#x27;</h3>
+              <span class="finding-location">EXPERIENCE.md:690, 821</span>
+            </header>
+            <div class="finding-note">Stop is CAP-11 and run.stop; the four fields are CAP-5 plus the collapse line.</div>
+            <div class="finding-fix"><strong>Fix:</strong> Cite CAP-11 and CAP-5.</div>
+          </article>
+        </div>
+      </details>
+    </section>
+
+    <div class="mechanical">
+      <h3>Mechanical notes</h3>
+      <ul>
+        <li>All sources paths resolve; the sources lists are incomplete against inline links (visual 1); epics.md and requirement ids cited in prose are outside sources (inheritance 5).</li>
+        <li>Cross-references checked and valid: The run list, Document card, Dead Air kind tags, Mode transition, elsewhere case, the handoff sysline, Accessibility Floor 5, Stopping costs the turn, The chat look. Stale pointer: EXPERIENCE.md:655 says DESIGN Components &#x27;to be added&#x27; although the section exists.</li>
+        <li>Unresolved references: {opacity.idle} (DESIGN.md:1028, 1057) and --opacity-idle (EXPERIENCE.md:669). {title} and {group.name} are placeholders.</li>
+        <li>colors-light is an extension key outside the Google spec; documented, but no consumer rule says how a resolver reads it.</li>
+        <li>Dead or unreferenced tokens: accent-wash, accent-edge, spacing.chat-sub-max, and the light-only tokens in token 1.</li>
+        <li>Counts: 44 dated annotations; 47 [ASSUMPTION] tags (9 DESIGN, 38 EXPERIENCE). No Mermaid in either file.</li>
+      </ul>
+    </div>
+
+    <footer class="report-footer">
+      <div class="meta">
+        <span>Rubric: /Users/sherifmatta/Learnings/bmad-harness/_bmad/planning-artifacts/ux-designs/ux-bmad-harness-2026-09-24/review-rubric.md</span>
+        <span>Generated: 2026-10-09T13:23:04-0400</span>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

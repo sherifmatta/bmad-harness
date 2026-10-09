@@ -185,7 +185,7 @@ describe('a room’s words in main’s transcript and in the window’s (Story 4
 })
 
 describe('a sysline in main’s transcript and in the window’s', () => {
-  const line = 'handed off · Mary → John · picking up from a.md'
+  const line = 'handed to John'
 
   it('is the same record in both, and hydrating it gives the line the window had before it reloaded', () => {
     let main = foldPersonaSaid(EMPTY_TRANSCRIPT, {

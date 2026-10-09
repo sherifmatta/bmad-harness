@@ -779,7 +779,7 @@ describe('a handoff sysline', () => {
     kind: 'sysline',
     id: 'm-2',
     at: 20,
-    text: 'handed off · Mary → John · picking up from a.md, b.md'
+    text: 'handed to John'
   }
   const spoken = fold([said('msg_1', 'Hello', 10)])
 

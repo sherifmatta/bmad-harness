@@ -5,7 +5,7 @@ import { Sysline } from './sysline'
 import { Turns } from './transcript'
 import type { TranscriptEntry } from './transcript'
 
-const text = 'handed off · Mary → John · picking up from a.md, b.md'
+const text = 'handed to John'
 
 describe('Sysline', () => {
   it('is the harness’s own line: one container, one span of text, and nothing that names a persona', () => {

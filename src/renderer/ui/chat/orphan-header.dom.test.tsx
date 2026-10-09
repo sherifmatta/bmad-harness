@@ -33,13 +33,15 @@ const mary: AgentView = {
 }
 
 describe('OrphanHeader', () => {
-  it('is a chat header: a 38px portrait, the name and title, and the mono note', () => {
+  it('is a chat header: a decorative 22px initials disc, the name and title, and the mono note', () => {
     render(mary, () => {})
 
     expect(container.querySelector('.chat-head.orphan-head')).not.toBeNull()
-    const face = container.querySelector('svg')
-    expect(face?.getAttribute('width')).toBe('38')
-    expect(face?.getAttribute('aria-label')).toBe('Mary, Analyst')
+    expect(container.querySelector('svg')).toBeNull()
+    const disc = container.querySelector('.initials.initials--header')
+    expect(disc?.textContent).toBe('M')
+    expect(disc?.getAttribute('aria-hidden')).toBe('true')
+    expect(disc?.hasAttribute('tabindex')).toBe(false)
     expect(container.querySelector('.chat-head-name')?.textContent).toBe('Mary')
     expect(container.querySelector('.chat-head-title')?.textContent).toBe('Analyst')
     expect(container.querySelector('.chat-head-sub')?.textContent).toBe(

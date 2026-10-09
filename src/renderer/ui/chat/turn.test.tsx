@@ -28,11 +28,14 @@ describe('PersonaTurn', () => {
     />
   )
 
-  it('is a turn with a 32px labelled portrait, the name, the role and a time', () => {
+  it('is a flat row with a decorative 26px initials disc, the name, the role and a time', () => {
     expect(markup).toContain('class="turn turn--persona"')
-    expect(markup).toMatch(
-      /<svg[^>]*width="32"[^>]*height="32"[^>]*aria-label="John, Product Manager"/
+    expect(markup).toContain(
+      '<span class="initials initials--thread" aria-hidden="true">J</span>'
     )
+    expect(markup).not.toContain('<svg')
+    expect(markup).not.toContain('tabindex')
+    expect(markup).not.toContain('role="img"')
     expect(markup).toContain('<span class="turn-name">John</span>')
     expect(markup).toContain('<span class="turn-role">Product Manager</span>')
     expect(markup).toMatch(/<span class="turn-time">\d{2}:\d{2}<\/span>/)
@@ -48,9 +51,9 @@ describe('PersonaTurn', () => {
     expect(markup).toContain('<div class="turn-words"><p>First line.</p><p>Second line.</p></div>')
   })
 
-  it('has no ground of its own, no button, no inline style and no initials disc', () => {
+  it('has no ground of its own, no button, no inline style and no user tint', () => {
     expect(markup).not.toContain('turn--user')
-    expect(markup).not.toContain('initials')
+    expect(markup).not.toContain('initials--you')
     expect(markup).not.toMatch(/<button|<input|<textarea/)
     expect(markup).not.toContain('style=')
   })
@@ -108,11 +111,13 @@ describe('UserTurn', () => {
     <UserTurn at={Date.UTC(2026, 9, 1, 12, 5)} text="hello there" />
   )
 
-  it('is the same container on the user ground, with the 32px initials avatar', () => {
+  it('is the same flat row, with a decorative 26px initials disc tinted for you', () => {
     expect(markup).toContain('class="turn turn--user"')
-    expect(markup).toContain('class="initials initials--user"')
-    expect(markup).toContain('aria-label="You, you"')
+    expect(markup).toContain(
+      '<span class="initials initials--thread initials--you" aria-hidden="true">Y</span>'
+    )
     expect(markup).not.toContain('<svg')
+    expect(markup).not.toContain('tabindex')
     expect(markup).toContain('<p>hello there</p>')
   })
 
@@ -272,7 +277,7 @@ describe('Transcript', () => {
     expect(markup).toContain('>SM<')
     expect(markup).not.toContain('>You<')
     expect(markup).toContain('<span class="turn-name">John</span>')
-    expect(markup).toContain('aria-label="John, Product Manager"')
+    expect(markup).toContain('initials--thread" aria-hidden="true">J<')
     expect(count(markup, /<span class="turn-name">John<\/span>/g)).toBe(2)
   })
 

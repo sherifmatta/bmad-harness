@@ -238,7 +238,7 @@ describe('Turns and the room (Story 4.2)', () => {
     { kind: 'user', id: 'u2', at: 3, text: 'to the room', room: true },
     { kind: 'persona', id: 'p2', at: 4, agent: mary, text: 'said in the room', room: true },
     { kind: 'sysline', id: 's1', at: 5, text: 'room opened by you', room: true },
-    { kind: 'sysline', id: 's2', at: 6, text: 'handed off · A → B' }
+    { kind: 'sysline', id: 's2', at: 6, text: 'handed to B' }
   ]
 
   it('draws none of the room’s turns or lines, and every 1:1 one', () => {
@@ -246,7 +246,7 @@ describe('Turns and the room (Story 4.2)', () => {
 
     expect(markup).toContain('to one')
     expect(markup).toContain('one to one')
-    expect(markup).toContain('handed off')
+    expect(markup).toContain('handed to')
     expect(markup).not.toContain('to the room')
     expect(markup).not.toContain('said in the room')
     expect(markup).not.toContain('room opened by you')

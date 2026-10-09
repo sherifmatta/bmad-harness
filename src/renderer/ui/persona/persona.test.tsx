@@ -26,7 +26,7 @@ import { Initials, initialsOf } from './initials'
  */
 
 const IDENTITY = { name: 'Mary', title: 'Business Analyst' }
-const SIZES: PortraitSize[] = [32, 36, 38, 44]
+const SIZES: PortraitSize[] = [36, 44]
 const STATES: PersonaState[] = ['idle', 'work', 'live', 'note', 'error']
 
 const MARY = artParamsFor('bmad-agent-analyst')
@@ -201,7 +201,7 @@ describe('determinism', () => {
 // FR79, FR73 — the closed size set, and the label at every one of them.
 // ---------------------------------------------------------------------------
 
-describe('the four render sizes', () => {
+describe('the two render sizes', () => {
   it('changes only width and height', () => {
     const shapes = SIZES.map((size) =>
       render(EVERYTHING, size).replace(/ width="\d+" height="\d+"/, '')
@@ -472,12 +472,24 @@ describe('one initials disc', () => {
     expect(markup.match(/initials-reveal"/g)).toHaveLength(1)
   })
 
-  it('takes the user size without the stacked treatment', () => {
-    const user = renderToStaticMarkup(<Initials name="Preview User" title="you" size={32} />)
+  it('is decorative at the chat sizes: aria-hidden, no tab stop, no label and no reveal', () => {
+    for (const [size, name] of [
+      [26, 'thread'],
+      [22, 'header']
+    ] as const) {
+      const disc = renderToStaticMarkup(<Initials name="Preview User" title="you" size={size} />)
 
-    expect(user).toContain('class="initials initials--user"')
-    expect(user).not.toContain('focus-stacked')
-    expect(user).toContain('>PU')
+      expect(disc).toBe(`<span class="initials initials--${name}" aria-hidden="true">PU</span>`)
+      expect(disc).not.toMatch(/tabindex|role=|aria-label|initials-reveal|focus-stacked/)
+    }
+  })
+
+  it('tints your own disc and no persona’s', () => {
+    const yours = renderToStaticMarkup(<Initials name="You" title="you" size={26} you />)
+    const theirs = renderToStaticMarkup(<Initials name="Mary" title="Analyst" size={26} />)
+
+    expect(yours).toContain('initials--you')
+    expect(theirs).not.toContain('initials--you')
   })
 
   it('is a stack of discs that each carry their own label', () => {

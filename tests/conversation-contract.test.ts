@@ -72,17 +72,21 @@ describe('the stylesheets', () => {
 })
 
 describe('the turn', () => {
-  it('is a card-radius container', () => {
-    expect(ruleBody(turnCss, '.turn')).toContain('border-radius: var(--radius-card)')
-    expect(declared.get('--radius-card')).toBe('6px')
+  it('is a flat row: no radius, padding, ground, border or rule, for a persona and for you', () => {
+    const row = ruleBody(turnCss, '.turn')
+
+    expect(row).toContain('display: flex')
+    expect(row).not.toMatch(/border|padding|background|box-shadow/)
+    expect(turnCss).not.toMatch(/accent-wash|accent-edge|inset-turn-user|\.turn--user\s*\{/)
   })
 
-  it('puts the user turn on the accent wash with the inset accent-edge rule', () => {
-    const body = ruleBody(turnCss, '.turn--user')
+  it('tints your disc and nothing else about your turn', () => {
+    const initialsCss = withoutComments(read('src/renderer/ui/persona/initials.css'))
+    const you = ruleBody(initialsCss, '.initials--you')
 
-    expect(body).toContain('background: var(--accent-wash)')
-    expect(body).toContain('box-shadow: var(--inset-turn-user)')
-    expect(declared.get('--inset-turn-user')).toBe('inset 2px 0 0 var(--accent-edge)')
+    expect(you).toContain('background: var(--accent-bg)')
+    expect(you).toContain('border-color: var(--accent-border)')
+    expect(you).toContain('color: var(--accent)')
   })
 
   it('sets the header at the name, ident and meta rungs and the words at the base size, the mockup’s inherited 13px', () => {
@@ -98,7 +102,9 @@ describe('the turn', () => {
     expect(time).toContain('font-family: var(--mono)')
     expect(time).toContain('font-size: var(--fs-meta)')
     expect(time).toContain('color: var(--meta)')
-    expect(time).toContain('margin-left: auto')
+    // Inline after the role, not pushed to the right edge.
+    expect(time).not.toContain('margin-left')
+    expect(ruleBody(turnCss, '.turn-head')).toContain('gap: var(--space-md)')
 
     const words = ruleBody(turnCss, '.turn-words')
     expect(words).toContain('font-family: var(--sans)')
@@ -107,10 +113,12 @@ describe('the turn', () => {
     expect(ruleBody(turnCss, '.turn-words p')).toContain('white-space: pre-wrap')
   })
 
-  it('takes the padding and gap the mockup tunes', () => {
-    expect(declared.get('--turn-padding')).toBe('12px 10px')
-    expect(declared.get('--turn-gap')).toBe('12px')
-    expect(declared.get('--initials-size-user')).toBe('32px')
+  it('takes the gap and the stack gap the chat look names, and the disc sizes', () => {
+    expect(declared.get('--turn-gap')).toBe('11px')
+    expect(declared.get('--turn-stack-gap')).toBe('16px')
+    expect(declared.get('--initials-size-thread')).toBe('26px')
+    expect(declared.get('--initials-size-header')).toBe('22px')
+    expect(declared.has('--initials-size-user')).toBe(false)
   })
 })
 
@@ -173,10 +181,8 @@ describe('the caps', () => {
     expect(declared.get('--thread-max')).toBe('940px')
   })
 
-  it('keeps the chat header’s second line at --chat-sub-max', () => {
-    expect(ruleBody(withoutComments(read(`${CHAT}chat-header.css`)), '.chat-head-sub')).toContain(
-      'max-width: var(--chat-sub-max)'
-    )
+  it('keeps --chat-sub-max declared, though no rule spends it: the header’s description line is gone', () => {
+    expect(withoutComments(read(`${CHAT}chat-header.css`))).not.toContain('--chat-sub-max')
     expect(declared.get('--chat-sub-max')).toBe('72ch')
   })
 })
@@ -250,9 +256,10 @@ describe('DESIGN.md', () => {
   it('gives it the values the stylesheet spends', () => {
     const block = design.slice(design.indexOf('  conversation-turn:'), design.indexOf('  composer:'))
 
-    expect(block).toContain("radius: '{rounded.card}'")
-    expect(block).toContain('portraitSize: 32px')
-    expect(block).toContain("userBackground: '{colors.accent-wash}'")
-    expect(block).toContain("userRule: 'inset 2px 0 0 {colors.accent-edge}'")
+    expect(block).toContain("form: 'a flat row: no container, radius, ground or border")
+    expect(block).toContain("gap: '11px between the disc and the words'")
+    expect(block).toContain("stackGap: '16px between turns'")
+    expect(block).toContain('{components.initials.sizeThread}')
+    expect(block).not.toMatch(/radius:|portraitSize|userBackground|userRule/)
   })
 })

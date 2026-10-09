@@ -242,7 +242,7 @@ describe('activate', () => {
   })
 
   it('folds the handoff the open answers with once, after what came before, and announces it once', async () => {
-    const handoff: SyslineRecord = { kind: 'sysline', id: 'm-4', at: 150, text: 'handed off · Mary → John' }
+    const handoff: SyslineRecord = { kind: 'sysline', id: 'm-4', at: 150, text: 'handed to John' }
     bridge.handoffs = [undefined, handoff]
     const announced: SyslineRecord[] = []
     const published: { entries: readonly unknown[] }[] = []
@@ -267,13 +267,13 @@ describe('activate', () => {
     const entries = published[published.length - 1].entries
     expect(entries).toMatchObject([
       { kind: 'persona', text: 'Hello' },
-      { kind: 'sysline', id: 'm-4', at: 150, text: 'handed off · Mary → John' }
+      { kind: 'sysline', id: 'm-4', at: 150, text: 'handed to John' }
     ])
     expect(announced).toEqual([handoff])
   })
 
   it('does not fold or announce a handoff for an open that outlived the conversation', async () => {
-    const handoff: SyslineRecord = { kind: 'sysline', id: 'm-4', at: 150, text: 'handed off · Mary → John' }
+    const handoff: SyslineRecord = { kind: 'sysline', id: 'm-4', at: 150, text: 'handed to John' }
     bridge.handoffs = [handoff]
     const announced: SyslineRecord[] = []
     const published: { entries: readonly unknown[] }[] = []

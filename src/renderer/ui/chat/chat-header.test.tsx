@@ -19,18 +19,24 @@ const count = (text: string, pattern: RegExp): number => (text.match(pattern) ??
 describe('ChatHeader', () => {
   const markup = renderToStaticMarkup(<ChatHeader agent={AGENT} state="idle" />)
 
-  it('shows a 38px labelled portrait, the name in an h2, the title and the roster description', () => {
-    expect(markup).toMatch(/<svg[^>]*width="38"[^>]*height="38"[^>]*aria-label="John, Product Manager"/)
+  it('is one line: a decorative 22px initials disc, the name in an h2 and the title', () => {
+    expect(markup).toContain('<span class="initials initials--header" aria-hidden="true">J</span>')
+    expect(markup).not.toContain('<svg')
+    expect(markup).not.toContain('tabindex')
     expect(markup).toContain('<h2 class="chat-head-name">John</h2>')
     expect(markup).toContain('<span class="chat-head-title">Product Manager</span>')
-    expect(markup).toContain(`<div class="chat-head-sub">${AGENT.description}</div>`)
+  })
+
+  it('draws no description line, whatever the roster says', () => {
+    expect(markup).not.toContain('chat-head-sub')
+    expect(markup).not.toContain(AGENT.description)
   })
 
   it('shows the state as one dot and one word, on the right', () => {
     expect(count(markup, /class="state-line"/g)).toBe(1)
     expect(count(markup, /class="status-dot /g)).toBe(1)
     expect(markup).toContain('<span class="state-text">idle</span>')
-    expect(markup.indexOf('chat-head-state')).toBeGreaterThan(markup.indexOf('chat-head-sub'))
+    expect(markup.indexOf('chat-head-state')).toBeGreaterThan(markup.indexOf('chat-head-title'))
   })
 
   it('follows the state it is given', () => {
@@ -55,12 +61,6 @@ describe('ChatHeader', () => {
     expect(markup).not.toMatch(/hand ?off/i)
     expect(markup).not.toContain('style=')
     expect(markup).not.toContain('title=')
-  })
-
-  it('draws no description line when the roster gave none', () => {
-    const bare = renderToStaticMarkup(<ChatHeader agent={{ ...AGENT, description: ' ' }} state="idle" />)
-
-    expect(bare).not.toContain('chat-head-sub')
   })
 
   it('renders hostile text as text', () => {

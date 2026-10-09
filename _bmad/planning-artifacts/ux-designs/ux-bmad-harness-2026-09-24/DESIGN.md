@@ -18,6 +18,17 @@ sources:
   - mockups/follow-the-thread.html
   - mockups/output-folder.html
   - mockups/rail-resize-collapse.html
+  - mockups/paperclip-layout-chat.html
+  - mockups/paperclip-board.html
+  - mockups/chat-thread-reference.png
+  - mockups/document-card-dead-air.html
+  - mockups/portrait.html
+  - mockups/welcome-screen.html
+  - mockups/light-a-shell.html
+  - mockups/light-a-welcome.html
+  - mockups/light-b-shell.html
+  - mockups/light-b-welcome.html
+  - ../../epics.md
 companions:
   - EXPERIENCE.md
 
@@ -58,8 +69,8 @@ colors:
   # ── Promoted literals. Each already exists in the mockup as a hardcoded value;
   #    AD-14 calls a literal in a component a defect, so each recurring one gets a name.
   accent-border: '#434343'      # option key, skill-button code chip, run-note `kind:decision` tag
-  accent-wash: 'rgba(227,227,229,.045)'   # user-turn background
-  accent-edge: 'rgba(227,227,229,.45)'    # user-turn 2px inset rule
+  accent-wash: 'rgba(227,227,229,.045)'   # no longer used by a turn (flat rows, 2026-10-09); the code and its pinned test still carry it, so it stays until the story that removes them
+  accent-edge: 'rgba(227,227,229,.45)'    # likewise
   halo-live: 'rgba(122,163,135,.14)'
   halo-work: 'rgba(185,163,103,.13)'
   meta: '#626262'               # 5 uses; the tier below `faint`, timestamps and micro-labels
@@ -77,6 +88,35 @@ colors:
   legend-badge: '#c9a78a'
   legend-badge-bg: 'rgba(201,167,138,.08)'
   legend-badge-border: 'rgba(201,167,138,.3)'
+
+  # ── Dark values of the 26 names that colors-light already carried (review 2026-10-09): each was a
+  #    literal inside a component or in prose, which AD-14 calls a defect. Values are design/tokens.css's.
+  cast-speaking-border: '#565656'
+  cast-speaking-ground: '#212121'
+  grad-cast: 'linear-gradient(180deg,#191919,#151515)'
+  grad-titlebar: 'linear-gradient(180deg,#292929,#222222)'
+  brand-mark-line: '#4e4e4e'
+  topbar-sep: '#414141'
+  raised: '#2a2a2a'
+  scrollbar-thumb: '#313131'
+  scrollbar-thumb-hover: '#424242'
+  tile-current: '#252525'
+  code-tag-bg: '#1f1f1f'
+  composer-placeholder: '#636363'
+  send-bg: '#393939'
+  send-line: '#4b4b4b'
+  send-ink: '#dedede'
+  send-hover: '#424242'
+  win-light: '#414141'
+  ghost-border-hover: '#404040'
+  skill-button-hover-line: '#515151'
+  decision-hover-line: '#465264'
+  party-live-ground: '#181d24'
+  status-pill-bg: 'rgba(185,163,103,.10)'
+  status-pill-line: 'rgba(185,163,103,.25)'
+  status-pill-ink: '#d7b96a'
+  shadow-window: '0 30px 70px -20px rgba(6,6,7,.85)'
+  shadow-speaking: '0 0 0 1px rgba(227,227,229,.22), 0 6px 18px -10px rgba(6,6,7,.8)'
 
 colors-light:
   # ── The light theme (2026-10-09, the dark theme reversed; was palette A "cool paper"). One twin per colour token in
@@ -96,6 +136,8 @@ colors-light:
   faint: '#696969'
   accent: '#1b1b1b'
   accent-bg: 'rgba(27,27,27,.12)'
+  accent-wash: 'rgba(27,27,27,.045)'
+  accent-edge: 'rgba(27,27,27,.45)'
   green: '#4e7059'
   amber: '#786737'
   red: '#915a53'
@@ -104,8 +146,6 @@ colors-light:
   disagree-border: 'rgba(145,90,83,.3)'
   disagree-bg: 'rgba(145,90,83,.09)'
   accent-border: '#bcbcbc'
-  accent-wash: 'rgba(27,27,27,.045)'
-  accent-edge: 'rgba(27,27,27,.45)'
   halo-live: 'rgba(78,112,89,.16)'
   halo-work: 'rgba(120,103,55,.16)'
   meta: '#858585'
@@ -149,6 +189,13 @@ colors-light:
   status-pill-ink: '#6f5f32'
   shadow-window: '0 30px 70px -20px rgba(8,8,8,.35)'
   shadow-speaking: '0 0 0 1px rgba(27,27,27,.22), 0 6px 18px -10px rgba(8,8,8,.18)'
+
+# Opacity — an extension group beside `colors-light`; values are design/tokens.css's.
+opacity:
+  idle: 0.42      # an idle persona tile, a dimmed cast card
+  hover: 0.72
+  speaking: 1
+  icon: 0.75      # the file icon on a rail row
 
 typography:
   # Two families only. No webfonts, no icon font, no display face.
@@ -252,7 +299,8 @@ spacing:
   legend: 24px
   thread-max: 940px
   party-thread-max: 900px
-  chat-sub-max: 72ch
+  chat-head: 46px            # the chat header's height; one line since 2026-10-09
+  chat-sub-max: 72ch         # no longer used (the second line is gone); stays until the story that removes it from the code and its pinned test
   doc-read-max: 70ch
   # Welcome (2026-10-08). The one surface that carries no simultaneous states, so the one surface with room.
   welcome-col: 560px          # head, open action, recent
@@ -285,25 +333,30 @@ components:
   portrait:
     viewBox: '0 0 100 100'
     radius: '{rounded.full}'
-    sizes: '32 transcript · 36 persona tile · 38 chat header · 44 cast card'
+    sizes: '36 persona tile · 44 cast card · none in the chat thread or its header (initials, 26 and 22)'
     minLegibleSize: 32px
     faceRatio: '0.76'
     speakingRing: '0 0 0 2px {colors.accent}'
   initials:
-    size: 20px
-    sizeUser: 32px
+    size: 20px           # small references: stacked faces, handoff chip
+    sizeThread: 26px     # a persona's and your avatar in a chat turn, 1:1 and party
+    sizeHeader: 22px     # the chat header
+    threadFont: '{typography.label} size in sans at 600 in {colors.text-strong}; {typography.micro} size at 22px; the 20px disc stays mono'
+    userBackground: '{colors.accent-bg}'
+    userBorder: '1px solid {colors.accent-border}'
+    userColor: '{colors.accent}'
     background: '{colors.initials-bg}'
     border: '1px solid {colors.initials-line}'
     color: '{colors.initials-ink}'
     fontFamily: '{typography.mono.fontFamily}'
-    fontSize: 9.5px      # [ASSUMPTION] at 20px; 11px at the 32px user size
+    fontSize: 9.5px      # [ASSUMPTION] at 20px
     radius: '{rounded.full}'
     stackOverlap: -5px
     stackRing: '0 0 0 1.5px {colors.panel-2}'
   persona-tile:
     background: 'transparent'
     hoverBackground: '{colors.panel-2}'
-    currentBackground: '#252525'
+    currentBackground: '{colors.tile-current}'
     currentEdge: '2px {colors.accent}'
     portraitSize: 36px
     height: 56px
@@ -313,7 +366,7 @@ components:
     writingMeta: '{colors.amber}'
     iconStroke: '{colors.amber}'
     iconStrokeIdle: '{colors.faint}'
-    iconOpacity: '0.75'
+    iconOpacity: '{opacity.icon}'
   document-card:
     radius: '{rounded.card}'
     background: '{colors.panel}'
@@ -362,48 +415,66 @@ components:
     radius: '{rounded.control}'
     fontSize: '{typography.body-ui.fontSize}'
     hoverBackground: '{colors.panel-3}'
-    hoverBorder: '#515151'
+    hoverBorder: '{colors.skill-button-hover-line}'
     codeChip: '{typography.micro} {colors.accent}, border {colors.accent-border}, radius {rounded.micro}'
     moreVariant: '{colors.faint}'
   conversation-turn:
-    radius: '{rounded.card}'
-    padding: '12px 10px'
-    gap: '12px'
-    stackGap: '2px between turns'
-    portraitSize: 32px
+    form: 'a flat row: no container, radius, ground or border, for a persona and for you'
+    gap: '11px between the disc and the words'
+    stackGap: '16px between turns'
+    avatar: '{components.initials} at {components.initials.sizeThread}, the same for a persona and for you'
     name: '{typography.name} sans, text-strong'
     role: '{typography.ident} sans, faint'
-    time: '{typography.meta} mono, {colors.meta}, right-aligned'
+    time: '{typography.meta} mono, {colors.meta}, inline after the role, 8px apart on one baseline (not right-aligned)'
     words: '{typography.base} sans, text, pre-wrap, paragraphs split on blank lines only'
-    userBackground: '{colors.accent-wash}'
-    userRule: 'inset 2px 0 0 {colors.accent-edge}'
-    userAvatar: 'initials at 32px'
+    mention: 'DEFERRED, not built (EXPERIENCE.md → The chat look): an @name in your turn that handed off: {typography.label} mono, panel-2 ground, 1px line-soft, {rounded.micro}, padding 0 4px'
     caret: '{components.document-card.caret}, the same caret, at the tail of the last paragraph while the turn is in flight'
     stateLine: 'the `work` state line ({components.status-dot} work, `working · <elapsed>`) under the words, margin-top {spacing.md}, while the turn is in flight'
-    pending: 'a persona turn with no words yet: portrait, head timed from the turn''s start, the caret as the whole body, the state line under it'
-    roomPending: 'the room before a speaker is known: the turn container with no portrait, no head and no caret, only the state line'
+    pending: 'a persona turn with no words yet: initials disc, head timed from the turn''s start, the caret as the whole body, the state line under it'
+    roomPending: 'the room before a speaker is known: the turn row with no disc, no head and no caret, only the state line'
     max: '{spacing.thread-max}'
+  chat-header:
+    height: '{spacing.chat-head}'
+    background: '{colors.chrome}'
+    rule: '1px solid {colors.line}'
+    padding: '0 16px'
+    gap: '10px'
+    avatar: '{components.initials} at {components.initials.sizeHeader}'
+    name: '{typography.name} sans, text-strong'
+    line: '{typography.body-ui} sans, dim: `title · story <id>`; the story reference omitted when it has no source'
+    pill: 'the status pill: {colors.status-pill-ink} on {colors.status-pill-bg}, border {colors.status-pill-line}, {typography.ident} mono'
+    stop: '{colors.panel-2} ground, 1px {colors.line}, {rounded.DEFAULT}, padding 3px 10px, {typography.body-ui} {colors.dim}; hover {colors.text-strong}, border {colors.ghost-border-hover}'
+  run-step:
+    grid: '14px 1fr auto'
+    gap: '9px'
+    padding: '3px 0'
+    markDone: '{colors.green}'
+    markFailed: '{colors.red}'
+    markRunning: '{components.status-dot} work, with its pulse'
+    label: '{typography.ident} mono; {colors.dim} once done, {colors.text} while running'
+    elapsed: '{typography.meta} mono, tabular figures; {colors.faint} once done, {colors.dim} for `now` while the step runs'
+
   composer:
     background: '{colors.panel}'
     border: '1px solid {colors.line}'
     radius: '{rounded.card}'
-    placeholder: '#636363'
-    sendBackground: '#393939'
-    sendBorder: '#4b4b4b'
-    sendColor: '#dedede'
-    sendHover: '#424242'
+    placeholder: '{colors.composer-placeholder}'
+    sendBackground: '{colors.send-bg}'
+    sendBorder: '{colors.send-line}'
+    sendColor: '{colors.send-ink}'
+    sendHover: '{colors.send-hover}'
     min: '{spacing.composer-min}'
     max: '{spacing.composer-max}'
     inner: '{spacing.thread-max}'
   cast-card:
     radius: '{rounded.card}'
     minWidth: 148px
-    opacityIdle: '0.42'
-    opacityHover: '0.72'
-    opacitySpeaking: '1'
-    speakingBorder: '#565656'
-    speakingBackground: '#212121'
-    speakingShadow: '0 0 0 1px rgba(227,227,229,.22), 0 6px 18px -10px rgba(6,6,7,.8)'
+    opacityIdle: '{opacity.idle}'
+    opacityHover: '{opacity.hover}'
+    opacitySpeaking: '{opacity.speaking}'
+    speakingBorder: '{colors.cast-speaking-border}'
+    speakingBackground: '{colors.cast-speaking-ground}'
+    speakingShadow: '{colors.shadow-speaking}'
     portraitSize: 44px
   welcome:
     window: '{spacing.welcome-window}, opened by main, no project'
@@ -414,7 +485,7 @@ components:
     tagline: '{typography.ident} sans, {colors.dim}'
     column: '{spacing.welcome-col}'
     teamMax: '{spacing.welcome-team-max}'
-    open-button: 'the composer send button, unchanged: #393939 ground, #4b4b4b border, #dedede text, #424242 hover, {rounded.control}'
+    open-button: 'the composer send button, unchanged: {colors.send-bg} ground, {colors.send-line} border, {colors.send-ink} text, {colors.send-hover} hover, {rounded.control}'
     drop-zone: '1px dashed {colors.line}, {colors.panel} ground, {rounded.card}, padding 18px 20px'
     drop-zone-active: 'border {colors.accent-border}, ground {colors.accent-bg}'
     drop-hint: '{typography.meta} mono, {colors.dim}'
@@ -465,9 +536,9 @@ components:
     radius: '{rounded.window}'
     background: '{colors.panel}'
     border: '1px solid {colors.win-line}'
-    shadow: '0 30px 70px -20px rgba(6,6,7,.85)'
-    titlebar: 'linear-gradient(180deg,#292929,#222222), height {spacing.win-titlebar}'
-    lights: '10px {rounded.full} #414141'
+    shadow: '{colors.shadow-window}'
+    titlebar: '{colors.grad-titlebar}, height {spacing.win-titlebar}'
+    lights: '10px {rounded.full} {colors.win-light}'
     bodyPadding: '26px 34px 40px'
     readWidth: '{spacing.doc-read-max}'
     scrim: '{colors.scrim}'
@@ -492,7 +563,7 @@ components:
     type: 'control (12px) sans, dim'
     shape: 'DEFAULT radius (5px) container, 1px line, panel-2 ground, overflow hidden'
     divider: '1px line-soft between buttons, none on :last-child'
-    pressed: '[aria-pressed=true] -> #2a2a2a ground, text-strong, inset 0 -2px 0 accent'
+    pressed: '[aria-pressed=true] -> {colors.raised} ground, text-strong, inset 0 -2px 0 accent'
 ---
 
 ## Brand & Style
@@ -501,13 +572,22 @@ The harness is a dark, dense, hairline-ruled desktop shell that reads as an inst
 
 The restraint is not minimalism as taste. It is a budget. Real illustrated faces carry the entire premise — presence, a room where a team visibly works — and the named top risk is that those faces read as childish and take the perceived intelligence down with them. Every other surface is therefore pulled back to the point of being nearly invisible so the portraits are the only thing in the product with warmth in it. Surfaces step up in five near-identical greys. Borders are hairlines. There is one accent. There is no icon font, no emoji, no image file, no gradient outside two chrome fills, and exactly one non-default font weight in the whole system. Glyphs in copy are literal Unicode (`→ ↔ · § ≈ —`); **`⌘↵` is not in the inventory**, because the composer sends on `Enter` (EXPERIENCE.md → *Accessibility Floor → Keyboard reach*).
 
+**2026-10-09: the chat thread carries no portraits.** By the user's decision the thread and its header show a persona as an initials disc, on flat rows. The faces stay on the Team tiles, the cast cards and the Welcome, and the budget described above is spent there; the shell around the thread is held to it, the thread itself is as plain as the screenshot draws it.
+
 Information density is high and deliberate: the densest type tier is 10.5px and it is the most-used size in the product. This is a tool for an engineer reading state, not a consumer surface. Nothing is padded to feel generous.
 
 **Two themes, one design.** Dark is the theme the product was designed in; light (2026-10-08; repainted 2026-10-09 as the dark theme reversed) is its twin and is chosen, not inferred: *System* (the default, following the OS), *Light* or *Dark* (EXPERIENCE.md → *Theme*). No stylesheet and no component reads `prefers-color-scheme`, and there is no high-contrast variant. Every rule in this document holds in both themes, and the restraint budget most of all: the portraits are the only thing with warmth in either one, which is why the light palette is neutral grey.
 
 Two tonal rules govern everything below. **One accent, one friction colour.** The accent, a soft off-white, is the system's voice; the warm tone belongs to disagreement and to nothing else — friction is the one thing given its own colour, because friction is the feature most likely to be sanded off in implementation. **State is never decoration.** Four state colours exist and every one of them is driven by a real system fact.
 
-**The ownership convention, stated once and used throughout.** Anatomy and appearance are specified here, in DESIGN.md. Triggers, transitions, data sources and keyboard behaviour are specified in EXPERIENCE.md. Where a state is named here, what drives it and when it changes live there; where a component is named there, what it looks like lives here.
+**The ownership convention, stated once and used throughout.** Anatomy and appearance are specified here, in DESIGN.md. Triggers, transitions, data sources and keyboard behaviour are specified in EXPERIENCE.md. Where a state is named here, what drives it and when it changes live there; where a component is named there, what it looks like lives here. **Mockups illustrate; this spine wins** (stated once here). Four still draw what the chat look replaced (container turns, a tinted user turn, portraits in the thread): `follow-the-thread.html`, `rail-resize-collapse.html`, `light-a-shell.html` and the transcript box of `portrait.html`. Their turn rendering is superseded by *Layout, chat and Board → The chat look* in EXPERIENCE.md; the rest of each stands.
+
+**Open items** (after the 2026-10-09 chat-look update; each is also tagged `[OPEN]` where it appears; the rest of `review-rubric.md` is in `validation-report.md`):
+1. `[OPEN]` **Stop vs `close session`.** Does the header's `Stop` replace `close session`, or take its slot only while a turn is in flight? The contract has `run.stop(runId)` and `session.close` only, so a plain chat turn has nothing to stop with.
+2. `[OPEN]` **The room's live turn.** It keeps its accent edge and `party-live-ground` by assumption, the one turn row with either.
+3. `[OPEN]` **The skill-name source.** `handed to <persona> · <skill>` and the run card head show a name the renderer's events do not carry.
+4. `[OPEN]` **Register split under steps.** Steps and prose are both mono; structure, not typeface, tells them apart.
+5. `[OPEN]` **The `@Name` chip.** A handoff strips the `@name` from the turn, so the chip the screenshot draws needs a display text recorded beside the sent text in `turn.send`: a contract change, handed to `bmad-architecture`. Not built.
 
 ## Colors
 
@@ -556,7 +636,7 @@ The remaining tokens in the block above are not new colours. Each is a value alr
 
 ### The light theme
 
-*The dark theme reversed (2026-10-09).* It replaces palette A, "cool paper", the blue-tinted slate-and-white theme that shipped first; the idea behind the dark theme's neutral move now carries over: no tint, a neutral accent, muted status hues. The mockups are `mockups/light-a-shell.html` and `light-a-welcome.html`, repainted to this palette; `light-theme.html` and the `light-b-*` pair are kept as the record of the two palettes first compared. The twins are the `colors-light` map in the frontmatter, one for every colour token in `design/tokens.css`.
+*The dark theme reversed (2026-10-09).* It replaces palette A, "cool paper", the blue-tinted slate-and-white theme that shipped first; the idea behind the dark theme's neutral move now carries over: no tint, a neutral accent, muted status hues. The mockups are `mockups/light-a-shell.html` and `light-a-welcome.html`, repainted to this palette; `light-theme.html` and the `light-b-shell.html` and `light-b-welcome.html` pair are kept as the record of the two palettes first compared. The twins are the `colors-light` map in the frontmatter, one for every colour token in `design/tokens.css`.
 
 **How it is built.** The verbatim `:root` block and the promoted block that follows it stay as they are: they are the dark theme. The light values arrive as a **third block, `:root[data-theme="light"]`**, overriding colour tokens only, with `color-scheme: light` stated to the user agent in the same block (so form controls, scrollbars and the caret agree). No dimension, radius, type size or motion changes with theme, and **no component names a theme**: a component that takes every colour from a token is correct in both. The attribute is set by main before a window is first shown, from the stored choice and the OS appearance; the page never asks the browser which scheme is preferred.
 
@@ -585,6 +665,10 @@ The remaining tokens in the block above are not new colours. Each is a value alr
 | `note` on `panel` | 5.6 | 8.0 |
 | `ink-doc` on `panel` | 10.2 | 9.0 |
 | `disagree` on `panel` | 7.3 | 4.6 |
+| `text-strong` on `initials-bg` (a persona's disc) | 11.4 | 12.1 |
+| `accent` on `accent-bg` over `bg` (your disc) | 11.6 | 12.1 |
+
+The clock time in a turn head sits at `meta` and restates nothing load-bearing: a turn's order is its place in the thread.
 
 Every light pair that carries text clears 4.5 except `meta` (3.3), which holds only timestamps and micro-labels and, as in dark, never an actionable fact. The "no actionable fact at `faint` or `meta`" rule is unchanged and is *easier* to keep in light, where `faint` reaches 4.6. The three status hues sit exactly at the floor because they are muted on purpose: darkening them further would make them heavier than the dark theme's quiet marks.
 
@@ -605,9 +689,11 @@ This is load-bearing and must be implemented as stated. The document card under 
 - **Document prose renders in `mono`** at `doc-prose` (11.5px / 1.72, `ink-doc`). Prose is typeset as a document.
 - **Run notes render in `sans`** at `body-ui` (11.5px / 1.55, `dim`), with the timestamp in `mono` at `{typography.meta}` and `font-variant-numeric: tabular-nums`. A run note is typeset as speech.
 
-Same box, same size, two registers, and the register is the only thing distinguishing them. Do not add a container, a label, a rule or a background to "help" — the split is the mechanism, and a second mechanism on top of it dilutes the first.
+Same box, same size, two registers, and the register is the only thing distinguishing them. Do not add a container, a label, a rule or a background to "help" — the split is the mechanism, and a second mechanism on top of it dilutes the first. Run steps are not an addition of that kind: they are a third row type with their own grid (*Components → Run step*).
 
 The same rule generalises across the product. `mono` carries **file paths, state strings, metadata, timestamps, codes, chips, tags and run status**. `sans` carries **prose, persona voice, names, titles, labels and rendered markdown**. A file path in sans is wrong; a persona's sentence in mono is wrong.
+
+**Amended 2026-10-09 — a run step is mono too.** The run list (*Components → Run step*) adds a third row to the card body: the persona's tool steps, in `mono`, because they are the harness's facts about calls. In prose mode a step row and a line of prose are then both mono, and the register alone no longer separates them. What does is structure: a step is one short row with a mark and a right-aligned elapsed, prose is unbroken pre-wrapped lines. Keep step labels to a few words; a step the length of a sentence would read as prose and break the split.
 
 ### The scale
 
@@ -626,7 +712,7 @@ AD-14 states the type scale as "base 13px/1.55". That is the body rule, not the 
 | `base` | 13px / 1.55 | sans | `body{}` and party primary turn text. AD-14's stated base |
 | `doc-prose` | 11.5px / 1.72 | mono | Streaming document prose in a card |
 | `doc-read` | 13.5px / 1.72 | sans | Rendered markdown in the document window |
-| `head` | 14px | sans 600, .01em | Chat-header persona name. The largest type in the shell |
+| `head` | 14px | sans 600, .01em | The Team sidebar's state-strip figure and the largest type in the shell. It was the chat-header name before 2026-10-09; the header now uses `name` |
 | `h2` | 14.5px | sans 600 | Markdown h2, document window only |
 | `h1` | 20px | sans 600, -.01em | Markdown h1, document window only. Never appears in the shell |
 
@@ -650,14 +736,15 @@ AD-14 names layout literals as equal in force to the colours. These are the cont
 
 | Constant | Value | Surface |
 |---|---|---|
-| Rail | **348px** by default, **resizable 280–560px**, `flex:0 0`; the chat column keeps **420px** at least | 1:1 view, right side, split into two `flex:1 1 50%` halves — the **Team half** above, the **Outputs half** below |
+| Team sidebar | **244px** by default, **resizable 200–400px**, `flex:0 0` | 1:1 view, left side: the state strip, the nav rows, the persona tiles |
+| Rail | **300px** by default, **resizable 260–480px**, `flex:0 0`; the chat column keeps **420px** at least | 1:1 view, right side: the Outputs half (the context panel's other sections are proposed) |
 | Room panel | **240px** by default, **resizable 200–400px**; the party column keeps **480px** at least | Party view, right side; hidden at ≤1180px |
 | Topbar | **42px** | `chrome`, 1px `line` bottom rule, 14px gap |
-| Rail head | **30px** | Head of each rail half |
+| Panel head | **30px** | Head of the Team sidebar and of the rail |
 | Legend footer | **24px** | `chrome` |
 | Thread max-width | **940px** | 1:1 transcript and composer inner |
 | Party thread max-width | **900px** | Party transcript |
-| Chat sub-line max | **72ch** | Chat-header second line |
+| Chat header | **46px** | `{spacing.chat-head}`: one line, no second line |
 | Document window | **min(880px, 92vw) × min(760px, 80vh)**, top 8vh | Separate OS window |
 | Rendered markdown measure | **70ch** | Inside the document window body (`26px 34px 40px`) |
 | Card body max-height | **230px** | Document-card body before it scrolls |
@@ -665,7 +752,7 @@ AD-14 names layout literals as equal in force to the colours. These are the cont
 
 | Welcome window | **1080 × 720** | Separate window, no project. Its column is **560px**, its lanes **960px** max |
 
-Portrait render sizes are a closed set: **32** transcript, **36** persona tile, **38** chat header, **44** cast card. Persona tiles are 56px tall, so roughly six fit the Team half before it scrolls. **Tiles are grouped by the agent's `module` and `team` fields** (AD-10; the grouping rule is EXPERIENCE.md → *Interaction Primitives → Persona tile order*). The six-tile scroll limit is not the reason for the grouping — it is what makes the grouping load-bearing.
+Portrait render sizes are a closed set: **36** persona tile and **44** cast card (and the Welcome's 44px). The chat thread and its header carry initials discs, not portraits (*Components → Initials*). Persona tiles are 56px tall, so roughly six fit the Team sidebar before it scrolls. **Tiles are grouped by the agent's `module` and `team` fields** (AD-10; the grouping rule is EXPERIENCE.md → *Interaction Primitives → Persona tile order*). The six-tile scroll limit is not the reason for the grouping — it is what makes the grouping load-bearing.
 
 ### Resizing the side panels
 
@@ -694,7 +781,7 @@ Vertical rhythm is tight everywhere. Rows are 5–7px of vertical padding, chips
 Desktop-first, one project per window, `body{overflow:hidden}` at full size. Two breakpoints only:
 
 - **≤1180px** — the party side panel is hidden outright.
-- **≤1000px** — the shell unlocks scroll (`body{overflow:auto}`, `.app{height:auto}`), both views stack to a column, the chat column takes `min-height:62vh`, the rail moves below the chat and switches its `border-left` to a `border-top` with each half at `min-height:230px`, cast cards wrap at `flex:1 1 44%`, and the topbar wraps to `height:auto` with the breadcrumbs pushed to their own full-width row.
+- **≤1000px** — the shell unlocks scroll (`body{overflow:auto}`, `.app{height:auto}`), both views stack to a column, the chat column takes `min-height:62vh`, the layout stacks chat, then the Team sidebar, then the rail, each switching its side rule to a top rule, with no splitter, cast cards wrap at `flex:1 1 44%`, and the topbar wraps to `height:auto` with the breadcrumbs pushed to their own full-width row.
 
 - The **welcome** takes the second breakpoint only: at **≤1000px** its window scrolls (`overflow:auto`) and the four lanes stack to one column of cards. It adds no breakpoint of its own.
 
@@ -707,8 +794,8 @@ Depth is tonal, not cast. The five-step surface ramp *is* the elevation system: 
 Shadows exist for exactly three jobs, and only three:
 
 1. **State halos** — a 3px spread ring at very low alpha around a live (`halo-live`) or work (`halo-work`) status dot. This is the dot reading as lit, not as raised.
-2. **Inset rules** — `inset 0 -2px 0 accent` under the pressed segmented button; `inset 2px 0 0 accent-edge` on a user turn; `inset 2px 0 0 accent` on the live party turn. These are edges drawn with a shadow, not depth.
-3. **True separation** — the document window, which is a separate OS window over a scrim and is the only element in the product entitled to a real shadow: `0 30px 70px -20px rgba(6,6,7,.85)` over a `scrim` fill. The speaking cast card gets a restrained version — `0 0 0 1px rgba(227,227,229,.22), 0 6px 18px -10px rgba(6,6,7,.8)` — because it must read as lifted out of a row of dimmed peers, and the 2px accent ring on its portrait belongs to the same gesture.
+2. **Inset rules** — `inset 0 -2px 0 accent` under the pressed segmented button; `inset 2px 0 0 accent` on the live party turn `[ASSUMPTION — OPEN]`, kept with its `party-live-ground` as the only turn row with either (*Conversation turn*). These are edges drawn with a shadow, not depth.
+3. **True separation** — the document window, which is a separate OS window over a scrim and is the only element in the product entitled to a real shadow: `shadow-window` over a `scrim` fill. The speaking cast card gets a restrained version, `shadow-speaking`, because it must read as lifted out of a row of dimmed peers, and the 2px accent ring on its portrait belongs to the same gesture.
 
 Two z-indexes exist: **40** for the scrim, **50** for the window. Nothing else stacks, and nothing else may: **a surface that needs a z-index is a window**, and is built as one.
 
@@ -725,7 +812,7 @@ Presence and absence are expressed by **opacity, never by removal**: cast cards 
 | `chip` | 3px | **The tag radius** and the most-used value (8 uses): chips, neutral and disagree tags, inline code, code tags, the status pill, the option key, the stop control. Anything that is text-with-a-ground |
 | `control` | 4px | A pressable thing that is not a surface: run chip, skill button, send button |
 | `DEFAULT` (`--r`) | 5px | The base radius. Segmented control, ghost button, decision option, open-question block. "Soft, not rounded" |
-| `card` | 6px | A container holding content: conversation turn, document card, composer, cast card, party turn |
+| `card` | 6px | A container holding content: document card, composer, cast card; the room's live turn if its ground and edge are kept `[OPEN]`. A conversation turn is a flat row and takes no radius |
 | `window` | 8px | The document window. The only 8px in the product |
 | `scrollbar` | 10px | Scrollbar thumb, with a 3px transparent inset border and `background-clip: content-box` |
 | `full` | 50% | Status dots, portraits, initials, traffic lights, the speaking portrait ring |
@@ -739,9 +826,11 @@ Perfect circles are reserved for **things that stand for a person or a light**: 
 
 Anatomy and appearance only, per the ownership convention. Triggers, transitions, data sources, timing of state changes, focus order and keyboard behaviour live in EXPERIENCE.md.
 
+**As built, not respecified here:** the install chip, the branch chip, the run chip, the status pill (its colours are the `status-pill-*` tokens) and the end-session control (`close session`) ship as built in `src/renderer/ui/`. They are named so a reader knows they exist; a change to one is an Update.
+
 ### Portrait
 
-[`mockups/portrait.html`](mockups/portrait.html) — the approved generator rendered at every size the product uses, in context on tiles, turns and cast cards, with the derived-agent grid and the initials token. Where it and this spine disagree, **this spine wins**.
+[`mockups/portrait.html`](mockups/portrait.html) — the approved generator rendered at every size the product uses, in context on tiles and cast cards (its transcript-turn box is superseded: the chat shows initials), with the derived-agent grid and the initials token. Where it and this spine disagree, **this spine wins**.
 
 
 The highest-risk component in the product and the reason the rest of the shell is as quiet as it is.
@@ -793,13 +882,13 @@ The palette is **muted and desaturated throughout** — backgrounds are dark sla
 
 ### Initials
 
-The small-reference token, and the thing that made the 32px portrait floor affordable.
+The avatar of the chat, and the small-reference token.
 
-- **20px** circle for small agent references (stacked faces, handoff chip). **32px** for the user's own avatar in the transcript, which is where the mockup's `.initials` originates.
-- `initials-bg` (`#323232`) fill, 1px `initials-line` (`#414141`) border, `mono` in `initials-ink` (`#b2b2b2`), centred.
-- Glyph size **11px at 32px**; **9.5px at 20px** `[ASSUMPTION]` — the mockup only specifies the 32px form.
+- **26px** circle beside a chat turn and **22px** in the chat header — a persona's and yours alike (2026-10-09: the chat carries no portraits, *Conversation turn*). **20px** for small agent references elsewhere (stacked faces, handoff chip).
+- Persona disc: `initials-bg` fill, 1px `initials-line` border, centred. At 26px and 22px the glyphs are **sans 600** (10.5px, 9.5px) in `text-strong`, as the prototype's `.av` draws them. At 20px they stay `mono` in `initials-ink` at 9.5px `[ASSUMPTION]`.
+- Your disc: the same circle on `accent-bg`, 1px `accent-border`, glyphs in `accent` — the prototype's `.av.u`, the one tint that tells you from a persona at a glance.
 - Stacked: `margin-right: -5px` overlap with a `0 0 0 1.5px panel-2` ring cutting each disc out of the one behind it.
-- The name-and-role reveal renders **identically on `:hover` and on `:focus-visible`**; the focus treatment is *Focus*, below. Why that parity is mandatory, and the ARIA that carries it, are EXPERIENCE.md's (→ *Accessibility Floor → The initials token — focus parity*).
+- Where a disc stands alone, the name-and-role reveal renders **identically on `:hover` and on `:focus-visible`**; the focus treatment is *Focus*, below. In the thread and header the name is beside the disc, which is decorative there. Why the parity is mandatory, and the ARIA that carries it, are EXPERIENCE.md's (→ *Accessibility Floor → The initials token — focus parity*).
 
 ### Status dot
 
@@ -817,7 +906,7 @@ The small-reference token, and the thing that made the 32px portrait floor affor
 
 ### Persona tile
 
-56px row: 36px portrait, name at `name` (12.5px/600) with the title beside it at `ident` in `dim`, and a state line below at `label` with its dot. Default ground is transparent; hover is `panel-2` and reveals the menu hint; **current** is `[aria-current="true"]` → `#252525` ground with a 2px `accent` left bar via `::before`. The menu hint expands `max-height: 0 → 60px` over `.16s`.
+56px row: 36px portrait, name at `name` (12.5px/600) with the title beside it at `ident` in `dim`, and a state line below at `label` with its dot. Default ground is transparent; hover is `panel-2` and reveals the menu hint; **current** is `[aria-current="true"]` → `tile-current` ground with a 2px `accent` left bar via `::before`. The menu hint expands `max-height: 0 → 60px` over `.16s`.
 
 ### Rail row (Outputs half)
 
@@ -827,9 +916,9 @@ Two visually distinct registers on one line, because AD-2 forbids merging them. 
 
 `{rounded.card}` radius, `panel` body, 1px `line` border, three parts.
 
-- **Head** — `panel-2` ground, `1px line-soft` bottom rule, `7px 11px`. Status dot · file path in `mono` `{typography.ident}` at `text` · status string in `mono` `{typography.meta}` right-aligned in `amber` while writing and `green` when saved · elapsed in `mono` `{typography.meta}` at `faint` · the stop control.
-- **Body** — `max-height: 230px`, scrolling, padding `11px 13px` `[ASSUMPTION]` (the one value no source states; matched to the side-section padding). **Two modes, both content, per the approved dead-air treatment.** In prose mode: `doc-prose` (mono 11.5/1.72) in `ink-doc`, `white-space: pre-wrap`, headings in `ink-doc-strong` at 600, muted runs in `ink-doc-mute`, with the streaming caret at the tail. In run-note mode: the run-note feed (below). The card never has an empty body. Which mode is showing, and when it switches, is EXPERIENCE.md's (→ *State Patterns → Document card*).
-- **Foot** — `panel-2`, `1px line-soft` top rule, `6px 11px`, `{typography.label}` sans at `faint`, 8px gaps (the mockup's `.df`), wrapping. Carries the counts and the **named list of not-yet-written sections**. There is no denominator and no progress bar anywhere in the card.
+- **Head** — `panel-2` ground, `1px line-soft` bottom rule, `7px 11px`. Status dot · file path in `mono` `{typography.ident}` at `text` · status string in `mono` `{typography.meta}` right-aligned in `amber` while writing and `green` when saved · elapsed in `mono` `{typography.meta}` at `faint` · the stop control. **Run-list head** (a run that writes no document, 2026-10-09, from the screenshot): the skill's name in `{typography.ident}` `text-strong` at 600, then `run` in `dim`; at the right `working` and the elapsed in `mono` `{typography.meta}`; the stop control stays. With no known skill name the head reads `run` alone `[ASSUMPTION — OPEN]`.
+- **Body** — `max-height: 230px`, scrolling, padding `11px 13px` `[ASSUMPTION]` (the one value no source states; matched to the side-section padding). **Two modes, both content, per the approved dead-air treatment.** In prose mode: `doc-prose` (mono 11.5/1.72) in `ink-doc`, `white-space: pre-wrap`, headings in `ink-doc-strong` at 600, muted runs in `ink-doc-mute`, with the streaming caret at the tail. In run-list mode: the steps and the run notes in one list (*Run step* and *Run note*, below). The card never has an empty body. Which mode is showing, and when it switches, is EXPERIENCE.md's (→ *State Patterns → Document card*).
+- **Foot** — `panel-2`, `1px line-soft` top rule, `6px 11px`, `{typography.label}` sans at `faint`, 8px gaps (the mockup's `.df`), wrapping. Carries the counts and the **named list of not-yet-written sections**. There is no denominator and no progress bar anywhere in the card. A run that writes **no document** has no foot `[ASSUMPTION]`: the screenshot draws none.
 - **Caret** — 6.5 × 13px `accent` block, `blink 1.05s steps(1)`. Removed, not faded, when writing stops. It is one caret, shared with the conversation turn in flight (below): the same class, size, colour and blink wherever words are being written.
 
 ### Run note (the run-note feed)
@@ -845,19 +934,32 @@ Three-column grid `58px · 74px · 1fr` at 10px gap, baseline-aligned, 5px verti
    - `kind:open` — the **`disagree`** treatment: `disagree` on `disagree-bg`, border `disagree-border`. An unresolved question is friction, not failure; it must not use `red`.
 3. **Reason** — `sans` `{typography.body-ui}` in `dim`, with the substantive phrase emphasised in `text` at 600. One step of weight and one step of ramp, never a colour.
 
+### Run step
+
+*Added 2026-10-09, from [`mockups/chat-thread-reference.png`](mockups/chat-thread-reference.png).* One row of the run list (EXPERIENCE.md → *State Patterns → The run list*), in the card body beside the run notes. The two kinds of row keep their own grids; there is no shared column.
+
+Grid `14px · 1fr · auto` at 9px gap, baseline-aligned, 3px vertical padding, no rule between rows.
+
+1. **Mark** — `mono`. `✓` in `green` when the call is done; the amber `work` status dot with its pulse while it runs; `✕` in `red` when it failed `[ASSUMPTION]`.
+2. **Label** — `mono` `{typography.ident}`: `dim` once done, `text` while running. A few words: the verb and its target.
+3. **Elapsed** — right-aligned, `mono` `{typography.meta}`, tabular figures: the call's duration (`0:03`) in `faint` once done, and `now` for the step in flight in `dim` — under reduced motion `now` carries the liveness, so it may not sit at `faint`.
+
+No shimmer, no bar, no pending row. The pulse on the running step's dot is the existing `pulse`, so the motion inventory stays at five.
+
+
 ### Tags — neutral and disagree
 
 Identical geometry, two tones. `{typography.micro}` type, `{rounded.chip}` radius, `0 5px` padding.
 
 - **Neutral** — `dim` on `panel-2`, border `line`. Labels: `evidence`, `concedes · partly`, `speaking`, `proposed`, `answers`, `builds on`, `decides`, `present · listening`.
-- **Disagree** — `disagree` on `disagree-bg`, border `disagree-border`. Labels: `disagrees · <name>`, `disagrees · framing`, `unresolved`. **The only warm-toned chip on screen.**
+- **Disagree** — `disagree` on `disagree-bg`, border `disagree-border`. Labels: `disagrees · <name>`, `disagrees · framing`, `unresolved`. **The only warm-toned chip on screen.** The transcript's `evidence`, `disagrees · …` and `unresolved` tags are **deferred from v1** (EXPERIENCE.md → *Party Mode*): the anatomy is kept so they can land without a respec.
 
 ### Decision option
 
 The block a persona raises inside its own turn when it stops to ask (Flow 1's FR-7 beat). Appearance only; when it appears, what activating it does, and what becomes of it afterwards are EXPERIENCE.md's (→ *Component Patterns*).
 
 - **Block** — a bare column, `8px` above and `4px` below, with no ground, border or padding of its own. One block per question, holding the title and the options; the options stack at `{spacing.sm}`.
-- **Option** — a card, as the mockup draws it: a `panel` ground, 1px `line`, `{rounded.DEFAULT}` (5px), `9px 11px`, the key and the text `{spacing.lg}` apart. Under the pointer the border goes to `#465264` and the ground to `panel-2`.
+- **Option** — a card, as the mockup draws it: a `panel` ground, 1px `line`, `{rounded.DEFAULT}` (5px), `9px 11px`, the key and the text `{spacing.lg}` apart. Under the pointer the border goes to `decision-hover-line` and the ground to `panel-2`.
 - **Title** — `{typography.name}` (12.5px/600) in `text-strong`, above the cards.
 - **Option key** — the leading badge (`A` · `B` · `C`): `{typography.label}` mono in `{colors.accent}` on `{colors.accent-bg}`, 1px `{colors.accent-border}`, `{rounded.chip}`. This is the block's single accent use.
 - **Option text** — the mockup's option title: `{typography.name}` (12.5px/600) in `text-strong`, at the default line-height. The persona's option is one string where the mockup splits a title from a line of detail, so the whole string takes the title's treatment.
@@ -875,33 +977,42 @@ It is specified for **every surface EXPERIENCE.md requires to be keyboard-operab
 
 ### Skill button
 
-`panel-2` ground, 1px `line`, `{rounded.control}` (4px) radius, `{typography.body-ui}`. Carries a leading code chip in `{typography.micro}` mono, `accent` on transparent with an `accent-border` border at `{rounded.micro}` (2px) radius — one step tighter than its parent. Hover: border `#515151`, ground `panel-3`. The `+N more` variant renders in `faint`.
+`panel-2` ground, 1px `line`, `{rounded.control}` (4px) radius, `{typography.body-ui}`. Carries a leading code chip in `{typography.micro}` mono, `accent` on transparent with an `accent-border` border at `{rounded.micro}` (2px) radius — one step tighter than its parent. Hover: border `skill-button-hover-line`, ground `panel-3`. The `+N more` variant renders in `faint`.
 
 The row must look right at **1 to 10 entries**. Its overflow behaviour — in-place expansion, and what must never happen instead — is EXPERIENCE.md's (→ *Component Patterns → `+N more`, in detail*).
 
 ### Conversation turn
 
-The conversation's most-repeated element, and the one the radius table names only in passing. A `{rounded.card}` (6px) container padded `12px 10px` with a 12px gap, successive turns 2px apart: a 32px portrait on the left, and on the right a header line over the words.
+The conversation's most-repeated element, and the one the radius table names only in passing. **A flat row** (2026-10-09, from [`mockups/chat-thread-reference.png`](mockups/chat-thread-reference.png)): no container, no radius, no ground, no border. An initials disc (`{components.initials}`, 26px) on the left and, on the right, a header line over the words, 11px apart; successive turns 16px apart. The disc is the same for a persona and for you, with your tint (*Initials*). There is no portrait in the thread, in the 1:1 or in the room.
 
-The header is the name at `{typography.name}` (12.5px/600, `text-strong`), the role at `{typography.ident}` (11px, sans, `faint`) and the timestamp in mono at `{typography.meta}` (10px, `meta`), pushed to the right edge. The words follow at `{typography.base}` (13px) in sans, `white-space: pre-wrap`, with paragraphs split on blank lines and nothing else: no prefix, frame, label, summary or classification of what a persona said. Everything a project or a persona supplies is rendered as text.
+The header is, on one baseline and 8px apart, the name at `{typography.name}` (12.5px/600, `text-strong`), the role at `{typography.ident}` (11px, sans, `faint`) and the clock time in mono at `{typography.meta}` (10px, `meta`), **inline after the role, not pushed to the right edge**. The words follow at `{typography.base}` (13px) in sans, `white-space: pre-wrap`, with paragraphs split on blank lines and nothing else: no prefix, frame, label, summary or classification of what a persona said. Everything a project or a persona supplies is rendered as text. The `@name` chip the screenshot draws in your turn is **deferred** (EXPERIENCE.md → *The chat look*): a handoff records only the text after the name, so there is no `@` to style until the transcript can hold a display text. Its anatomy is `mention` in the frontmatter.
 
-**The user's turn** is the same container on the `accent-wash` ground with an `inset 2px 0 0 accent-edge` rule down its left edge, and the 32px initials token where the portrait would be — the user has no generated face. The wash and the rule are the only difference; the user's turn is not a different component.
+**Your turn** is the same row as a persona's. It has no ground and no rule: the one difference is your disc's tint and your name. It is not a different component.
 
 No hover lift, no entrance animation, no typewriter reveal. The thread caps at `{spacing.thread-max}`.
 
 **A turn in flight** is drawn in the thread with these same parts and nothing new. While a persona's turn is in flight, the **caret** (the document card's: 6.5 × 13px `accent`, `blink`) sits at the tail of the last paragraph of its words, inside the paragraph and after the last character, and the persona's **`work` state line** sits under the words: the amber dot with its halo and pulse, and `working · <elapsed>` in `{typography.label}` mono at `dim`, `{spacing.md}` below the words. Both are removed, not faded, when the turn ends; the words are then exactly as they were said.
 
-- **The pending turn.** Before a persona's first word, the thread's foot carries a persona turn with no words: the same container, the 32px portrait and the head (name, role, the time the turn began), the caret as the **whole body**, and the state line under it. It is drawn from the same parts as a turn with words, and is replaced by the persona's turn when the first word lands, with the caret then at the tail of those words. It sits above any queued message of the user's, which keeps its own treatment.
-- **The room's pending row.** In the party thread, before anyone is known to be speaking, the foot carries a row in the turn container with **no portrait, no head and no caret**: only the state line, counted from the user's send. Once a speaker's words land, their live turn (accent edge, as before) takes the caret and the state line, and the cast card lights as it always has.
+- **The pending turn.** Before a persona's first word, the thread's foot carries a persona turn with no words: the same row, the initials disc and the head (name, role, the time the turn began), the caret as the **whole body**, and the state line under it. It is drawn from the same parts as a turn with words, and is replaced by the persona's turn when the first word lands, with the caret then at the tail of those words. It sits above any queued message of the user's, which keeps its own treatment.
+- **The room's pending row.** In the party thread, before anyone is known to be speaking, the foot carries a row in the turn row's place with **no disc, no head and no caret**: only the state line, counted from the user's send. Once a speaker's words land, their live turn (the accent edge and `party-live-ground` are kept: the only turn row with either, `[ASSUMPTION — OPEN]`) takes the caret and the state line, and the cast card lights as it always has.
 - **Nothing else.** No skeleton of a turn, no placeholder word (`thinking`, `typing`, `…`), no spinner, no new animation: the pulse and the blink are the two the motion table already lists. Words arrive as main delivers them; a burst (an opening greeting comes from the CLI whole) lands whole and is never paced out.
+
+### Chat header
+
+*Added 2026-10-09, from [`mockups/chat-thread-reference.png`](mockups/chat-thread-reference.png); the built header's second description line is replaced by the one-line form.* 46px, `chrome` ground, 1px `line` below, `0 16px`, 10px gaps, one line.
+
+- **Left** — the persona's initials disc at 22px, the name at `{typography.name}` in `text-strong`, then `title · story <id>` in `{typography.body-ui}` `dim`. The story reference is omitted when there is no source; it is never drawn empty.
+- **Right** — the existing status pill (the state's dot and word), then **`Stop`**: a ghost button, `panel-2` ground, 1px `line`, `{rounded.DEFAULT}`, `3px 10px`, `{typography.body-ui}` in `dim`, `text-strong` and a stronger border on hover. While no turn is in flight the slot is `close session`, as built `[ASSUMPTION — OPEN]`.
+- **Ellipsis, not wrap**, as built: the name and the line truncate.
+
 
 ### Composer
 
-`panel` ground, 1px `line`, `{rounded.card}` (6px) radius. Focus changes nothing about the field: no border shift and no ring on the textarea (a decision; the mockup's `#484848` focus-within border is not carried, and the field is the one exemption from the shared ring). Placeholder `#636363`. Textarea autogrows 20px→120px, clamped in CSS and sized from its content. It is never disabled; the send button keeps the shared focus ring. `Enter` sends, `Shift+Enter` is a newline, and no other chord sends. Send button: `#393939` ground, `#4b4b4b` border, `#dedede` glyph, `{rounded.control}` radius, `#424242` on hover. Hint lines below at `{typography.label}` in `{colors.meta}`.
+`panel` ground, 1px `line`, `{rounded.card}` (6px) radius. Focus changes nothing about the field: no border shift and no ring on the textarea (a decision; the mockup's `#484848` focus-within border is not carried, and the field is the one exemption from the shared ring). Placeholder `composer-placeholder`. Textarea autogrows 20px→120px, clamped in CSS and sized from its content. It is never disabled; the send button keeps the shared focus ring. `Enter` sends, `Shift+Enter` is a newline, and no other chord sends. Send button: `send-bg` ground, `send-line` border, `send-ink` glyph, `{rounded.control}` radius, `send-hover` on hover. Hint lines below at `{typography.label}` in `{colors.meta}`.
 
 ### Cast card
 
-`{rounded.card}` radius, `flex:1 1 0` at `min-width:148px`, on a `linear-gradient(180deg,#191919,#151515)` strip that scrolls horizontally. 44px portrait, name at `{typography.name}`, title at `{typography.ident}`, status at `{typography.micro}`. **Default `opacity:.42`**, hover `.72`, speaking `1` with border `#565656`, ground `#212121`, the accent glow, a `0 0 0 2px accent` ring on the portrait, and status in `accent` with the equaliser. Presence is expressed by dimming, never by removal — every chosen portrait stays visible for the life of the room.
+`{rounded.card}` radius, `flex:1 1 0` at `min-width:148px`, on a `grad-cast` strip that scrolls horizontally. 44px portrait, name at `{typography.name}`, title at `{typography.ident}`, status at `{typography.micro}`. **Default `{opacity.idle}`** (.42), hover `{opacity.hover}` (.72), speaking `{opacity.speaking}` with border `cast-speaking-border`, ground `cast-speaking-ground`, the accent glow, a `0 0 0 2px accent` ring on the portrait, and status in `accent` with the equaliser. Presence is expressed by dimming, never by removal — every chosen portrait stays visible for the life of the room.
 
 ### Welcome
 
@@ -953,9 +1064,9 @@ In the Outputs half, a directory group's heading is a button: a chevron, the dir
 
 ### Document window
 
-A separate OS window over a `scrim` fill at z-40, window at z-50, top `8vh`, `min(880px,92vw) × min(760px,80vh)`. `panel` ground, 1px `win-line` (`#3a3a3a`), `{rounded.window}` (8px) radius, `0 30px 70px -20px rgba(6,6,7,.85)`.
+A separate OS window over a `scrim` fill at z-40, window at z-50, top `8vh`, `min(880px,92vw) × min(760px,80vh)`. `panel` ground, 1px `win-line` (`#3a3a3a`), `{rounded.window}` (8px) radius, `shadow-window`.
 
-Title bar 36px on `linear-gradient(180deg,#292929,#222222)`: three 10px `#414141` circles, the **full path** in `mono` `{typography.ident}` (not the basename), then ghost buttons. Body `26px 34px 40px`. Foot 28px at `{typography.meta}`.
+Title bar 36px on `grad-titlebar`: three 10px `win-light` circles, the **full path** in `mono` `{typography.ident}` (not the basename), then ghost buttons. Body `26px 34px 40px`. Foot 28px at `{typography.meta}`.
 
 **Rendered markdown** is constrained to `70ch` at `doc-read` (sans 13.5/1.72) in `ink-md`. h1 20px/600 at `-.01em` with a mono `ident` sub-line in `faint` over a bottom rule; h2 14.5px/600; h3 12.5px/600 uppercase `.03em` in `dim`; tables collapsed at 12.5px with `panel-2` headers in uppercase `ident` at `.04em`; requirement ids `.fr` in `mono body-ui` `accent`, nowrap.
 
@@ -963,11 +1074,11 @@ The renderer's visual range is **exactly what sanitized markdown-it output can b
 
 ### Shell furniture
 
-**Topbar** 42px `chrome`, 1px `line` bottom, 14px gaps. The brand mark is pure CSS — a 16px bordered square with an `::after` accent square inset 3px, at `.75` opacity. Breadcrumb separator is the literal `│`. **Segmented control** at `{typography.control}` (12px) size, `{rounded.DEFAULT}` radius; pressed is `[aria-pressed="true"]` → `#2a2a2a` ground, `text-strong`, `inset 0 -2px 0 accent`. **Legend footer** 24px `chrome` with the badge in `legend-badge` on `legend-badge-bg`, uppercase `{typography.badge}` at `.08em`.
+**Topbar** 42px `chrome`, 1px `line` bottom, 14px gaps. The brand mark is pure CSS — a 16px bordered square with an `::after` accent square inset 3px, at `.75` opacity. Breadcrumb separator is the literal `│`. **Segmented control** at `{typography.control}` (12px) size, `{rounded.DEFAULT}` radius; pressed is `[aria-pressed="true"]` → `raised` ground, `text-strong`, `inset 0 -2px 0 accent`. **Legend footer** 24px `chrome` with the badge in `legend-badge` on `legend-badge-bg`, uppercase `{typography.badge}` at `.08em`.
 
 **Sysline** is the harness's own voice in the transcript: centred `{typography.label}` (10.5px) mono in `faint`, with a 1px `line` rule filling the space either side via `::before` / `::after`, margin `14px 2px 10px`. It carries session-resumed, handoff and room-opened notices. It is never styled as, or attributed to, a persona — see `EXPERIENCE.md` → *Voice and Tone*.
 
-**Scrollbars** are custom: 10px wide, `#313131` thumb (`#424242` on hover), `{rounded.scrollbar}` (10px) radius, with a 3px transparent inset border and `background-clip: content-box` so the thumb reads as narrower than its track.
+**Scrollbars** are custom: 10px wide, `scrollbar-thumb` (`scrollbar-thumb-hover` on hover), `{rounded.scrollbar}` (10px) radius, with a 3px transparent inset border and `background-clip: content-box` so the thumb reads as narrower than its track.
 
 ### Motion
 
@@ -1013,7 +1124,7 @@ A field with no source is not drawn.
 
 | Element | Anatomy |
 |---|---|
-| Message actions | a toolbar on the turn's top-right edge: `panel-2`, 1px `line`, `{rounded.control}`, padding `2px`. Buttons at `{typography.control}` in `faint`, `text-strong` on hover and focus, a `panel-3` ground on hover. Shown on hover and on `:focus-within` of the turn; no animation |
+| Message actions | a toolbar on the turn row's top-right edge: `panel-2`, 1px `line`, `{rounded.control}`, padding `2px`. Buttons at `{typography.control}` in `faint`, `text-strong` on hover and focus, a `panel-3` ground on hover. Shown on hover and on `:focus-within` of the turn; no animation |
 | Thinking row | one line at `{typography.ident}` mono in `faint`: a `▸` (`▾` open), then the persona's own thinking summary. Opened, the text reads in `{typography.doc-prose}` at `ink-doc-mute`, indented to the words, in the turn's measure |
 | Decision card | the existing decision block as a card: 1px `line`, `{rounded.card}`, `panel` ground; head `panel-2` with the persona and the position (`1 of 2`); options as rows at `{rounded.card}`, 1px `line-soft` on `bg`, the chosen one on `accent-bg` with a 1px `accent-border` and a 12px circle in `accent`, filled when chosen. Foot `panel-2`: *Confirm* is the one control that takes `accent-border` and `accent-bg`; *Skip* is a ghost button. The key hint sits right at `{typography.meta}` in `faint` |
 | Keyboard hints | one centred row under the composer: key chips as above, `faint`, `{typography.label}`. The same row in every state |
@@ -1026,7 +1137,7 @@ A field with no source is not drawn.
 | Board | five columns in one panel, 1px `line-soft` between them, each padded `8px`. Column head: the status as the file writes it, `{typography.micro}` uppercase `faint`, **no count**. Cards stack with a `7px` gap |
 | Story card | `bg` ground, 1px `line`, `{rounded.control}`, padding `7px 8px`. Id in mono `{typography.label}` `faint`; the title at `{typography.control}` `text`; a foot at `{typography.ident}` `faint` with the owner's initials disc (*Initials*) and the run's `working · <elapsed>`. A card with a run on it takes the amber pulse dot and a 1px `accent-border`. **No progress bar** |
 | Epics | rows at `{typography.control}`: id in mono `faint`, title `text`, `n of m stories done` in mono `faint` on the right; 1px `line-soft` between rows. Text only |
-| Agents | the persona tile's anatomy in a panel: portrait or initials, name and title, the state line, the run's elapsed in mono `faint`. Idle rows dim at `{opacity.idle}` |
+| Agents | the persona tile's anatomy in a panel: the portrait, name and title, the state line, the run's elapsed in mono `faint`. Idle rows dim at `{opacity.idle}` |
 | Recent activity | rows at `{typography.control}`: the status dot, the persona's name in `text`, what it did in `dim`, the time right-aligned in mono `faint`; 1px `line-soft` between rows |
 
 **Motion.** Nothing here adds to the closed motion inventory (*Motion*): no shimmer, no fade for the actions toolbar, no transition on a splitter.
@@ -1041,16 +1152,17 @@ A field with no source is not drawn.
 | Use `note` (`#8e8e93`) for the *state* dot | Reuse the `accent` hex as a state, which is the exact defect AD-14 names |
 | Keep four state **colours** — green, amber, red, note — and five dot states counting `faint` idle | Invent a fifth state colour, or colour-code by persona, module, file type or recency |
 | Pick the right radius for the kind of object — eleven declarations, ten values, by role | Normalise everything to one radius "for consistency" — the variation is the encoding |
-| Set document prose in `mono` and run notes in `sans` in the same card body | Separate the two feeds with a container, rule or label — the typeface register **is** the mechanism |
+| Set document prose in `mono` and run notes in `sans` in the same card body, and keep run-step labels to a few words (steps are mono too) | Separate the two feeds with a container, rule or label — the typeface register **is** the mechanism |
 | Use `mono` for paths, state, metadata, timestamps and codes | Set a file path in sans, or a persona's sentence in mono |
 | Use 600 for emphasis, or one step up the text ramp | Use both at once, add a third weight, or emphasise with colour |
-| Render portraits at 32 / 36 / 38 / 44 only, and use initials below that | Render a portrait at 20px — AD-16's "legible from 20px" is explicitly relaxed to 32px |
+| Render portraits at 36 / 44 only (the tile and the cast card), and use initials in the chat thread, the chat header and below 32px | Render a portrait at 20px — AD-16's "legible from 20px" is explicitly relaxed to 32px |
 | Keep the portrait generator pure: no ids, no gradients, no clip paths, no defs, no external assets | Introduce anything that can collide between two portraits in one document |
 | Keep every face on the single neutral expression in v1 | Let the face carry state — the state dot carries state |
 | Render `icon` from config as plain text in the harness's own register | Render `icon` as a portrait, ever, including as a fallback |
 | Animate only what is actually happening | Animate a transition, a reveal, an entrance, or anything decorative; substitute a spinner or skeleton at any point |
 | Use `steps(1)` for the caret | Fade the caret — a fading caret is decoration |
-| Draw a turn in flight with the parts the thread has: the caret, the `work` state line, the portrait and head | Draw a skeleton turn, a placeholder word, a spinner, or pace a burst out character by character |
+| Draw a turn in flight with the parts the thread has: the caret, the `work` state line, the initials disc and head | Draw a skeleton turn, a placeholder word, a spinner, or pace a burst out character by character |
+| Draw a turn as a flat row: disc, head, words | Give a turn a container, ground, left rule or radius |
 | Disable **all** animation and transition globally under `prefers-reduced-motion: reduce` | Keep "essential" animation running, or leave a fact legible only while something moves |
 | Restate any `faint`-tier fact at `dim` or above | Put a fact only a user can act on at `faint` or `{colors.meta}` on `bg` — the locked ramp makes that a real contrast risk |
 | Express absence and inattention with opacity | Remove a chosen persona's face from the room |

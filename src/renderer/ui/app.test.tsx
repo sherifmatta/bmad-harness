@@ -391,7 +391,7 @@ describe('App, handing the work to the next persona', () => {
     kind: 'sysline',
     id: 'm-1',
     at: 5,
-    text: 'handed off · Mary → John · picking up from _bmad/prd.md, _bmad/epics.md'
+    text: 'handed to John'
   }
   const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
   const maryWords: ContractEvent = {
@@ -477,7 +477,7 @@ describe('App, handing the work to the next persona', () => {
   })
 
   it('shows the line once and in place however the window re-renders, and a later reply adds a second', async () => {
-    const back: SyslineRecord = { kind: 'sysline', id: 'm-3', at: 9, text: 'handed off · John → Mary' }
+    const back: SyslineRecord = { kind: 'sysline', id: 'm-3', at: 9, text: 'handed to Mary' }
     handoffs = [undefined, handoff, back]
     await start()
     act(() => tile('Mary').click())

@@ -96,6 +96,21 @@ function designValue(section: string, key: string): string {
 }
 
 /**
+ * A component value with its `{colors.x}` and `{opacity.x}` references replaced
+ * by the value the flat maps give them. The spine names a colour once, in
+ * `colors`, and a component points at it; the stylesheet holds the resolved
+ * value, so a comparison against it has to resolve first. Only those two groups
+ * resolve: `{rounded.x}`, `{spacing.x}` and the rest stay as written, and a
+ * test that wants a reference unresolved (the tile's `{colors.accent}` edge)
+ * simply does not call this.
+ */
+function resolveRefs(value: string): string {
+  return value.replace(/\{(colors|opacity)\.([\w-]+)\}/g, (_, group: string, key: string) =>
+    designValue(group, key)
+  )
+}
+
+/**
  * A nested `components:` sub-map out of DESIGN.md's frontmatter, read at run
  * time like everything else here. `designValue()` above reads the flat,
  * two-space maps; a component block is one level deeper, so its own keys sit at
@@ -433,41 +448,38 @@ describe('the layout constants', () => {
     expect(tokens.get('--rule-width')).toBe(runNote['rule'].split(/\s+/)[0])
   })
 
-  it('carries the initials disc’s three dimensions', () => {
+  it('carries the initials disc’s dimensions', () => {
     // Story 1.6, and here for the reason the run note's are: NFR23 forbids the
     // literal in any stylesheet but this one, and the spacing ladder carries no
     // signed rung — an overlap that pulls the next disc back over the one
-    // before it is not a gap and does not belong on a ladder of gaps.
+    // before it is not a gap and does not belong on a ladder of gaps. The chat
+    // look (2026-10-09) adds the two discs of the thread and its header.
     //
     // Read out of DESIGN.md's component block at run time rather than
     // transcribed. A hand-copied `-5px` is exactly the value that drifts
     // silently: it appears in no other file, so nothing else would notice.
     const initials = componentBlock('initials')
 
-    for (const key of ['size', 'sizeUser', 'stackOverlap', 'fontSize']) {
+    for (const key of ['size', 'sizeThread', 'sizeHeader', 'stackOverlap', 'fontSize']) {
       expect(initials[key], `DESIGN.md components.initials.${key}`).toBeTypeOf('string')
     }
 
     expect(tokens.get('--initials-size')).toBe(initials['size'])
-    expect(tokens.get('--initials-size-user')).toBe(initials['sizeUser'])
+    expect(tokens.get('--initials-size-thread')).toBe(initials['sizeThread'])
+    expect(tokens.get('--initials-size-header')).toBe(initials['sizeHeader'])
     expect(tokens.get('--initials-overlap')).toBe(initials['stackOverlap'])
+    // The user-size disc is gone: the chat's avatar is the thread disc.
+    expect(tokens.has('--initials-size-user')).toBe(false)
     // The glyph size at the small disc needs no token of its own: it is the
     // `micro` rung of a scale whose half-point steps are explicitly real, and
     // it is asserted here so that a retuned block cannot leave the disc
     // spending a rung the contract no longer names. The mockup rounds this to
     // 9px; the spine wins.
     expect(tokens.get('--fs-micro')).toBe(initials['fontSize'])
-
-    // The 32px glyph size is stated only inside that line's `[ASSUMPTION]`
-    // comment, which `componentBlock()` strips — so it is read from the raw
-    // line instead. Without this the larger disc's rung is transcribed and
-    // nothing watches it, which is the half of the coupling that was missing.
-    const stated = readFileSync(DESIGN, 'utf8').match(
-      /^ {4}fontSize:.*#\s*\[ASSUMPTION\][^\n]*?([\d.]+px) at the 32px user size/m
-    )
-
-    expect(stated, 'DESIGN.md must state the 32px glyph size').not.toBeNull()
-    expect(tokens.get('--fs-ident')).toBe(stated![1])
+    // The chat discs' glyphs are `label` at the thread size and `micro` at the header size.
+    expect(initials['threadFont']).toContain('{typography.label}')
+    expect(initials['threadFont']).toContain('{typography.micro}')
+    expect(tokens.get('--fs-label')).toBe('10.5px')
   })
 
   it('does not carry the superseded party-panel width', () => {
@@ -501,7 +513,7 @@ describe('the layout constants', () => {
     expect(dot['size'], 'DESIGN.md components.status-dot.size').toBeTypeOf('string')
 
     expect(tokens.get('--tile-height')).toBe(tile['height'])
-    expect(tokens.get('--tile-current')).toBe(tile['currentBackground'])
+    expect(tokens.get('--tile-current')).toBe(resolveRefs(tile['currentBackground']))
     // `2px {colors.accent}`: the width is the first word, the colour is --accent.
     expect(tokens.get('--tile-edge-width')).toBe(tile['currentEdge'].split(/\s+/)[0])
     expect(tile['currentEdge']).toContain('{colors.accent}')
@@ -513,9 +525,9 @@ describe('the layout constants', () => {
 
     expect(tokens.get('--cast-card-min')).toBe(card['minWidth'])
     expect(tokens.get('--cast-portrait')).toBe(card['portraitSize'])
-    expect(tokens.get('--cast-speaking-border')).toBe(card['speakingBorder'])
-    expect(tokens.get('--cast-speaking-ground')).toBe(card['speakingBackground'])
-    expect(tokens.get('--shadow-speaking')).toBe(card['speakingShadow'])
+    expect(tokens.get('--cast-speaking-border')).toBe(resolveRefs(card['speakingBorder']))
+    expect(tokens.get('--cast-speaking-ground')).toBe(resolveRefs(card['speakingBackground']))
+    expect(tokens.get('--shadow-speaking')).toBe(resolveRefs(card['speakingShadow']))
     // The ring on the portrait is 2px in the accent (DESIGN.md: `0 0 0 2px accent`); the equaliser
     // is the motion block's `3px→8px` with the three delays it names.
     expect(tokens.get('--cast-ring')).toBe('2px')
@@ -550,7 +562,7 @@ describe('the files in the rail (Story 1.11)', () => {
     const row = componentBlock('rail-row')
 
     expect(row['iconOpacity'], 'DESIGN.md components.rail-row.iconOpacity').toBeTypeOf('string')
-    expect(tokens.get('--opacity-mark')).toBe(row['iconOpacity'].replace(/^0(?=\.)/, ''))
+    expect(tokens.get('--opacity-mark')).toBe(resolveRefs(row['iconOpacity']).replace(/^0(?=\.)/, ''))
   })
 
   it('takes the row padding and the icon size from the mockup lines it cites', () => {
@@ -583,13 +595,13 @@ describe('the document window (Story 1.12)', () => {
     for (const key of ['lights', 'bodyPadding', 'radius', 'shadow', 'titlebar']) {
       expect(window[key], `DESIGN.md components.document-window.${key}`).toBeTypeOf('string')
     }
-    // `10px {rounded.full} #3a424e`: the size is the first word, the colour the last.
-    const [size, , colour] = window['lights'].split(/\s+/)
+    // `10px {rounded.full} {colors.win-light}`: the size is the first word, the colour the last.
+    const [size, , colour] = resolveRefs(window['lights']).split(/\s+/)
     expect(tokens.get('--win-light-size')).toBe(size)
     expect(tokens.get('--win-light')).toBe(colour)
     expect(tokens.get('--doc-body-padding')).toBe(window['bodyPadding'])
-    expect(tokens.get('--shadow-window')).toBe(window['shadow'].replace(/\s*,\s*/g, ','))
-    expect(window['titlebar']).toContain(tokens.get('--grad-titlebar'))
+    expect(tokens.get('--shadow-window')).toBe(resolveRefs(window['shadow']).replace(/\s*,\s*/g, ','))
+    expect(resolveRefs(window['titlebar'])).toContain(tokens.get('--grad-titlebar'))
   })
 
   it('takes each promoted literal from the mockup line it cites', () => {
@@ -866,8 +878,10 @@ describe('the light theme (Story 5.2, seam A)', () => {
     // moved from blue-tinted slate to neutral near-black and near-white (2026-10-08), and again for the three-column room
     // (2026-10-09): `--sidebar` added, `--rail` 348px to 300px, and the state strip's one padding at the block's end. Re-pinned
     // again when the chat UI was matched to the mockup (2026-10-09): `--composer-focus-line` removed, and the decision cards', the
-    // status pill's, the party turn's, the sysline's and the skill label's tokens added.
-    expect(createHash('sha256').update(promotedBlock()).digest('hex')).toBe('cdebaa815a83740e8bcfc72557bfebe34914c4a81c53734bd3eabe94b70273f5')
+    // status pill's, the party turn's, the sysline's and the skill label's tokens added. Re-pinned for the chat look
+    // (2026-10-09, flat rows and initials discs): `--initials-size-user` replaced by `--initials-size-thread` and `--initials-size-header`,
+    // `--chat-head-height` added and `--chat-head-padding` made `0 16px`, `--turn-gap` 11px and `--turn-stack-gap` 16px.
+    expect(createHash('sha256').update(promotedBlock()).digest('hex')).toBe('293040874e81e64c9552d3e08e09b3f936fd25c020ee5a3b96a794011ccbb5c1')
   })
 
   it('states color-scheme: light in its own block, and the dark theme still states dark', () => {

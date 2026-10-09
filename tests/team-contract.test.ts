@@ -234,18 +234,21 @@ describe('the chat header rules', () => {
     expect(body).toContain('background: var(--chrome)')
     expect(body).toContain('border-bottom: var(--rule-width) solid var(--line)')
     expect(body).toContain('padding: var(--chat-head-padding)')
-    expect(body).toContain('gap: var(--space-xl)')
+    expect(body).toContain('gap: var(--space-lg)')
+    // One line, 46px tall, the border inside it.
+    expect(body).toContain('height: var(--chat-head-height)')
+    expect(body).toContain('box-sizing: border-box')
   })
 
-  it('sets the name as the largest type in the shell and caps the sub-line at 72ch on one line', () => {
+  it('sets the name at the name rung, and keeps the orphan note on one line', () => {
     const name = ruleBody(HEAD_CSS, ['.chat-head-name']) ?? ''
     const sub = ruleBody(HEAD_CSS, ['.chat-head-sub']) ?? ''
 
-    expect(name).toContain('font-size: var(--fs-head)')
+    expect(name).toContain('font-size: var(--fs-name)')
     expect(name).toContain('font-weight: var(--weight-strong)')
-    expect(name).toContain('letter-spacing: var(--track-control)')
     expect(name).toContain('color: var(--text-strong)')
-    expect(sub).toContain('max-width: var(--chat-sub-max)')
+    // The roster's description line is gone; the cap that served it is no longer spent.
+    expect(sub).not.toContain('max-width')
     expect(sub).toContain('white-space: nowrap')
     expect(sub).toContain('text-overflow: ellipsis')
     expect(sub).toContain('color: var(--faint)')
@@ -262,6 +265,7 @@ describe('the chat header rules', () => {
       expect(body, selector).toContain('text-overflow: ellipsis')
     }
     expect(tokensCss).toMatch(/--chat-sub-max\s*:\s*72ch/)
+    expect(tokensCss).toMatch(/--chat-head-height\s*:\s*46px/)
   })
 })
 
@@ -278,6 +282,7 @@ describe('the promoted tokens', () => {
     '--code-tag-padding',
     '--rail-group-padding',
     '--chat-head-padding',
+    '--chat-head-height',
     '--chat-head-sub-top'
   ]
 
@@ -401,9 +406,10 @@ describe('the new sources stay within scope', () => {
     }
   })
 
-  it('keeps every persona keyed and portraited by agent id', () => {
+  it('keeps every tile portraited and keyed by agent id, and the chat header a disc with no portrait', () => {
     expect(code('src/renderer/ui/team/persona-tile.tsx')).toContain('artParamsFor(agent.id)')
-    expect(code('src/renderer/ui/chat/chat-header.tsx')).toContain('artParamsFor(agent.id)')
+    expect(code('src/renderer/ui/chat/chat-header.tsx')).not.toMatch(/artParamsFor|portrait\(/)
+    expect(code('src/renderer/ui/chat/chat-header.tsx')).toContain('size={22}')
     expect(code('src/renderer/ui/team/team.tsx')).toContain('key={agent.id}')
   })
 

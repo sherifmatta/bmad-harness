@@ -103,13 +103,14 @@ describe('Turns, a persona’s turn in flight', () => {
     vi.useRealTimers()
   })
 
-  it('draws the pending turn at the foot the moment main says work: portrait, head, the caret alone, and working · 0s ticking', () => {
+  it('draws the pending turn at the foot the moment main says work: initials disc, head, the caret alone, and working · 0s ticking', () => {
     draw(fold(asked(), working(START)))
 
     expect(pending()).toHaveLength(1)
     const turn = pending()[0]
     expect(container.lastElementChild).toBe(turn)
-    expect(turn.querySelector('.turn-av .portrait svg')?.getAttribute('aria-label')).toBe('Mary, Analyst')
+    expect(turn.querySelector('.turn-av svg')).toBeNull()
+    expect(turn.querySelector('.turn-av .initials--thread')?.textContent).toBe('M')
     expect(turn.querySelector('.turn-name')?.textContent).toBe('Mary')
     expect(turn.querySelector('.turn-role')?.textContent).toBe('Analyst')
     // The body is the caret and nothing else: no word, no stand-in.

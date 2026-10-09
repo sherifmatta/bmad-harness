@@ -53,13 +53,35 @@
 }
 
 /*
- * The user's own avatar in the transcript. Larger, and one rung up the type
- * scale with it — the glyphs are sized to the disc, not held constant.
+ * The chat's avatar, beside a turn and in the chat header: a persona's and
+ * yours alike. It stands beside the name, so it is decorative and takes no
+ * reveal. The glyphs are sans at the strong weight in the strong text colour,
+ * sized to the disc.
  */
-.initials--user {
-  width: var(--initials-size-user);
-  height: var(--initials-size-user);
-  font-size: var(--fs-ident);
+.initials--thread,
+.initials--header {
+  font-family: var(--sans);
+  font-weight: var(--weight-strong);
+  color: var(--text-strong);
+}
+
+.initials--thread {
+  width: var(--initials-size-thread);
+  height: var(--initials-size-thread);
+  font-size: var(--fs-label);
+}
+
+.initials--header {
+  width: var(--initials-size-header);
+  height: var(--initials-size-header);
+  font-size: var(--fs-micro);
+}
+
+/* Your own disc: the one tint that tells you from a persona at a glance. */
+.initials--you {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--accent);
 }
 
 /*

@@ -19,7 +19,7 @@ const ROOM_LINE: TranscriptEntry = {
 const OTHERS: TranscriptEntry[] = [
   { kind: 'user', id: 'u1', at: 1, text: 'hello there' },
   { kind: 'persona', id: 'p1', at: 2, agent: mary, text: 'good morning' },
-  { kind: 'sysline', id: 'm-0', at: 3, text: 'handed off · Mary → John' }
+  { kind: 'sysline', id: 'm-0', at: 3, text: 'handed to John' }
 ]
 
 const render = (
@@ -135,7 +135,7 @@ describe('PartyView', () => {
     expect(markup.match(/class="sysline"/g)).toHaveLength(1)
     expect(markup).not.toContain('hello there')
     expect(markup).not.toContain('good morning')
-    expect(markup).not.toContain('handed off')
+    expect(markup).not.toContain('handed to')
     expect(markup).not.toMatch(/class="turn/)
   })
 

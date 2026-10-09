@@ -170,10 +170,10 @@ describe('what the theme changes in what is drawn', () => {
 })
 
 describe('the portraits', () => {
-  const SIZES: PortraitSize[] = [32, 36, 38, 44]
+  const SIZES: PortraitSize[] = [36, 44]
   const IDS = ['bmad-agent-analyst', 'bmad-agent-pm', 'bmad-agent-ux-designer', 'bmad-agent-architect', 'bmad-agent-dev']
 
-  it('are byte-identical under both themes at each of their four sizes: the face is on its own dark backdrop in either', () => {
+  it('are byte-identical under both themes at each of their two sizes: the face is on its own dark backdrop in either', () => {
     for (const id of IDS) {
       for (const size of SIZES) {
         const markupUnder = (theme: Theme): string => {

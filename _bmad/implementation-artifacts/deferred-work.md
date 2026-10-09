@@ -156,3 +156,9 @@
 - source_spec: `_bmad/implementation-artifacts/epic-4-retro-2026-10-08.md` (behavior check 7)
   summary: `@name` typed in the room reaches the room verbatim and does nothing else; no spec says what it should do.
   evidence: Retro behavior 7 against a stub `claude`; not verified against the real party skill.
+- source_spec: `_bmad/implementation-artifacts/spec-chat-look-flat-rows-and-initials.md`
+  summary: Remove the tokens the chat look left unspent (`--chat-sub-max`, `--turn-padding`, `accent-wash`, `accent-edge`, `--inset-turn-user`) together with the tests that pin them, and drop them from DESIGN.md.
+  evidence: No stylesheet spends them after flat rows and the one-line header; `tests/conversation-contract.test.ts` and `tests/tokens.test.ts` still pin them, so the build kept them.
+- source_spec: `_bmad/implementation-artifacts/spec-chat-look-flat-rows-and-initials.md`
+  summary: Remove the per-persona written-file tracking (`service.written`, `fold/written-paths`, the clear in `session-bridge.ts`) that no longer feeds the handoff line.
+  evidence: The handoff composer was its only reader; the handoff line now reads `handed to <Name>` and names no files.

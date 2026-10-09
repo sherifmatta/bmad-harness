@@ -3,26 +3,33 @@ import type { JSX } from 'react'
 import './initials.css'
 
 /**
- * The initials token — FR82, UX-DR15, DESIGN.md:581-587 and EXPERIENCE.md's
+ * The initials token — FR82, UX-DR15, DESIGN.md's *Initials* and EXPERIENCE.md's
  * *The initials token — focus parity*.
  *
- * This is the thing that made the 32px portrait floor affordable. At 20px a
- * generated face degrades to a colour blob with a hair silhouette, and the
- * derivation has no collision check to save it, so the small-reference cases —
- * stacked faces, the handoff chip — take a disc of letters instead. The 32px
- * form is the user's own avatar in the transcript, which is the only place a
- * person who has no generated face appears.
+ * Two jobs, split by size.
  *
- * **`tabindex` and the reveal are the point, not decoration.** A hover-only
- * tooltip is the one affordance that fails completely without a mouse, and the
- * whole content of a stacked row — who is in it — is behind that reveal. So
- * the disc is focusable, it is labelled, and the reveal fires on hover and on
- * keyboard focus through one selector list, which is what makes the parity
- * structural rather than a thing two rules have to agree about.
+ * The 20px form is the small reference. At 20px a generated face degrades to a
+ * colour blob with a hair silhouette, and the derivation has no collision check
+ * to save it, so stacked faces and the handoff chip take a disc of letters
+ * instead. That disc stands alone, so it is focusable (`tabindex`), labelled
+ * `{name}, {title}`, and reveals name and role on hover and on keyboard focus
+ * through one selector list, which makes the parity structural rather than a
+ * thing two rules have to agree about. A hover-only tooltip is the one
+ * affordance that fails completely without a mouse.
+ *
+ * The 26px and 22px forms are the chat's avatar (2026-10-09): a persona's and
+ * the user's own beside a turn and in the chat header, where the thread carries
+ * no portraits. The name is beside them, so they are decorative: `aria-hidden`,
+ * no tab stop, no label, no reveal.
  */
 
-/** The two sizes DESIGN.md fixes: small reference, and the user's own avatar. */
-export type InitialsSize = 20 | 32
+/**
+ * The three sizes DESIGN.md fixes: the small reference (20), the chat header's
+ * disc (22) and the avatar beside a chat turn (26). The 22 and 26 discs are the
+ * chat's own avatar, a persona's and yours alike, and stand beside the name, so
+ * they are decorative: `aria-hidden`, no tab stop and no reveal.
+ */
+export type InitialsSize = 20 | 22 | 26
 
 /**
  * The glyphs: the first letter of each of the first two words, upper-cased.
@@ -65,17 +72,30 @@ export function Initials({
   name,
   title,
   size,
-  stacked = false
+  stacked = false,
+  you = false
 }: {
   name: string
   title: string
   size: InitialsSize
   stacked?: boolean
+  /** Your own disc: the one tint that tells you from a persona (22 and 26 only). */
+  you?: boolean
 }): JSX.Element {
-  const classes = ['initials']
-  if (size === 32) {
-    classes.push('initials--user')
+  if (size !== 20) {
+    // The chat's avatar: the name is beside it, so it says nothing of its own.
+    const chat = ['initials', size === 26 ? 'initials--thread' : 'initials--header']
+    if (you) {
+      chat.push('initials--you')
+    }
+    return (
+      <span className={chat.join(' ')} aria-hidden="true">
+        {initialsOf(name)}
+      </span>
+    )
   }
+
+  const classes = ['initials']
   if (stacked) {
     classes.push('initials--stacked', 'focus-stacked')
   }

@@ -85,7 +85,7 @@ const sysline = (id: string, at: number): TranscriptEntry => ({
   kind: 'sysline',
   id,
   at,
-  text: 'handed off · Ben → Ada · picking up from _bmad/planning-artifacts/prd.md'
+  text: 'handed to Ada'
 })
 
 type Column = { entries: TranscriptEntry[]; answerable?: boolean }
@@ -182,7 +182,7 @@ describe.each(STATES)('the chat column with %s', (_label, state) => {
 
   it('has no recommendation, default, refusal or handoff offer', () => {
     expect(markup).not.toMatch(RECOMMENDATION)
-    // The persona's question is its own words. The sysline's `handed off` is a past-tense fact and
+    // The persona's question is its own words. The sysline's `handed to` is a past-tense fact and
     // does not match; an offer to hand off (`hand off`, `handing off`) would.
     expect(markup).not.toMatch(/\bhand(?:ing)?[- ]?off\b/i)
   })

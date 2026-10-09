@@ -42,8 +42,8 @@
 }
 
 /*
- * The latest turn of the persona speaking now (Story 4.2): an accent edge down its left side, in
- * the way the user's turn has its own. It is on that turn only while that persona is the speaker.
+ * The latest turn of the persona speaking now (Story 4.2): an accent edge down its left side, on a
+ * ground of its own. It is the only turn row with either, and only while that persona is the speaker.
  */
 .turn--party-live {
   background: var(--party-live-ground);
@@ -51,10 +51,10 @@
 }
 
 /*
- * A turn in the room is a `.pturn` in the mockup (:304), not a `.turn`: padded one pixel
- * tighter, and with no gap between one turn and the next, because the mockup's
- * `.turn + .turn` rule (:172) does not reach it. The room reuses the 1:1 turn's markup, so
- * the difference is made here, under the room's own column.
+ * A turn in the room is a `.pturn` in the mockup (:304), not a `.turn`: padded, and with no gap
+ * between one turn and the next, because the mockup's `.turn + .turn` rule (:172) does not reach
+ * it. The room reuses the 1:1 turn's markup, so the difference is made here, under the room's own
+ * column. This is the one place a turn row keeps a padding.
  */
 .party-column .turn {
   padding: var(--party-turn-padding);

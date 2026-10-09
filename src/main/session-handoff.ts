@@ -7,9 +7,10 @@ import type { Service } from './session-registry'
 /**
  * Whether an open that succeeded was a handoff, and if so the sysline it wrote.
  * It was one when the transcript already has an entry and the window's last
- * opened persona is a different one; that persona is `from`, and the files it
- * wrote are what the new one picks up from. A persona the roster does not name
- * is not announced, and the open itself is unchanged. Either way this open is
+ * opened persona is a different one. The line is `handed to <Name>` and nothing
+ * more: it names no files and no skill, since a tile click or an `@name` carries
+ * neither. A persona the roster does not name (either side) is not announced,
+ * and the open itself is unchanged. Either way this open is
  * now the last one.
  */
 
@@ -38,15 +39,10 @@ export function createHandoffComposer(deps: HandoffComposerDeps) {
     if (transcript.entries().length === 0) {
       return undefined
     }
-    const fromName = nameOf(sender.id, from)
     const toName = nameOf(sender.id, agentId)
-    if (fromName === undefined || toName === undefined) {
+    if (nameOf(sender.id, from) === undefined || toName === undefined) {
       return undefined
     }
-    const files = service.written.get(from) ?? []
-    const text =
-      `handed off · ${fromName} → ${toName}` +
-      (files.length === 0 ? '' : ` · picking up from ${files.join(', ')}`)
-    return transcript.recordSysline(text, now())
+    return transcript.recordSysline(`handed to ${toName}`, now())
   }
 }

@@ -19,6 +19,9 @@ sources:
   - mockups/rail-resize-collapse.html
   - mockups/paperclip-layout-chat.html
   - mockups/paperclip-board.html
+  - mockups/chat-thread-reference.png
+  - mockups/document-card-dead-air.html
+  - ../../epics.md
 companions:
   - DESIGN.md
 ---
@@ -26,6 +29,15 @@ companions:
 # BMad Visual Harness — Experience Spine
 
 The product test that outranks every rule in this document: *"if it reads as a chat box with a portrait glued on, it has failed regardless of feature completeness."* Restraint in the shell is not minimalism for its own sake — it is the budget the portraits spend. Nothing in this document may buy shell decoration with that budget.
+
+*Amended 2026-10-09 by the user's decision: the chat thread and its header no longer carry portraits; a persona there is an initials disc (*Layout, chat and Board → The chat look*). The faces stay on the Team tiles, the cast cards and the Welcome, so the test now binds the shell around the thread, and the budget the portraits spend is spent there.* **Mockups illustrate; this spine wins** (stated once here). Four still draw what the chat look replaced (container turns, a tinted user turn, portraits in the thread): `follow-the-thread.html`, `rail-resize-collapse.html`, `light-a-shell.html` and the transcript box of `portrait.html`. Their turn rendering is superseded by *Layout, chat and Board → The chat look* in EXPERIENCE.md; the rest of each stands.
+
+**Open items** (after the 2026-10-09 chat-look update; each is also tagged `[OPEN]` where it appears; the rest of `review-rubric.md` is in `validation-report.md`):
+1. `[OPEN]` **Stop vs `close session`.** Does the header's `Stop` replace `close session`, or take its slot only while a turn is in flight? The contract has `run.stop(runId)` and `session.close` only, so a plain chat turn has nothing to stop with.
+2. `[OPEN]` **The room's live turn.** It keeps its accent edge and `party-live-ground` by assumption, the one turn row with either.
+3. `[OPEN]` **The skill-name source.** `handed to <persona> · <skill>` and the run card head show a name the renderer's events do not carry.
+4. `[OPEN]` **Register split under steps.** Steps and prose are both mono; structure, not typeface, tells them apart.
+5. `[OPEN]` **The `@Name` chip.** A handoff strips the `@name` from the turn, so the chip the screenshot draws needs a display text recorded beside the sent text in `turn.send`: a contract change, handed to `bmad-architecture`. Not built.
 
 Behaviour half of a two-document contract. **The ownership convention, stated once and used throughout: anatomy and appearance live in `DESIGN.md`; triggers, transitions, data sources and keyboard behaviour live here.** `DESIGN.md` is the sole home of colour, dimension, radius and type; tokens are referenced here as `{group.name}` and resolve there. This document never states a literal colour, size or font — per AD-14, a literal in a component is a defect.
 
@@ -53,7 +65,7 @@ Every rule below traces to a memlog decision, an architecture decision (AD-n), a
 | Run Completion When Unattended | the notification contract for the terminal events |
 | Party Mode | the room, its v1 cuts, and ownership without an `agentId` |
 | Accessibility Floor | reduced motion, keyboard reach, focus, live regions |
-| Key Flows | the three narrated sessions every rule above was derived from |
+| Key Flows | the three narrated sessions the first rules came from; later sections (Welcome, Theme, Output folder, Resizing, the Board, the chat look) carry their own behaviour without a flow |
 
 ---
 
@@ -116,7 +128,7 @@ This section therefore governs **harness-authored microcopy only**: rail states,
 | `no files under _bmad/ yet` | `Get started by running a skill` |
 | `stop` | a modal asking `Are you sure?` |
 | `queued · sends when John finishes` | `Message will be delivered shortly` |
-| `handed off · John → Amelia · picking up from PRD.md, epics.md` | `conversation and context continue` |
+| `handed to Amelia · bmad-build` | `conversation and context continue` |
 | Lower case, mono, `·` as the separator, no terminal punctuation | Sentence case with full stops in a state string |
 | Name the thing and stop | Name the thing and recommend a move |
 
@@ -129,9 +141,9 @@ This section therefore governs **harness-authored microcopy only**: rail states,
 5. **Disagreement must carry evidence — a file, a line count, a percentage, a cost — or it must not ship.** Theatre-grade disagreement is a trust liability a plain prompt box does not carry; fake personhood is the failure mode named in the source. The harness does not author disagreement, so this rule binds the two things **the harness** *does* control: any persona or party configuration shipped with the product, and the chrome around a turn. v1 ships **no** `disagrees` / `evidence` tag, because a tag would let contentless disagreement read as substantive (see *Party Mode*).
 6. **Config file paths never appear in copy.** The mockup's rail footer (*"Read from each agent's `customize.toml`…"*) and composer hint (*"skills read from `.claude/skills/…/customize.toml`"*) are factually stale: AD-10 makes `_bmad/config.toml` `[agents.*]` authoritative and AD-8 says config files are never read directly. **The spec wins over the mockup here.** Both strings are cut; nothing replaces them. **[ASSUMPTION]** — no source specifies replacement copy; dropping the provenance sentence is the minimal honest fix.
 
-**The handoff sysline — why the mockup's wording is wrong**
+**The handoff sysline — why the mockup's wording is wrong, and where it stands**
 
-The mockup's sysline reads *"handed off · John → Amelia · conversation and context continue"*. Under **AD-7 that is false**: a handoff **starts a new session**, and continuity is carried by *the project artifacts the previous persona wrote*, not by transplanting context. The corrected line — tabled above — names the real mechanism, the files, instead of a fake one, and it satisfies CAP-8's *"no handoff presents as a restart"* better than the false claim did, because the transcript is continuous and the artifacts are named and on disk. **[ASSUMPTION]** — the sysline names the artifacts the previous persona wrote during this conversation, in write order; no source specifies which files are named.
+The mockup's sysline read *"handed off · John → Amelia · conversation and context continue"*. Under **AD-7 that is false**: a handoff **starts a new session**, and continuity is carried by *the project artifacts the previous persona wrote*, not by transplanting context. It was first corrected to name those files (*picking up from PRD.md, epics.md*). **On 2026-10-09 the user chose the screenshot's wording instead: `handed to <persona> · <skill>`.** It claims nothing that did not happen, so AD-7 holds, but it no longer names the files that CAP-8's *"no handoff presents as a restart"* leaned on; the transcript is still continuous and the files are still in the rail beside it. **[ASSUMPTION — OPEN]** — the skill is named only when main knows one for the handoff (one that came with a skill invocation); with none the line is `handed to <persona>`. AD-3 keeps resolved skill names out of the renderer, and a menu entry may be a prompt with no skill behind it (AD-9); the renderer's `run:started` carries only the menu `code`. The name has a source or it is omitted. **The `· <skill>` half is dormant in v1:** a handoff from a tile click or `@name` names no skill (Flow 3), so today the line reads `handed to <persona>`.
 
 ---
 
@@ -141,20 +153,29 @@ Behavioural only, per the ownership convention. Anatomy and appearance live in `
 
 | Component | Behaviour | Disabled / absent when |
 |---|---|---|
-| View switch | toggles 1:1 ↔ Party. Sessions in the other view keep running. | never |
+| View switch | toggles 1:1 ↔ Party; a third segment, Board, is proposed (*Layout, chat and Board*). Sessions in the other view keep running. | never |
 | Persona tile | click marks current (accent edge), rebuilds the skill row, and expands that persona's card. Aggregates every session carrying its `agentId` — a tile may stand for more than one session. | never; a party session has no tile |
-| Portrait | `{components.portrait}`. Deterministic from curated params (the five) or derived from `agentId` (everyone else). **One neutral expression at every state** — the face never reacts; the state dot carries state. `portrait(artParams, size, state)` keeps accepting `state` so reactive faces need no signature change later. | below 32px — see next row |
-| Initials token | `{components.initials}` replaces the portrait at 20px (stacked faces, small references). Reveals name and role on **both** hover and keyboard focus. | — |
+| Portrait | `{components.portrait}`. Deterministic from curated params (the five) or derived from `agentId` (everyone else). **One neutral expression at every state** — the face never reacts; the state dot carries state. `portrait(artParams, size, state)` keeps accepting `state` so reactive faces need no signature change later. | below 32px — see next row. **Not used in the chat thread or the chat header** (*Layout, chat and Board → The chat look*): there a persona is an initials disc |
+| Initials token | `{components.initials}` is **the avatar in the chat**: a persona's and yours, beside every turn (`{components.initials.sizeThread}`) and in the chat header (`{components.initials.sizeHeader}`), in the 1:1 and the party thread. It also replaces the portrait at 20px (stacked faces, small references). **Where it stands alone, it reveals name and role on both hover and keyboard focus; in the thread and header the name is beside it, so it is decorative: no tab stop, no reveal** (*Accessibility Floor → The initials token*). | — |
 | Skill button | label is the menu entry's `description`; a code badge carries the `code`. Click dispatches `menu.dispatch(sessionId, code)` — the button knows nothing about what it invokes. **No tooltip or preview derived from a resolved skill name** (AD-3: it would go stale). The user is never shown whether an entry is `skill` or `prompt`, and should not care (AD-9). | disabled whenever **any** turn is in flight in that session. `live` does **not** disable them |
 | `+N more` | **expands the button row in place.** The row grows to show the remaining entries. **No transcript entry is created.** | — |
 | Composer | never disabled. A message typed during a run is queued and visible — see *State Patterns → Queued composer*. | never |
 | Document card | born on `run:started`, dead on the run's terminal event. Full for the active persona's card, collapsed for every other card. Expands on persona switch or click. **A collapsed card is never a spinner; it is the same state, smaller.** | absent for a plain chat turn |
-| Stop control | present on **both** the full card head and the collapsed line. Dispatches `run.stop(runId)`. | — |
+| Stop control | present on **both** the full card head and the collapsed line. Dispatches `run.stop(runId)`. The chat header's `Stop` is the same stop for the turn in flight (*Layout, chat and Board → The chat look*). | — |
 | Rail row | two independent registers on one line: disk `state` (watcher) and optional run `annotation` (stream). Click opens the document window. | the annotation slot is genuinely optional — a row must read as complete without it |
 | Document window | read-only preview, reloads **from the watcher**, not from a renderer-initiated read. Three escapes: *Reveal in Finder*, *Open in editor*, *Close*. `Esc` closes. **No refresh control. No edit affordance. No save.** | — |
 | Cast card (party) | presence is expressed by **dimming, never removal**. Every chosen portrait stays permanently visible; the current speaker is lit. | — |
 | Decision option | the block a persona raises inside its own turn when it stops to ask. Each option is its own control — click, or `Enter`/`Space` when focused. Activating one **sends that option as the user's turn**, in the user's name, and the run resumes from the persona's reply. **The whole option block is then removed** — it was a question and it has been answered; there is no chosen state, no greyed-out losers and no record of the block beyond the two turns either side of it. The harness never authors the options, never reorders them and never marks one recommended; a stated lean is the persona's own words. | absent unless the persona's turn raises one |
 | Sysline | harness-authored transcript entry in mono: session resumed, handoff, room opened. Never attributed to a persona. | — |
+| Conversation turn | a flat row: initials disc, head (name, title, clock time), words. Behaviour: *Layout, chat and Board → The chat thread*, *State Patterns → A turn in flight*, *Queued composer* | — |
+| Chat header | one line: disc, name, `title · story <id>`, the state pill, the stop slot. Behaviour: *Layout, chat and Board → The chat look* | the story reference is absent when it has no source |
+| Run step | one row of the run list, in the document card's body: *State Patterns → The run list* | absent until the main-side step event exists |
+| Run note | one row of the run list, from `.memlog.md`: *Dead Air → Run-note anatomy* | — |
+| Status dot | five states, one source each: *State Patterns → Persona tile* | — |
+| Tags | neutral and disagree chips; v1 ships none of the party tags: *Party Mode* | — |
+| Follow control | *Following the thread* | — |
+| Splitter, Folder heading, Outputs head | *Resizing and folding*, *Output folder* | — |
+| Welcome | *Welcome* | — |
 
 ### `+N more`, in detail
 
@@ -173,7 +194,7 @@ Project **content** is untrusted because it is largely model-authored (AD-13). M
 | Primitive | Where | Dispatches |
 |---|---|---|
 | View switch | topbar | 1:1 ↔ Party ↔ Board |
-| Persona tile | rail | marks current · rebuilds the skill row · expands that persona's card |
+| Persona tile | Team sidebar | marks current · rebuilds the skill row · expands that persona's card · opens a session, and writes the handoff sysline, when none is open |
 | Skill button | above the composer | `menu.dispatch(sessionId, code)` → births a card |
 | `+N more` | skill row | expands the row in place |
 | Composer | chat column | `turn.send` — queued if a turn is in flight |
@@ -234,7 +255,7 @@ Grouped by the agent's **`module`**, and by **`team`** where present — AD-10 n
 | `idle` | `{colors.faint}` dot | no session, or nothing running | |
 | `work` | `{colors.amber}` dot, pulsing | any turn in flight — chat or skill run | **persists through quiet subagent phases.** The work is still running, so the signal still holds |
 | `live` | `{colors.green}` dot | a long-running attached process (e.g. a test watcher) | looks like activity but must **not** disable skill buttons |
-| `note` | `{colors.note}` dot | the watcher saw a change to a file this persona owns | uses the dedicated note-blue token, not `{colors.accent}` — blue-as-state and blue-as-accent must be distinguishable (AD-14) |
+| `note` | `{colors.note}` dot | the watcher saw a change to a file this persona owns | uses the dedicated `{colors.note}` token, not `{colors.accent}` — the two must stay distinguishable (AD-14) |
 | `error` | `{colors.red}` dot | this persona's last run failed **or** was stopped | the tile conflates the two on purpose. **Alert only — no error text on the tile** (AD-20) |
 
 Every indicator is driven by real system state; no state exists for decoration. Five states, **four colours** — `idle` is the absence of one (`DESIGN.md` → *Colors*). **Every dot is paired with a text state string in the same row** — this is the colour-blindness mitigation and the reduced-motion mitigation at once, and it is cheap enough to be non-negotiable.
@@ -252,18 +273,38 @@ A row can be `changing` with **no annotation at all** — an external editor wri
 
 ### Document card
 
-The body has **two visual modes** — *prose mode* and *run-note mode* (`DESIGN.md` → *Components → Document card*). The six behavioural states below each resolve to one of them; the card is never in neither.
+The body has **two visual modes** — *prose mode* and *run-list mode* (`DESIGN.md` → *Components → Document card*). The six behavioural states below each resolve to one of them; the card is never in neither.
 
 | State | Head | Body | Body mode | Foot |
 |---|---|---|---|---|
 | streaming prose | `writing · §N <Name>` | document prose in `{typography.doc-prose}` | prose | word count · section count · not-yet-written sections by name |
 | revising | `revising · §N <Name>` | prose, updated in place | prose | unchanged — a revision advances nothing |
-| quiet (dead air) | phase word if a feed states one, else path + elapsed only | **the run-note feed** — see *Dead Air* | run-note | `0 words on disk · <phase> · autosave on` + named next sections |
+| quiet (dead air), or a run that writes no document | phase word if a feed states one, else path (or skill name) + elapsed only | **the run list** — steps and run notes in time order; see *The run list* and *Dead Air* | run-list | `0 words on disk · <phase> · autosave on` + named next sections for a run that writes a document; **none** for one that writes none |
 | stopped / failed | `stopped` + the section reached | whatever was streamed, left as-is | whichever mode it was in when it stopped | unchanged |
 | finished | `saved · just now · N sections`; dot `work` → `live`; caret removed | final prose | prose | — |
 | dead (post-restart) | terminal state, **no elapsed ticking, no stop control** | as left | as left | as left |
 
 A run in flight survives a **window reload** — main owns durable state and re-emits on reconnect (AD-7), so no card visual may depend on having witnessed earlier deltas. It does **not** survive an **app restart**: after a restart the transcript is present and the sessions are gone (AD-18). Every persona reads `idle`; every card renders dead; nothing is offered to resume.
+
+### The run list
+
+*Added 2026-10-09, from the screenshot (`mockups/chat-thread-reference.png`). Appearance: `DESIGN.md` → Components → Run step.*
+
+In run-list mode the card's body is one list in time order, newest last, of two kinds of row.
+
+| Row | Is | Source |
+|---|---|---|
+| **Step** | one tool call the persona made: a mark, what it did in a few words (`read story 5.6`, `write theme-audit.test`, `edit design/tokens.css`) and how long it took | **a new main-side event; none exists yet** (below) |
+| **Run note** | a `.memlog.md` entry: time, kind tag, reason, unchanged (*Dead Air*) | `run:note` |
+
+- **Marks.** A finished step is `✓`. The step in flight is the amber `work` dot with its pulse, and its elapsed reads `now`. A finished step's elapsed is the call's own duration (`0:03`). **No pending step is drawn:** no plan of the steps to come exists, and a list of invented future steps is a progress bar by another name. **[ASSUMPTION]** — a step whose `tool_result` is `is_error` takes `✕` in `red`, as a failed or stopped run does; no source says.
+- **Interleaved.** A run note arrives between the steps it fell among, with its tag. This is the approved Dead Air feed with steps added, not a second feed.
+- **No shimmer, no bar, no `n of m`.** The running step's pulse is the only motion. Under reduced motion it stops like every pulse, and `now` carries the liveness (*Accessibility Floor*).
+- **Prose mode stays.** While document prose streams, the body is the prose. The steps and notes accrued before it stay above it in the same scroll container (*Dead Air → Mode transition*).
+- **The register split holds, on a narrower footing. [ASSUMPTION — OPEN]** Steps are the harness's facts about tool calls and render in mono; notes render in sans; prose renders in mono. In prose mode a step row and a line of prose are both mono, so they are told apart by structure: a step is one short row with a mark and an elapsed column, prose is unbroken pre-wrapped lines. Do not give a step a sentence's length (*Typography → The register split*).
+- **The source gap.** `src/shared/events.ts` has no event for a general tool step. The fold sees each call's id and name and each result's failure and emits nothing, and a step's label needs the call's target from its input. AD-20 forbids a step with no source. **This needs a new main-side event, handed to `bmad-architecture`; the list is not buildable until it exists, and until then the card keeps the run-note feed alone.**
+- **Collapsed.** A finished run collapses to its one line, and the collapsed card's field set is unchanged (*Dead Air → The elsewhere case*).
+
 
 ### Progress, batch commit and revision
 
@@ -287,7 +328,7 @@ A persona can load, think and call tools for several seconds before its first wo
 
 | Moment | 1:1 thread | Party thread |
 |---|---|---|
-| the turn begins | a **pending turn** at the foot: the persona's portrait and head, the caret as the body, `working · 0s` under it | a **pending row** at the foot: the state line alone, counting from the user's send |
+| the turn begins | a **pending turn** at the foot: the persona's initials disc and head, the caret as the body, `working · 0s` under it | a **pending row** at the foot: the state line alone, counting from the user's send |
 | the first words land | the words replace the lone caret; the caret moves to their tail and the state line stays under them | the speaker's live turn takes the caret and the state line; the cast card lights as it always has |
 | a silence mid-turn (a tool call) | the caret stays at the tail of the last words, the state line under them, the counter ticking | the same, on the speaker's turn |
 | the turn ends, fails or is stopped | the caret and the line go; the words are exactly what was said. A failure keeps its existing sysline | the same |
@@ -346,7 +387,7 @@ CAP-1 promises zero *configuration*, not zero *prerequisites*. Any failure is re
 
 ## Welcome
 
-*Added 2026-10-08 from the welcome-screen mockups (`mockups/welcome-screen-chosen.html`). Anatomy and tokens: `DESIGN.md` → Components → Welcome.*
+*Added 2026-10-08 from the welcome-screen mockups (`mockups/welcome-screen.html`, the options round, and `mockups/welcome-screen-chosen.html`, the one taken). Anatomy and tokens: `DESIGN.md` → Components → Welcome.*
 
 Before this, the harness opened a native folder dialog the moment it started, and quit if the dialog was cancelled. The user met the product as an operating-system dialog and could not see what they were opening. The Welcome is the first thing the harness shows, and what it is for is one choice: **which project**.
 
@@ -449,7 +490,7 @@ One value, stored as one of `system`, `light`, `dark` in harness bookkeeping und
 | **View ▸ Theme** | a submenu of three radio items — `System`, `Light`, `Dark` — with a check on the current one. In the application menu of **every** kind of window (project, document, Welcome). **No accelerator**: nothing in the product has a theme shortcut and none is added. **[ASSUMPTION]** — no source specifies one |
 | **The Welcome's theme line** | `theme · system · light · dark` at the bottom edge, the same choice. It exists **only on the Welcome**: a project window has no theme control in its topbar, rail or composer (the topbar stays as it is) |
 
-The topbar carries no theme control: it is the densest strip in the product, it already holds one switch and *one switch, no third view* is a rule worth keeping.
+The topbar carries no theme control: it is the densest strip in the product, it already holds one switch and one control there is a rule worth keeping (a third, Board segment is proposed in the same switch: *Layout, chat and Board*).
 
 ### What changing it does
 
@@ -630,7 +671,7 @@ No animation of a width or a fold; no snap points or presets; no per-persona, pe
 
 ## Layout, chat and Board
 
-*Added 2026-10-09. Appearance: `DESIGN.md` → Components, to be added (this section leads, the anatomy follows). Prototypes: `mockups/paperclip-layout-chat.html` and `mockups/paperclip-board.html`.*
+*Added 2026-10-09. Appearance: `DESIGN.md` → *Proposed: layout, thread and Board anatomy*, and Components → Conversation turn, Initials, Chat header, Run step. Prototypes: `mockups/paperclip-layout-chat.html` and `mockups/paperclip-board.html`.*
 
 **Where it comes from.** The direction is taken from the public description of Paperclip, an open-source orchestrator for teams of agents: its three-column board, its issue thread that renders runs and questions inline as one conversation, and its dashboard. Only public pages were read (the v2026.416.0 changelog, the docs home, the dashboard guide, the product pages); no screenshots, so no pixel was copied and nothing here depends on how Paperclip looks. The prototypes show more than is adopted below: **where a prototype and this section differ, this section wins.**
 
@@ -644,11 +685,33 @@ No animation of a width or a fold; no snap points or presets; no per-persona, pe
 | **Chat column**, centre | the thread and the composer, as now | nothing |
 | **Context panel**, right | *Properties*, *Goal trace*, *Outputs*, *Run* for the open conversation | the Outputs half of the rail |
 
-- **Persona order is unchanged.** Tiles stay grouped by `module` and `team` and in config order (*Persona tile order*). They are **not** regrouped by state, and nothing is sorted by who needs attention: AD-21's no relevance sort and no highlighting hold. State is the dot each tile already has; an idle persona dims (`--opacity-idle`), as it does now.
+- **Persona order is unchanged.** Tiles stay grouped by `module` and `team` and in config order (*Persona tile order*). They are **not** regrouped by state, and nothing is sorted by who needs attention: AD-21's no relevance sort and no highlighting hold. State is the dot each tile already has; an idle persona dims (`{opacity.idle}`), as it does now.
 - **The state strip** is four plain counts of the tiles' own dot states, read from the same `states` map as the dots (AD-20), is never a badge and never counts anything unread. *Settled:* the cells are **working** (`work`), **idle** (`idle` and `live`, a persona with a session open and no turn in flight being idle), **error** (`error`) and **changed** (`note`, a file changed on disk). It takes no accent, fill or badge and is not announced; a persona the map holds nothing for counts as idle, and an empty roster reads four zeros.
 - **The Inbox** lists the open decision blocks across personas, newest first, so a question from one persona is not lost while the user talks to another. It shows **no count** on its row. A row opens that persona's thread at the decision. It lists nothing the harness invented: an empty list says `nothing open`. **[ASSUMPTION]** — needs a read across sessions' unanswered decision blocks; check the session model has one before building.
 - **The context panel** shows facts about the open story and run, and nothing prescriptive. *Properties*: status, owner persona, current skill, branch. *Goal trace*: product, epic, story, read from `sprint-status.yaml`. *Outputs*: exactly the Outputs half as it is (*Output folder*, *Resizing and folding*), moved. *Run*: duration, tool calls, model. A field with no source is omitted, never shown empty.
 - **Widths.** *Settled:* each side panel has its own splitter and range (*Resizing and folding*). Defaults: Team sidebar 244px (range 200–400px), right panel 300px (260–480px), the chat column kept at 420px between them; a stored rail width is read against the new range (kept inside 260–480px, the default outside it) and nothing is migrated. At ≤1000px the layout stacks, chat then sidebar then right panel, with no splitter; no breakpoint is added.
+
+### The chat look, from the screenshot
+
+*Added 2026-10-09 by the user's decision, from [`mockups/chat-thread-reference.png`](mockups/chat-thread-reference.png), Screen A of `mockups/paperclip-layout-chat.html`. Appearance: `DESIGN.md` → Components → Conversation turn, Initials, Chat header, Run step. It overrides the rulings named in the right-hand column, in the 1:1 thread and the party thread alike; **where the screenshot says nothing, the earlier ruling stands.***
+
+| Decision | Replaces |
+|---|---|
+| **Initials, not portraits, in the chat.** A persona and you are each a round initials disc beside every turn and in the header. The Team tiles, the cast cards and the Welcome keep their portraits | the 32px portrait in a turn, the 38px portrait in the header |
+| **Flat rows.** A turn has no container, radius or padding box, and yours has no tinted ground or left rule. You and a persona are told apart by name and by a disc tinted for you alone | the turn container; `accent-wash` and `accent-edge` on a user turn |
+| **Clock time on every turn**, after the role. Relative times stay rejected | the right-aligned time |
+| **A list of steps in the run card**, with the run notes in the same list; prose mode stays for a run that writes a document | the run-note feed as the whole body |
+| **No shimmer.** The running step carries the existing amber pulse | nothing: it confirms *Not adopted* |
+| **`handed to <persona> · <skill>`** | `handed off · John → Amelia · picking up from PRD.md, epics.md` |
+| **Header: disc, name, `title · story <id>`, the state pill, `Stop`** | a portrait and a second line of description |
+
+- **The story reference** shows only when a story source exists (*The room: three columns*: `sprint-status.yaml` and the run). With none the header reads the title alone: a field with no source is omitted, never empty.
+- **`Stop`** stops the turn in flight and the session stays (*Failure, Stopping and Contention → Stopping costs the turn, not the conversation*). It is plain: no cost on the control, no confirmation. **[ASSUMPTION — OPEN]** — the header's one control today is `close session`, which a turn that never ends needs. Taken here: while a turn is in flight the slot reads `Stop`, and otherwise `close session`, as built. The screenshot draws only the running state and does not settle it. The full card head keeps its own stop control (CAP-11, `run.stop`); both dispatch the same stop. **Also open:** a plain chat turn has no `runId`, and the contract has only `run.stop(runId)` and `session.close`, so a header `Stop` outside a run needs a new command or a narrower rule (handed to `bmad-architecture`).
+- **A mention.** `[OPEN]` The screenshot draws the `@name` of a handoff as a code chip in your turn. **Not built:** a handoff strips the `@name` and records only the text after it, so the turn never holds the `@`; showing it needs a display text recorded beside the sent text (`turn.send`), a contract change handed to `bmad-architecture`. Until then your turn renders plain.
+- **The room's live turn.** **[ASSUMPTION — OPEN]** — the screenshot has no party thread, so the speaker's live turn keeps its accent edge and its live ground (`{colors.party-live-ground}`): the only turn row with either.
+- **Still not adopted**, though the same prototype draws them: `4m ago`, the shimmer, and on Screen B the review gate, the follow-ups card, the `/` skill list and the per-message *Retry* (*Not adopted*).
+- **Supersedes, upstream (2026-10-09).** `SPEC.md` CAP-3 (portrait in the chat header) and CAP-10 (portraits at every size the UI uses) no longer hold **in the chat thread and header**; `ui-surfaces.md` (*Portraits*: 32 transcript and 38 chat header; the party transcript's `portrait + name + role + timestamp`) likewise. They hold on the Team tiles, the cast cards and the Welcome. `SPEC.md`'s dark-theme-only assumption and `scope-tiers.md`'s deferred light theme were superseded earlier by *Theme*.
+
 
 ### The chat thread
 
@@ -656,9 +719,9 @@ The thread is one continuous conversation: the user's turns, the persona's words
 
 | Element | Behaviour |
 |---|---|
-| Turn head | portrait, name, title, **clock time** (`HH:MM`). Relative times ("4m ago") are **not** adopted: a transcript restored on another day must read as it did live (`formatTurnTime`) |
-| Activity line | the existing handoff sysline. Unchanged |
-| Run card | the existing card, inline in the thread. Its body is the run-note feed (*Dead Air*); a finished run collapses to its one line, as it does when it is elsewhere |
+| Turn head | initials disc (no portrait), name, title, then the **clock time** (`HH:MM`), on one baseline. Relative times ("4m ago") are **not** adopted: a transcript restored on another day must read as it did live (`formatTurnTime`) |
+| Activity line | the handoff sysline, reworded: `handed to <persona> · <skill>` (*Voice and Tone → The handoff sysline*) |
+| Run card | the existing card, inline in the thread. **Run-list mode** shows the run's steps and run notes in one time-ordered list; **prose mode** is unchanged for a run that writes a document (*State Patterns → The run list*, *Dead Air*). A finished run collapses to its one line, as it does when it is elsewhere |
 | Thinking row | where the stream carries thinking text, **one collapsed row** above the persona's words that expands to it. It is the thinking the stream gave, never a placeholder: it does not appear for a turn with none, and it carries no word of its own before the turn ends (*A turn in flight*: no stand-in `thinking`) |
 | Decision block | the existing block, restyled as a card: options with a key each (`1`–`9`), *Confirm*. It still sends the chosen option as the user's turn and then removes itself |
 | Message actions | on hover **and on focus** of a turn: *Copy*, *Quote*, *Open document*. They are real buttons in the turn's tab order; hover alone reveals nothing a keyboard cannot reach |
@@ -717,6 +780,8 @@ No count, badge or highlight on the Inbox, a tile or a Board figure; no regroupi
 
 **The card never has an empty body. It has two modes, and both are content.** When document prose is not streaming, the body renders the **run-note feed**. That is the ruling; the evidence for it follows.
 
+**Amended 2026-10-09.** The body's second mode now carries the persona's tool steps as well as the notes, in one list: *State Patterns → The run list*. Everything below about the notes, the register split and the collapsed card holds; the prose mode is unchanged.
+
 ### The evidence
 
 **The hardest problem in the product.** In a Fast-path `bmad-prd` run the whole document lands as a **single 68,394-byte write roughly 8.5 minutes in**. For those eight and a half minutes *nothing is on disk*: the rail row is genuinely `not yet written`, and the card is the only evidence of life. The main thread is also silent through the parallel-subagent windows — Discovery research and the Finalize reviewer gate — where it emits only `system/task_progress`, **which is not guaranteed on any given run**.
@@ -758,7 +823,7 @@ The foot reads the truth: `0 words on disk · <phase> · autosave on`, plus the 
 
 ### Mode transition
 
-**[ASSUMPTION]** — when prose resumes, the body renders prose and the run notes accrued during the quiet window remain above it in the same scroll container, in time order. The register split keeps them distinct. No source specifies what happens to the accrued entries; discarding them would throw away the run's only record of its own reasoning.
+**[ASSUMPTION]** — when prose resumes, the body renders prose and the run notes and steps accrued during the quiet window remain above it in the same scroll container, in time order. The register split keeps them distinct. No source specifies what happens to the accrued entries; discarding them would throw away the run's only record of its own reasoning.
 
 ### The elsewhere case — the collapsed card
 
@@ -773,7 +838,7 @@ Option A only pays out if you are looking at the card. The collapsed form is wha
 
 **This is a deliberate departure from `ui-surfaces.md`,** which documents `persona · section · elapsed · stop`. The last reason **replaces** the section name; it does not sit beside it. Two justifications: the section is already carried by the rail row, so repeating it spends the line on a duplicate; and a one-line card cannot hold five fields without becoming a paragraph. It follows directly from the Option A decision — if the run-note feed is the point, the collapsed form should carry it.
 
-AD-11's four mandated fields are preserved, **including a working stop control**.
+The four collapsed-card fields (`ui-surfaces.md`, with CAP-5) are preserved, **including a working stop control** (CAP-11).
 
 **[ASSUMPTION]** — the reason truncates to one line with the full entry available in the expanded card; no source specifies truncation. **[ASSUMPTION]** — before the first `run:note` arrives, field 2 falls back to the section name.
 
@@ -851,7 +916,7 @@ The memlog resolves the class of the answer: **a completion signal is STATE, whi
 
 The mockup designs three side-panel sections; `scope-tiers.md` defers **two** of them — *Open disagreements* and *Decisions so far* — for want of a data source. **`scope-tiers.md` wins.** Neither is **rendered — not even as an empty state.** `bmad-party-mode` emits prose and is explicitly instructed never to produce summaries or takeaways, so nothing in those sections can be populated today. **Nothing renders that cannot be populated.** (*Pause room* is a separate cut, and a lifecycle one rather than a data one — see the *Lifecycle* row below.)
 
-The same ruling cuts the transcript's `disagrees` / `evidence` tags and quoted-turn references, which are deferred from CAP-9 for the same missing source. A v1 party turn is **portrait + name + role + timestamp + the persona's words**, and nothing else. This is the honest form and it is also the safer one: a tag would let a contentless disagreement read as substantive, which is exactly the trust liability *Voice and Tone* rule 5 exists to prevent. The disagreement's evidence has to be in the persona's own text or it is not there at all.
+The same ruling cuts the transcript's `disagrees` / `evidence` tags and quoted-turn references, which are deferred from CAP-9 for the same missing source. A v1 party turn is **initials disc + name + role + clock time + the persona's words**, and nothing else. This is the honest form and it is also the safer one: a tag would let a contentless disagreement read as substantive, which is exactly the trust liability *Voice and Tone* rule 5 exists to prevent. The disagreement's evidence has to be in the persona's own text or it is not there at all.
 
 AD-14 binds a `288px` party side panel as a literal. **That constant is superseded for v1** by the Room-only decision; `DESIGN.md` states the new width explicitly (`{spacing.party-side}`), because the old value is an architecture invariant and cannot be silently narrowed.
 
@@ -860,7 +925,7 @@ AD-14 binds a `288px` party side panel as a literal. **That constant is supersed
 | Cast chooser | on opening, the user chooses the room; defaults to the five core personas |
 | Cast | every chosen portrait stays **permanently visible**. Presence is expressed by **dimming, never removal**. The current speaker is lit |
 | Header | topic · participant count · turn counter · elapsed · *Write summary to `_bmad/`* |
-| Transcript | portrait + name + role + timestamp per turn. No tags, no quote-back chrome |
+| Transcript | initials disc + name + role + clock time per turn. No tags, no quote-back chrome |
 | *Room* section | topic, who opened it and when, context documents in scope, destination `_bmad/party/<date>-<topic>.md` |
 | Turn gate | **none.** The user types at any point; a message interrupts the current speaker |
 | Session identity | a party session has a `sessionId` and **no `agentId`**. It gets no persona tile, and its rail row shows **the room** as owner |
@@ -894,7 +959,7 @@ With no command palette (*Banned everywhere*) there is no `⌘K` escape hatch, s
 | Surface | Keyboard behaviour |
 |---|---|
 | Topbar | tab-reachable: the view switch. Help is reserved and does not render in v1, so it is not a tab stop |
-| Rail — Team half | one tab stop for the list; **arrow keys move between tiles** (roving tabindex); `Enter`/`Space` activates |
+| Team sidebar | one tab stop for the list; **arrow keys move between tiles** (roving tabindex); `Enter`/`Space` activates |
 | Skill row | one tab stop; arrows move between buttons; `Enter`/`Space` dispatches. `+N more` is a button, not a hover affordance |
 | Composer | tab-reachable and **never disabled**. **[ASSUMPTION]** — `Enter` sends, `Shift+Enter` inserts a newline; no source specifies send keys. `⌘↵` does **not** send, and `DESIGN.md` drops it from the glyph inventory accordingly |
 | Decision option | each option is its own tab stop; `Enter`/`Space` chooses it, which sends the turn and removes the block |
@@ -943,6 +1008,8 @@ At 20px the portrait is dropped for the initials token, and its hover reveal of 
 
 This is deliberate rather than incidental: **a hover-only tooltip is the one affordance that fails completely without a mouse**, and it is cheap to avoid even at hobby stakes. Every portrait `<svg>` carries `role="img"` and the same `aria-label`, at every size.
 
+**In the chat thread and the chat header** the disc (`sizeThread`, `sizeHeader`) stands beside the persona's name, so it is decorative: `aria-hidden`, no tab stop, no reveal. **[ASSUMPTION]** — the focus parity above applies wherever a disc stands alone, as in a stack or on a story card.
+
 ---
 
 ## Key Flows
@@ -956,7 +1023,7 @@ The protagonists are the narrated sessions in the sources. Names, quotes and fig
 1. The window opens on the 1:1 view. A sysline: `session resumed · 3 earlier turns hidden · context: product-brief.md, research/market-2026-09-14.md`. John's tile is current; his state line reads `idle`.
 2. **14:02** You type: *"Same scope we agreed Tuesday… Start the PRD off the brief, don't re-interview me."*
 3. **14:02** John replies — *"Two silences already… Writing now — I'll flag the second one when I get to it."* — and dispatches. `run:started`. A document card is born inline in the thread. John's dot goes `work`. The `PRD.md` rail row reads `not yet written`, because it is.
-4. **Dead air.** For minutes the main thread is quiet. The card body is **not** empty and **not** a spinner: it is the run-note feed, sans against the head's mono, timestamps in tabular figures. `kind:decision` — scope fixed to EU-only for v1. `kind:assumption` — payout failure handling is in scope; 61% of last quarter's 214 tickets are "where is my money". `kind:open` (warm, not red) — manual payout trigger unresolved; the brief and the tickets cannot both be true in v1. The foot reads `0 words on disk · researching · autosave on`.
+4. **Dead air.** For minutes the main thread is quiet. The card body is **not** empty and **not** a spinner: it is the run-note feed, sans against the head's mono, timestamps in tabular figures (once the step event exists, the persona's tool steps join the same list: *State Patterns → The run list*). `kind:decision` — scope fixed to EU-only for v1. `kind:assumption` — payout failure handling is in scope; 61% of last quarter's 214 tickets are "where is my money". `kind:open` (warm, not red) — manual payout trigger unresolved; the brief and the tickets cannot both be true in v1. The foot reads `0 words on disk · researching · autosave on`.
 5. Prose starts. The head reads `writing · §4 Functional Requirements` — **no `of 9`**. The foot names what is still to come: `§5 Non-functional  §6 Constraints  §7 Open questions`. FR-1 through FR-6 arrive in frame-sized bursts.
 6. **The card halts mid-line at FR-7.**
 7. **Climax.** John, in the conversation, in his own voice: **"Stopping at FR-7, because I don't want to write your decision for you."** Those two can't both be true in v1, and the difference is about a week of Amelia's time. Three options: **A** scheduled only · **B** manual trigger, rate-limited — *"John leans here"*, and only B carries the lean · **C** *"Neither — my reasoning is different."* And: **"I lean B, but I'd rather be wrong out loud than have you discover FR-7 in a review three weeks from now. Which is it?"**
@@ -985,8 +1052,8 @@ Topic: *"payouts — extend billing-svc, or stand up the ledger now?"* Sysline: 
 
 1. The PRD is saved. You call epic creation, then sprint planning, from John's skill buttons — moving through skills without leaving the conversation. Each births its own card; each dies with its run.
 2. You click **Amelia's** tile. Her session opens — **a new process**. The skill row is rebuilt to her five entries. Focus stays on the tile you activated.
-3. A sysline lands in the transcript: **`handed off · John → Amelia · picking up from PRD.md, epics.md`**.
-4. The line names **the files**, not a continuation — because the files are what actually carry the continuity across a new session. (Why the mockup's wording is wrong, and what AD-7 and CAP-8 have to do with it, is *Voice and Tone → The handoff sysline*.)
+3. A sysline lands in the transcript: **`handed to Amelia`**. You chose her from the tile, so no skill has been dispatched and none is named.
+4. The line says who has the conversation now and claims no continuation, because a new session carries none; the files that do carry it are in the rail beside it. (Why the mockup's wording is wrong, and what AD-7 and CAP-8 have to do with it, is *Voice and Tone → The handoff sysline*.)
 5. **Climax.** Amelia picks up in her own register — file paths and AC IDs — reading from `PRD.md` and `epics.md`, which are visible in the rail two feet from her words. The span from planning to build happened in one window, in one continuous transcript, with no restart and no re-briefing. *A terminal genuinely cannot do this; that span is the differentiator.*
 
 *Failure:* if Amelia vanishes from the install mid-session, her session stays alive with its transcript, its card and a working stop and close, and no tile. Nothing is silently closed.

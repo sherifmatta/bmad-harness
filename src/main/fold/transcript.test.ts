@@ -116,20 +116,20 @@ describe('the transcript fold', () => {
 
 describe('the sysline fold', () => {
   it('appends a record of its own with a main-assigned id, and nothing but kind, id, time and text', () => {
-    const state = foldSysline(foldAll([said('m1', 'a', 10)]), 'handed off · A → B', 20)
+    const state = foldSysline(foldAll([said('m1', 'a', 10)]), 'handed to B', 20)
 
-    expect(state.entries[1]).toEqual({ kind: 'sysline', id: 'm-1', at: 20, text: 'handed off · A → B' })
+    expect(state.entries[1]).toEqual({ kind: 'sysline', id: 'm-1', at: 20, text: 'handed to B' })
     expect(state.nextId).toBe(2)
   })
 
   it('ends the persona message before it: the same persona and message start a new record after it', () => {
     let state = foldAll([said('m1', 'Hel', 10)])
-    state = foldSysline(state, 'handed off · A → B', 20)
+    state = foldSysline(state, 'handed to B', 20)
     state = foldAll([said('m1', 'lo', 30)], state)
 
     expect(state.entries.map((entry) => [entry.kind, entry.id, entry.text])).toEqual([
       ['persona', 'm-0', 'Hel'],
-      ['sysline', 'm-1', 'handed off · A → B'],
+      ['sysline', 'm-1', 'handed to B'],
       ['persona', 'm-2', 'lo']
     ])
   })
@@ -147,11 +147,11 @@ describe('the sysline fold', () => {
 
 describe('a room’s sysline', () => {
   it('keeps the `room` flag on its record, and a line without it has no such field', () => {
-    const state = foldSysline(foldSysline(EMPTY_TRANSCRIPT, 'room opened by you · present · Mary', 5, true), 'handed off', 6)
+    const state = foldSysline(foldSysline(EMPTY_TRANSCRIPT, 'room opened by you · present · Mary', 5, true), 'handed to John', 6)
 
     expect(state.entries).toEqual([
       { kind: 'sysline', id: 'm-0', at: 5, text: 'room opened by you · present · Mary', room: true },
-      { kind: 'sysline', id: 'm-1', at: 6, text: 'handed off' }
+      { kind: 'sysline', id: 'm-1', at: 6, text: 'handed to John' }
     ])
     expect('room' in state.entries[1]).toBe(false)
   })

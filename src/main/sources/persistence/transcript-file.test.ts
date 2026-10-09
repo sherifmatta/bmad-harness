@@ -40,7 +40,7 @@ afterEach(() => {
 const entries: TranscriptRecord[] = [
   { kind: 'user', id: 'm-0', at: 1, text: 'hi' },
   { kind: 'persona', id: 'm-1', at: 2, agentId: 'a', messageId: 'msg', text: 'hello' },
-  { kind: 'sysline', id: 'm-2', at: 3, text: 'handed off · A → B · picking up from a.md' }
+  { kind: 'sysline', id: 'm-2', at: 3, text: 'handed to B' }
 ]
 
 describe('transcriptFilePath', () => {
@@ -94,7 +94,7 @@ describe('writeTranscript and loadTranscript', () => {
     const file = transcriptFilePath(userData, project)
     const held: TranscriptRecord[] = [
       { kind: 'sysline', id: 'm-0', at: 1, text: 'room opened by you · present · Mary', room: true },
-      { kind: 'sysline', id: 'm-1', at: 2, text: 'handed off · A → B' }
+      { kind: 'sysline', id: 'm-1', at: 2, text: 'handed to B' }
     ]
     writeTranscript(file, project, held)
 

@@ -3,11 +3,10 @@ import type { JSX } from 'react'
 import type { AgentView } from '../../../shared/install'
 import { Head, Words } from '../chat/turn'
 import { TurnState } from '../chat/turn-state'
-import { artParamsFor } from '../persona/art-params'
-import { portrait } from '../persona/portrait'
+import { Initials } from '../persona/initials'
 
 /**
- * A turn in the room (Story 4.2, FR68): the persona's 32px portrait, name, role, time and their
+ * A turn in the room (Story 4.2, FR68): the persona's initials disc, name, role, time and their
  * words, and nothing else. It is a persona's turn drawn with the same head and words, so the words
  * are rendered as untrusted text, whole, and never framed, tagged, quoted or classified.
  *
@@ -32,7 +31,9 @@ export function PartyTurn({
 }): JSX.Element {
   return (
     <div className={live ? 'turn turn--persona turn--party-live' : 'turn turn--persona'}>
-      <div className="turn-av">{portrait(artParamsFor(agent.id), 32, 'idle', agent)}</div>
+      <div className="turn-av">
+        <Initials {...agent} size={26} />
+      </div>
       <div className="turn-body">
         <Head name={agent.name} ident={agent.title} at={at} />
         <Words text={text} caret={writing !== undefined} />
@@ -44,7 +45,7 @@ export function PartyTurn({
 
 /**
  * The room's turn in flight before anyone has said a word of it: a row at the foot of the room
- * thread with no portrait and no caret, since nobody is yet known to be speaking, only the `work`
+ * thread with no disc and no caret, since nobody is yet known to be speaking, only the `work`
  * state line counted from the user's send (or the room's open). Hidden from a reader, like the line
  * under a turn, and gone when a speaker's first word lands or the room's turn ends.
  */

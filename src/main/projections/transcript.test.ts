@@ -307,9 +307,9 @@ describe('a sysline in the registry', () => {
     const first = registry()
     const transcript = first.forProject(project)
     transcript.recordUserTurn('hi', 1)
-    const record = transcript.recordSysline('handed off · A → B', 5)
+    const record = transcript.recordSysline('handed to B', 5)
 
-    expect(record).toEqual({ kind: 'sysline', id: 'm-1', at: 5, text: 'handed off · A → B' })
+    expect(record).toEqual({ kind: 'sysline', id: 'm-1', at: 5, text: 'handed to B' })
     expect(transcript.entries()).toEqual([{ kind: 'user', id: 'm-0', at: 1, text: 'hi' }, record])
     first.flushAll()
     expect(onDisk().version).toBe(1)
@@ -323,7 +323,7 @@ describe('a sysline in the registry', () => {
   it('is cleared with everything else when the conversation ends', () => {
     const transcript = registry().forProject(project)
     transcript.recordUserTurn('hi', 1)
-    transcript.recordSysline('handed off · A → B', 5)
+    transcript.recordSysline('handed to B', 5)
 
     expect(transcript.clear()).toEqual({ ok: true })
     expect(transcript.entries()).toEqual([])

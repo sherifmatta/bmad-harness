@@ -1721,7 +1721,7 @@ describe('handoff', () => {
   }
   const syslines = (sender: FakeSender) => entriesOf(sender).filter((entry) => entry.kind === 'sysline')
 
-  it('writes one sysline on opening another persona over a transcript that has turns, names the files the first wrote in write order, and returns it on the open’s reply', async () => {
+  it('writes one sysline on opening another persona over a transcript that has turns, names only who it was handed to, and returns it on the open’s reply', async () => {
     const sender = new FakeSender(1)
     const a = await openAs(sender, A)
     say(a.proc, 'msg_1', 'Here is the plan')
@@ -1732,7 +1732,7 @@ describe('handoff', () => {
 
     const b = await openAs(sender, B)
 
-    const text = 'handed off · Mary → John · picking up from b.md, a.md'
+    const text = 'handed to John'
     expect(b.reply).toEqual({ ok: true, sessionId: 's2', handoff: { kind: 'sysline', id: 'm-1', at: expect.any(Number), text } })
     expect(entriesOf(sender)).toMatchObject([{ kind: 'persona', text: 'Here is the plan' }, { kind: 'sysline', text }])
     // The line travels on the reply and in the snapshot, never as a new event.
@@ -1744,14 +1744,14 @@ describe('handoff', () => {
     expect(reply.ok && reply.snapshot.entries[1]).toEqual(b.reply.handoff)
   })
 
-  it('says only who and who when the first persona wrote nothing', async () => {
+  it('names no files when the first persona wrote nothing', async () => {
     const sender = new FakeSender(1)
     const a = await openAs(sender, A)
     say(a.proc, 'msg_1', 'Hello')
 
     const b = await openAs(sender, B)
 
-    expect(b.reply.handoff).toMatchObject({ text: 'handed off · Mary → John' })
+    expect(b.reply.handoff).toMatchObject({ text: 'handed to John' })
   })
 
   it('writes nothing on a first open, over an empty transcript, or on re-activating the persona it last opened', async () => {
@@ -1770,7 +1770,7 @@ describe('handoff', () => {
     expect(syslines(sender)).toEqual([])
   })
 
-  it('hands back to a persona whose session is live: the same session, a sysline naming what the other wrote', async () => {
+  it('hands back to a persona whose session is live: the same session, a sysline naming who it is handed to', async () => {
     const sender = new FakeSender(1)
     const a = await openAs(sender, A)
     say(a.proc, 'msg_1', 'Plan')
@@ -1786,15 +1786,15 @@ describe('handoff', () => {
     expect(back).toMatchObject({
       ok: true,
       sessionId: 's1',
-      handoff: { text: 'handed off · John → Mary · picking up from brief.md' }
+      handoff: { text: 'handed to Mary' }
     })
     expect(syslines(sender).map((entry) => entry.text)).toEqual([
-      'handed off · Mary → John · picking up from plan.md',
-      'handed off · John → Mary · picking up from brief.md'
+      'handed to John',
+      'handed to Mary'
     ])
   })
 
-  it('keeps the written files per persona, across a session that closed and opened again', async () => {
+  it('names no files, even across a session that closed and opened again', async () => {
     const sender = new FakeSender(1)
     const a = await openAs(sender, A)
     say(a.proc, 'msg_1', 'Plan')
@@ -1805,7 +1805,7 @@ describe('handoff', () => {
 
     const b = await openAs(sender, B)
 
-    expect(b.reply.handoff).toMatchObject({ text: 'handed off · Mary → John · picking up from one.md, two.md' })
+    expect(b.reply.handoff).toMatchObject({ text: 'handed to John' })
   })
 
   it('raises no doc event for a chat turn’s write, and persona states stay as they were', async () => {
@@ -1830,7 +1830,7 @@ describe('handoff', () => {
     // Still with Mary: opening her again is not a handoff, opening John once he starts is.
     await expect(open(sender, A)).resolves.toEqual({ ok: true, sessionId: 's1' })
     const b = await openAs(sender, B)
-    expect(b.reply.handoff).toMatchObject({ text: 'handed off · Mary → John' })
+    expect(b.reply.handoff).toMatchObject({ text: 'handed to John' })
   })
 
   it('refuses the handoff, and only that, for a persona the install model does not name', async () => {
@@ -1846,7 +1846,20 @@ describe('handoff', () => {
     // The open stands, and it is the last one: going back to Mary is a handoff only if Mary is named.
     names[B] = 'John'
     const back = await open(sender, A)
-    expect(back).toMatchObject({ handoff: { text: 'handed off · John → Mary' } })
+    expect(back).toMatchObject({ handoff: { text: 'handed to Mary' } })
+  })
+
+  it('refuses the handoff when the previous persona is no longer named, and only that', async () => {
+    const sender = new FakeSender(1)
+    const a = await openAs(sender, A)
+    say(a.proc, 'msg_1', 'Hello')
+    delete names[A]
+
+    const b = await openAs(sender, B)
+
+    expect(b.reply).toEqual({ ok: true, sessionId: 's2' })
+    expect('handoff' in b.reply).toBe(false)
+    expect(syslines(sender)).toEqual([])
   })
 
   it('does not name an empty display name, and takes both names from the model, never from the id', async () => {
@@ -1858,7 +1871,7 @@ describe('handoff', () => {
 
     const b = await openAs(sender, B)
 
-    expect(b.reply.handoff).toMatchObject({ text: 'handed off · Ann → Bob' })
+    expect(b.reply.handoff).toMatchObject({ text: 'handed to Bob' })
   })
 
   it('forgets who it was with when the window reads the conversation again: the next open writes none, the one after does', async () => {
@@ -1871,7 +1884,7 @@ describe('handoff', () => {
     expect('handoff' in b.reply).toBe(false)
     expect(syslines(sender)).toEqual([])
 
-    await expect(open(sender, A)).resolves.toMatchObject({ handoff: { text: 'handed off · John → Mary' } })
+    await expect(open(sender, A)).resolves.toMatchObject({ handoff: { text: 'handed to Mary' } })
   })
 
   it('keeps the sysline through a relaunch, and writes none on the first open after it', async () => {
@@ -1904,7 +1917,7 @@ describe('handoff', () => {
     expect('handoff' in fresh.reply).toBe(false)
     say(fresh.proc, 'msg_2', 'A new conversation')
     const next = await openAs(sender, B)
-    expect(next.reply.handoff).toMatchObject({ text: 'handed off · Mary → John' })
+    expect(next.reply.handoff).toMatchObject({ text: 'handed to John' })
   })
 
   it('lands the sysline while the first persona is mid-turn, and her later words open a new record after it', async () => {
@@ -1917,7 +1930,7 @@ describe('handoff', () => {
 
     expect(entriesOf(sender).map((entry) => [entry.kind, entry.text])).toEqual([
       ['persona', 'Thinking'],
-      ['sysline', 'handed off · Mary → John'],
+      ['sysline', 'handed to John'],
       ['persona', ' on']
     ])
   })
@@ -1933,7 +1946,7 @@ describe('handoff', () => {
 
     const b2 = await openAs(two, B)
 
-    expect(b2.reply.handoff).toMatchObject({ text: 'handed off · Mary → John' })
+    expect(b2.reply.handoff).toMatchObject({ text: 'handed to John' })
     expect(syslines(one)).toEqual([])
   })
 
@@ -1975,7 +1988,7 @@ describe('handoff', () => {
 
       const b = await openAs(sender, B)
 
-      expect((b.reply.handoff as { text: string }).text).toBe('handed off · Mary → John')
+      expect((b.reply.handoff as { text: string }).text).toBe('handed to John')
     } finally {
       forgetInstall(sender.id, projection)
     }

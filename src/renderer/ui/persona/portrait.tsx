@@ -49,7 +49,7 @@ import type { ArtParams } from './art-params'
  * is the initials token's, because at 20px a face degrades to a colour blob
  * with a hair silhouette and the derivation has no collision check to save it.
  */
-export type PortraitSize = 32 | 36 | 38 | 44
+export type PortraitSize = 36 | 44
 
 /**
  * The state vocabulary DESIGN.md:589-600 fixes, accepted and then ignored.

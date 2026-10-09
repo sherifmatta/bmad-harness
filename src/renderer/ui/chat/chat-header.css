@@ -1,8 +1,8 @@
 /*
- * The chat header — FR22, UX-DR17, from harness-mockup.html's `.chat-head*`
- * (:152-161). The name is the largest type in the shell; the description under
- * it is one quiet line, capped at the reading measure and ellipsised rather
- * than wrapped.
+ * The chat header — FR22, UX-DR17, DESIGN.md's *Chat header* (2026-10-09, from
+ * the chat-thread reference): one line, 46px tall, the initials disc, the name
+ * and the title, ellipsised rather than wrapped. The orphan header borrows it
+ * and adds a note line under the name.
  *
  * No focus rule, no motion, no stacking index. Every value reaches the design
  * system through `var()`.
@@ -12,7 +12,9 @@
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: var(--space-xl);
+  box-sizing: border-box;
+  height: var(--chat-head-height);
+  gap: var(--space-lg);
   padding: var(--chat-head-padding);
   background: var(--chrome);
   border-bottom: var(--rule-width) solid var(--line);
@@ -32,9 +34,8 @@
 .chat-head-name {
   margin: 0;
   font-family: var(--sans);
-  font-size: var(--fs-head);
+  font-size: var(--fs-name);
   font-weight: var(--weight-strong);
-  letter-spacing: var(--track-control);
   color: var(--text-strong);
   min-width: 0;
   white-space: nowrap;
@@ -52,7 +53,6 @@
 }
 
 .chat-head-sub {
-  max-width: var(--chat-sub-max);
   margin-top: var(--chat-head-sub-top);
   font-size: var(--fs-body-ui);
   color: var(--faint);

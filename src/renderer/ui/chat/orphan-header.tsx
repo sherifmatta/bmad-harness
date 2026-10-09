@@ -2,8 +2,7 @@ import type { JSX } from 'react'
 
 import './orphan-header.css'
 import type { AgentView } from '../../../shared/install'
-import { artParamsFor } from '../persona/art-params'
-import { portrait } from '../persona/portrait'
+import { Initials } from '../persona/initials'
 
 /**
  * The header of a session that outlived the install changing under it (FR6,
@@ -11,7 +10,7 @@ import { portrait } from '../persona/portrait'
  * open. It has no tile, so this is the only place the session is shown and the
  * only place it can be ended.
  *
- * It takes the chat header's own form: the same 38px portrait, the name and
+ * It takes the chat header's own form: the same 22px initials disc, the name and
  * title as text, and one quiet mono line saying what is the matter. The one
  * control is a native button, so `Enter` and `Space` come with it and the shared
  * focus ring draws on `:focus-visible` with no rule of this component's own.
@@ -29,7 +28,7 @@ export function OrphanHeader({
 }): JSX.Element {
   return (
     <div className="chat-head orphan-head">
-      {portrait(artParamsFor(agent.id), 38, 'idle', agent)}
+      <Initials {...agent} size={22} />
       <div className="chat-head-id">
         <div className="chat-head-line">
           <h2 className="chat-head-name">{agent.name}</h2>

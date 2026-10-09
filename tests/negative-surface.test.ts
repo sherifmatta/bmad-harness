@@ -889,9 +889,9 @@ describe("the handoff says only what is true and parses no skill (Story 2.9)", (
     const text = code.get(HANDOFF) ?? "";
 
     expect(text).toContain("function handoffFor");
-    expect(text).toContain("handed off · ");
-    expect(text).toContain(" → ");
-    expect(text).toContain(" · picking up from ");
+    expect(text).toContain("`handed to ${toName}`");
+    expect(text).not.toContain(" → ");
+    expect(text).not.toContain("picking up from");
     expect(text).not.toMatch(/context|continu|new thread|cleared|restart|resum/i);
   });
 
@@ -1177,7 +1177,7 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
       expect(parser).toContain("agent.id !== currentId");
     });
 
-    it("reads no menu, skill, code or description anywhere in chat/, the persona's own description apart", () => {
+    it("reads no menu, skill, code or description anywhere in chat/", () => {
       // Story 3.1 puts the skill row in chat/ on purpose: it draws a persona's
       // codes and descriptions above the composer and hands a code to main. It is
       // swept for what it may not do in its own describe below; here it is set
@@ -1216,11 +1216,8 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
           ([hit]) => `${path}: ${hit}`,
         ),
       );
-      // The chat header's quiet line is the roster's own description of the persona.
-      expect(descriptions).toEqual([
-        "src/renderer/ui/chat/chat-header.tsx: agent.description",
-        "src/renderer/ui/chat/chat-header.tsx: agent.description",
-      ]);
+      // The chat header's second line is gone (2026-10-09): nothing in chat/ draws a description.
+      expect(descriptions).toEqual([]);
     });
 
     it("parses no leading `/` and no other prefix anywhere between the composer and the session", () => {

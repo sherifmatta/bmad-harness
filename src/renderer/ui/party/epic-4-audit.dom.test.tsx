@@ -338,7 +338,7 @@ describe('the side panel (UX-DR21)', () => {
 describe('the transcript (UX-DR36)', () => {
   const withTurns = CASES.filter((one) => one.props.entries.some((entry) => entry.kind === 'persona'))
 
-  it.each(withTurns)('draws a persona’s turn as portrait, name, role, time and words and nothing else, when $name', ({ props }) => {
+  it.each(withTurns)('draws a persona’s turn as initials disc, name, role, time and words and nothing else, when $name', ({ props }) => {
     mountWith(props)
 
     const turns = all('.turn--persona')
@@ -346,7 +346,8 @@ describe('the transcript (UX-DR36)', () => {
     for (const turn of turns) {
       expect([...turn.children].map((child) => child.className)).toEqual(['turn-av', 'turn-body'])
       expect(turn.querySelectorAll('.turn-av > *')).toHaveLength(1)
-      expect(turn.querySelectorAll('.turn-av .portrait')).toHaveLength(1)
+      expect(turn.querySelectorAll('.turn-av .initials--thread[aria-hidden="true"]')).toHaveLength(1)
+      expect(turn.querySelectorAll('svg, .portrait')).toHaveLength(0)
       const body = turn.querySelector('.turn-body') as HTMLElement
       expect([...body.children].map((child) => child.className)).toEqual(['turn-head', 'turn-words'])
       expect([...(body.querySelector('.turn-head') as HTMLElement).children].map((child) => child.className)).toEqual(['turn-name', 'turn-role', 'turn-time'])
@@ -594,9 +595,9 @@ describe('dimming, never removal (UX-DR38)', () => {
     expect(names()).toEqual(['Mary', 'John', 'Winston'])
 
     render({ ...CASES[2].props, room: undefined, speaker: undefined, entries: [...TURNS.slice(0, 4), STOPPED] })
-    // The room is gone and its strip with it: a stopped room draws a thread above the chooser, and its faces are the thread's own.
+    // The room is gone and its strip with it: a stopped room draws a thread above the chooser, and its discs are the thread's own.
     expect(all('.cast-card')).toHaveLength(0)
-    expect(all('.turn--persona .portrait')).toHaveLength(2)
+    expect(all('.turn--persona .initials--thread')).toHaveLength(2)
     expect(all('.cast-chooser-item')).toHaveLength(ROSTER.length)
 
     render({ ...CASES[2].props, room: 's2', speaker: undefined, entries: [...TURNS.slice(0, 4), STOPPED, { ...OPENED, id: 'm-10', at: NOW + 10 }], turns: 0, topic: undefined })
