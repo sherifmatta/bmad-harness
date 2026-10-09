@@ -881,7 +881,8 @@ describe('the light theme (Story 5.2, seam A)', () => {
     // status pill's, the party turn's, the sysline's and the skill label's tokens added. Re-pinned for the chat look
     // (2026-10-09, flat rows and initials discs): `--initials-size-user` replaced by `--initials-size-thread` and `--initials-size-header`,
     // `--chat-head-height` added and `--chat-head-padding` made `0 16px`, `--turn-gap` 11px and `--turn-stack-gap` 16px.
-    expect(createHash('sha256').update(promotedBlock()).digest('hex')).toBe('293040874e81e64c9552d3e08e09b3f936fd25c020ee5a3b96a794011ccbb5c1')
+    // Re-pinned for the run step (Story 3.17, 2026-10-09): `--run-step-mark` and `--run-step-pad-y` added after `--rule-width`.
+    expect(createHash('sha256').update(promotedBlock()).digest('hex')).toBe('c116ee8f051f715c6973319389d5c8b930b43c74ba1ab5b1b475b20c1f482418')
   })
 
   it('states color-scheme: light in its own block, and the dark theme still states dark', () => {

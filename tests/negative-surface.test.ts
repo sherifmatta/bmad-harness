@@ -716,6 +716,10 @@ describe("the text ramp", () => {
       kind: "restated",
       why: "the run's elapsed time; the persona's own state line counts the same turn at --dim, and the status string beside it carries the state",
     },
+    "ui/chat/run-list.css: .run-step-elapsed": {
+      kind: "restated",
+      why: "a finished step's duration; its mark and its label say what became of the call, and a running step reads `now` at --dim, so no state rests on this figure",
+    },
     "ui/chat/run-card-line.css: .run-card-line-sep": {
       kind: "decoration",
       why: "the `·` between the collapsed line's fields: aria-hidden, a glyph that carries no fact, since each field names itself",
@@ -1382,6 +1386,8 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
       // Three strings of the Welcome (Story 5.1) are what the story's text spells and are no stand-in
       // for progress: the `…` that marks a command which opens the native chooser, as on every Mac
       // (the menu item and the button, the same words), and Mary's description, whose noun is `thinking`.
+      // `working` is the state word of a persona, and the head's status word of a run that writes no document (Story 3.17).
+      const WORKING = ["src/renderer/ui/status/persona-state.ts: working", "src/renderer/ui/chat/run-card.tsx: working"];
       const WELCOME = [
         "src/main/windows/app-menu.ts: Open Project Folder…",
         "src/renderer/ui/welcome/personas.ts: Market and competitive research and requirements — the thinking done before a project is committed to.",
@@ -1392,15 +1398,15 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
       ];
       expect(
         hits.filter(
-          (hit) => !hit.startsWith("src/renderer/ui/status/persona-state.ts: working") && !WELCOME.includes(hit),
+          (hit) => !WORKING.includes(hit) && !WELCOME.includes(hit),
         ),
       ).toEqual([]);
       expect(hits.filter((hit) => WELCOME.includes(hit)).sort()).toEqual([...WELCOME].sort());
-      expect(hits.filter((hit) => !WELCOME.includes(hit))).toEqual(["src/renderer/ui/status/persona-state.ts: working"]);
-      // The word is rendered through the state text and written nowhere else.
+      expect(hits.filter((hit) => !WELCOME.includes(hit)).sort()).toEqual([...WORKING].sort());
+      // The word is rendered through the state text, and by the head of a run that writes no document, and written nowhere else.
       expect(
-        offenders(RENDERER_CODE, /\bworking\b/).map((hit) => hit.split(":")[0]),
-      ).toEqual(["src/renderer/ui/status/persona-state.ts"]);
+        offenders(RENDERER_CODE, /\bworking\b/).map((hit) => hit.split(":")[0]).sort(),
+      ).toEqual(["src/renderer/ui/chat/run-card.tsx", "src/renderer/ui/status/persona-state.ts"]);
     });
 
     it("has the queued mark in `turn.tsx` and nowhere else, and no other status line beside the persona's state", () => {
@@ -1733,7 +1739,7 @@ describe("the card is never empty, and says nothing in place of what has not hap
   it("puts nothing between the notes and the prose: the flow holds the feed and the prose and no other element", () => {
     const card = code.get(CARD) ?? "";
     const flow = card.slice(card.indexOf('<div className="run-card-flow">'), card.indexOf("</div>\n        </div>\n      </div>"));
-    expect(flow).toContain("<RunNoteFeed");
+    expect(flow).toContain("<RunList");
     expect(flow).toContain('<div className="run-card-prose"');
     expect(flow).not.toMatch(/<hr\b|<legend\b|<label\b|<h\d\b|role=["']separator|divider/);
     expect(offenders([CARD_CSS], /\.run-card-(?:flow|divider|separator|notes)[^{]*\{[^}]*(?:border|background)/)).toEqual([]);
@@ -1744,6 +1750,35 @@ describe("the card is never empty, and says nothing in place of what has not hap
     expect(card).toContain("0 words on disk");
     expect(card).toContain("autosave on");
     expect(offenders([CARD, STATUS], /aria-live|role=["'](?:status|alert)/)).toEqual([]);
+  });
+});
+
+describe("the run list adds one pulse and nothing else: no bar, denominator, pending step, tab stop or announcement (Story 3.17)", () => {
+  const LIST = "src/renderer/ui/chat/run-list.tsx";
+  const LIST_CSS = "src/renderer/ui/chat/run-list.css";
+  const STEP_ELAPSED = "src/renderer/ui/chat/format-step-elapsed.ts";
+
+  it("reads the sources it claims to sweep", () => {
+    for (const path of [LIST, LIST_CSS, STEP_ELAPSED]) {
+      expect(code.get(path)?.length ?? 0, path).toBeGreaterThan(200);
+    }
+  });
+
+  it("animates, transitions and reads a media query in none of its CSS: the only motion is the work dot's own pulse", () => {
+    expect(offenders([LIST_CSS], /animation|transition|@keyframes|@media|skeleton|spinner|shimmer|progress|meter/i)).toEqual([]);
+    expect(code.get(LIST) ?? "").toContain('<StatusDot state="work" />');
+    expect(offenders([LIST], /matchMedia|setInterval|setTimeout|requestAnimationFrame|useNow/)).toEqual([]);
+  });
+
+  it("draws no bar, count, denominator, placeholder or pending row, and no sentence about earlier steps", () => {
+    const WORDS = /(["'`])(?:(?!\1)[^\n\\]|\\.)*\1|>[^<>{}\n]+</g;
+    const spoken = [LIST, STEP_ELAPSED].flatMap((path) => [...(code.get(path) ?? "").matchAll(WORDS)].map(([text]) => text));
+    expect(spoken.filter((text) => /\bof\b|\btotal\b|\bpending\b|\bplanned\b|\bnext\b|\bearlier\b|\bmore\b|\.\.\.|…|%/i.test(text))).toEqual([]);
+    expect(offenders([LIST], /<progress\b|<meter\b|role=["']progressbar|aria-valuenow|skeleton|spinner|shimmer/i)).toEqual([]);
+  });
+
+  it("gives a step row no tab stop, role, label or live region, and no handler", () => {
+    expect(offenders([LIST], /tabIndex|role=|aria-|onClick|onKey|<button\b|<a\b|<input\b/)).toEqual([]);
   });
 });
 

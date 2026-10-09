@@ -8,7 +8,7 @@ import type { RailRow } from '../../../shared/rail'
 import { CONTENTION, STOPPED, progressLabel } from '../../../shared/section-progress'
 import { OutputRow } from '../outputs/output-row'
 import { ownerLabel } from '../outputs/owner-label'
-import { ARBITRATION, DENOMINATOR, SPINNER_MARKUP, STAND_IN, spoken } from '../testing/audit-patterns'
+import { ARBITRATION, DENOMINATOR, LIVE_REGIONS, SPINNER_MARKUP, STAND_IN, spoken } from '../testing/audit-patterns'
 import { mount } from '../testing/render-hook'
 import type { Mounted } from '../testing/render-hook'
 import { createProseStore } from './prose-store'
@@ -50,7 +50,11 @@ const card = (over: Partial<RunCardEntry> = {}): RunCardEntry => ({
   agentId: PM,
   status: 'running',
   notes: [],
-  steps: [],
+  // Every state holds the run's steps (Story 3.17): one that returned, and one the stream had open when the card was read.
+  steps: [
+    { callId: 'k1', label: 'read story 5.6', status: 'done', startedAt: NOW - 64_000, endedAt: NOW - 61_000, notesBefore: 0 },
+    { callId: 'k2', label: 'edit design/tokens.css', status: 'running', startedAt: NOW - 60_000, notesBefore: 0 }
+  ],
   documents: [],
   plan: ['Vision', 'Scope', 'Users'],
   ...over
@@ -267,6 +271,16 @@ describe.each([
     }
     // Nothing else is a control: no link, no input, no select, no role of one.
     expect(root.querySelectorAll('a, input, select, textarea, [role="button"], [role="menuitem"], [role="link"]')).toHaveLength(0)
+  })
+
+  it.each(CASES.filter((one) => one.as === 'card'))('draws its steps as rows of a mark, a label and an elapsed, and none pulses or reads now unless the run is in flight, when $name', (each) => {
+    const { root } = drawCase(each)
+    expect(root.querySelectorAll('.run-step')).toHaveLength(2)
+    expect(root.querySelectorAll('.run-step--running')).toHaveLength(each.stop ? 1 : 0)
+    expect(root.querySelectorAll('.run-step .status-dot')).toHaveLength(each.stop ? 1 : 0)
+    expect([...root.querySelectorAll('.run-step-elapsed')].map((cell) => cell.textContent)).toEqual(['0:03', each.stop ? 'now' : '1:00'])
+    expect(root.querySelector('.run-step[tabindex], .run-step[role]')).toBeNull()
+    expect(root.querySelector(`.run-step ${LIVE_REGIONS}`)).toBeNull()
   })
 
   it('draws no caret and no control on a terminal card, whatever it held, and leaves aria-busy only on a run in flight', () => {

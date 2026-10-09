@@ -420,7 +420,8 @@ describe('fast-path-sonnet, replayed through main as a dispatched run', () => {
         checkpoints.push(markup)
         expect(markup, `checkpoint ${first}`).toContain('class="run-note"')
         expect(markup).not.toMatch(/<progress|skeleton|spinner/)
-        if (first === 0) expect(markup).not.toContain('run-card-status')
+        // Born, the run writes no document yet: its head says `working` (Story 3.17), and no foot is drawn.
+        if (first === 0) expect(markup).toContain('<span class="run-card-status run-card-status--running">working</span>')
         if (first === 2) expect(markup).toContain('run-card-status')
       }
     }

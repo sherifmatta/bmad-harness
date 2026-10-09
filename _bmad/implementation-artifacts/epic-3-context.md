@@ -24,7 +24,7 @@ Make the central beat real: press a skill button belonging to the persona you ar
 - Story 3.11: Nothing this epic promised not to do (done)
 - Story 3.15: The work that carries on after a stop has a card (done)
 - Story 3.16: Tool steps, from the stream (done)
-- Story 3.17: The run list: steps and notes in the card body (new)
+- Story 3.17: The run list: steps and notes in the card body (done)
 - Story 3.18: Name the skill a run invoked (new)
 - Story 3.19: Stop a turn that is not a run (new)
 
@@ -39,6 +39,7 @@ Make the central beat real: press a skill button belonging to the persona you ar
 - Contention is reported, never resolved. One silent native notification per terminal event, only when unfocused.
 - Performance: coalesce in main, one node per frame; no per-delta state or event (writes reach ~5,800 deltas).
 - Accessibility: reduced motion disables all animation (elapsed ticks, caret static); one polite live region, prose and steps never announced; focus never moves on a terminal event; no faint string is a fact's sole carrier.
+- **Run list (built, 3.17):** the card body is `RunList` (`ui/chat/run-list.tsx`): start row, then each step in `entry.steps` order preceded by the notes up to its `notesBefore` (clamped), remaining notes last; pure `runListRows`/`writesDocument` in `run-status.ts`. A card with no subject path, plan or document is the list alone: head `run` · `working` · elapsed · stop, no foot. A step still `running` on a card that is not draws `✕` and does not pulse.
 - Banned (3.11 audits every card state, steps included, built from recorded events): spinners, denominators, bars, shimmer, typewriter, fading caret, pending steps, revert/undo dialogs, badges, toasts, sound.
 
 ## Technical Decisions

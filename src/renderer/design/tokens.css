@@ -217,6 +217,13 @@
   --run-note-kind:74px;
   --rule-width:1px;
 
+  /* ── The run step's two dimensions (Story 3.17), read off DESIGN.md's Run
+     step: the mark column of its grid (`14px · 1fr · auto`) and its vertical
+     padding. The 9px gap is --space-md-plus and the elapsed column is `auto`,
+     so these are the whole of what the row needs that the ladder lacks. */
+  --run-step-mark:14px;
+  --run-step-pad-y:3px;
+
   /* ── The initials disc's three dimensions (Story 1.6), read off DESIGN.md's
      `components.initials` block: `size` (:201), `sizeUser` (:202) and
      `stackOverlap` (:209).

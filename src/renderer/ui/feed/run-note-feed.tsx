@@ -47,22 +47,26 @@ export function RunNoteFeed({ notes }: { notes: RunNote[] }): JSX.Element {
         // two identical entries are legal. Position is the only key the format
         // can supply, and it is the right one: the feed is append-only in file
         // order, so a row's index never changes once it exists.
-        <div className="run-note" key={index}>
-          <span className="run-note-time">{note.time ?? ''}</span>
-          <span className={`run-note-kind run-note-kind--${kindTreatment(note.kind)}`}>
-            {note.kind ?? ''}
-          </span>
-          <span className="run-note-reason">
-            {emphasisSpans(note.reason).map((span, at) =>
-              span.emphasised ? (
-                <strong key={at}>{span.text}</strong>
-              ) : (
-                <Fragment key={at}>{span.text}</Fragment>
-              )
-            )}
-          </span>
-        </div>
+        <RunNoteRow note={note} key={index} />
       ))}
+    </div>
+  )
+}
+
+/**
+ * One note's row: the anatomy above, in one place for the feed and for the run
+ * list (Story 3.17), which interleaves these rows with the run's tool steps.
+ */
+export function RunNoteRow({ note }: { note: RunNote }): JSX.Element {
+  return (
+    <div className="run-note">
+      <span className="run-note-time">{note.time ?? ''}</span>
+      <span className={`run-note-kind run-note-kind--${kindTreatment(note.kind)}`}>{note.kind ?? ''}</span>
+      <span className="run-note-reason">
+        {emphasisSpans(note.reason).map((span, at) =>
+          span.emphasised ? <strong key={at}>{span.text}</strong> : <Fragment key={at}>{span.text}</Fragment>
+        )}
+      </span>
     </div>
   )
 }

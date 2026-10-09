@@ -2,15 +2,15 @@ import { useCallback, useLayoutEffect, useRef, useState, useSyncExternalStore } 
 import type { JSX } from 'react'
 
 import './run-card.css'
-import { RunNoteFeed } from '../feed/run-note-feed'
 import { useNow } from '../outputs/use-now'
 import { formatElapsed } from '../status/format-elapsed'
 import { StatusDot } from '../status/status-dot'
 import { pendingSections } from '../../../shared/section-plan'
 import { Caret } from './caret'
 import type { ProseStore, RunProgress } from './prose-store'
+import { RunList } from './run-list'
 import { RunStop } from './run-stop'
-import { bodyNotes, runDotState, runStatusText, subjectWritten } from './run-status'
+import { runDotState, runStatusText, subjectWritten, writesDocument } from './run-status'
 import type { RunCardEntry } from './transcript-entry'
 import { useReveal } from './use-reveal'
 
@@ -119,21 +119,23 @@ export function RunCard({
   const written = subjectWritten(entry, path)
   // Only a card in flight has sections still to write; a finished one has its count in the head.
   const pending = running ? pendingSections(entry.plan ?? [], written, seen) : []
-  // Dead air: in flight with no document text held. The foot then says what is true of the disk.
-  const deadAir = running && !hasText
+  // A card that writes no document (no subject, plan or confirmed document) is the run list alone: head `run`, `working`, no foot.
+  const writes = writesDocument(entry, path)
+  // Dead air: a document run in flight with no text held. The foot then says what is true of the disk.
+  const deadAir = running && !hasText && writes
 
   return (
     <section className="run-card" aria-busy={running ? true : undefined} tabIndex={focusFirst ? -1 : undefined} ref={container}>
       <div className="run-card-head">
         <StatusDot state={runDotState(entry)} />
-        <span className="run-card-path">{path}</span>
-        <RunStatus entry={entry} written={written} progress={progress} hasText={hasText} />
+        <span className="run-card-path">{writes ? path : 'run'}</span>
+        <RunStatus entry={entry} written={written} progress={progress} hasText={hasText} working={!writes} />
         <RunElapsed entry={entry} />
         {running && onStop !== undefined && <RunStop runId={runId} label={path === '' ? undefined : path} onStop={onStop} />}
       </div>
       <div className="run-card-body">
         <div className="run-card-flow">
-          <RunNoteFeed notes={bodyNotes(entry)} />
+          <RunList entry={entry} />
           <div className="run-card-prose" hidden={!hasText}>
             <ProseText runId={runId} prose={prose} />
             {running && hasText && <Caret />}
@@ -181,17 +183,21 @@ function RunStatus({
   entry,
   written,
   progress,
-  hasText
+  hasText,
+  working
 }: {
   entry: RunCardEntry
   written: readonly string[]
   progress: RunProgress
   hasText: boolean
+  working: boolean
 }): JSX.Element | null {
   const className = `run-card-status run-card-status--${entry.status}`
   if (entry.status !== 'finished') {
     const words = runStatusText(entry, entry.endedAt ?? entry.at, written, progress, hasText)
-    return words === '' ? null : <span className={className}>{words}</span>
+    // A run that writes no document says `working` while it is in flight, in the place the section would be.
+    const shown = words === '' && working && entry.status === 'running' ? 'working' : words
+    return shown === '' ? null : <span className={className}>{shown}</span>
   }
   return <SavedStatus entry={entry} written={written} className={className} />
 }

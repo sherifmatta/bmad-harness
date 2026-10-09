@@ -1,0 +1,66 @@
+/*
+ * The run step — Story 3.17, DESIGN.md's Run step: one row of the card body's
+ * run list, beside the run notes (run-note.css), which keep their own grid.
+ *
+ * Three columns, the mark, the label and the elapsed, at the card's own gap,
+ * baseline-aligned. No rule between step rows: the run-note rule is an
+ * adjacent-sibling one and a step is never a note. Mono throughout, because a
+ * step is the harness's fact about a call and never speech. The only motion is
+ * the running dot's own pulse (status-dot.css); nothing here animates, and no
+ * media query is read. Every value reaches the design system through `var()`.
+ */
+
+.run-step {
+  display: grid;
+  grid-template-columns: var(--run-step-mark) 1fr auto;
+  gap: var(--space-md-plus);
+  align-items: baseline;
+  padding: var(--run-step-pad-y) 0;
+  font-family: var(--mono);
+}
+
+/* `✓` in green when done, `✕` in red when it failed: text, so colour never carries it alone. */
+.run-step-mark {
+  font-size: var(--fs-ident);
+  line-height: var(--lh-base);
+}
+
+.run-step--done .run-step-mark {
+  color: var(--green);
+}
+
+.run-step--failed .run-step-mark {
+  color: var(--red);
+}
+
+/* The running mark is the work dot, centred on the row rather than sat on its baseline. */
+.run-step-mark--dot {
+  display: flex;
+  align-items: center;
+  align-self: center;
+}
+
+.run-step-label {
+  min-width: 0;
+  font-size: var(--fs-ident);
+  line-height: var(--lh-base);
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+
+.run-step--running .run-step-label {
+  color: var(--text);
+}
+
+/* Right-aligned tabular figures. Faint once the call is over; `now` is the one place a running step says so under reduced motion, so it sits at dim. */
+.run-step-elapsed {
+  font-size: var(--fs-meta);
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.run-step--running .run-step-elapsed {
+  color: var(--dim);
+}

@@ -579,10 +579,11 @@ describe('the card is never empty (Story 3.4)', () => {
     expect(foot()).toEqual(['0 words on disk · autosave on', '2 to write', 'Vision', 'Scope'])
   })
 
-  it('in dead air with three notes: the start row, then the notes in order, and the same foot', () => {
+  it('in dead air with three notes, writing a document: the start row, then the notes in order, and the same foot', () => {
     live = drawLive(
       createProseStore(crank()),
       card({
+        documents: [{ path: 'prd.md', sections: [] }],
         notes: [
           { text: '- (decision) One', at: 1_000 },
           { text: '- (open) Two', at: 2_000 },
@@ -647,5 +648,56 @@ describe('the card is never empty (Story 3.4)', () => {
     expect([...(flow?.children ?? [])].map((node) => node.className)).toEqual(['run-note-feed', 'run-card-prose'])
     expect(body?.querySelector('hr, [role="separator"], legend, label, h1, h2, h3, h4')).toBeNull()
     expect(flow?.querySelectorAll('.run-note-feed > *')).toHaveLength(2)
+  })
+})
+
+describe('the run list in the card (Story 3.17)', () => {
+  const steps = [
+    { callId: 'a', label: 'read story 5.6', status: 'done' as const, startedAt: 0, endedAt: 3_000, notesBefore: 0 },
+    { callId: 'b', label: 'edit design/tokens.css', status: 'running' as const, startedAt: 4_000, notesBefore: 1 }
+  ]
+  const notes = [{ text: '- (decision) One', at: 1_000 }]
+  const names = (root: Element): string[] => [...root.querySelectorAll('.run-note-feed > *')].map((row) => (row.classList.contains('run-step') ? 'step' : 'note'))
+
+  it('draws the steps among the notes in the body, above the prose in one scroll container, as the document streams', () => {
+    const frames = crank()
+    const store = createProseStore(frames)
+    const view = draw(store, card({ notes, steps, plan: ['Vision'] }))
+    expect(names(view.root.container)).toEqual(['note', 'step', 'note', 'step'])
+    store.append('r1', 'c1', 'prd.md', '## 1. Vision\nwords')
+    frames.frame()
+    const flow = view.root.container.querySelector('.run-card-flow')
+    expect([...(flow?.children ?? [])].map((node) => node.className)).toEqual(['run-note-feed', 'run-card-prose'])
+    expect(view.root.container.querySelector('.run-card-body')?.children).toHaveLength(1)
+    expect(view.root.container.querySelectorAll('.run-step')).toHaveLength(2)
+    expect(view.root.container.querySelector('.run-card-path')?.textContent).toBe('prd.md')
+  })
+
+  it('heads a run that writes no document with run and working, keeps the elapsed and the stop, and draws no foot', () => {
+    const view = draw(createProseStore(crank()), card({ steps }), () => {})
+    const root = view.root.container
+    expect(root.querySelector('.run-card-path')?.textContent).toBe('run')
+    expect(root.querySelector('.run-card-status')?.textContent).toBe('working')
+    expect(root.querySelector('.run-card-elapsed')).not.toBeNull()
+    expect(root.querySelector('.run-stop')).not.toBeNull()
+    expect(root.querySelector('.run-card-foot')).toBeNull()
+  })
+
+  it('keeps the head and the foot of a run that writes a document, in dead air', () => {
+    const view = draw(createProseStore(crank()), card({ steps, plan: ['Vision'] }))
+    const root = view.root.container
+    expect(root.querySelector('.run-card-path')?.textContent).toBe('')
+    expect(root.querySelector('.run-card-status')).toBeNull()
+    expect(root.querySelector('.run-card-foot')?.textContent).toContain('0 words on disk · autosave on')
+  })
+
+  it('gives a terminal run with no document only the run label: its status string is as it was, and no step pulses', () => {
+    const view = draw(createProseStore(crank()), card({ status: 'stopped', endedAt: Date.now(), steps }))
+    const root = view.root.container
+    expect(root.querySelector('.run-card-path')?.textContent).toBe('run')
+    expect(root.querySelector('.run-card-status')?.textContent).toBe('stopped')
+    expect(root.querySelector('.run-card-foot')).toBeNull()
+    expect(root.querySelector('.run-step .status-dot')).toBeNull()
+    expect(root.querySelector('.run-step--running')).toBeNull()
   })
 })

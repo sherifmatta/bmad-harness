@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { bodyNotes, collapsedReason, isCollapsed, noteOf, progressWords, runDotState, runLifecycleLine, runStatusText, startNote, subjectWritten } from './run-status'
+import { bodyNotes, collapsedReason, isCollapsed, noteOf, progressWords, runDotState, runLifecycleLine, runListRows, runStatusText, startNote, subjectWritten, writesDocument } from './run-status'
+import type { RunCardStep } from '../../../shared/conversation'
 import { NO_PROGRESS } from './prose-store'
 import type { RunCardEntry } from './transcript-entry'
 
@@ -279,5 +280,79 @@ describe('a run that ended early (Story 3.8)', () => {
   it('tells stopped and failed apart in words only: the dot is the one error dot for both', () => {
     expect(runDotState(written('stopped', NAMES))).toBe('error')
     expect(runDotState(written('failed', NAMES))).toBe('error')
+  })
+})
+
+const step = (callId: string, notesBefore: number, over: Partial<RunCardStep> = {}): RunCardStep => ({
+  callId,
+  label: `read ${callId}`,
+  status: 'done',
+  startedAt: 1_000,
+  endedAt: 4_000,
+  notesBefore,
+  ...over
+})
+const noted = (count: number) => Array.from({ length: count }, (_, at) => ({ text: `- (note) n${at}`, at: 2_000 + at }))
+const order = (entry: RunCardEntry): string[] =>
+  runListRows(entry).map((row) => (row.kind === 'step' ? row.step.callId : row.note.reason))
+
+describe('the run list’s rows (Story 3.17)', () => {
+  it('interleaves notes and steps by notesBefore, the start row first', () => {
+    const entry = card({ notes: noted(2), steps: [step('s0', 0), step('s1', 1), step('s2', 2)] })
+    expect(order(entry)).toEqual(['run started', 's0', 'n0', 's1', 'n1', 's2'])
+  })
+
+  it('reads as the notes alone with no step, and as the start row alone with neither', () => {
+    expect(order(card({ notes: noted(2) }))).toEqual(bodyNotes(card({ notes: noted(2) })).map((note) => note.reason))
+    expect(order(card())).toEqual(['run started'])
+  })
+
+  it('keeps the notes a step did not reach after the last step, and clamps notesBefore to the notes held', () => {
+    expect(order(card({ notes: noted(3), steps: [step('s0', 1)] }))).toEqual(['run started', 'n0', 's0', 'n1', 'n2'])
+    expect(order(card({ notes: noted(2), steps: [step('s0', 9)] }))).toEqual(['run started', 'n0', 'n1', 's0'])
+    // A count that moves back, or is not a number, draws no note twice and loses none.
+    expect(order(card({ notes: noted(2), steps: [step('s0', 2), step('s1', 0), step('s2', Number.NaN)] }))).toEqual(['run started', 'n0', 'n1', 's0', 's1', 's2'])
+  })
+
+  it('puts the notes before the first held step first when early steps were dropped by the cap', () => {
+    expect(order(card({ notes: noted(3), steps: [step('s7', 2), step('s8', 3)] }))).toEqual(['run started', 'n0', 'n1', 's7', 'n2', 's8'])
+  })
+
+  it('never compares times: a note stamped later than the step it precedes still comes first', () => {
+    const entry = card({ notes: [{ text: '- (note) late', at: 99_000 }], steps: [step('s0', 1, { startedAt: 1_000 })] })
+    expect(order(entry)).toEqual(['run started', 'late', 's0'])
+  })
+
+  it('draws a done step as done with its duration, a failed one as failed, and a running one as running on a running card', () => {
+    const rows = runListRows(card({ steps: [step('d', 0), step('f', 0, { status: 'failed', endedAt: 2_500 }), step('r', 0, { status: 'running', endedAt: undefined })] }))
+    expect(rows.slice(1)).toMatchObject([
+      { kind: 'step', state: 'done', elapsedMs: 3_000 },
+      { kind: 'step', state: 'failed', elapsedMs: 1_500 },
+      { kind: 'step', state: 'running' }
+    ])
+  })
+
+  it('draws a step still running on a card that is not as failed, ending at the step’s end, else the card’s, else its own start', () => {
+    const running = (over: Partial<RunCardStep>): RunCardStep => step('r', 0, { status: 'running', endedAt: undefined, startedAt: 1_000, ...over })
+    const ended = (status: 'failed' | 'stopped' | 'finished', steps: RunCardStep[]) => runListRows(card({ status, endedAt: 9_000, steps })).at(-1)
+    for (const status of ['failed', 'stopped', 'finished'] as const) {
+      expect(ended(status, [running({})])).toMatchObject({ state: 'failed', elapsedMs: 8_000 })
+      expect(ended(status, [running({ endedAt: 3_000 })])).toMatchObject({ state: 'failed', elapsedMs: 2_000 })
+    }
+    expect(runListRows(card({ status: 'failed', steps: [running({})] })).at(-1)).toMatchObject({ state: 'failed', elapsedMs: 0 })
+  })
+})
+
+describe('whether a card writes a document (Story 3.17)', () => {
+  it('is false with no subject path, no plan and no confirmed document', () => {
+    expect(writesDocument(card(), '')).toBe(false)
+    expect(writesDocument(card(), undefined)).toBe(false)
+    expect(writesDocument(card({ plan: [] }), '')).toBe(false)
+  })
+
+  it('is true with any one of them', () => {
+    expect(writesDocument(card(), 'prd.md')).toBe(true)
+    expect(writesDocument(card({ plan: ['Vision'] }), '')).toBe(true)
+    expect(writesDocument(card({ documents: [{ path: 'prd.md', sections: [] }] }), '')).toBe(true)
   })
 })

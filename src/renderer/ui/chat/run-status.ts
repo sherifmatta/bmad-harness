@@ -10,6 +10,7 @@ import { formatTurnTime } from './format-turn-time'
 import { NO_PROGRESS } from './prose-store'
 import type { RunProgress } from './prose-store'
 import type { RunCardEntry } from './transcript-entry'
+import type { RunCardStep } from '../../../shared/conversation'
 
 /**
  * The words a run card and its announcements are made of, as pure functions of
@@ -173,4 +174,60 @@ export function startNote(entry: RunCardEntry): RunNote {
 /** The rows of a card's body above its prose: the start row, then each `run:note` in order. */
 export function bodyNotes(entry: RunCardEntry): RunNote[] {
   return [startNote(entry), ...entry.notes.map((note) => noteOf(note.text, note.at))]
+}
+
+/**
+ * Whether a card writes a document, from what it already holds: a subject path
+ * (the prose store's), a plan (the skill template's section spine, absent for a
+ * skill without one) or any document a write was confirmed to. A card with none
+ * is a run list alone: its head reads `run` and it has no foot (Story 3.17).
+ */
+export function writesDocument(entry: RunCardEntry, path: string | undefined): boolean {
+  return (path !== undefined && path !== '') || (entry.plan?.length ?? 0) > 0 || entry.documents.length > 0
+}
+
+/** How a step row draws: a step still running on a card that is not is cut off, and draws as failed. */
+export type StepState = 'done' | 'failed' | 'running'
+
+/** One row of the run list, in fold order: a run note, or a step with the state it draws as and how long it took. */
+export type RunListRow =
+  | { kind: 'note'; note: RunNote }
+  | { kind: 'step'; step: RunCardStep; state: StepState; elapsedMs: number }
+
+/**
+ * A step's state and duration. Running on a running card it is running, with no
+ * duration to draw. Running on any other card it ended failed, at the step's own
+ * `endedAt`, else the card's, else its own start: nothing on a terminal card
+ * pulses or ticks.
+ */
+function stepRow(entry: RunCardEntry, step: RunCardStep): RunListRow {
+  if (step.status === 'running' && entry.status === 'running') {
+    return { kind: 'step', step, state: 'running', elapsedMs: 0 }
+  }
+  const state: StepState = step.status === 'done' ? 'done' : 'failed'
+  const ended = step.endedAt ?? (step.status === 'running' ? entry.endedAt : undefined) ?? step.startedAt
+  return { kind: 'step', step, state, elapsedMs: Math.max(0, ended - step.startedAt) }
+}
+
+/**
+ * The card body's run list above its prose (Story 3.17), in fold order and never
+ * by time: the start row, then for each step the notes not yet drawn up to the
+ * count it recorded (`notesBefore`, clamped to the notes held), then the step,
+ * and the remaining notes last. A card with no step reads as the notes alone.
+ */
+export function runListRows(entry: RunCardEntry): RunListRow[] {
+  const notes = entry.notes.map((note) => noteOf(note.text, note.at))
+  const rows: RunListRow[] = [{ kind: 'note', note: startNote(entry) }]
+  let drawn = 0
+  for (const step of entry.steps) {
+    const upTo = Math.min(notes.length, Number.isFinite(step.notesBefore) ? Math.max(0, Math.floor(step.notesBefore)) : 0)
+    for (; drawn < upTo; drawn += 1) {
+      rows.push({ kind: 'note', note: notes[drawn] as RunNote })
+    }
+    rows.push(stepRow(entry, step))
+  }
+  for (; drawn < notes.length; drawn += 1) {
+    rows.push({ kind: 'note', note: notes[drawn] as RunNote })
+  }
+  return rows
 }

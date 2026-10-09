@@ -950,8 +950,10 @@ describe('App, pressing a skill button (Story 3.1)', () => {
     push({ name: 'run:started', payload: { ...R, agentId: mary.id, code: 'CP', at: Date.now() } })
     const card = mounted.container.querySelector('.run-card')
     expect(card?.getAttribute('aria-busy')).toBe('true')
-    // Dead air: no status string, and the body opens with the run's own start row.
-    expect(card?.querySelector('.run-card-status')).toBeNull()
+    // A run that writes no document: the head reads `run` and `working`, and the body opens with the run's own start row.
+    expect(card?.querySelector('.run-card-path')?.textContent).toBe('run')
+    expect(card?.querySelector('.run-card-status')?.textContent).toBe('working')
+    expect(card?.querySelector('.run-card-foot')).toBeNull()
     expect(card?.querySelector('.run-note-reason')?.textContent).toBe('run started')
     // No user turn was recorded for the dispatch.
     expect(mounted.container.querySelector('.turn--user')).toBeNull()
@@ -1243,6 +1245,7 @@ describe('App, the running card stays in view (Story 3.14)', () => {
           startedAt: 40,
           status: 'running',
           notes: [],
+          steps: [],
           documents: [{ path: '_bmad/prd.md', callId: 'c9', text: 'so far', written: 6, sections: [] }]
         }
       ]
@@ -1574,6 +1577,7 @@ describe('App, the run you are not looking at (Story 3.5)', () => {
           startedAt: Date.now() - 5_000,
           status: 'running',
           notes: [{ text: '- (decision) Hydrated reason', at: Date.now() - 4_000 }],
+          steps: [],
           documents: []
         }
       ]
@@ -1767,6 +1771,7 @@ describe('App, stopping a run (Story 3.7)', () => {
       endedAt: 66_000,
       ...(status === 'failed' ? { error: { code: 'run/session-ended', message: 'run · the session ended' } } : {}),
       notes: [],
+      steps: [],
       documents: [{ path: '_bmad/prd.md', callId: 'c', text: 'kept', written: 4, sections: [] }]
     })
     harness.getConversation = async () => ({
