@@ -3,7 +3,7 @@ name: 'bmad-visual-harness'
 type: experience-spine
 status: final
 created: '2026-09-24'
-updated: '2026-10-08'
+updated: '2026-10-09'
 sources:
   - ../../../specs/spec-bmad-visual-harness/SPEC.md
   - ../../../specs/spec-bmad-visual-harness/ui-surfaces.md
@@ -17,6 +17,8 @@ sources:
   - mockups/follow-the-thread.html
   - mockups/output-folder.html
   - mockups/rail-resize-collapse.html
+  - mockups/paperclip-layout-chat.html
+  - mockups/paperclip-board.html
 companions:
   - DESIGN.md
 ---
@@ -45,6 +47,7 @@ Every rule below traces to a memlog decision, an architecture decision (AD-n), a
 | Following the thread | what a thread does as it grows: follow, pause, and the way back |
 | Output folder | which folder the rail watches, how it is derived and chosen, and what follows it |
 | Resizing and folding | the two side panels' width, the Outputs folders' collapse, and what each remembers |
+| Layout, chat and Board | the three-column room, the thread as one conversation, and the Board view; what is adopted and what is not |
 | Dead Air | what the card does through a multi-minute silence |
 | Failure, Stopping and Contention | the stop cost, terminal states, and the no-arbitration posture |
 | Run Completion When Unattended | the notification contract for the terminal events |
@@ -60,7 +63,7 @@ Desktop Electron shell. **macOS only in v1** — Windows and Linux are deferred,
 
 **The harness opens to a Welcome window, not to a native dialog.** It is where a project is chosen (*Welcome*, below). A project passed on the command line skips it for the first window.
 
-Two top-level views behind a single switch — **1:1 Conversation** and **Party Mode**. A **Help** entry point is reserved in the topbar layout but **does not render in v1**, because the Help *section* behind it is Should-tier and a control that opens nothing is a control that lies; *Accessibility Floor → Keyboard reach* therefore lists the view switch alone. An explicit **end-session** control exists and is the only way to clear a persisted conversation; it is a lifecycle control, not a next-step suggestion (AD-21).
+Three top-level views behind a single switch — **1:1 Conversation**, **Party Mode** and **Board** (2026-10-09; *Layout, chat and Board*). A **Help** entry point is reserved in the topbar layout but **does not render in v1**, because the Help *section* behind it is Should-tier and a control that opens nothing is a control that lies; *Accessibility Floor → Keyboard reach* therefore lists the view switch alone. An explicit **end-session** control exists and is the only way to clear a persisted conversation; it is a lifecycle control, not a next-step suggestion (AD-21).
 
 **This document designs for the user who is elsewhere.** The author works both at the window and in another app during a multi-minute run (memlog). The elsewhere case is strictly harder, and **a design that holds for it also holds for the attended case** — so every waiting state is specified for the unattended reading first and the attended reading second.
 
@@ -81,12 +84,13 @@ Two top-level views behind a single switch — **1:1 Conversation** and **Party 
 | Rail rows | rail, Outputs half | one row per file under `_bmad/` — path, owner, state, optional run annotation — under a heading per directory that can be folded | disk truth only (AD-1) |
 | Document card | **inline in the conversation, in time order** | head / body / foot | run-scoped; never a panel |
 | Party Mode | view switch | cast, header, transcript, *Room* section | see *Party Mode* below |
+| Board | view switch | overview, the story board by status, the epics, the agents, recent activity | read-only; see *Layout, chat and Board* |
 | Document window | click a rail row or a card path | read-only preview, reloads on write | separate OS window, outside the shell |
 | Preflight | launch failure, after a project is chosen | named missing prerequisite + remedy | see *State Patterns → Preflight* |
 
 **Nesting and lifetime**
 
-- 1:1 and Party are mutually exclusive; one switch, no third view.
+- 1:1, Party and Board are mutually exclusive; one switch. *(2026-10-09: Board is the third view, which lifts the earlier "no third view".)*
 - The rail shows **project artifacts only**. Harness bookkeeping — transcripts, logs, window state — lives in `userData` and never appears (AD-1). No affordance may imply the harness authored or can author a file.
 - Document cards are **conversation entries**, not a region. A card is born with a skill invocation (`run:started`) and dies with it. A plain chat turn raises no card (AD-11).
 - Skill buttons are nested under the active persona and rebuilt whenever the active persona changes.
@@ -167,7 +171,7 @@ Project **content** is untrusted because it is largely model-authored (AD-13). M
 
 | Primitive | Where | Dispatches |
 |---|---|---|
-| View switch | topbar | 1:1 ↔ Party |
+| View switch | topbar | 1:1 ↔ Party ↔ Board |
 | Persona tile | rail | marks current · rebuilds the skill row · expands that persona's card |
 | Skill button | above the composer | `menu.dispatch(sessionId, code)` → births a card |
 | `+N more` | skill row | expands the row in place |
@@ -192,6 +196,9 @@ Project **content** is untrusted because it is largely model-authored (AD-13). M
 | *File ▸ Use BMad's Output Folder* | project window menu | forgets this project's choice |
 | `theme · system · light · dark` | welcome, bottom edge | the same choice, from the one window with no project |
 | Recent row | welcome | opens that project's window |
+| Inbox row | Team sidebar | lists the open decisions across personas; opens the one chosen in its persona's thread |
+| Message actions | on hover or focus of a turn | *Copy*, *Quote* (into the composer), *Open document* (when the turn names one) |
+| `?` · `g b` · `g i` · `g c` · `j`/`k` | anywhere outside the composer | cheatsheet · Board · Inbox · composer · next and previous turn |
 
 **Chat turns and skill invocations are both turns into the same session.** There is no second run kind, and the composer and the skill row must not read as two modes (AD-18).
 
@@ -614,6 +621,84 @@ A splitter is a `separator` that exposes its minimum, maximum and current value;
 ### Banned here
 
 No animation of a width or a fold; no snap points or presets; no per-persona, per-project or per-window panel width; no count or badge on a folded folder; no unfold when something arrives; no *collapse all* in v1; no way to hide the rail or the Room panel altogether.
+
+---
+
+## Layout, chat and Board
+
+*Added 2026-10-09. Appearance: `DESIGN.md` → Components, to be added (this section leads, the anatomy follows). Prototypes: `mockups/paperclip-layout-chat.html` and `mockups/paperclip-board.html`.*
+
+**Where it comes from.** The direction is taken from the public description of Paperclip, an open-source orchestrator for teams of agents: its three-column board, its issue thread that renders runs and questions inline as one conversation, and its dashboard. Only public pages were read (the v2026.416.0 changelog, the docs home, the dashboard guide, the product pages); no screenshots, so no pixel was copied and nothing here depends on how Paperclip looks. The prototypes show more than is adopted below: **where a prototype and this section differ, this section wins.**
+
+### The room: three columns
+
+| Column | Holds | Replaces |
+|---|---|---|
+| **Team sidebar**, left | a state strip, the *Inbox* and *Sprint board* rows, the persona tiles | the Team half of the rail |
+| **Chat column**, centre | the thread and the composer, as now | nothing |
+| **Context panel**, right | *Properties*, *Goal trace*, *Outputs*, *Run* for the open conversation | the Outputs half of the rail |
+
+- **Persona order is unchanged.** Tiles stay grouped by `module` and `team` and in config order (*Persona tile order*). They are **not** regrouped by state, and nothing is sorted by who needs attention: AD-21's no relevance sort and no highlighting hold. State is the dot each tile already has; an idle persona dims (`--opacity-idle`), as it does now.
+- **The state strip** is four plain counts of the tiles' own dot states (running, idle, error, and changed on disk). It is read from the same source as the dots (AD-20), is never a badge and never counts anything unread. **[ASSUMPTION]** — the fourth cell is the `note` state; drop the strip if five dot states in four cells reads badly.
+- **The Inbox** lists the open decision blocks across personas, newest first, so a question from one persona is not lost while the user talks to another. It shows **no count** on its row. A row opens that persona's thread at the decision. It lists nothing the harness invented: an empty list says `nothing open`. **[ASSUMPTION]** — needs a read across sessions' unanswered decision blocks; check the session model has one before building.
+- **The context panel** shows facts about the open story and run, and nothing prescriptive. *Properties*: status, owner persona, current skill, branch. *Goal trace*: product, epic, story, read from `sprint-status.yaml`. *Outputs*: exactly the Outputs half as it is (*Output folder*, *Resizing and folding*), moved. *Run*: duration, tool calls, model. A field with no source is omitted, never shown empty.
+- **Widths.** Each side panel has its own splitter and range, as the rail does (*Resizing and folding*). Defaults: Team sidebar 244px, context panel 300px. **[ASSUMPTION]** — ranges 200–400px and 260–480px, the chat column kept at 420px; the old single rail width is dropped, not migrated, and both read as their default until set. At the existing narrow breakpoints the layout stacks and the context panel hides, as the Room panel does.
+
+### The chat thread
+
+The thread is one continuous conversation: the user's turns, the persona's words, its run, its questions, in time order, with no tab or panel between them. Most of this already exists (persona turns, syslines, run cards, decision blocks); what is new is below.
+
+| Element | Behaviour |
+|---|---|
+| Turn head | portrait, name, title, **clock time** (`HH:MM`). Relative times ("4m ago") are **not** adopted: a transcript restored on another day must read as it did live (`formatTurnTime`) |
+| Activity line | the existing handoff sysline. Unchanged |
+| Run card | the existing card, inline in the thread. Its body is the run-note feed (*Dead Air*); a finished run collapses to its one line, as it does when it is elsewhere |
+| Thinking row | where the stream carries thinking text, **one collapsed row** above the persona's words that expands to it. It is the thinking the stream gave, never a placeholder: it does not appear for a turn with none, and it carries no word of its own before the turn ends (*A turn in flight*: no stand-in `thinking`) |
+| Decision block | the existing block, restyled as a card: options with a key each (`1`–`9`), *Confirm*. It still sends the chosen option as the user's turn and then removes itself |
+| Message actions | on hover **and on focus** of a turn: *Copy*, *Quote*, *Open document*. They are real buttons in the turn's tab order; hover alone reveals nothing a keyboard cannot reach |
+| Composer | unchanged: `@<name>` hands off, `Enter` sends, `Shift+Enter` breaks the line |
+| Keyboard hints | one quiet row under the composer: `?` opens the shortcut cheatsheet (a window, not a palette); `g` then `b` / `i` / `c` go to the Board / Inbox / composer; `j` and `k` move between turns. **[ASSUMPTION]** — the chords are this document's proposal; none is binding until *Keyboard reach* lists it |
+
+### The Board view
+
+A read-only view of where the work stands, reached from the view switch or `g b`. It is **disk truth** (AD-1): it reads `sprint-status.yaml` and the sessions and writes nothing, so it offers no drag, no status control and no *New story* button. A status changes when a skill changes it.
+
+| Region | Shows |
+|---|---|
+| Overview | three plain figures: **agents running** (of the roster), **stories in progress**, **decisions open**. The third highlights nothing and opens the Inbox |
+| Board | one column per BMad status in the file's own words: `backlog`, `ready-for-dev`, `in-progress`, `review`, `done`. A card is the story id, its title and, when a run is on it, the owning persona and the run's elapsed time under the run's pulse dot |
+| Epics | one row per epic: its title and `n of m stories done`, as text |
+| Agents | one row per persona: its state, what it is on and the run's elapsed time; an idle persona dims |
+| Recent activity | persona events across the project (run started, finished, stopped, question asked), newest first, built from the run notes |
+
+- **A story's owner** is the persona of the run that is or was last on it; a story with no run has none and shows none. **[ASSUMPTION]** — `sprint-status.yaml` carries no owner, so this is derived from run history and must be confirmed against what the session store keeps.
+- **No money.** A *spend* card, per-persona cost and a budget are **not adopted**: nothing in the harness's data source carries cost, and a figure with no source is the one thing AD-20 forbids. Revisit if the runs begin to report it.
+- **No bar.** Neither a story card nor an epic row draws a progress bar: bars imply steady incremental advance (*Banned everywhere*). The count is the text above.
+- **Reading, not steering.** The Board never recommends a next story, highlights the one to do, or orders by priority. Within a column the order is the file's.
+
+### Not adopted
+
+Each is something Paperclip does or the prototypes drew that this product refuses; the reason is the rule it would break.
+
+| Not adopted | Because |
+|---|---|
+| `/` in the composer listing skills | AD-21: no launcher under another name; skills are the current persona's buttons only |
+| *Review gate* card with *Approve* / *Request changes*, and a *Suggested follow-ups* card | the harness has no approval state, and both are recommended next actions (*Banned everywhere*) |
+| A count on the Inbox row, a *needs you* group of tiles, a *Needs you* figure | badges, unread counts and relevance sorting are banned |
+| A shimmer on the running step | the motion inventory is closed at five declarations (UX-DR12); the running step carries the existing amber pulse dot |
+| A step bar on a run card, a bar on a story or epic | no progress bars implying steady advance |
+| Relative timestamps | a restored transcript must read the same as it did live |
+| *Retry* in the message actions | a retry is a new turn the user sends; the harness has no retry semantic |
+| Dropping a file onto the composer | no attachment path exists in the session |
+| Drag to move a story, *New story* | the Board is read-only (AD-1) |
+
+### Accessibility
+
+The view switch gains a third segment and stays one control in the roving order. Each side panel's splitter and the Inbox rows follow *Resizing and folding* and *Keyboard reach*: real buttons, the shared focus ring, no announcement of a drag. The Inbox is a list; the Board's columns are lists under their status headings, each card a button that opens that story's persona thread. The state strip and the Board's figures are text and are not announced through the live region (*Live-region policy* is unchanged).
+
+### Banned here
+
+No count, badge or highlight on the Inbox, a tile or a Board figure; no regrouping of tiles by state; no progress bar; no spend or budget until a source exists; no editing affordance on the Board; no recommended next story; no skill list in the composer; no `/` command.
 
 ---
 

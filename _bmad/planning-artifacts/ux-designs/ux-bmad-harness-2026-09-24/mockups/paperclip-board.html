@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Harness mock: Board</title><style>
+  :root{
+    --bg:#0d0d0e;
+    --chrome:#111112;
+    --panel:#151516;
+    --panel-2:#1a1a1b;
+    --panel-3:#202021;
+    --line:#29292b;
+    --line-soft:#1e1e20;
+    --text:#dedee0;
+    --text-strong:#f1f1f2;
+    --dim:#9b9b9f;
+    --faint:#6d6d71;
+    --accent:#e3e3e5;    --accent-bg:rgba(227,227,229,.09);
+    --green:#7aa387;
+    --amber:#b9a367;
+    --red:#b88a84;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --r:5px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#0b0b0c;color:var(--text);font-family:var(--sans);font-size:13px;line-height:1.55;-webkit-font-smoothing:antialiased}
+  button{font:inherit;color:inherit;cursor:pointer}
+  .page{max-width:1480px;min-width:1240px;margin:0 auto;padding:20px 24px 60px}
+  .page-head{display:flex;align-items:baseline;gap:14px;margin:0 0 6px}
+  .page-head h1{margin:0;font-size:16px;font-weight:600;color:var(--text-strong)}
+  .page-head span{color:var(--faint);font-size:12px}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin:0 0 18px;font-size:12px;color:var(--dim)}
+  .legend i{display:inline-block;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#0b0b0c;font:600 10.5px/18px var(--sans);text-align:center;font-style:normal;margin-right:6px;vertical-align:-4px}
+  .legend i.have{background:var(--panel-3);color:var(--dim);border:1px solid var(--line)}
+  h2.screen-title{margin:30px 0 4px;font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+  p.screen-sub{margin:0 0 10px;color:var(--faint);font-size:12px;max-width:820px}
+
+  .frame{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column;height:780px}
+  .frame.tall{height:1500px}
+  .frame.tall .thread{padding-bottom:110px}
+
+  .mk{position:absolute;z-index:3;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#0b0b0c;font:600 10.5px/18px var(--sans);text-align:center}
+  .mk.have{background:var(--panel-3);color:var(--dim);border:1px solid var(--line);line-height:16px}
+  .rel{position:relative}
+  .head .mk,.p-sec h4 .mk,.nav-row .mk{position:static;display:inline-block;flex:0 0 auto;margin-left:6px}
+  .p-sec h4 .mk{margin-left:6px}
+  .p-sec h4 .mk+span{margin-left:auto}
+  .nav-row .mk{margin-left:auto}
+  .nav-row .mk+.n{margin-left:8px}
+
+  .topbar{display:flex;align-items:center;gap:14px;height:42px;flex:0 0 42px;padding:0 12px;background:var(--chrome);border-bottom:1px solid var(--line)}
+  .brand{display:flex;align-items:center;gap:8px}
+  .brand .mark{width:16px;height:16px;border:1px solid #4a4a4d;border-radius:3px;position:relative}
+  .brand .mark::after{content:"";position:absolute;inset:3px;background:var(--accent);opacity:.75;border-radius:1px}
+  .brand b{font-weight:600;font-size:12.5px;color:var(--text-strong)}
+  .crumbs{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11.5px;color:var(--dim)}
+  .crumbs .sep{color:#3a3a3d}
+  .spacer{flex:1}
+  .chip{display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 7px;border:1px solid var(--line);border-radius:3px;background:var(--panel-2);font-family:var(--mono);font-size:10.5px;color:var(--dim)}
+  .segmented{display:flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--panel-2)}
+  .segmented button{background:transparent;border:0;padding:5px 13px;font-size:12px;color:var(--dim);border-right:1px solid var(--line-soft)}
+  .segmented button:last-child{border-right:0}
+  .segmented button[aria-pressed="true"]{background:#252527;color:var(--text-strong);box-shadow:inset 0 -2px 0 var(--accent)}
+  kbd{font-family:var(--mono);font-size:10.5px;padding:0 5px;border:1px solid var(--line);border-bottom-width:2px;border-radius:3px;background:var(--panel-2);color:var(--dim)}
+
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--faint);flex:0 0 auto}
+  .dot.live{background:var(--green);box-shadow:0 0 0 3px rgba(122,163,135,.14)}
+  .dot.work{background:var(--amber);box-shadow:0 0 0 3px rgba(185,163,103,.13)}
+  .dot.need{background:var(--accent);box-shadow:0 0 0 3px var(--accent-bg)}
+
+  .body{display:flex;flex:1;min-height:0}
+  .side{flex:0 0 244px;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+  .props{flex:0 0 300px;background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0;overflow-y:auto}
+  .head{display:flex;align-items:center;gap:8px;height:30px;flex:0 0 30px;padding:0 11px;border-bottom:1px solid var(--line-soft);background:var(--panel-2)}
+  .head h3{margin:0;font-size:10.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--dim)}
+  .head .meta{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--faint)}
+
+  .summary{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--line-soft)}
+  .summary div{padding:8px 4px 7px;text-align:center;border-right:1px solid var(--line-soft)}
+  .summary div:last-child{border-right:0}
+  .summary b{display:block;font-size:15px;font-weight:600;color:var(--text-strong);font-variant-numeric:tabular-nums}
+  .summary span{font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+  .summary .hot b{color:var(--accent)}
+
+  .nav-row{display:flex;align-items:center;gap:8px;padding:6px 11px;font-size:12px;color:var(--dim);border-bottom:1px solid var(--line-soft)}
+  .nav-row:hover{background:var(--panel-2)}
+  .nav-row .n{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--accent)}
+  .nav-row kbd{margin-left:auto}
+
+  .ptile{display:flex;gap:10px;padding:8px 11px;border-bottom:1px solid var(--line-soft);position:relative}
+  .ptile:hover{background:var(--panel-2)}
+  .ptile[aria-current="true"]{background:#1d1d1e}
+  .ptile[aria-current="true"]::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--accent)}
+  .ptile.dim .nm b,.ptile.dim .state{opacity:.55}
+  .av{flex:0 0 auto;width:26px;height:26px;border-radius:50%;border:1px solid var(--line);background:var(--panel-3);color:var(--text-strong);font:600 10.5px/24px var(--sans);text-align:center;position:relative}
+  .av.sm{width:22px;height:22px;font-size:9.5px;line-height:20px}
+  .av .dot{position:absolute;right:-2px;bottom:-2px;border:2px solid var(--panel)}
+  .av.u{background:var(--accent-bg);color:var(--accent);border-color:#3b3b3e}
+  .ptile .nm{display:flex;gap:7px;align-items:baseline}
+  .ptile .nm b{font-size:12.5px;color:var(--text-strong);font-weight:600}
+  .ptile .nm span{font-size:11px;color:var(--dim)}
+  .ptile .state{font-size:11px;color:var(--faint);display:flex;gap:6px;align-items:center}
+  .ptile .state em{font-style:normal;font-family:var(--mono);color:var(--amber)}
+  .grp{padding:6px 11px 3px;font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);background:var(--bg)}
+
+  .col{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
+  .chat-head{display:flex;align-items:center;gap:10px;height:46px;flex:0 0 46px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--chrome)}
+  .chat-head b{color:var(--text-strong);font-size:13px}
+  .chat-head .role{color:var(--dim);font-size:12px}
+  .chat-head .right{margin-left:auto;display:flex;gap:8px;align-items:center}
+  .btn{background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r);padding:3px 10px;font-size:11.5px;color:var(--dim)}
+  .btn:hover{color:var(--text-strong);border-color:#3f3f42}
+  .btn.pri{background:var(--accent-bg);border-color:#3b3b3e;color:var(--accent)}
+  .btn.ok{background:rgba(122,163,135,.12);border-color:#35503f;color:var(--green)}
+
+  .thread{flex:1;min-height:0;overflow-y:auto;padding:18px 0 8px}
+  .wrap{max-width:760px;margin:0 auto;padding:0 20px}
+  .turn{display:flex;gap:11px;margin:0 0 16px;position:relative}
+  .turn .bd{flex:1;min-width:0}
+  .turn .hd{display:flex;align-items:baseline;gap:8px;margin-bottom:2px}
+  .turn .hd b{font-size:12.5px;color:var(--text-strong);font-weight:600}
+  .turn .hd span{font-size:11px;color:var(--faint)}
+  .turn .hd .tm{font-family:var(--mono);font-size:10.5px}
+  .turn p{margin:0 0 7px;color:var(--text)}
+  .turn code{font-family:var(--mono);font-size:11.5px;background:var(--panel-2);border:1px solid var(--line-soft);border-radius:3px;padding:0 4px}
+  .acts{position:absolute;right:0;top:-6px;display:flex;gap:1px;padding:2px;border:1px solid var(--line);border-radius:var(--r);background:var(--panel-2)}
+  .acts button{background:transparent;border:0;color:var(--faint);padding:1px 7px;font-size:11px;border-radius:3px}
+  .acts button:hover{color:var(--text-strong);background:var(--panel-3)}
+
+  .sysline{display:flex;align-items:center;gap:10px;margin:2px 0 16px;color:var(--faint);font-size:11px;font-family:var(--mono)}
+  .sysline::before,.sysline::after{content:"";height:1px;background:var(--line-soft);flex:1}
+
+  .card{border:1px solid var(--line);border-radius:var(--r);background:var(--panel);margin:2px 0 9px;overflow:hidden}
+  .card .ch{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--panel-2);border-bottom:1px solid var(--line-soft);font-size:11.5px;color:var(--dim)}
+  .card .ch b{color:var(--text-strong);font-weight:600}
+  .card .ch .r{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--faint);display:flex;gap:8px;align-items:center}
+  .card .cb{padding:8px 10px}
+  .card .cf{display:flex;gap:8px;align-items:center;padding:7px 10px;border-top:1px solid var(--line-soft);background:var(--panel-2)}
+  .card .cf .hint{margin-left:auto;font-size:10.5px;color:var(--faint)}
+  .card.attn{border-color:#3b3b3e}
+  .card.attn .ch{background:var(--accent-bg);color:var(--accent)}
+
+  .steps{list-style:none;margin:0;padding:0;font-family:var(--mono);font-size:11.5px}
+  .steps li{display:flex;gap:9px;padding:3px 0;color:var(--dim);align-items:baseline}
+  .steps li i{font-style:normal;width:12px;color:var(--green);flex:0 0 auto}
+  .steps li.now i{color:var(--amber)}
+  .steps li .d{margin-left:auto;color:var(--faint)}
+  .steps li.now span{color:var(--text)}
+  .shimmer{background:linear-gradient(90deg,var(--dim) 30%,var(--text-strong) 50%,var(--dim) 70%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:sh 2.4s linear infinite}
+  @keyframes sh{from{background-position:200% 0}to{background-position:-200% 0}}
+  @media (prefers-reduced-motion:reduce){.shimmer{animation:none;color:var(--dim);background:none}}
+  .think{display:flex;gap:8px;align-items:center;color:var(--faint);font-size:11.5px;padding:2px 0 8px}
+  .think b{font-weight:400;color:var(--dim)}
+
+  .opt{display:flex;gap:9px;align-items:flex-start;padding:6px 8px;border:1px solid var(--line-soft);border-radius:var(--r);margin-bottom:5px;background:var(--bg)}
+  .opt:hover{border-color:#3f3f42}
+  .opt.sel{border-color:#3b3b3e;background:var(--accent-bg)}
+  .opt .rd{width:12px;height:12px;border-radius:50%;border:1px solid #4a4a4d;margin-top:4px;flex:0 0 auto}
+  .opt.sel .rd{border-color:var(--accent);background:radial-gradient(var(--accent) 38%,transparent 42%)}
+  .opt b{color:var(--text-strong);font-weight:500;font-size:12.5px}
+  .opt span{display:block;color:var(--faint);font-size:11.5px}
+  .chk{display:flex;gap:9px;align-items:center;padding:4px 0;font-size:12.5px}
+  .chk i{width:12px;height:12px;border:1px solid #4a4a4d;border-radius:3px;flex:0 0 auto}
+  .chk i.on{background:var(--accent);border-color:var(--accent)}
+  .chk em{font-style:normal;margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+
+  .composer{flex:0 0 auto;padding:8px 0 14px;border-top:1px solid var(--line-soft);background:var(--bg)}
+  .cbox{border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:9px 11px 6px}
+  .cbox .ph{color:var(--faint);min-height:22px}
+  .cbox .ph .at{color:var(--accent)}
+  .cbox .tools{display:flex;gap:8px;align-items:center;margin-top:6px;color:var(--faint);font-size:11px}
+  .cbox .tools .r{margin-left:auto;display:flex;gap:10px;align-items:center}
+  .pop{position:absolute;left:0;bottom:calc(100% + 6px);width:290px;border:1px solid var(--line);border-radius:6px;background:var(--panel-2);overflow:hidden}
+  .pop div{display:flex;gap:8px;align-items:center;padding:5px 9px;font-size:12px;color:var(--dim)}
+  .pop div.sel{background:var(--panel-3);color:var(--text-strong)}
+  .pop div span{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+  .keys{display:flex;gap:14px;justify-content:center;margin-top:7px;font-size:10.5px;color:var(--faint)}
+
+  .p-sec{border-bottom:1px solid var(--line-soft);padding:9px 12px}
+  .p-sec h4{margin:0 0 6px;font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);font-weight:600;display:flex}
+  .p-sec h4 span{margin-left:auto;font-family:var(--mono);letter-spacing:0;text-transform:none}
+  .kv{display:flex;gap:10px;padding:2px 0;font-size:12px}
+  .kv > span:first-child{flex:0 0 78px;color:var(--faint)}
+  .kv b{font-weight:400;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .kv b.mono{font-family:var(--mono);font-size:11.5px}
+  .pill{display:inline-flex;gap:6px;align-items:center;font-size:11px;padding:0 7px;height:18px;border-radius:9px;border:1px solid var(--line);background:var(--panel-2);color:var(--dim)}
+  .pill.amber{color:var(--amber);border-color:#4a4228}
+  .pill.green{color:var(--green);border-color:#35503f}
+  .out{display:flex;gap:8px;align-items:baseline;padding:3px 0;font-size:12px}
+  .out code{font-family:var(--mono);font-size:11.5px;color:var(--text)}
+  .out span{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+
+  .notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-top:12px}
+  .note{border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:10px 12px;font-size:12px;color:var(--dim)}
+  .note b{color:var(--text-strong);font-weight:600;display:flex;gap:8px;align-items:center;margin-bottom:3px}
+  .note b i{width:18px;height:18px;border-radius:50%;background:var(--accent);color:#0b0b0c;font:600 10.5px/18px var(--sans);text-align:center;font-style:normal;flex:0 0 auto}
+  .note b i.have{background:var(--panel-3);color:var(--dim);border:1px solid var(--line);line-height:16px}
+  .note small{display:block;margin-top:4px;color:var(--faint);font-size:11px}
+
+  .frame{height:auto;min-height:820px}
+  .board{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg);overflow:hidden}
+  .scroll{flex:1;overflow-y:auto;padding:16px 18px 20px}
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+  .stat{border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:10px 12px;position:relative}
+  .stat small{display:block;font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
+  .stat b{display:block;font-size:22px;font-weight:600;color:var(--text-strong);font-variant-numeric:tabular-nums;line-height:1.25;margin-top:2px}
+  .stat span{font-size:11.5px;color:var(--dim)}
+  .stat.hot{border-color:#3b3b3e}
+  .stat.hot b{color:var(--accent)}
+  .grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px}
+  .panel{border:1px solid var(--line);border-radius:6px;background:var(--panel);overflow:hidden;margin-bottom:14px;position:relative}
+  .panel .head{background:var(--panel-2)}
+  .kan{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0}
+  .kcol{border-right:1px solid var(--line-soft);min-height:300px;padding:8px}
+  .kcol:last-child{border-right:0}
+  .kcol h5{margin:0 0 8px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:600;display:flex;gap:6px}
+  .kcol h5 em{font-style:normal;margin-left:auto;font-family:var(--mono);letter-spacing:0}
+  .scard{border:1px solid var(--line);border-radius:5px;background:var(--bg);padding:7px 8px;margin-bottom:7px;font-size:12px}
+  .scard:hover{border-color:#3f3f42}
+  .scard .id{font-family:var(--mono);font-size:10.5px;color:var(--faint);display:flex;gap:6px;align-items:center}
+  .scard .id .pill{margin-left:auto}
+  .scard p{margin:2px 0 6px;color:var(--text);line-height:1.4}
+  .scard .ft{display:flex;gap:6px;align-items:center;font-size:11px;color:var(--faint)}
+  .scard.run{border-color:#3b3b3e}
+  .scard.need{border-color:#4a4228}
+  .scard .bar{height:2px;background:var(--line);border-radius:1px;margin:0 0 6px;overflow:hidden}
+  .scard .bar i{display:block;height:100%;background:var(--green)}
+  .epics .er{display:flex;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid var(--line-soft);font-size:12px}
+  .epics .er:last-child{border-bottom:0}
+  .epics .er code{font-family:var(--mono);font-size:11px;color:var(--faint);width:46px}
+  .epics .er .t{flex:1;min-width:0;color:var(--text)}
+  .epics .er .pb{flex:0 0 120px;height:4px;background:var(--line);border-radius:2px;overflow:hidden}
+  .epics .er .pb i{display:block;height:100%;background:var(--dim)}
+  .epics .er .n{font-family:var(--mono);font-size:10.5px;color:var(--faint);width:44px;text-align:right}
+  .feed .fr{display:flex;gap:9px;padding:7px 12px;border-bottom:1px solid var(--line-soft);font-size:12px;color:var(--dim)}
+  .feed .fr:last-child{border-bottom:0}
+  .feed .fr b{font-weight:500;color:var(--text)}
+  .feed .fr .tm{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--faint);white-space:nowrap}
+  .acard{display:flex;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line-soft)}
+  .acard:last-child{border-bottom:0}
+  .acard .w{flex:1;min-width:0}
+  .acard .nm{display:flex;gap:7px;align-items:baseline}
+  .acard .nm b{color:var(--text-strong);font-size:12.5px}
+  .acard .nm span{color:var(--dim);font-size:11px}
+  .acard .on{font-size:11.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .acard .cost{font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-top:1px}
+  .acard.dim{opacity:.55}
+  .tabs{display:flex;gap:0;border-bottom:1px solid var(--line);background:var(--chrome);padding:0 14px;height:40px;align-items:flex-end}
+  .tabs button{background:transparent;border:0;border-bottom:2px solid transparent;color:var(--dim);padding:0 12px 9px;font-size:12px}
+  .tabs button[aria-selected="true"]{color:var(--text-strong);border-bottom-color:var(--accent)}
+  .tabs .r{margin-left:auto;display:flex;gap:8px;align-items:center;padding-bottom:7px}
+  .tabs .mk{position:static;margin:0 0 0 2px;align-self:center}
+</style></head><body>
+<div class="page">
+  <div class="page-head"><h1>Harness mock: Board (Paperclip-inspired dashboard)</h1><span>Exploration only. Sample data: Epic 6 is invented; epics 1 to 5 are real and done. Same neutral palette as the layout mock.<span style="display:block;margin-top:4px;color:#b9a367">Prototype only. EXPERIENCE.md, Layout, chat and Board, is the spec and wins: it does not adopt the / skill list, the review gate and follow-ups cards, counts on the inbox and tiles, state-grouped tiles, shimmer, progress bars, relative times, spend or retry.</span></span></div>
+  <div class="legend"><span><i>1</i>borrowed from Paperclip</span><span><i class="have">1</i>harness already has the data (sprint-status.yaml)</span><span>Paperclip's dashboard, per its docs: agent state counts, four overview cards, task breakdown by status, and a live recent-activity feed.</span></div>
+  <div class="frame">
+    <header class="topbar">
+      <div class="brand"><div class="mark"></div><b>BMad Harness</b></div>
+      <div class="crumbs"><span>bmad-harness</span><span class="sep">/</span><span>board</span></div>
+      <div class="spacer"></div><span class="chip">main</span>
+      <div class="segmented"><button aria-pressed="false">1:1</button><button aria-pressed="false">Party</button><button aria-pressed="true">Board</button></div>
+      <span class="chip"><kbd>?</kbd> shortcuts</span>
+    </header>
+    <div class="body">
+      <aside class="side">
+        <div class="head"><h3>Team</h3><span class="meta">5 agents</span></div>
+        <div class="summary"><div><b>1</b><span>Running</span></div><div><b>3</b><span>Idle</span></div><div class="hot"><b>1</b><span>Needs you</span></div><div><b>0</b><span>Error</span></div></div>
+        <div class="nav-row"><span class="dot need"></span>Inbox<span class="n">2</span></div>
+        <div class="nav-row" style="color:var(--text-strong);background:var(--panel-2)"><span class="dot live"></span>Sprint board<kbd>g b</kbd></div>
+        <div class="grp">Working</div>
+        <div class="ptile"><div class="av">AM<span class="dot work"></span></div><div><div class="nm"><b>Amelia</b><span>Developer</span></div><div class="state">running <em>4m 12s</em></div></div></div>
+        <div class="grp">Needs you</div>
+        <div class="ptile"><div class="av">WI<span class="dot need"></span></div><div><div class="nm"><b>Winston</b><span>Architect</span></div><div class="state">asked a question · 12m</div></div></div>
+        <div class="grp">Idle</div>
+        <div class="ptile dim"><div class="av">MA<span class="dot"></span></div><div><div class="nm"><b>Mary</b><span>Analyst</span></div><div class="state">idle · 2h</div></div></div>
+        <div class="ptile dim"><div class="av">JO<span class="dot"></span></div><div><div class="nm"><b>John</b><span>PM</span></div><div class="state">idle · 1d</div></div></div>
+        <div class="ptile dim"><div class="av">SA<span class="dot"></span></div><div><div class="nm"><b>Sally</b><span>UX</span></div><div class="state">idle · 1d</div></div></div>
+      </aside>
+      <section class="board">
+        <div class="tabs"><button aria-selected="true">Overview</button><button aria-selected="false">Stories</button><button aria-selected="false">Activity</button><button aria-selected="false">Retros</button><div class="r"><span class="chip">Epic 6</span><button class="btn">New story</button></div></div>
+        <div class="scroll">
+          <div class="cards">
+            <div class="stat"><small>Agents running</small><b>1 <span style="font-size:13px;font-weight:400">of 5</span></b><span>1 waiting on you</span><span class="mk" style="right:8px;top:8px">1</span></div>
+            <div class="stat"><small>Stories in progress</small><b>1</b><span>2 ready, 1 in review</span><span class="mk have" style="right:8px;top:8px">1</span></div>
+            <div class="stat"><small>Spend this epic</small><b>$18.40</b><span>of $60 budget</span><span class="mk" style="right:8px;top:8px">2</span></div>
+            <div class="stat hot"><small>Pending approvals</small><b>2</b><span>1 review gate, 1 decision</span><span class="mk" style="right:8px;top:8px">3</span></div>
+          </div>
+          <div class="grid">
+            <div>
+              <div class="panel"><div class="head"><h3>Epic 6 board</h3><span class="mk" style="position:static;margin-left:6px">4</span><span class="meta">10 stories</span></div>
+                <div class="kan"><div class="kcol"><h5>Backlog<em>2</em></h5><div class="scard "><div class="id">6.4</div><p>Export a conversation as markdown</p><div class="ft">unassigned</div></div><div class="scard "><div class="id">6.5</div><p>Keyboard map for the thread</p><div class="ft">unassigned</div></div></div><div class="kcol"><h5>Ready for dev<em>2</em></h5><div class="scard "><div class="id">6.3</div><p>Inbox of open decisions and review gates</p><div class="ft"><span class="av sm" style="width:18px;height:18px;font-size:8.5px;line-height:16px">AM</span>Amelia next</div></div><div class="scard "><div class="id">6.6</div><p>Theme follows the OS</p><div class="ft"><span class="av sm" style="width:18px;height:18px;font-size:8.5px;line-height:16px">AM</span>Amelia next</div></div></div><div class="kcol"><h5>In progress<em>1</em></h5><div class="scard run"><div class="id">6.2<span class="pill amber"><span class="dot work"></span>running</span></div><p>Team sidebar with state strip</p><div class="bar"><i style="width:60%"></i></div><div class="ft"><span class="av sm" style="width:18px;height:18px;font-size:8.5px;line-height:16px">AM</span>Amelia · 4m 12s</div></div></div><div class="kcol"><h5>Review<em>2</em></h5><div class="scard need"><div class="id">6.1<span class="pill amber">gate</span></div><p>Chat thread as one conversation</p><div class="ft"><span class="av sm" style="width:18px;height:18px;font-size:8.5px;line-height:16px">SA</span>waiting for you · 2h</div></div><div class="scard "><div class="id">5.7</div><p>Document window ignores the theme</p><div class="ft"><span class="av sm" style="width:18px;height:18px;font-size:8.5px;line-height:16px">AM</span>code review queued</div></div></div><div class="kcol"><h5>Done<em>3</em></h5><div class="scard "><div class="id">5.6</div><p>Choose light, dark or system</p><div class="ft">merged · today</div></div><div class="scard "><div class="id">5.5</div><p>Size the side panels</p><div class="ft">merged · 1d</div></div><div class="scard "><div class="id">5.4</div><p>Choose the output folder</p><div class="ft">merged · 2d</div></div></div></div></div>
+              <div class="panel epics"><div class="head"><h3>Epics</h3><span class="mk have" style="position:static;margin-left:6px">1</span><span class="meta">6 total</span></div>
+                <div class="er"><code>Epic 6</code><span class="t">Room as a board</span><span class="pb"><i style="width:30%"></i></span><span class="n">3 / 10</span></div>
+                <div class="er"><code>Epic 5</code><span class="t">Settings and layout</span><span class="pb"><i style="width:100%"></i></span><span class="n">done</span></div>
+                <div class="er"><code>Epic 4</code><span class="t">The room</span><span class="pb"><i style="width:100%"></i></span><span class="n">done</span></div>
+                <div class="er"><code>Epics 1 to 3</code><span class="t">Foundation, team, runs</span><span class="pb"><i style="width:100%"></i></span><span class="n">done</span></div></div>
+            </div>
+            <div>
+              <div class="panel"><div class="head"><h3>Agents</h3><span class="mk" style="position:static;margin-left:6px">5</span><span class="meta">live</span></div>
+                <div class="acard"><div class="av">AM<span class="dot work"></span></div><div class="w"><div class="nm"><b>Amelia</b><span>Developer</span></div><div class="on">Story 6.2 · edit tokens.css</div><div class="cost">4m 12s · $2.10 · 11 tool calls</div></div></div>
+                <div class="acard"><div class="av">WI<span class="dot need"></span></div><div class="w"><div class="nm"><b>Winston</b><span>Architect</span></div><div class="on">Waiting: where should the inbox read from?</div><div class="cost">12m · $0.65</div></div></div>
+                <div class="acard dim"><div class="av">MA<span class="dot"></span></div><div class="w"><div class="nm"><b>Mary</b><span>Analyst</span></div><div class="on">Idle</div><div class="cost">last run 2h ago</div></div></div>
+                <div class="acard dim"><div class="av">JO<span class="dot"></span></div><div class="w"><div class="nm"><b>John</b><span>PM</span></div><div class="on">Idle</div><div class="cost">last run 1d ago</div></div></div></div>
+              <div class="panel feed"><div class="head"><h3>Recent activity</h3><span class="mk" style="position:static;margin-left:6px">6</span><span class="meta">all personas</span></div>
+                <div class="fr"><span class="dot work" style="margin-top:7px"></span><span><b>Amelia</b> started story 6.2</span><span class="tm">4m</span></div>
+                <div class="fr"><span class="dot need" style="margin-top:7px"></span><span><b>Winston</b> asked a question on 6.3</span><span class="tm">12m</span></div>
+                <div class="fr"><span class="dot live" style="margin-top:7px"></span><span><b>Sally</b> requested review of 6.1</span><span class="tm">2h</span></div>
+                <div class="fr"><span class="dot live" style="margin-top:7px"></span><span><b>You</b> approved story 5.6</span><span class="tm">3h</span></div>
+                <div class="fr"><span class="dot"></span><span><b>John</b> split 6.4 into two stories</span><span class="tm">1d</span></div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+  <div class="notes">
+    <div class="note"><b><i>1</i>Overview cards</b>Paperclip's dashboard opens on four cards: agents enabled, tasks in progress, spend against budget, pending approvals. Same four here. Stories and approvals come from sprint-status.yaml and the open gates; the harness already reads both.</div>
+    <div class="note"><b><i>2</i>Spend card</b>Paperclip tracks cost per agent against a monthly budget and stops agents at the limit. Here it is read-only: run cost per persona and per epic, no budget enforcement. Needs a cost source from the runs, which I have not checked exists.</div>
+    <div class="note"><b><i>3</i>Approvals card is the only highlighted one</b>One thing asks for you; the rest are informational. Clicking it opens the Inbox.</div>
+    <div class="note"><b><i>4</i>Board by status</b>Paperclip's task breakdown counts by status. Here the BMad statuses are real columns: backlog, ready for dev, in progress, review, done. Cards show the owning persona and a live bar on a running story.<small>Drag to move is left out on purpose: status changes come from the skills, not from the board.</small></div>
+    <div class="note"><b><i>5</i>Agents panel with what each is doing</b>Paperclip's agent cards show a state and the current work. Idle personas dim, as in its org chart and lists.</div>
+    <div class="note"><b><i>6</i>Activity feed</b>A company-wide feed of status changes, comments, approvals and agent state changes, as on Paperclip's dashboard. Here it lists persona events across rooms; it can be reconstructed from the run notes.</div>
+  </div>
+</div>
+</body></html>
