@@ -70,6 +70,9 @@ const toolResult = (id: string, isError?: boolean, p: Parent = {}) => ({
 })
 
 const names = (events: ContractEvent[]) => events.map((event) => event.name)
+/** The events that are not a step's: the document and note events these older cases are about. */
+const withoutSteps = (events: ContractEvent[]) => events.filter((event) => event.name !== 'run:step')
+const steps = (events: ContractEvent[]) => events.flatMap((event) => (event.name === 'run:step' ? [event.payload] : []))
 const proseText = (events: ContractEvent[]) =>
   events.flatMap((event) => (event.name === 'doc:prose' ? [event.payload.text] : [])).join('')
 
@@ -115,7 +118,8 @@ describe('routeFrame', () => {
 
   it('routes a document write as doc:prose that reassembles to the content', () => {
     const input = { file_path: `${ROOT}/_bmad/x/prd.md`, content: BODY }
-    const { events } = run(writeFrames('Write', input, 7))
+    const { events: all } = run(writeFrames('Write', input, 7))
+    const events = withoutSteps(all)
     expect(new Set(names(events))).toEqual(new Set(['doc:prose']))
     expect(proseText(events)).toBe(BODY)
     expect(events.length).toBeGreaterThan(1)
@@ -135,7 +139,7 @@ describe('routeFrame', () => {
     const input = { file_path: `${ROOT}/_bmad/x/prd.md`, old_string: 'OLD TEXT', new_string: 'new text', replace_all: false }
     for (const size of [1, 5, 500]) {
       const { events, state } = run(writeFrames('Edit', input, size))
-      expect(events, `size ${size}`).toEqual([])
+      expect(withoutSteps(events), `size ${size}`).toEqual([])
       expect(state.writes.toolu_1, `size ${size}`).toEqual({ path: '_bmad/x/prd.md', tool: 'Edit', text: 'new text', old: 'OLD TEXT' })
     }
   })
@@ -158,7 +162,7 @@ describe('routeFrame', () => {
   it('holds content that precedes file_path until the path is known, losing and repeating nothing', () => {
     const input = { content: BODY, file_path: `${ROOT}/_bmad/x/prd.md` }
     for (const size of [1, 3, 11, 500]) {
-      const { events } = run(writeFrames('Write', input, size))
+      const events = withoutSteps(run(writeFrames('Write', input, size)).events)
       expect(proseText(events)).toBe(BODY)
       expect(events.every((event) => event.name === 'doc:prose' && event.payload.path === '_bmad/x/prd.md')).toBe(true)
     }
@@ -195,7 +199,9 @@ describe('routeFrame', () => {
       jsonDelta(1, ' text"}'),
       stop(1)
     ])
-    expect(events).toEqual([])
+    // The call still happened: its step names the verb alone, since no path ever arrived.
+    expect(withoutSteps(events)).toEqual([])
+    expect(steps(events)).toEqual([expect.objectContaining({ status: 'running', callId: 't', label: 'write' })])
   })
 
   it('ignores a subagent frame and leaves the fold state untouched', () => {
@@ -242,7 +248,12 @@ describe('routeFrame', () => {
 
   it('raises nothing for a path outside the project', () => {
     for (const file_path of ['/elsewhere/prd.md', `${ROOT}/../other/prd.md`, '/work/project-two/a.md', ROOT]) {
-      expect(run(writeFrames('Write', { file_path, content: 'x' }, 4)).events).toEqual([])
+      // No document event; the call is a step, labelled by its basename only.
+      const { events } = run(writeFrames('Write', { file_path, content: 'x' }, 4))
+      expect(withoutSteps(events)).toEqual([])
+      expect(steps(events).map((step) => ('label' in step ? step.label : ''))).toEqual([
+        file_path === ROOT ? 'write project' : `write ${file_path.split('/').at(-1)}`
+      ])
     }
     expect(run(writeFrames('Write', { file_path: '/elsewhere/.memlog.md', content: 'x' }, 4)).events).toEqual([])
   })
@@ -277,7 +288,9 @@ describe('routeFrame', () => {
       { type: 'system', subtype: 'task_progress' }
     ]
     const { events, state } = run(frames)
-    expect(events).toEqual([])
+    // The two tools are steps (the call is whole at its stop); nothing else is said.
+    expect(events.map((event) => event.name)).toEqual(['run:step', 'run:step'])
+    expect(steps(events).map((step) => ('label' in step ? step.label : ''))).toEqual(['run cat', 'read a.md'])
     const after = run([messageStart('m2'), textStart(0), textDelta(0, 'still works')], CTX, state)
     expect(names(after.events)).toEqual(['persona:said'])
   })
@@ -373,7 +386,8 @@ describe('routeFrame: a write commits on its tool_result (AD-5)', () => {
   const input = { file_path: `${ROOT}/_bmad/x/prd.md`, content: DOC }
 
   it('raises exactly one doc:committed, with the level-2 headings of what was written, after the prose', () => {
-    const { events, state } = run([...writeFrames('Write', input, 9), toolResult('toolu_1'), toolResult('toolu_1')])
+    const { events: all, state } = run([...writeFrames('Write', input, 9), toolResult('toolu_1'), toolResult('toolu_1')])
+    const events = withoutSteps(all)
     const commits = events.filter((event) => event.name === 'doc:committed')
     expect(commits).toEqual([
       {
@@ -396,7 +410,8 @@ describe('routeFrame: a write commits on its tool_result (AD-5)', () => {
   it('commits the headings of text held before its file_path closed, at every fragment size', () => {
     const late = { content: DOC, file_path: `${ROOT}/_bmad/x/prd.md` }
     for (const size of [1, 4, 13, 500]) {
-      const { events, state } = run([...writeFrames('Write', late, size), toolResult('toolu_1')])
+      const { events: all, state } = run([...writeFrames('Write', late, size), toolResult('toolu_1')])
+      const events = withoutSteps(all)
       const commits = events.filter((event) => event.name === 'doc:committed')
       expect(commits, `size ${size}`).toHaveLength(1)
       expect(commits[0].name === 'doc:committed' && commits[0].payload.ok && commits[0].payload.sections, `size ${size}`).toEqual([
@@ -416,7 +431,8 @@ describe('routeFrame: a write commits on its tool_result (AD-5)', () => {
 
   it('patches the run’s buffer with an Edit that applied, and commits the whole document and its sections', () => {
     const edit = { file_path: `${ROOT}/_bmad/x/prd.md`, old_string: '## **Vision**\ntext', new_string: '## Vision\nnew $& text\n## Goals' }
-    const { events, state } = writeThenEdit(DOC, edit)
+    const { events: all, state } = writeThenEdit(DOC, edit)
+    const events = withoutSteps(all)
     const patched = DOC.replace('## **Vision**\ntext', () => '## Vision\nnew $& text\n## Goals')
     expect(events).toEqual([
       {
@@ -428,7 +444,7 @@ describe('routeFrame: a write commits on its tool_result (AD-5)', () => {
   })
 
   it('replaces every occurrence, as an Edit with replace_all did', () => {
-    const { events } = writeThenEdit('a x a x a', { file_path: `${ROOT}/_bmad/x/prd.md`, old_string: 'x', new_string: 'yy', replace_all: true })
+    const events = withoutSteps(writeThenEdit('a x a x a', { file_path: `${ROOT}/_bmad/x/prd.md`, old_string: 'x', new_string: 'yy', replace_all: true }).events)
     expect(events[0]?.name === 'doc:committed' && events[0].payload.ok && events[0].payload.text).toBe('a yy a yy a')
   })
 
@@ -441,7 +457,7 @@ describe('routeFrame: a write commits on its tool_result (AD-5)', () => {
     ] as const) {
       const { events, state } = writeThenEdit(DOC, edit, failed)
       expect(state.docs['_bmad/x/prd.md']).toBe(DOC)
-      const commit = events[0]
+      const commit = withoutSteps(events)[0]
       expect(commit?.name).toBe('doc:committed')
       if (commit?.name === 'doc:committed' && commit.payload.ok) {
         expect(commit.payload).not.toHaveProperty('text')
@@ -455,7 +471,7 @@ describe('routeFrame: a write commits on its tool_result (AD-5)', () => {
   it('commits an Edit of a path no Write of this run started with no sections and no text, and keeps no buffer for it', () => {
     const edit = { file_path: `${ROOT}/_bmad/x/other.md`, old_string: '## Old', new_string: '## New\nbody' }
     const { events, state } = run([...writeFrames('Edit', edit, 4), toolResult('toolu_1')])
-    const commit = events.at(-1)
+    const commit = withoutSteps(events).at(-1)
     expect(commit?.name === 'doc:committed' && commit.payload.ok && commit.payload).toEqual(
       expect.objectContaining({ path: '_bmad/x/other.md', sections: [] })
     )
@@ -479,7 +495,7 @@ describe('routeFrame: a write commits on its tool_result (AD-5)', () => {
   })
 
   it('commits a rejected write as the envelope, naming no section', () => {
-    const commit = run([...writeFrames('Write', input, 9), toolResult('toolu_1', true)]).events.at(-1)
+    const commit = withoutSteps(run([...writeFrames('Write', input, 9), toolResult('toolu_1', true)]).events).at(-1)
     expect(commit).toEqual({
       name: 'doc:committed',
       payload: {
@@ -506,15 +522,156 @@ describe('routeFrame: a write commits on its tool_result (AD-5)', () => {
     expect(dropped.writes).toEqual({})
     expect(dropped.docs).toEqual({})
     expect(run([toolResult('toolu_1')], CTX, dropped).events).toEqual([])
+    expect(dropped.steps).toEqual({})
     expect(withoutPendingWrites(dropped)).toBe(dropped)
   })
 
   it('commits nothing outside the project, for a subagent, or with no run', () => {
     const outside = { file_path: '/elsewhere/prd.md', content: DOC }
-    expect(run([...writeFrames('Write', outside, 9), toolResult('toolu_1')]).events).toEqual([])
+    expect(withoutSteps(run([...writeFrames('Write', outside, 9), toolResult('toolu_1')]).events)).toEqual([])
     const streamed = run(writeFrames('Write', input, 9))
     expect(routeFrame(streamed.state, toolResult('toolu_1', false, { parent: 'toolu_agent' }), CTX).events).toEqual([])
     expect(run([...writeFrames('Write', input, 9), toolResult('toolu_1')], { ...CTX, runId: undefined }).events).toEqual([])
+  })
+})
+
+describe('routeFrame: a run’s tool steps (AD-22)', () => {
+  const step = (events: ContractEvent[]) => steps(events).map((each) => [each.callId, each.status, 'label' in each ? each.label : undefined])
+
+  it('raises running when the input is whole, at the block stop and not before, then done on the result', () => {
+    const frames = [messageStart('m'), toolStart(1, 'Read', 'toolu_r'), ...inputFragments({ file_path: `${ROOT}/design/tokens.css` }, 5).map((p) => jsonDelta(1, p))]
+    const open = run(frames)
+    expect(open.events).toEqual([])
+    const stopped = run([stop(1)], { ...CTX, now: 5 }, open.state)
+    expect(stopped.events).toEqual([
+      { name: 'run:step', payload: { runId: 'r1', sessionId: 's1', callId: 'toolu_r', status: 'running', label: 'read design/tokens.css', at: 5 } }
+    ])
+    const done = run([toolResult('toolu_r')], { ...CTX, now: 9 }, stopped.state)
+    expect(done.events).toEqual([
+      { name: 'run:step', payload: { runId: 'r1', sessionId: 's1', callId: 'toolu_r', status: 'done', at: 9 } }
+    ])
+    expect(done.state.steps).toEqual({})
+  })
+
+  it('raises failed for a result the CLI marked as an error, and nothing for a second result of the same call', () => {
+    const { events } = run([...writeFrames('Read', { file_path: `${ROOT}/a.md` }, 6), toolResult('toolu_1', true), toolResult('toolu_1')])
+    expect(step(events)).toEqual([['toolu_1', 'running', 'read a.md'], ['toolu_1', 'failed', undefined]])
+  })
+
+  it('raises exactly one running per call, at every fragment size, with the field anywhere in the input', () => {
+    const input = { description: 'x'.repeat(200), nested: { file_path: '/never/used.md' }, file_path: `${ROOT}/src/a.ts`, other: [1, 2, 3] }
+    for (const size of [1, 2, 7, 64, 5_000]) {
+      const { events } = run(writeFrames('Read', input, size))
+      expect(step(events), `size ${size}`).toEqual([['toolu_1', 'running', 'read src/a.ts']])
+    }
+  })
+
+  it('has the label be the verb alone when the field never arrives, and when it outgrows the bounded buffer', () => {
+    expect(step(run(writeFrames('Read', { limit: 5 }, 4)).events)).toEqual([['toolu_1', 'running', 'read']])
+    const over = run(writeFrames('Read', { file_path: `${ROOT}/${'d/'.repeat(600)}a.md` }, 50))
+    expect(step(over.events)).toEqual([['toolu_1', 'running', 'read']])
+    // Open and cut off mid-field: not whole, so not named.
+    const cut = run([messageStart('m'), toolStart(1, 'Read', 't'), jsonDelta(1, '{"file_path": "/work/project/a'), stop(1)])
+    expect(step(cut.events)).toEqual([['t', 'running', 'read']])
+  })
+
+  it('reads the program of a Bash command longer than the buffer, and keeps none of the rest', () => {
+    const command = `cat <<EOF\n${'LATER-PART-SECRET '.repeat(400)}\nEOF`
+    expect(command.length).toBeGreaterThan(5_000)
+    for (const size of [7, 300, 10_000]) {
+      const { events, state } = run(writeFrames('Bash', { command: `cat <<EOF\n${'x'.repeat(3_000)}LATER-PART${command}`, description: 'd' }, size))
+      expect(step(events), `size ${size}`).toEqual([['toolu_1', 'running', 'run cat']])
+      expect(JSON.stringify(events), `size ${size}`).not.toContain('LATER-PART')
+      expect(JSON.stringify(state), `size ${size}`).not.toContain('LATER-PART')
+    }
+  })
+
+  it('keeps nothing of a tool’s input but the one field its label reads, and bounds that', () => {
+    const open = run([
+      messageStart('m'),
+      toolStart(1, 'Bash', 'b'),
+      jsonDelta(1, '{"description": "' + 'y'.repeat(5_000) + '", "command": "curl -H \"Authorization: Bearer sk-x\" https://h/x"'),
+      jsonDelta(1, ', "timeout": 5}')
+    ])
+    const block = open.state.blocks[1]
+    expect(block?.kind).toBe('step')
+    expect(JSON.stringify(block)).not.toContain('yyyy')
+    const done = run([stop(1)], CTX, open.state)
+    expect(step(done.events)).toEqual([['b', 'running', 'run curl']])
+    expect(JSON.stringify(done)).not.toMatch(/sk-x|https/)
+  })
+
+  it('raises a step for a document write beside its doc events, under the same call id, and its result closes both', () => {
+    const { events } = run([...writeFrames('Write', { file_path: `${ROOT}/prd.md`, content: '## A\nb' }, 6), toolResult('toolu_1')])
+    expect(events.map((event) => [event.name, event.payload && 'callId' in event.payload ? event.payload.callId : undefined])).toEqual([
+      ...(events.filter((event) => event.name === 'doc:prose').map((): [string, string] => ['doc:prose', 'toolu_1'])),
+      ['run:step', 'toolu_1'],
+      ['doc:committed', 'toolu_1'],
+      ['run:step', 'toolu_1']
+    ])
+    expect(step(events)).toEqual([['toolu_1', 'running', 'write prd.md'], ['toolu_1', 'done', undefined]])
+  })
+
+  it('has a rejected write’s commit and its failed step both come from the one result, the commit first', () => {
+    const { events } = run([...writeFrames('Edit', { file_path: `${ROOT}/prd.md`, old_string: 'a', new_string: 'b' }, 6), toolResult('toolu_1', true)])
+    expect(names(events).slice(-2)).toEqual(['doc:committed', 'run:step'])
+    expect(events.at(-1)?.payload).toEqual(expect.objectContaining({ status: 'failed' }))
+    expect(events.at(-2)?.payload).toEqual(expect.objectContaining({ ok: false }))
+  })
+
+  it('raises no step for a call aimed at the memlog, whatever the tool, nor for a call outside a run', () => {
+    for (const [tool, field] of [['Write', 'file_path'], ['Edit', 'file_path'], ['Read', 'file_path'], ['NotebookEdit', 'notebook_path']] as const) {
+      const input = { [field]: `${ROOT}/_bmad/x/.memlog.md`, content: 'x', old_string: 'a', new_string: 'b' }
+      expect(run([...writeFrames(tool, input, 5), toolResult('toolu_1')]).events, tool).toEqual([])
+    }
+    expect(run([...writeFrames('Read', { file_path: `${ROOT}/a.md` }, 5), toolResult('toolu_1')], { ...CTX, runId: undefined }).events).toEqual([])
+  })
+
+  it('has a result close each of several calls issued together, in the order the result lists them', () => {
+    const frames = [
+      messageStart('m'),
+      toolStart(1, 'Read', 'a'), jsonDelta(1, '{"file_path": "a.md"}'), stop(1),
+      toolStart(2, 'Grep', 'b'), jsonDelta(2, '{"pattern": "secret query"}'), stop(2),
+      {
+        type: 'user',
+        parent_tool_use_id: null,
+        message: { content: [{ type: 'tool_result', tool_use_id: 'b' }, { type: 'tool_result', tool_use_id: 'a', is_error: true }] }
+      }
+    ]
+    expect(step(run(frames).events)).toEqual([
+      ['a', 'running', 'read a.md'],
+      ['b', 'running', 'grep'],
+      ['b', 'done', undefined],
+      ['a', 'failed', undefined]
+    ])
+  })
+
+  it('opens and closes no step for subagent frames, and the spawning call is one step', () => {
+    const sub = { parent: 'toolu_agent' }
+    const frames = [
+      messageStart('m'),
+      toolStart(1, 'Agent', 'toolu_agent'), jsonDelta(1, '{"subagent_type": "general-purpose", "prompt": "do it"}'), stop(1),
+      messageStart('ms', sub), toolStart(1, 'Read', 'sub_1', sub), jsonDelta(1, '{"file_path": "x.md"}', sub), stop(1, sub),
+      toolResult('sub_1', false, sub)
+    ]
+    const { events, state } = run(frames)
+    expect(step(events)).toEqual([['toolu_agent', 'running', 'agent general-purpose']])
+    expect(state.steps).toEqual({ toolu_agent: true })
+  })
+
+  it('drops the open steps when the run ends, so a late result closes nothing', () => {
+    const open = run(writeFrames('Read', { file_path: `${ROOT}/a.md` }, 6))
+    expect(open.state.steps).toEqual({ toolu_1: true })
+    const dropped = withoutPendingWrites(open.state)
+    expect(dropped.steps).toEqual({})
+    expect(run([toolResult('toolu_1')], CTX, dropped).events).toEqual([])
+  })
+
+  it('raises one step for a 5,000-fragment write, not one per fragment', () => {
+    const body = 'x'.repeat(5_000)
+    const { events } = run(writeFrames('Write', { file_path: `${ROOT}/a.md`, content: body }, 1))
+    expect(events.filter((event) => event.name === 'doc:prose').length).toBeGreaterThan(1_000)
+    expect(steps(events)).toHaveLength(1)
   })
 })
 

@@ -30,10 +30,10 @@ describe('what the room did not add', () => {
     expect([...body.matchAll(/^ {2}'([a-z]+\.[a-z]+)': CommandSpec</gm)]).toHaveLength(7)
   })
 
-  it('leaves fifteen events', () => {
+  it('leaves sixteen events', () => {
     const source = stripped(read('src/shared/events.ts'))
     const body = source.slice(source.indexOf('export type ContractEvents = {'))
-    expect([...body.matchAll(/^ {2}'([a-z-]+:[a-z-]+)': EventSpec</gm)]).toHaveLength(15)
+    expect([...body.matchAll(/^ {2}'([a-z-]+:[a-z-]+)': EventSpec</gm)]).toHaveLength(16)
   })
 
   it('leaves the room no channel of its own: thirty-three in all, four the Welcome’s, three the theme’s, one the output folder’s and three the layout’s', () => {

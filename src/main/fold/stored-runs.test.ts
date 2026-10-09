@@ -10,6 +10,7 @@ const card = (runId: string, over: Partial<RunCardSnapshot> = {}): RunCardSnapsh
   startedAt: 10,
   status: 'running',
   notes: [{ text: '- (decision) Fast path', at: 12 }],
+  steps: [],
   documents: [{ path: '_bmad/prd.md', callId: 'c1', text: 'so far', written: 6, sections: ['Vision'] }],
   ...over
 })
@@ -54,6 +55,20 @@ describe('deadOf', () => {
       endedAt: 47,
       error: { code: 'run/session-ended', message: 'run · the session ended' }
     })
+  })
+
+  it('closes the steps that were running as failed at the moment the run was last heard of, and keeps the rest as they were', () => {
+    const steps = [
+      { callId: 'a', label: 'read a.md', status: 'done' as const, startedAt: 11, endedAt: 12, notesBefore: 0 },
+      { callId: 'b', label: 'run git', status: 'running' as const, startedAt: 13, notesBefore: 1 }
+    ]
+    const dead = deadOf({ card: card('r1', { steps }), lastAt: 47 })
+    expect(dead.card.steps).toEqual([steps[0], { ...steps[1], status: 'failed', endedAt: 47 }])
+  })
+
+  it('reads a card that had ended with its steps as they were', () => {
+    const ended = { card: card('r1', { status: 'finished', endedAt: 30, steps: [] }), lastAt: 30 }
+    expect(deadOf(ended)).toBe(ended)
   })
 
   it('keeps everything else about the card: its notes, documents and plan', () => {

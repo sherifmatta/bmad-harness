@@ -518,7 +518,7 @@ describe('a stop replayed from the live recordings of 10-06-2026 (claude 2.1.285
     // Frame 338 on: the turn in which the persona carries on and `Write`s `notes.md`, ended by the `result` at 1432.
     for (const frame of frames.slice(338)) fake.feed(frame)
 
-    expect(sender.names.filter((name) => name !== 'doc:prose').slice(0, 4)).toEqual(['run:stopped', 'session:awaiting-turn', 'harness:said', 'run:started'])
+    expect(sender.names.filter((name) => name !== 'doc:prose' && name !== 'run:step').slice(0, 4)).toEqual(['run:stopped', 'session:awaiting-turn', 'harness:said', 'run:started'])
     expect(sender.of('run:started')).toEqual([
       { runId: 'r2', sessionId, agentId: A, code: 'CP', plan: ['Vision', 'Scope'], at: clock }
     ])
@@ -542,6 +542,11 @@ describe('a stop replayed from the live recordings of 10-06-2026 (claude 2.1.285
       ['r2', 'finished', A]
     ])
     expect(snapshot(sender).runs[1]).toMatchObject({ code: 'CP', plan: ['Vision', 'Scope'], documents: [expect.objectContaining({ path: 'notes.md' })] })
+    // The first run's steps are its two Agent spawns, both answered: its interrupted `Write` was never whole, so is none. The second run's is the `Write` of `notes.md`, under the new run id.
+    const stepsOf = (id: string) => sender.of('run:step').filter((step) => step.runId === id)
+    expect(stepsOf(runId).map((step) => step.status)).toEqual(['running', 'done', 'running', 'done'])
+    expect(stepsOf('r2').map((step) => [step.status, 'label' in step ? step.label : undefined])).toEqual([['running', 'write notes.md'], ['done', undefined]])
+    expect(snapshot(sender).runs.map((run) => run.steps.map((step) => step.status))).toEqual([['done', 'done'], ['done']])
     expect(sender.of('run:failed')).toEqual([])
     expect(fake.kills).toBe(0)
     expect(fake.interrupts).toHaveLength(1)

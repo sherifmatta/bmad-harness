@@ -286,7 +286,7 @@ describe('fast-path-sonnet, finished while the window was elsewhere', () => {
 
     // Every event of the run path the window was told, in order, reached the notifier: the start, the
     // notes, every piece of prose, every commit and what the persona said. Only the end was posted.
-    const RUN_PATH = new Set(['persona:said', 'run:started', 'run:note', 'doc:section-opened', 'doc:prose', 'doc:committed', 'run:finished', 'run:stopped', 'run:failed'])
+    const RUN_PATH = new Set(['persona:said', 'run:started', 'run:note', 'run:step', 'doc:section-opened', 'doc:prose', 'doc:committed', 'run:finished', 'run:stopped', 'run:failed'])
     expect(scene.heard).toEqual(scene.told.map((event) => event.name).filter((name) => RUN_PATH.has(name)))
     expect(scene.heard.length).toBeGreaterThan(100)
     expect(new Set(scene.heard).size).toBeGreaterThan(4)

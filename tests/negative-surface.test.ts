@@ -2023,7 +2023,7 @@ describe("two writers, one file: the rail reports it and nothing arbitrates (Sto
     expect(offenders([OWNER_LABEL], /§|\bof\b|\btotal\b|\bcount\b/)).toEqual([]);
   });
 
-  it("adds no command, event, channel or bridge method: the counts stay seven, fifteen, thirty-three and twenty-one", () => {
+  it("adds no command, event, channel or bridge method: the counts stay seven, sixteen, thirty-three and twenty-one", () => {
     const commands = [...(code.get(COMMANDS) ?? "").matchAll(/^\s+'([a-z]+\.[a-z]+)':\s*CommandSpec/gm)].map(([, name]) => name);
     const events = [...(code.get(EVENTS) ?? "").matchAll(/^\s+'([a-z]+:[a-z-]+)':\s*EventSpec/gm)].map(([, name]) => name);
     const channels = [...(code.get(CHANNELS) ?? "").matchAll(/^export const (\w+) = '/gm)].map(([, name]) => name);
@@ -2032,14 +2032,14 @@ describe("two writers, one file: the rail reports it and nothing arbitrates (Sto
       ([, name]) => name,
     );
 
-    // Story 3.9 left the counts at seven, fifteen, twenty-one and sixteen; Story 3.10 added
+    // Story 3.16 added `run:step` (sixteen events). Story 3.9 left the counts at seven, fifteen, twenty-one and sixteen; Story 3.10 added
     // the one channel and the one method a window hears a revealed run on, and no event.
     // Story 5.1 added the Welcome's four channels (twenty-six) and no method to the shell's;
     // Story 5.2 added the theme's three (twenty-nine) and none to the shell's; Story 5.4 added the
     // output folder's one channel (thirty) and the one method that asks for its chooser (eighteen);
     // Story 5.5 added the layout's three channels (thirty-three) and its three methods (twenty-one).
     expect(commands).toHaveLength(7);
-    expect(events).toHaveLength(15);
+    expect(events).toHaveLength(16);
     expect(channels).toHaveLength(33);
     expect(methods).toHaveLength(21);
     // And none of them is named for it.
@@ -2275,7 +2275,7 @@ describe("told once, quietly, when you are elsewhere: one silent banner, one scr
     expect(revealing).not.toMatch(/setCurrentId|setComposerFocus|openDoc|activate\(|send\(|runSkill|stopRun|close\(/);
   });
 
-  it("gives the preload and the shared contract no word of it, and no new command or event: seven, fifteen, thirty-three channels, twenty-one methods", () => {
+  it("gives the preload and the shared contract no word of it, and no new command or event: seven, sixteen, thirty-three channels, twenty-one methods", () => {
     expect(
       offenders(
         [...sources("src/preload/"), ...sources("src/shared/")],
@@ -2290,7 +2290,7 @@ describe("told once, quietly, when you are elsewhere: one silent banner, one scr
       ([, name]) => name,
     );
     expect(commands).toHaveLength(7);
-    expect(events).toHaveLength(15);
+    expect(events).toHaveLength(16);
     expect(channels).toHaveLength(33);
     expect(channels).toContain("RUN_REVEALED_CHANNEL");
     expect(methods).toHaveLength(21);
@@ -2443,13 +2443,13 @@ describe("nothing this epic promised not to do: the audit's static half (Story 3
     expect((code.get(ROW) ?? "").match(/<button\b/g)).toHaveLength(1);
   });
 
-  it("holds the contract at seven commands, fifteen events, thirty-three channels and twenty-one bridge methods", () => {
+  it("holds the contract at seven commands, sixteen events, thirty-three channels and twenty-one bridge methods", () => {
     const commands = [...(code.get(COMMANDS) ?? "").matchAll(/^\s+'([a-z]+\.[a-z]+)':\s*CommandSpec/gm)];
     const events = [...(code.get(EVENTS) ?? "").matchAll(/^\s+'([a-z]+:[a-z-]+)':\s*EventSpec/gm)];
     const channels = [...(code.get(CHANNELS) ?? "").matchAll(/^export const (\w+) = '/gm)];
     const preload = code.get(PRELOAD) ?? "";
     const methods = [...preload.slice(preload.indexOf("const harness: HarnessApi = {"), preload.indexOf("contextBridge.exposeInMainWorld")).matchAll(/^ {2}(\w+):/gm)];
-    expect([commands.length, events.length, channels.length, methods.length]).toEqual([7, 15, 33, 21]);
+    expect([commands.length, events.length, channels.length, methods.length]).toEqual([7, 16, 33, 21]);
   });
 
   it("says what carried on after a stop in lower case, `·`-separated, unpunctuated, and offers nothing: no resume, continue, retry or guidance word", () => {
@@ -2675,13 +2675,13 @@ describe("nothing this epic promised not to do: the audit's static half (Story 4
     expect(offenders(PARTY_CSS, /spinner|skeleton|shimmer|loader|badge|@keyframes\s+(?!eq\b)/i)).toEqual([]);
   });
 
-  it("holds the contract at seven commands, fifteen events, thirty-three channels and twenty-one bridge methods", () => {
+  it("holds the contract at seven commands, sixteen events, thirty-three channels and twenty-one bridge methods", () => {
     const commands = [...(code.get(COMMANDS) ?? "").matchAll(/^\s+'([a-z]+\.[a-z]+)':\s*CommandSpec/gm)];
     const events = [...(code.get(EVENTS) ?? "").matchAll(/^\s+'([a-z]+:[a-z-]+)':\s*EventSpec/gm)];
     const channels = [...(code.get(CHANNELS) ?? "").matchAll(/^export const (\w+) = '/gm)];
     const preload = code.get(PRELOAD) ?? "";
     const methods = [...preload.slice(preload.indexOf("const harness: HarnessApi = {"), preload.indexOf("contextBridge.exposeInMainWorld")).matchAll(/^ {2}(\w+):/gm)];
-    expect([commands.length, events.length, channels.length, methods.length]).toEqual([7, 15, 33, 21]);
+    expect([commands.length, events.length, channels.length, methods.length]).toEqual([7, 16, 33, 21]);
   });
 
   it("says a refused message once, as a fact, in the window's own register, and never sends, queues or retries it (Story 4.8)", () => {

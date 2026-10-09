@@ -226,6 +226,7 @@ function drawn(card: RunCardSnapshot): { markup: string; head: string; written: 
     sessionId: card.sessionId,
     status: card.status,
     notes: card.notes,
+    steps: card.steps,
     documents: card.documents,
     ...(card.agentId === undefined ? {} : { agentId: card.agentId }),
     ...(card.endedAt === undefined ? {} : { endedAt: card.endedAt }),

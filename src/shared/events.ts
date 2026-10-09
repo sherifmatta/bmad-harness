@@ -120,6 +120,17 @@ export type RunNote = {
   at: EpochMs
 }
 
+/**
+ * One main-thread tool call of a run, as a step (AD-22). A union on `status`: `running`
+ * once the call's input has finished streaming, carrying the label main derived from a
+ * closed table (a verb and one allow-listed target, never the raw input), then `done` or
+ * `failed` on the call's result (`failed` is the CLI's own `is_error`). A document write's
+ * step shares its `callId` with its `doc:*` events.
+ */
+export type RunStep =
+  | { runId: RunId; sessionId: SessionId; callId: CallId; status: 'running'; label: string; at: EpochMs }
+  | { runId: RunId; sessionId: SessionId; callId: CallId; status: 'done' | 'failed'; at: EpochMs }
+
 /** A tool call began writing a new section of a document. */
 export type DocSectionOpened = {
   runId: RunId
@@ -194,7 +205,7 @@ export type RunFailed = {
   at: EpochMs
 }
 
-/** The fifteen events out, by name. */
+/** The sixteen events out, by name. */
 export type ContractEvents = {
   'session:opened': EventSpec<'main', 'once per session', SessionOpened>
   'session:awaiting-turn': EventSpec<
@@ -212,6 +223,11 @@ export type ContractEvents = {
   >
   'run:started': EventSpec<'main', 'exactly one per run, first', RunStarted>
   'run:note': EventSpec<'main', 'many per run', RunNote>
+  'run:step': EventSpec<
+    'main',
+    'exactly one running per main-thread tool call of a run, then exactly one done or failed',
+    RunStep
+  >
   'doc:section-opened': EventSpec<'main', 'many per tool call', DocSectionOpened>
   'doc:prose': EventSpec<'main', 'many per tool call, in order', DocProse>
   'doc:committed': EventSpec<'main', 'exactly one per tool call', DocCommitted>

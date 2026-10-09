@@ -386,6 +386,7 @@ describe('the run card, in every state', () => {
     agentId: ADA.id,
     status: 'running',
     notes: [],
+    steps: [],
     documents: [],
     plan: ['Vision', 'Scope'],
     ...over

@@ -1,4 +1,4 @@
-import type { RunCardNote, RunStatus } from '../../../shared/conversation'
+import type { RunCardNote, RunCardStep, RunStatus } from '../../../shared/conversation'
 import type { AgentView, HarnessError } from '../../../shared/install'
 
 /**
@@ -78,6 +78,8 @@ export type RunCardEntry = {
   endedAt?: number
   error?: HarnessError
   notes: readonly RunCardNote[]
+  /** The run's tool steps, as main's card holds them: by fold order against the notes (`RunCardStep.notesBefore`). Drawn by Story 3.17. */
+  steps: readonly RunCardStep[]
   /**
    * The section names the run is predicted to write, in order: what the skill's
    * template gave at dispatch and the Adapt-In names its notes pulled in. Absent

@@ -41,6 +41,7 @@ const dead = (runId: string, status: RunCardSnapshot['status'], over: Partial<Ru
   endedAt: 66_000,
   ...(status === 'failed' ? { error: ENDED_BY_SESSION } : {}),
   notes: [],
+  steps: [],
   documents: [{ path: '_bmad/prd.md', callId: 'c', text: 'what it had written', written: 18, sections: [] }],
   ...over
 })

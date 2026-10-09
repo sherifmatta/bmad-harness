@@ -1398,6 +1398,7 @@ describe('a run, through the conversation (Story 3.1)', () => {
           startedAt: 40,
           status: 'running',
           notes: [{ text: '- n', at: 41 }],
+          steps: [],
           documents: [
             { path: 'addendum.md', callId: 'c8', text: 'small', written: 5, sections: [] },
             { path: 'prd.md', callId: 'c9', text: 'so far', written: 6, sections: ['A'] }

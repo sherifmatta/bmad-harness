@@ -1,5 +1,6 @@
 import type { RunCardDocument, RunCardSnapshot } from '../../shared/conversation'
 import type { ContractEvent, RunStarted } from '../../shared/events'
+import { closeSteps, withStepEvent } from '../../shared/run-steps'
 import { withPulled } from '../../shared/section-plan'
 
 /**
@@ -10,6 +11,8 @@ import { withPulled } from '../../shared/section-plan'
  *   section plan the event carried.
  * - `run:note` adds the line, in the order it came, and the plan names it
  *   pulled in, each once.
+ * - `run:step` opens a step on the card, or closes the one it names (`shared/run-steps.ts`):
+ *   steps and notes interleave by the order they came, and a card holds at most 300 steps.
  * - `doc:prose` adds to its path's document: a piece of the call that set the
  *   text grows it, a piece of another call (a new `Write`) replaces it. The
  *   path's weight is the longest text any one `Write` gave it.
@@ -17,7 +20,8 @@ import { withPulled } from '../../shared/section-plan'
  *   it carries one (an `Edit` that applied), replaces the path's text; a path
  *   not yet seen becomes an empty document. A rejected write changes nothing.
  * - `run:finished`, `run:stopped` and `run:failed` end the card, once: a
- *   terminal card takes nothing more.
+ *   terminal card takes nothing more. A step still running then is closed `failed` at the
+ *   terminal event's `at`, with no event of its own.
  *
  * An event of another run leaves the card as it was. The renderer folds the
  * same events into the same card (`src/renderer/ui/chat/conversation-state.ts`
@@ -34,6 +38,7 @@ export function startCard(started: RunStarted): RunCardSnapshot {
     startedAt: started.at,
     status: 'running',
     notes: [],
+    steps: [],
     documents: []
   }
 }
@@ -77,6 +82,11 @@ export function foldRunCard(card: RunCardSnapshot, event: ContractEvent): RunCar
         : { ...card, notes, plan: withPulled(card.plan, pulled) }
     }
 
+    case 'run:step': {
+      const steps = withStepEvent(card.steps, card.notes.length, event.payload)
+      return steps === card.steps ? card : { ...card, steps }
+    }
+
     case 'doc:prose': {
       const { callId, path, text } = event.payload
       const documents = withDocument(card.documents, path, (held) => {
@@ -103,13 +113,19 @@ export function foldRunCard(card: RunCardSnapshot, event: ContractEvent): RunCar
     }
 
     case 'run:finished':
-      return { ...card, status: 'finished', endedAt: event.payload.at }
+      return { ...card, status: 'finished', endedAt: event.payload.at, steps: closeSteps(card.steps, event.payload.at) }
 
     case 'run:stopped':
-      return { ...card, status: 'stopped', endedAt: event.payload.at }
+      return { ...card, status: 'stopped', endedAt: event.payload.at, steps: closeSteps(card.steps, event.payload.at) }
 
     case 'run:failed':
-      return { ...card, status: 'failed', endedAt: event.payload.at, error: event.payload.error }
+      return {
+        ...card,
+        status: 'failed',
+        endedAt: event.payload.at,
+        error: event.payload.error,
+        steps: closeSteps(card.steps, event.payload.at)
+      }
 
     default:
       return card

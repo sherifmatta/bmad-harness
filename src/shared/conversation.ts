@@ -111,6 +111,19 @@ export type RunStatus = 'running' | 'finished' | 'stopped' | 'failed'
 export type RunCardNote = { text: string; at: EpochMs }
 
 /**
+ * One main-thread tool call of the run, as the card holds it (AD-22). `notesBefore` is how many
+ * notes the card held when the step began: steps and notes interleave by fold order, never by time.
+ */
+export type RunCardStep = {
+  callId: CallId
+  label: string
+  status: 'running' | 'done' | 'failed'
+  startedAt: EpochMs
+  endedAt?: EpochMs
+  notesBefore: number
+}
+
+/**
  * The document a card shows, its subject: the call that last set its text,
  * its path and the text itself.
  */
@@ -157,6 +170,8 @@ export type RunCardSnapshot = {
   /** A failed run's envelope. */
   error?: HarnessError
   notes: RunCardNote[]
+  /** The run's tool steps in fold order, at most 300 (`shared/run-steps.ts`). */
+  steps: readonly RunCardStep[]
   /** Every document the run wrote, in the order first seen (first piece, or first confirmed write). */
   documents: RunCardDocument[]
 }

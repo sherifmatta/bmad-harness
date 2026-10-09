@@ -4,6 +4,7 @@ import type { AgentView } from '../../../shared/install'
 import { roomDestination, roomTopicOf } from '../../../shared/room-destination'
 import { isRoomSummaryTurn, roomSummaryTurn } from '../../../shared/room-summary'
 import { isStoredMention } from '../../../shared/stored-mention'
+import { closeSteps, withStepEvent } from '../../../shared/run-steps'
 import { withPulled } from '../../../shared/section-plan'
 import type { RunCardEntry, TranscriptEntry, UserEntry } from './transcript-entry'
 
@@ -604,6 +605,7 @@ function runEntryOf(card: RunCardSnapshot): RunCardEntry {
     ...(card.endedAt === undefined ? {} : { endedAt: card.endedAt }),
     ...(card.error === undefined ? {} : { error: card.error }),
     notes: card.notes,
+    steps: card.steps,
     ...(card.plan === undefined ? {} : { plan: card.plan }),
     documents: card.documents.map(({ path, sections }) => ({ path, sections }))
   }
@@ -620,6 +622,10 @@ function foldRunEntry(entry: RunCardEntry, event: ContractEvent): RunCardEntry {
     return entry
   }
   switch (event.name) {
+    case 'run:step': {
+      const steps = withStepEvent(entry.steps, entry.notes.length, event.payload)
+      return steps === entry.steps ? entry : { ...entry, steps }
+    }
     case 'run:note': {
       const notes = [...entry.notes, { text: event.payload.text, at: event.payload.at }]
       const { pulled } = event.payload
@@ -642,11 +648,17 @@ function foldRunEntry(entry: RunCardEntry, event: ContractEvent): RunCardEntry {
       return { ...entry, documents }
     }
     case 'run:finished':
-      return { ...entry, status: 'finished', endedAt: event.payload.at }
+      return { ...entry, status: 'finished', endedAt: event.payload.at, steps: closeSteps(entry.steps, event.payload.at) }
     case 'run:stopped':
-      return { ...entry, status: 'stopped', endedAt: event.payload.at }
+      return { ...entry, status: 'stopped', endedAt: event.payload.at, steps: closeSteps(entry.steps, event.payload.at) }
     case 'run:failed':
-      return { ...entry, status: 'failed', endedAt: event.payload.at, error: event.payload.error }
+      return {
+        ...entry,
+        status: 'failed',
+        endedAt: event.payload.at,
+        error: event.payload.error,
+        steps: closeSteps(entry.steps, event.payload.at)
+      }
     default:
       return entry
   }
@@ -919,6 +931,7 @@ export function foldEvent(
         ...(agentId === undefined ? {} : { agentId }),
         status: 'running',
         notes: [],
+        steps: [],
         ...(plan === undefined ? {} : { plan: [...plan] }),
         documents: []
       }
@@ -926,6 +939,7 @@ export function foldEvent(
     }
 
     case 'run:note':
+    case 'run:step':
     case 'doc:committed':
     case 'run:finished':
     case 'run:stopped':

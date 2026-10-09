@@ -7,10 +7,12 @@ import { feedFields, initialFieldDecoder } from './json-string-fields'
 import type { FieldDecoder, FieldOp } from './json-string-fields'
 import { flushScan, initialScan, scanText, speakerNamed } from './party-speech'
 import type { Piece, Scan } from './party-speech'
+import { MEMLOG, projectRelative } from './project-path'
 import { sectionHeadings } from './section-headings'
+import { FIELD_BUFFER_MAX, keepsHeadOfField, labelFieldOf, stepLabel } from './step-label'
 
 /**
- * Where a raw frame's content goes. Five rules, all decided here and nowhere
+ * Where a raw frame's content goes. Six rules, all decided here and nowhere
  * else, so that the renderer never has to parse a frame:
  *
  * - main-thread speech outside a tool call is what the persona said; in a room, which has
@@ -27,7 +29,13 @@ import { sectionHeadings } from './section-headings'
  * - the same text aimed at `.memlog.md` goes nowhere: run notes come from the
  *   file, which the watcher sees once, and never from the stream, so memlog
  *   text cannot enter a document's prose or its sections;
- * - anything attributed to a subagent is not the main thread's, and is ignored.
+ * - every other main-thread tool call of a run, a document write included, is one step: `running`
+ *   when its input has finished streaming (`content_block_stop`), then `done` or `failed` on its
+ *   result, under the call's id. Its label is derived by `step-label` from the one input field
+ *   its table allows, which is all the fold decodes of it; a call aimed at `.memlog.md`, and any
+ *   call outside a run, raises none (AD-22);
+ * - anything attributed to a subagent is not the main thread's, and is ignored: its calls open
+ *   and close no step, and the main-thread call that spawned it is one.
  *
  * The complete message the CLI repeats after its fragments carries bytes that
  * were already routed as they streamed, so it yields nothing: emitting from it
@@ -63,11 +71,21 @@ export type RouteResult = { state: RouteState; events: ContractEvent[] }
  */
 type Destination = 'pending' | 'prose' | 'none'
 
+/**
+ * The one input field a step's label reads, as far as it has streamed: held whole or not at all.
+ * Past `FIELD_BUFFER_MAX` it is dropped (`over`), and the label is the verb alone.
+ */
+type LabelField = { text: string; over: boolean; done: boolean }
+
+const noLabelField: LabelField = { text: '', over: false, done: false }
+
 type ToolBlock = {
   kind: 'tool'
   callId: string
   /** The tool's own name: `Write` or `Edit`. */
   tool: string
+  /** The `file_path` the label reads. */
+  label: LabelField
   /** The input field that carries the text being written. */
   textField: string
   decoder: FieldDecoder
@@ -80,7 +98,16 @@ type ToolBlock = {
   oldText: string
 }
 
-type Block = { kind: 'text' } | { kind: 'other' } | ToolBlock
+/** Any other main-thread tool call of a run: a step, and nothing else of its input is decoded but its label's field. */
+type StepBlock = {
+  kind: 'step'
+  callId: string
+  tool: string
+  decoder: FieldDecoder
+  label: LabelField
+}
+
+type Block = { kind: 'text' } | { kind: 'other' } | ToolBlock | StepBlock
 
 /**
  * A document write whose path is known and whose result has not come back:
@@ -125,6 +152,11 @@ export type RouteState = {
    * a `Write` starts one; the end of the run drops them all.
    */
   docs: Readonly<Record<string, string>>
+  /**
+   * The run's tool calls whose step is `running`, by call id. They outlive the block and the
+   * message that streamed them; the end of the run drops whatever never came back.
+   */
+  steps: Readonly<Record<string, true>>
   /** The room's turn markers: who is speaking, and the turn they are in (Story 4.2). */
   party: PartyState
 }
@@ -135,17 +167,21 @@ export const initialRouteState: RouteState = {
   unnamed: 0,
   writes: {},
   docs: {},
+  steps: {},
   party: initialParty
 }
 
 /**
- * The state with every pending write and every document buffer dropped: the
- * run ended, so none of its writes commits and its buffers are not the next run's.
+ * The state with every pending write, every document buffer and every open step dropped: the
+ * run ended, so none of its writes commits, its buffers are not the next run's, and a call that
+ * never reported closes on the card (`fold/run-card.ts`), not here.
  */
 export function withoutPendingWrites(state: RouteState): RouteState {
-  return Object.keys(state.writes).length === 0 && Object.keys(state.docs).length === 0
+  return Object.keys(state.writes).length === 0 &&
+    Object.keys(state.docs).length === 0 &&
+    Object.keys(state.steps).length === 0
     ? state
-    : { ...state, writes: {}, docs: {} }
+    : { ...state, writes: {}, docs: {}, steps: {} }
 }
 
 /** The tools whose input is a document write, and the field holding the words. */
@@ -154,20 +190,40 @@ export const WRITE_FIELDS: Readonly<Record<string, string>> = { Write: 'content'
 /** The `Edit` input field holding the text it replaces. */
 const OLD_FIELD = 'old_string'
 
-export const MEMLOG = '.memlog.md'
+export { MEMLOG, projectRelative }
 
-/**
- * A path as the project sees it: relative, POSIX, with nothing escaping the
- * root. Anything else is outside the project and has no such path.
- */
-export function projectRelative(filePath: string, projectRoot: string): string | undefined {
-  if (filePath === '') return undefined
-  const absolute = posix.resolve(projectRoot, filePath)
-  const relative = posix.relative(posix.resolve(projectRoot), absolute)
-  if (relative === '' || relative === '..' || relative.startsWith('../') || posix.isAbsolute(relative)) {
-    return undefined
+/** The label buffer after the ops the decoder just produced for the field the label reads. */
+function withLabelOps(label: LabelField, field: string | undefined, ops: readonly FieldOp[], keepHead = false): LabelField {
+  let next = label
+  for (const op of ops) {
+    if (op.field !== field) continue
+    if (op.kind === 'end') {
+      next = { ...next, done: true }
+    } else if (!next.over) {
+      const text = next.text + op.text
+      // A program name is the head of a command: the rest of a long one is not kept.
+      if (keepHead && text.length > FIELD_BUFFER_MAX) next = { ...next, text: text.slice(0, FIELD_BUFFER_MAX) }
+      else next = text.length > FIELD_BUFFER_MAX ? { text: '', over: true, done: next.done } : { ...next, text }
+    }
   }
-  return relative
+  return next
+}
+
+/** The step `running`, when the call is whole: its label from the field it streamed, unless the call has no step. */
+function openStep(state: RouteState, block: ToolBlock | StepBlock, ctx: RouteContext): RouteResult {
+  if (ctx.runId === undefined || state.steps[block.callId] !== undefined) return { state, events: [] }
+  const field = block.label.done && !block.label.over ? block.label.text : undefined
+  const label = stepLabel(block.tool, field, ctx.projectRoot)
+  if (label === undefined) return { state, events: [] }
+  return {
+    state: { ...state, steps: { ...state.steps, [block.callId]: true } },
+    events: [
+      {
+        name: 'run:step',
+        payload: { runId: ctx.runId, sessionId: ctx.sessionId, callId: block.callId, status: 'running', label, at: ctx.now }
+      }
+    ]
+  }
 }
 
 function withBlock(state: RouteState, index: number, block: Block): RouteState {
@@ -274,10 +330,30 @@ function patched(doc: string | undefined, write: PendingWrite): string | undefin
   return doc.split(write.old).join(write.text)
 }
 
+/** `Done` or `failed` for the open step of a call a result answers; the step is no longer open. */
+function closeStep(
+  steps: Readonly<Record<string, true>>,
+  callId: string,
+  failed: boolean,
+  ctx: RouteContext
+): { steps: Readonly<Record<string, true>>; event?: ContractEvent } {
+  if (steps[callId] === undefined || ctx.runId === undefined) return { steps }
+  const rest = { ...steps }
+  delete rest[callId]
+  return {
+    steps: rest,
+    event: {
+      name: 'run:step',
+      payload: { runId: ctx.runId, sessionId: ctx.sessionId, callId, status: failed ? 'failed' : 'done', at: ctx.now }
+    }
+  }
+}
+
 /**
  * One `doc:committed` per pending write a result answers; the write is no
  * longer pending. An `ok` commit names the sections of the document at its path
  * after the call, and an `Edit` that applied carries the patched document whole.
+ * The call's step closes on the same result, after its commit.
  */
 function commitResults(
   state: RouteState,
@@ -286,34 +362,58 @@ function commitResults(
 ): RouteResult {
   let writes = state.writes
   let docs = state.docs
+  let steps = state.steps
   const events: ContractEvent[] = []
   for (const { callId, failed } of results) {
     const write = writes[callId]
-    if (write === undefined) continue
-    const rest = { ...writes }
-    delete rest[callId]
-    writes = rest
-    if (ctx.runId === undefined) continue
-    const base = { runId: ctx.runId, sessionId: ctx.sessionId, callId, path: write.path, at: ctx.now }
-    if (failed) {
-      events.push({
+    if (write !== undefined) {
+      const rest = { ...writes }
+      delete rest[callId]
+      writes = rest
+      const commit = ctx.runId === undefined ? undefined : committedBy(write, callId, failed, docs, ctx.runId, ctx)
+      if (commit !== undefined) {
+        docs = commit.docs
+        events.push(commit.event)
+      }
+    }
+    const closed = closeStep(steps, callId, failed, ctx)
+    steps = closed.steps
+    if (closed.event !== undefined) events.push(closed.event)
+  }
+  return writes === state.writes && steps === state.steps ? { state, events } : { state: { ...state, writes, docs, steps }, events }
+}
+
+/** The `doc:committed` a pending write's result makes, and the run's documents after it. */
+function committedBy(
+  write: PendingWrite,
+  callId: string,
+  failed: boolean,
+  docs: Readonly<Record<string, string>>,
+  runId: RunId,
+  ctx: RouteContext
+): { event: ContractEvent; docs: Readonly<Record<string, string>> } {
+  const base = { runId, sessionId: ctx.sessionId, callId, path: write.path, at: ctx.now }
+  if (failed) {
+    return {
+      docs,
+      event: {
         name: 'doc:committed',
         payload: {
           ...base,
           ok: false,
           error: { code: 'doc/write-rejected', message: `doc · the ${write.tool.toLowerCase()} was rejected` }
         }
-      })
-      continue
+      }
     }
-    if (write.tool !== 'Edit') {
-      events.push({ name: 'doc:committed', payload: { ...base, ok: true, sections: sectionHeadings(write.text) } })
-      continue
-    }
-    const doc = docs[write.path]
-    const text = patched(doc, write)
-    if (text !== undefined) docs = { ...docs, [write.path]: text }
-    events.push({
+  }
+  if (write.tool !== 'Edit') {
+    return { docs, event: { name: 'doc:committed', payload: { ...base, ok: true, sections: sectionHeadings(write.text) } } }
+  }
+  const doc = docs[write.path]
+  const text = patched(doc, write)
+  return {
+    docs: text === undefined ? docs : { ...docs, [write.path]: text },
+    event: {
       name: 'doc:committed',
       payload: {
         ...base,
@@ -321,9 +421,8 @@ function commitResults(
         sections: sectionHeadings(text ?? doc ?? ''),
         ...(text === undefined ? {} : { text })
       }
-    })
+    }
   }
-  return writes === state.writes ? { state, events } : { state: { ...state, writes, docs }, events }
 }
 
 function personaSaid(state: RouteState, text: string, ctx: RouteContext): ContractEvent {
@@ -428,14 +527,25 @@ export function routeFrame(state: RouteState, frame: unknown, ctx: RouteContext)
           ctx.agentId === undefined ? { ...state, party: { ...state.party, scan: { ...state.party.scan, lineStart: true } } } : state
         return { state: withBlock(begun, input.index, { kind: 'text' }), events: [] }
       }
-      const textField = head.type === 'tool' ? WRITE_FIELDS[head.name] : undefined
-      if (head.type !== 'tool' || textField === undefined || ctx.runId === undefined) {
+      if (head.type !== 'tool' || ctx.runId === undefined) {
         return { state: withBlock(state, input.index, { kind: 'other' }), events: [] }
+      }
+      const textField = Object.prototype.hasOwnProperty.call(WRITE_FIELDS, head.name) ? WRITE_FIELDS[head.name] : undefined
+      if (textField === undefined) {
+        const step: StepBlock = {
+          kind: 'step',
+          callId: head.callId,
+          tool: head.name,
+          decoder: initialFieldDecoder,
+          label: noLabelField
+        }
+        return { state: withBlock(state, input.index, step), events: [] }
       }
       const tool: ToolBlock = {
         kind: 'tool',
         callId: head.callId,
         tool: head.name,
+        label: noLabelField,
         textField,
         decoder: initialFieldDecoder,
         pathText: '',
@@ -469,10 +579,18 @@ export function routeFrame(state: RouteState, frame: unknown, ctx: RouteContext)
 
     case 'json-delta': {
       const block = state.blocks[input.index]
-      if (block === undefined || block.kind !== 'tool') return { state, events: [] }
+      if (block === undefined || (block.kind !== 'tool' && block.kind !== 'step')) return { state, events: [] }
+      if (block.kind === 'step') {
+        // Only the one field the label reads is decoded; the rest of the input is skipped unkept.
+        const field = labelFieldOf(block.tool)
+        const decoded = feedFields(block.decoder, input.partial, field === undefined ? [] : [field])
+        const label = withLabelOps(block.label, field, decoded.ops, keepsHeadOfField(block.tool))
+        return { state: withBlock(state, input.index, { ...block, decoder: decoded.state, label }), events: [] }
+      }
       const watched = block.tool === 'Edit' ? ['file_path', block.textField, OLD_FIELD] : ['file_path', block.textField]
       const decoded = feedFields(block.decoder, input.partial, watched)
       const applied = applyOps(block, decoded.ops, decoded.state, ctx)
+      applied.block = { ...applied.block, label: withLabelOps(block.label, 'file_path', decoded.ops) }
       // A write is pending only inside a run: one left streaming after its run ended never commits.
       const written = ctx.runId === undefined ? state : withWritten(state, block, applied.block, applied.text)
       return { state: withBlock(written, input.index, applied.block), events: applied.events }
@@ -480,8 +598,12 @@ export function routeFrame(state: RouteState, frame: unknown, ctx: RouteContext)
 
     case 'block-stop': {
       // What a room's text block still held is speech: the block is over.
-      const flushed = state.blocks[input.index]?.kind === 'text' ? flushParty(state, ctx) : { state, events: [] }
-      return { state: withoutBlock(flushed.state, input.index), events: flushed.events }
+      const block = state.blocks[input.index]
+      const flushed = block?.kind === 'text' ? flushParty(state, ctx) : { state, events: [] }
+      // A tool call whose input is whole is executing: its step begins.
+      const stepped =
+        block?.kind === 'tool' || block?.kind === 'step' ? openStep(flushed.state, block, ctx) : { state: flushed.state, events: [] }
+      return { state: withoutBlock(stepped.state, input.index), events: [...flushed.events, ...stepped.events] }
     }
   }
 }

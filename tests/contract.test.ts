@@ -21,6 +21,7 @@ const EVENTS = [
   'persona:state',
   'run:started',
   'run:note',
+  'run:step',
   'doc:section-opened',
   'doc:prose',
   'doc:committed',
@@ -80,7 +81,7 @@ describe('the events out', () => {
   const body = mapBody(withoutComments(read('src/shared/events.ts')), 'ContractEvents')
   const declared = entries(body)
 
-  it('are exactly the fifteen', () => {
+  it('are exactly the sixteen', () => {
     expect([...declared.keys()]).toEqual(EVENTS)
   })
 

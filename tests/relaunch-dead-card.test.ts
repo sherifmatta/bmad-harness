@@ -433,6 +433,7 @@ describe('the window, reading what the relaunched main hands it', () => {
       status: 'stopped',
       endedAt: 66_000,
       notes: [],
+      steps: [],
       documents: []
     }
     const { markup } = drawn({ entries: [], sessions: [], busy: [], personas: [], runs: [stopped] })
@@ -452,6 +453,7 @@ describe('the window, reading what the relaunched main hands it', () => {
       status: 'stopped',
       endedAt: 66_000,
       notes: [],
+      steps: [],
       documents
     })
     const confirmed = drawn({

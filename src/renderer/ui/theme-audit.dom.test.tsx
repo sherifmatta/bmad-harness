@@ -90,6 +90,7 @@ const RUN: RunCardEntry = {
   agentId: MARY.id,
   status: 'running',
   notes: [],
+  steps: [],
   documents: [{ path: '_bmad/planning-artifacts/prd.md', sections: ['Goals', 'Scope'] }]
 }
 

@@ -50,6 +50,7 @@ const card = (over: Partial<RunCardEntry> = {}): RunCardEntry => ({
   agentId: PM,
   status: 'running',
   notes: [],
+  steps: [],
   documents: [],
   plan: ['Vision', 'Scope', 'Users'],
   ...over

@@ -274,6 +274,8 @@ describe('a run that writes a document', () => {
     const sender = await idle()
     await dispatch(sender, 'CP')
     const frames = [messageStart('m1'), ...writeFrames('Write', 't1', { file_path: `${ROOT}/_bmad/prd.md`, content: DOC }, 2)]
+    // The call's block stop is the last frame: it raises the call's step, which is another event and releases what is held.
+    const blockStop = frames.pop()
     for (const frame of frames) feed(frame)
 
     // Nothing released yet: the timer has not run and nothing else came.
@@ -285,6 +287,9 @@ describe('a run that writes a document', () => {
     expect(prose).toHaveLength(1)
     expect(prose.map((piece) => piece.text).join('')).toBe(DOC)
     expect(prose[0]).toMatchObject({ runId: 'r1', callId: 't1', path: '_bmad/prd.md' })
+    expect(sender.of('run:step')).toEqual([])
+    feed(blockStop)
+    expect(sender.of('run:step')).toEqual([{ runId: 'r1', sessionId: 's1', callId: 't1', status: 'running', label: 'write _bmad/prd.md', at: clock }])
 
     feed(toolResult('t1'))
     feed(toolResult('t1'))
@@ -694,6 +699,10 @@ describe('a window that reloads mid-run', () => {
         startedAt: expect.any(Number),
         status: 'running',
         notes: [{ text: '- (event) n', at: expect.any(Number) }],
+        steps: [
+          { callId: 't1', label: 'write a.md', status: 'done', startedAt: expect.any(Number), endedAt: expect.any(Number), notesBefore: 1 },
+          { callId: 't2', label: 'write b.md', status: 'running', startedAt: expect.any(Number), notesBefore: 1 }
+        ],
         documents: [
           { path: 'a.md', callId: 't1', text: DOC, written: DOC.length, sections: ['Vision', 'Scope'] },
           { path: 'b.md', callId: 't2', text: 'partial', written: 7, sections: [] }

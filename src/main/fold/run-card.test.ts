@@ -38,6 +38,7 @@ describe('the run card fold', () => {
       startedAt: 100,
       status: 'running',
       notes: [],
+      steps: [],
       documents: []
     })
     expect(startCard({ ...started, agentId: undefined })).not.toHaveProperty('agentId')
@@ -143,6 +144,68 @@ describe('the run card fold', () => {
       endedAt: 300
     })
     expect(fold([{ name: 'run:stopped', payload: { runId: 'r1', sessionId: 's1', at: 300 } }]).status).toBe('stopped')
+  })
+
+  describe('steps', () => {
+    const running = (callId: string, at: number, label = `read ${callId}.md`): ContractEvent => ({
+      name: 'run:step',
+      payload: { runId: 'r1', sessionId: 's1', callId, status: 'running', label, at }
+    })
+    const closed = (callId: string, status: 'done' | 'failed', at: number): ContractEvent => ({
+      name: 'run:step',
+      payload: { runId: 'r1', sessionId: 's1', callId, status, at }
+    })
+    const note = (text: string): ContractEvent => ({ name: 'run:note', payload: { runId: 'r1', sessionId: 's1', text, at: 105 } })
+
+    it('opens a step running with the notes held then, and closes it on its result at that event’s instant', () => {
+      const card = fold([running('a', 101), note('- one'), running('b', 102), closed('a', 'done', 103), closed('b', 'failed', 104)])
+      expect(card.steps).toEqual([
+        { callId: 'a', label: 'read a.md', status: 'done', startedAt: 101, endedAt: 103, notesBefore: 0 },
+        { callId: 'b', label: 'read b.md', status: 'failed', startedAt: 102, endedAt: 104, notesBefore: 1 }
+      ])
+    })
+
+    it('changes nothing for a repeated running, or a close of an unknown or an already closed call', () => {
+      const card = fold([running('a', 101), closed('a', 'done', 103)])
+      for (const event of [running('a', 200, 'other'), closed('a', 'failed', 201), closed('nobody', 'done', 202)]) {
+        expect(foldRunCard(card, event)).toBe(card)
+      }
+    })
+
+    it('closes every step still running as failed at the terminal event’s instant, with no event of its own', () => {
+      for (const [name, end] of [
+        ['run:finished', { runId: 'r1', sessionId: 's1', at: 300 }],
+        ['run:stopped', { runId: 'r1', sessionId: 's1', at: 300 }],
+        ['run:failed', { runId: 'r1', sessionId: 's1', error: { code: 'run/failed', message: 'm' }, at: 300 }]
+      ] as const) {
+        const card = fold([running('a', 101), running('b', 102), closed('a', 'done', 103), { name, payload: end } as ContractEvent])
+        expect(card.steps, name).toEqual([
+          { callId: 'a', label: 'read a.md', status: 'done', startedAt: 101, endedAt: 103, notesBefore: 0 },
+          { callId: 'b', label: 'read b.md', status: 'failed', startedAt: 102, endedAt: 300, notesBefore: 0 }
+        ])
+      }
+    })
+
+    it('takes no more steps once the card has ended', () => {
+      const ended = fold([running('a', 101), { name: 'run:stopped', payload: { runId: 'r1', sessionId: 's1', at: 300 } }])
+      expect(foldRunCard(ended, running('late', 301))).toBe(ended)
+      expect(foldRunCard(ended, closed('a', 'done', 302))).toBe(ended)
+    })
+
+    it('keeps at most 300, dropping the oldest finished one and never a running one', () => {
+      const events: ContractEvent[] = [running('keep', 1)]
+      for (let n = 0; n < 305; n += 1) events.push(running(`c${n}`, 10 + n), closed(`c${n}`, 'done', 400 + n))
+      const card = fold(events)
+      expect(card.steps).toHaveLength(300)
+      expect(card.steps[0]).toMatchObject({ callId: 'keep', status: 'running' })
+      expect(card.steps.at(-1)?.callId).toBe('c304')
+      expect(card.steps.some((step) => step.callId === 'c0')).toBe(false)
+    })
+
+    it('is not touched by other runs’ steps, and leaves the card alone for them', () => {
+      const card = startCard(started)
+      expect(foldRunCard(card, { name: 'run:step', payload: { runId: 'r2', sessionId: 's2', callId: 'a', status: 'running', label: 'x', at: 1 } })).toBe(card)
+    })
   })
 
   it('ignores another run’s events and events with no run', () => {

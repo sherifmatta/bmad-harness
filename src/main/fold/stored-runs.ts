@@ -1,5 +1,6 @@
 import type { RunCardSnapshot, StoredRun } from '../../shared/conversation'
 import type { EpochMs } from '../../shared/ids'
+import { closeSteps } from '../../shared/run-steps'
 
 /**
  * The run cards a transcript keeps, and what a launch makes of them. Pure: a
@@ -9,7 +10,8 @@ import type { EpochMs } from '../../shared/ids'
  * card that was still `running` when the app went away is a run that was cut
  * off: it is read back as the run that ended with its session, at the moment it
  * was last heard of, so its elapsed time is a fact and not zero. A card that had
- * ended is read back as it ended. Nothing here adds a status: a cut-off run is
+ * ended is read back as it ended. A step still running on it ends `failed` at that same moment.
+ * Nothing here adds a status: a cut-off run is
  * `failed`, with the envelope every run ended by its session already carries.
  */
 
@@ -36,6 +38,7 @@ export function deadOf(stored: StoredRun): StoredRun {
       ...stored.card,
       status: 'failed',
       endedAt: stored.lastAt,
+      steps: closeSteps(stored.card.steps, stored.lastAt),
       error: { code: 'run/session-ended', message: 'run · the session ended' }
     }
   }

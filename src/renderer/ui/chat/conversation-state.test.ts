@@ -1001,6 +1001,7 @@ describe('a run’s card (Story 3.1)', () => {
       agentId: mary.id,
       status: 'running',
       notes: [],
+      steps: [],
       documents: []
     })
     expect(state.busy.has('s1')).toBe(true)
@@ -1061,6 +1062,7 @@ describe('a run’s card (Story 3.1)', () => {
           status: 'finished',
           endedAt: 30,
           notes: [{ text: '- n', at: 21 }],
+          steps: [],
           documents: [{ path: 'p.md', callId: 'c', text: 'x', written: 1, sections: ['A'] }]
         }
       ]
@@ -1107,11 +1109,63 @@ describe('a run’s card (Story 3.1)', () => {
           startedAt: 20,
           status: 'running',
           notes: [],
+          steps: [],
           documents: []
         }
       ]
     }
     expect(runCardOf(hydrate(initialConversation, snapshot, agentOf).state, 'r1')?.plan).toEqual(['Vision', 'Scope'])
+  })
+
+  describe('steps (Story 3.16)', () => {
+    const running = (callId: string, at: number): ContractEvent => ({
+      name: 'run:step',
+      payload: { ...R, callId, status: 'running', label: `read ${callId}.md`, at }
+    })
+    const closed = (callId: string, status: 'done' | 'failed', at: number): ContractEvent => ({
+      name: 'run:step',
+      payload: { ...R, callId, status, at }
+    })
+
+    it('holds a step as main’s card does: the notes held when it began, closed by its result, once', () => {
+      const state = fold([
+        started,
+        running('a', 51),
+        { name: 'run:note', payload: { ...R, text: '- (event) one', at: 52 } },
+        running('b', 53),
+        closed('a', 'done', 54),
+        closed('a', 'failed', 55),
+        running('a', 56),
+        closed('nobody', 'done', 57)
+      ])
+      expect(runCardOf(state, 'r1')?.steps).toEqual([
+        { callId: 'a', label: 'read a.md', status: 'done', startedAt: 51, endedAt: 54, notesBefore: 0 },
+        { callId: 'b', label: 'read b.md', status: 'running', startedAt: 53, notesBefore: 1 }
+      ])
+    })
+
+    it('closes a running step as failed at the terminal event’s instant, and takes no step after the end', () => {
+      const state = fold([started, running('a', 51), { name: 'run:finished', payload: { ...R, at: 60 } }, running('late', 61), closed('a', 'done', 62)])
+      expect(runCardOf(state, 'r1')?.steps).toEqual([{ callId: 'a', label: 'read a.md', status: 'failed', startedAt: 51, endedAt: 60, notesBefore: 0 }])
+    })
+
+    it('copies a card’s steps from the snapshot a reloading window is handed', () => {
+      const steps = [{ callId: 'a', label: 'read a.md', status: 'running' as const, startedAt: 51, notesBefore: 0 }]
+      const snapshot: ConversationSnapshot = {
+        entries: [],
+        sessions: [],
+        busy: [],
+        personas: [],
+        runs: [{ ...R, agentId: mary.id, code: 'CP', startedAt: 20, status: 'running', notes: [], steps, documents: [] }]
+      }
+      const state = hydrate(initialConversation, snapshot, agentOf).state
+      expect(runCardOf(state, 'r1')?.steps).toEqual(steps)
+      expect(runCardOf(foldEvent(state, closed('a', 'done', 70), agentOf).state, 'r1')?.steps[0]).toMatchObject({ status: 'done', endedAt: 70 })
+    })
+
+    it('leaves the state as it was for a step of a run it has no card for', () => {
+      expect(foldEvent(initialConversation, running('a', 1), agentOf).state).toBe(initialConversation)
+    })
   })
 
   it('holds the session busy from a dispatch, and goes with the conversation when it ends', () => {

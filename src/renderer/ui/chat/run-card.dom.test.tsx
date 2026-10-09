@@ -29,6 +29,7 @@ const card = (over: Partial<RunCardEntry> = {}): RunCardEntry => ({
   sessionId: 's1',
   status: 'running',
   notes: [],
+  steps: [],
   documents: [],
   ...over
 })

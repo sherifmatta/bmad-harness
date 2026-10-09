@@ -513,6 +513,7 @@ describe('run cards kept with the transcript (Story 3.7)', () => {
     startedAt: 10,
     status: 'running',
     notes: [],
+    steps: [],
     documents: [],
     ...over
   })
@@ -591,6 +592,22 @@ describe('run cards kept with the transcript (Story 3.7)', () => {
       card('r1', { status: 'finished', endedAt: 20 }),
       card('r2', { status: 'stopped', endedAt: 30 })
     ])
+  })
+
+  it('keeps a card’s steps through a relaunch, and reads the steps of a run cut off as failed at its last event', () => {
+    const steps = [
+      { callId: 'a', label: 'read a.md', status: 'done' as const, startedAt: 11, endedAt: 12, notesBefore: 0 },
+      { callId: 'b', label: 'run git', status: 'running' as const, startedAt: 13, notesBefore: 1 }
+    ]
+    const first = registry()
+    first.forProject(project).recordRun(card('r1', { status: 'finished', endedAt: 20, steps: [steps[0]] }), 20)
+    first.forProject(project).recordRun(card('r2', { steps }), 18)
+    first.flushAll()
+
+    const [finished, cut] = registry().forProject(project).storedRuns()
+
+    expect(finished.steps).toEqual([steps[0]])
+    expect(cut.steps).toEqual([steps[0], { ...steps[1], status: 'failed', endedAt: 18 }])
   })
 
   it('reads a card that was still running as the run its session ended, at the moment it was last heard of', () => {

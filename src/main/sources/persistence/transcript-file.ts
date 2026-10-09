@@ -9,7 +9,8 @@ import {
   writeFileSync
 } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import type { StoredRun, TranscriptFile, TranscriptRecord } from '../../../shared/conversation'
+import type { RunCardStep, StoredRun, TranscriptFile, TranscriptRecord } from '../../../shared/conversation'
+import { MAX_STEPS } from '../../../shared/run-steps'
 import { isStoredMention } from '../../../shared/stored-mention'
 import { errnoOf } from '../errno'
 
@@ -136,6 +137,36 @@ function isStoredRun(value: unknown): value is StoredRun {
   )
 }
 
+const STEP_STATUSES: ReadonlySet<unknown> = new Set(['running', 'done', 'failed'])
+
+const isEpoch = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value)
+
+/** Whether a stored step is one a card holds: its call, label, status, instants and count of notes before it. */
+function isStoredStep(value: unknown): value is RunCardStep {
+  if (typeof value !== 'object' || value === null) return false
+  const step = value as Record<string, unknown>
+  return (
+    typeof step.callId === 'string' &&
+    typeof step.label === 'string' &&
+    STEP_STATUSES.has(step.status) &&
+    isEpoch(step.startedAt) &&
+    (step.endedAt === undefined || isEpoch(step.endedAt)) &&
+    typeof step.notesBefore === 'number' &&
+    Number.isInteger(step.notesBefore) &&
+    step.notesBefore >= 0
+  )
+}
+
+/**
+ * A stored run as it is kept in memory: its `steps` are the well-formed ones, at most `MAX_STEPS`. A card
+ * from before steps were kept, and one whose `steps` is not a list, load with none; neither is damage to count.
+ */
+function withSteps(stored: StoredRun): StoredRun {
+  const held: unknown = (stored.card as { steps?: unknown }).steps
+  const steps = Array.isArray(held) ? held.filter(isStoredStep).slice(-MAX_STEPS) : []
+  return { ...stored, card: { ...stored.card, steps } }
+}
+
 /** What reading a project's file found. */
 export type LoadOutcome =
   /** There is no file: nothing was ever stored, which is not a problem. */
@@ -186,7 +217,7 @@ export function loadTranscript(filePath: string, projectPath: string): LoadOutco
   const entries = file.entries.filter(isRecord).map(withoutBadMention)
   // No `runs` is a file from before they were kept; a `runs` that is not a list is damage.
   const held: unknown[] = Array.isArray(file.runs) ? file.runs : []
-  const runs = held.filter(isStoredRun)
+  const runs = held.filter(isStoredRun).map(withSteps)
   const damaged = file.runs === undefined || Array.isArray(file.runs) ? 0 : 1
   return {
     kind: 'loaded',

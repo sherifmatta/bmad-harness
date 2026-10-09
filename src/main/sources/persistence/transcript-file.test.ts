@@ -318,6 +318,7 @@ const card = (runId: string, status = 'finished'): RunCardSnapshot => ({
   startedAt: 10,
   status: status as RunCardSnapshot['status'],
   notes: [],
+  steps: [],
   documents: []
 })
 
@@ -373,6 +374,70 @@ describe('the run cards stored beside the entries', () => {
       dropped: 1
     })
     expect(readFileSync(file, 'utf8')).toBe(before)
+  })
+
+  describe('steps', () => {
+    const step = (callId: string, over: Record<string, unknown> = {}) => ({
+      callId,
+      label: `read ${callId}.md`,
+      status: 'done',
+      startedAt: 11,
+      endedAt: 12,
+      notesBefore: 0,
+      ...over
+    })
+    const withSteps = (steps: unknown): StoredRun => ({ card: { ...card('r1'), steps } as unknown as RunCardSnapshot, lastAt: 40 })
+
+    it('are written with the card and read back as written', () => {
+      const file = transcriptFilePath(userData, project)
+      const runs = [withSteps([step('a'), step('b', { status: 'running', endedAt: undefined, notesBefore: 2 })])]
+      writeTranscript(file, project, entries, runs)
+
+      expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', entries, runs: [{ ...runs[0], card: { ...runs[0].card, steps: [step('a'), { ...step('b', { status: 'running', notesBefore: 2 }), endedAt: undefined }] } }], dropped: 0 })
+    })
+
+    it('load as none from a card written before steps, counting nothing left out', () => {
+      const old = { ...card('r1') } as Partial<RunCardSnapshot>
+      delete old.steps
+      const file = filed([{ card: old, lastAt: 40 }])
+
+      expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', entries, runs: [stored('r1')], dropped: 0 })
+    })
+
+    it.each([['a string', 'oops'], ['an object', { a: 1 }], ['null', null], ['a number', 3]])('load %s as none, counting nothing left out', (_name, bad) => {
+      expect(loadTranscript(filed([withSteps(bad)]), project)).toEqual({ kind: 'loaded', entries, runs: [stored('r1')], dropped: 0 })
+    })
+
+    it('keep the well-formed steps of a list and drop the malformed ones', () => {
+      const good = step('good')
+      const loaded = loadTranscript(
+        filed([
+          withSteps([
+            good,
+            null,
+            'x',
+            step('no-label', { label: 7 }),
+            step('bad-status', { status: 'paused' }),
+            step('bad-start', { startedAt: 'now' }),
+            step('bad-end', { endedAt: 'later' }),
+            step('bad-notes', { notesBefore: -1 }),
+            step('frac-notes', { notesBefore: 1.5 }),
+            { label: 'no call id', status: 'done', startedAt: 1, notesBefore: 0 }
+          ])
+        ]),
+        project
+      )
+      expect(loaded).toMatchObject({ kind: 'loaded', dropped: 0 })
+      expect(loaded.kind === 'loaded' && loaded.runs[0].card.steps).toEqual([good])
+    })
+
+    it('keep at most the newest 300', () => {
+      const many = Array.from({ length: 320 }, (_, n) => step(`c${n}`))
+      const loaded = loadTranscript(filed([withSteps(many)]), project)
+      const steps = loaded.kind === 'loaded' ? loaded.runs[0].card.steps : []
+      expect(steps).toHaveLength(300)
+      expect(steps[0].callId).toBe('c20')
+    })
   })
 
   it('count a `runs` that is not a list as one thing left out, with the entries kept', () => {

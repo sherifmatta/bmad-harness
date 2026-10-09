@@ -131,6 +131,7 @@ const card = (over: Partial<RunCardSnapshot> = {}): RunCardSnapshot => ({
   status: 'finished',
   endedAt: 2_000,
   notes: [],
+  steps: [],
   documents: [document(PRD, Array.from({ length: 15 }, (_, n) => `${n}. Section`))],
   ...over
 })

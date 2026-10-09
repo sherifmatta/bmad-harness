@@ -36,7 +36,7 @@ function mainCard(events: ContractEvent[], runId: string): Card | undefined {
 function windowCard(state: ConversationState, prose: ProseStore, runId: string): Card | undefined {
   const entry = state.entries.find((each) => each.kind === 'run' && each.runId === runId)
   if (entry === undefined || entry.kind !== 'run') return undefined
-  const { at, notes, documents, sessionId, status, plan } = entry
+  const { at, notes, steps, documents, sessionId, status, plan } = entry
   return {
     runId: entry.runId,
     sessionId,
@@ -46,6 +46,7 @@ function windowCard(state: ConversationState, prose: ProseStore, runId: string):
     ...(entry.endedAt === undefined ? {} : { endedAt: entry.endedAt }),
     ...(entry.error === undefined ? {} : { error: entry.error }),
     notes: [...notes],
+    steps: [...steps],
     ...(plan === undefined ? {} : { plan: [...plan] }),
     documents: prose.documents(runId).map((document) => ({
       ...document,
@@ -79,6 +80,14 @@ const startedWithPlan: ContractEvent = {
 const note = (text: string, at: number, pulled?: string[]): ContractEvent => ({
   name: 'run:note',
   payload: { ...R, text, ...(pulled === undefined ? {} : { pulled }), at }
+})
+const stepRunning = (callId: string, label: string, at: number): ContractEvent => ({
+  name: 'run:step',
+  payload: { ...R, callId, status: 'running', label, at }
+})
+const stepEnded = (callId: string, status: 'done' | 'failed', at: number): ContractEvent => ({
+  name: 'run:step',
+  payload: { ...R, callId, status, at }
 })
 const prose = (callId: string, path: string, text: string): ContractEvent => ({
   name: 'doc:prose',
@@ -154,6 +163,58 @@ const SEQUENCES: [string, ContractEvent[]][] = [
       note('- (event) after the end', 141, ['Late'])
     ]
   ],
+  [
+    'steps interleaved with notes, a failed step, a repeat, a close of an unknown call, and a write with its own step',
+    [
+      started,
+      stepRunning('t1', 'read prd.md', 101),
+      note('- (event) one', 102),
+      stepRunning('t2', 'run git', 103),
+      stepRunning('t1', 'read again', 104),
+      stepEnded('t1', 'done', 105),
+      stepEnded('t1', 'failed', 106),
+      stepEnded('nobody', 'done', 107),
+      note('- (event) two', 108),
+      stepRunning('w1', 'write prd.md', 109),
+      prose('w1', 'prd.md', '## Vision\nwords'),
+      committed('w1', ['Vision']),
+      stepEnded('w1', 'done', 111),
+      stepEnded('t2', 'failed', 112),
+      { name: 'run:finished', payload: { ...R, at: 140 } }
+    ]
+  ],
+  [
+    'a step still running when the run is stopped, and a step after the end',
+    [
+      started,
+      stepRunning('t1', 'read a.md', 101),
+      stepRunning('t2', 'grep', 102),
+      stepEnded('t1', 'done', 103),
+      { name: 'run:stopped', payload: { ...R, at: 160 } },
+      stepRunning('t3', 'read late.md', 161),
+      stepEnded('t2', 'done', 162)
+    ]
+  ],
+  [
+    'a step still running when the run fails',
+    [
+      started,
+      stepRunning('t1', 'run curl', 101),
+      { name: 'run:failed', payload: { ...R, error: { code: 'run/failed', message: 'run · the run failed' }, at: 150 } }
+    ]
+  ],
+  [
+    'more steps than a card keeps, the oldest finished dropped and a running one kept',
+    [
+      started,
+      stepRunning('first', 'read first.md', 101),
+      ...Array.from({ length: 304 }, (_, n) => [
+        stepRunning(`c${n}`, `read ${n}.md`, 200 + n),
+        ...(n % 2 === 0 ? [stepEnded(`c${n}`, 'done', 600 + n)] : [])
+      ]).flat(),
+      { name: 'run:finished', payload: { ...R, at: 900 } } as ContractEvent
+    ]
+  ],
   ['a stop', [started, { name: 'run:stopped', payload: { ...R, at: 160 } }]],
   ['events of another run beside it', [started, { name: 'run:note', payload: { runId: 'r2', sessionId: 's2', text: '- x', at: 1 } }]]
 ]
@@ -182,6 +243,32 @@ describe('the run card, folded in main and in the window', () => {
 
       expect(windowCard(after.state, after.store, 'r1'), `cut at ${cut}`).toEqual(mainCard(events, 'r1'))
     }
+  })
+
+  it('holds at most 300 steps and never drops a running one', () => {
+    const events = SEQUENCES.find(([label]) => label.startsWith('more steps'))?.[1] ?? []
+    const card = mainCard(events, 'r1')
+    expect(card?.steps).toHaveLength(300)
+    // `first` never reported, so it was running while the finished ones were dropped, and it stayed.
+    expect(card?.steps[0]).toMatchObject({ callId: 'first', status: 'failed', endedAt: 900 })
+    expect(card?.steps.some((step) => step.callId === 'c0')).toBe(false)
+    const midway = mainCard(events.slice(0, events.length - 1), 'r1')
+    expect(midway?.steps).toHaveLength(300)
+    expect(midway?.steps[0]).toMatchObject({ callId: 'first', status: 'running' })
+    expect(midway?.steps.filter((step) => step.status === 'running').length).toBeGreaterThan(100)
+    // The run ended: every step still running is failed at the terminal instant.
+    expect(card?.steps.filter((step) => step.status === 'running')).toEqual([])
+    expect(card?.steps.filter((step) => step.status === 'failed').every((step) => step.endedAt === 900)).toBe(true)
+  })
+
+  it('records how many notes a step began after, never a time', () => {
+    const events = SEQUENCES.find(([label]) => label.startsWith('steps interleaved'))?.[1] ?? []
+    const card = mainCard(events, 'r1')
+    expect(card?.steps.map((step) => [step.callId, step.notesBefore, step.status])).toEqual([
+      ['t1', 0, 'done'],
+      ['t2', 1, 'failed'],
+      ['w1', 2, 'done']
+    ])
   })
 
   it('folds the recorded fast-path-sonnet write to the same text and sections on both sides', () => {

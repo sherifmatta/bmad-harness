@@ -284,7 +284,7 @@ describe('what is stored, and where', () => {
     const events = code(join(SRC, 'shared/events.ts'))
     const commands = code(join(SRC, 'shared/commands.ts'))
 
-    expect([...events.matchAll(/^\s{2}'([a-z-]+:[a-z-]+)': EventSpec/gm)]).toHaveLength(15)
+    expect([...events.matchAll(/^\s{2}'([a-z-]+:[a-z-]+)': EventSpec/gm)]).toHaveLength(16)
     expect([...commands.matchAll(/^\s{2}'([a-z]+\.[a-z]+)': CommandSpec/gm)]).toHaveLength(7)
     expect(events + commands).not.toMatch(/conversation:get|getConversation/)
   })

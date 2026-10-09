@@ -21,6 +21,7 @@ const card = (id: string, over: Partial<RunCardEntry> = {}): RunCardEntry => ({
   agentId: PM,
   status: 'running',
   notes: [],
+  steps: [],
   documents: [],
   ...over
 })
