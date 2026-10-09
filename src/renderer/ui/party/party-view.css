@@ -46,7 +46,22 @@
  * the way the user's turn has its own. It is on that turn only while that persona is the speaker.
  */
 .turn--party-live {
+  background: var(--party-live-ground);
   box-shadow: var(--inset-turn-party-live);
+}
+
+/*
+ * A turn in the room is a `.pturn` in the mockup (:304), not a `.turn`: padded one pixel
+ * tighter, and with no gap between one turn and the next, because the mockup's
+ * `.turn + .turn` rule (:172) does not reach it. The room reuses the 1:1 turn's markup, so
+ * the difference is made here, under the room's own column.
+ */
+.party-column .turn {
+  padding: var(--party-turn-padding);
+}
+
+.party-column .turn + .turn {
+  margin-top: 0;
 }
 
 /* A stopped room (Story 4.5): its read-only thread sits above the chooser in the same column, with a gap between. */

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useState } from 'react'
 import type { CSSProperties, KeyboardEvent, MouseEvent } from 'react'
 
-import { effectiveWidth, limitsFor, readWidth } from '../../../shared/layout'
+import { effectiveWidth, limitsFor, PANELS, readWidth } from '../../../shared/layout'
 import type { PanelId } from '../../../shared/layout'
 import { useLayoutContext } from './layout-context'
 import { createPanelDrag } from './panel-drag'
@@ -21,7 +21,7 @@ export type SplitterProps = {
 }
 
 /** The custom property each panel's width is, which the stylesheets already read. */
-const PROPERTY: Record<PanelId, string> = { rail: '--rail', room: '--party-side' }
+const PROPERTY: Record<PanelId, string> = { sidebar: '--sidebar', rail: '--rail', room: '--party-side' }
 
 /**
  * One panel's width (Story 5.5). The width the user chose is state the hook
@@ -31,19 +31,31 @@ const PROPERTY: Record<PanelId, string> = { rail: '--rail', room: '--party-side'
  * chosen width again. The container is the element holding both columns and is
  * given through `holdContainer`, so it may mount later than the hook does.
  * The gestures are `panel-drag.ts`'s.
+ *
+ * Two panels may share one container: `reserved` is the width the other panel
+ * takes out of it, so this panel's room is `container - reserved` and the column
+ * between them keeps its minimum whichever panel is dragged.
  */
-export function usePanelWidth(panel: PanelId): {
+export function usePanelWidth(
+  panel: PanelId,
+  reserved = 0
+): {
   /** Put on the container holding the panel and its neighbour. */
   holdContainer(element: HTMLElement | null): void
-  /** The style that gives the panel its width, only while a width is chosen. */
+  /** The style that gives the panel its width, only while it differs from the token's default. */
   style: CSSProperties | undefined
+  /** The width the user chose, or the default: what a neighbour reserves for this panel, before any holding to the range. */
+  base: number
   splitter: SplitterProps
 } {
   const { widths, saveWidth } = useLayoutContext()
   const [chosen, setChosen] = useState<number | null>(() => readWidth(widths[panel], panel))
   const [container, setContainer] = useState<HTMLElement | null>(null)
-  const [available, setAvailable] = useState<number | null>(null)
+  const [containerWidth, setContainerWidth] = useState<number | null>(null)
   const [dragging, setDragging] = useState(false)
+  // A container that has no width is unknown (no pull-in); one the other panel leaves no room in is never zero
+  // or below, which would read as unknown too and lift every limit where the least is what is left.
+  const available = containerWidth === null || !(containerWidth > 0) ? null : Math.max(1, containerWidth - reserved)
 
   const [drag] = useState(() =>
     createPanelDrag(panel, {
@@ -64,7 +76,7 @@ export function usePanelWidth(panel: PanelId): {
     if (container === null) {
       return
     }
-    const measure = (): void => setAvailable(container.getBoundingClientRect().width)
+    const measure = (): void => setContainerWidth(container.getBoundingClientRect().width)
     measure()
     if (typeof ResizeObserver !== 'function') {
       return
@@ -82,7 +94,12 @@ export function usePanelWidth(panel: PanelId): {
 
   return {
     holdContainer: setContainer,
-    style: chosen === null ? undefined : ({ [PROPERTY[panel]]: `${now}px` } as CSSProperties),
+    // Written whenever what is shown is not the token's own width: a chosen one, or a default pulled in.
+    style:
+      chosen === null && now === PANELS[panel].default
+        ? undefined
+        : ({ [PROPERTY[panel]]: `${now}px` } as CSSProperties),
+    base: chosen ?? PANELS[panel].default,
     splitter: {
       panel,
       min: limits.min,

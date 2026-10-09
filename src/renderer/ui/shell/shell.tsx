@@ -1,8 +1,9 @@
-import { createRef, useState } from 'react'
+import { createRef, useCallback, useState } from 'react'
 import type { JSX, ReactNode, RefObject } from 'react'
 
 import './shell.css'
 import type { AgentView, HarnessError, InstallSnapshot, MenuEntryView } from '../../../shared/install'
+import { PANELS } from '../../../shared/layout'
 import { stateLineOf } from '../../../shared/output-folder'
 import type { RailSnapshot } from '../../../shared/rail'
 import { ChatHeader } from '../chat/chat-header'
@@ -15,6 +16,7 @@ import { ConnectedOutputs } from '../outputs/outputs'
 import { OutputsFolder, OutputsState } from '../outputs/outputs-head'
 import { stateOf } from '../status/persona-state'
 import { Team } from '../team/team'
+import { TeamStrip } from '../team/team-strip'
 import { currentAgent, displayOrder, groupAgents } from '../team/tile-groups'
 import { Topbar } from './topbar'
 import { useBranch } from './use-branch'
@@ -27,7 +29,7 @@ function labelOf(id: ViewId): string {
 }
 
 /**
- * One half of the rail: a head over a scrolling body, empty unless given children.
+ * One half of a side panel: a head over a scrolling body, empty unless given children.
  * `trailing` is what the head holds on its right (the Outputs half's folder and
  * `change…`), and `beneath` a line between the head and the body that does not
  * scroll with it.
@@ -75,13 +77,15 @@ const NO_SINCE: ReadonlyMap<string, number> = new Map()
 
 /**
  * The furniture the open room lives in (Story 1.9): a topbar, two views behind
- * one switch, and — in the 1:1 view — a chat column beside the rail.
+ * one switch, and — in the 1:1 view — the Team sidebar, the chat column and the
+ * Outputs rail, in that order.
  *
  * The view not showing stays mounted and `hidden`, never removed, so nothing
  * the user was doing is lost by looking at the other one. The Team half holds
  * the tiles and the chat column its header (Story 1.10); the Outputs half holds the
  * project's files (Story 1.11), and with no `rail` yet it is a head over an
- * empty body. The Party view holds what `party` gives it (Story 4.1): its side
+ * empty body. The Team half is the sidebar's, under a strip of four counts; the
+ * Outputs half is the rail's alone. The Party view holds what `party` gives it (Story 4.1): its side
  * panel is a later story's, and no slot is reserved for it. `children` is what
  * the thread holds.
  *
@@ -169,8 +173,24 @@ export function Shell({
   const [view, setView] = useState<ViewId>(initialView)
   const [ownId, setOwnId] = useState<string | null>(null)
   const branch = useBranch()
-  // The rail's width (Story 5.5): chosen by its splitter, shown as the token's own property overridden on the rail.
-  const { holdContainer: holdView, style: railStyle, splitter: railSplitter } = usePanelWidth('rail')
+  // The two side panels' widths (Story 5.5): each chosen by its own splitter and shown as the token's own
+  // property overridden on the panel. They share one container and each reserves what the other takes: the
+  // sidebar the rail's chosen-or-default, the rail the sidebar's width now, so the chat column keeps its minimum.
+  const [railBase, setRailBase] = useState(PANELS.rail.default)
+  const sidebarPanel = usePanelWidth('sidebar', railBase)
+  const railPanel = usePanelWidth('rail', sidebarPanel.splitter.now)
+  if (railPanel.base !== railBase) {
+    setRailBase(railPanel.base)
+  }
+  const { holdContainer: holdSidebar, style: sidebarStyle, splitter: sidebarSplitter } = sidebarPanel
+  const { holdContainer: holdRail, style: railStyle, splitter: railSplitter } = railPanel
+  const holdView = useCallback(
+    (element: HTMLElement | null): void => {
+      holdSidebar(element)
+      holdRail(element)
+    },
+    [holdSidebar, holdRail]
+  )
   // The current composer's field, which the thread's `↓ latest` puts focus in (Story 5.3).
   const [fieldRef] = useState(() => createRef<HTMLTextAreaElement>())
 
@@ -207,6 +227,19 @@ export function Shell({
         hidden={view !== 'conversation'}
         ref={holdView}
       >
+        <div className="sidebar" style={sidebarStyle}>
+          <RailHalf label="Team" beneath={<TeamStrip agents={snapshot.agents} states={states} />}>
+            <Team
+              agents={snapshot.agents}
+              menus={snapshot.menus}
+              states={states}
+              since={since}
+              currentId={current?.id ?? null}
+              onSelect={select}
+            />
+          </RailHalf>
+        </div>
+        <PanelSplitter splitter={sidebarSplitter} />
         <div className="chat">
           {pinnedNode !== null && pinnedNode !== undefined && <div className="pinned">{pinnedNode}</div>}
           {orphans.map((orphan) => (
@@ -238,16 +271,6 @@ export function Shell({
         </div>
         <PanelSplitter splitter={railSplitter} />
         <div className="rail" style={railStyle}>
-          <RailHalf label="Team">
-            <Team
-              agents={snapshot.agents}
-              menus={snapshot.menus}
-              states={states}
-              since={since}
-              currentId={current?.id ?? null}
-              onSelect={select}
-            />
-          </RailHalf>
           <RailHalf
             label="Outputs"
             trailing={rail === null ? null : <OutputsFolder folder={rail.folder} onChange={onChooseFolder} />}

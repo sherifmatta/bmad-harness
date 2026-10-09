@@ -77,10 +77,11 @@ Three top-level views behind a single switch — **1:1 Conversation**, **Party M
 |---|---|---|---|
 | Welcome | launch with no project path · closing the last project window · macOS reactivation with no window | brand, `no project open`, the one open action and drop zone, recent projects, the five core personas by phase | its own window, no project; see *Welcome*. Not a view of the shell and not a step |
 | Topbar | always present | brand, project path, install chip, branch chip, view switch | `{spacing.topbar}`. The Help entry point is reserved but not rendered in v1 |
-| 1:1 Conversation | view switch | chat column + rail | default view |
+| 1:1 Conversation | view switch | Team sidebar + chat column + rail | default view; three columns, see *Layout, chat and Board* |
 | Chat column | 1:1 | conversation entries in time order — persona turns, user turns, syslines, document cards; skill button row; composer | thread `{spacing.thread-max}` max-width |
-| Rail | 1:1 | split 50/50 — the **Team half** above, the **Outputs half** below | `{spacing.rail}` by default; resizable (*Resizing and folding*) |
-| Persona tiles | rail, Team half | one per installed agent: portrait, name, title, state line; current marked with an accent edge | grouped, see *Interaction Primitives* |
+| Team sidebar | 1:1, left | the **Team half**: a state strip over the persona tiles | `{spacing.sidebar}` by default; resizable (*Resizing and folding*) |
+| Rail | 1:1, right | the **Outputs half** alone | `{spacing.rail}` by default; resizable (*Resizing and folding*) |
+| Persona tiles | Team sidebar | one per installed agent: portrait, name, title, state line; current marked with an accent edge | grouped, see *Interaction Primitives* |
 | Rail rows | rail, Outputs half | one row per file under `_bmad/` — path, owner, state, optional run annotation — under a heading per directory that can be folded | disk truth only (AD-1) |
 | Document card | **inline in the conversation, in time order** | head / body / foot | run-scoped; never a panel |
 | Party Mode | view switch | cast, header, transcript, *Room* section | see *Party Mode* below |
@@ -186,7 +187,7 @@ Project **content** is untrusted because it is largely model-authored (AD-13). M
 | Cast chooser | party, on opening | chooses the room; defaults to the five core personas |
 | *Write summary to `_bmad/`* | party header | writes `_bmad/party/<date>-<topic>.md` |
 | End session | shell | `conversation.end(projectId)` — **project-scoped**, the only way to clear a persisted conversation |
-| Splitter | the inner edge of the rail and of the Room panel | drags that panel's width; double-click or `Enter` resets it |
+| Splitter | the inner edge of the Team sidebar, the rail and the Room panel | drags that panel's width; double-click or `Enter` resets it |
 | Folder heading | rail, Outputs half | folds or unfolds that directory's rows |
 | *Open project folder…* · `⌘O` | welcome | the native folder chooser; a choice opens that project's window |
 | Drop a folder | welcome | opens that project's window |
@@ -427,7 +428,7 @@ No tour, wizard, checklist, progress, *getting started* or *what's new*; no vers
 
 ## Theme
 
-*Added 2026-10-08 from the light-theme mockups (`mockups/light-theme.html`, palette A). Appearance and tokens: `DESIGN.md` → Colors → The light theme.*
+*Added 2026-10-08 from the light-theme mockups (`mockups/light-theme.html`, palette A; the palette was replaced on 2026-10-09 by the dark theme reversed, behaviour unchanged). Appearance and tokens: `DESIGN.md` → Colors → The light theme.*
 
 The product was designed in dark. It now has a light twin, and the user chooses which.
 
@@ -586,20 +587,23 @@ No prompt at open or at first run; no suggestion that the user should choose or 
 
 *Added 2026-10-08. Appearance: `DESIGN.md` → Components → Splitter, Folder heading. Prototype: `mockups/rail-resize-collapse.html`, which works: drag the edge, use the keys, fold a folder.*
 
-### Two side panels, each its own width
+### Three side panels, each its own width
 
-The **rail** (1:1) and the **Room panel** (Party Mode) each have a splitter on their inner edge.
+The **Team sidebar** and the **rail** (1:1) and the **Room panel** (Party Mode) each have a splitter on their inner edge. *(Updated 2026-10-09: the 1:1 view's one rail became a sidebar on the left and the rail on the right; a stored rail width is read against the new range: inside 260–480px it is kept as stored, outside it reads as the default; nothing is migrated.)*
 
 | | Default | Range | Keeps its neighbour at |
 |---|---|---|---|
-| Rail | 348px | 280–560px | the chat column, 420px |
+| Team sidebar | 244px | 200–400px | the chat column, 420px, given the rail's width |
+| Rail (Outputs) | 300px | 260–480px | the chat column, 420px, given the sidebar's width |
 | Room panel | 240px | 200–400px | the party column, 480px |
 
+The two panels in the 1:1 view share one row with the chat column, so each one's maximum leaves the chat column its 420px given what the other takes: the sidebar leaves room for the rail's chosen width (or its default), the rail for the sidebar's width as shown. Dragging either to its maximum never leaves the chat column narrower than 420px.
+
 - **A drag follows the pointer** a frame at a time: no easing, no snapping to presets, no inertia. Outside the range it holds at the limit. Releasing keeps the width.
-- **Double-click, or `Enter` on the focused splitter, returns the panel to its default.** `←` grows the panel and `→` shrinks it, by 16px, or 64px with `Shift`; `Home` and `End` go to the minimum and the maximum.
+- **Double-click, or `Enter` on the focused splitter, returns the panel to its default.** `←` grows a panel on the right (the rail, the Room panel) and `→` shrinks it, by 16px, or 64px with `Shift`; the Team sidebar, on the left, is the other way round, `→` grows it and `←` shrinks it; `Home` and `End` go to the minimum and the maximum.
 - **The window shrinking** below what a width allows pulls the panel in to the maximum that now fits; it never overlaps its neighbour. The width the user chose is kept and returns when the window does.
-- **At ≤1000px**, where the layout stacks, there is no splitter and the rail takes the width of the column (as now). **At ≤1180px** the Room panel is hidden and so is its splitter, as now (NFR27: no breakpoint is added).
-- **Remembered per user**, not per project: two values, one for each panel, under `userData`. A value missing, unreadable or outside the range reads as the default, silently.
+- **At ≤1000px**, where the layout stacks (chat, sidebar, rail), there are no splitters and each panel takes the width of the column. **At ≤1180px** the Room panel is hidden and so is its splitter, as now (NFR27: no breakpoint is added).
+- **Remembered per user**, not per project: up to three values, one for each panel, under `userData`. A value missing, unreadable or outside the range reads as the default, silently.
 - **Resizing touches nothing live.** It is a layout change: no session, run, transcript, card, scroll position or follow state (*Following the thread*) is affected, apart from the line wrapping the new width gives.
 
 ### Folding the Outputs folders
@@ -632,6 +636,8 @@ No animation of a width or a fold; no snap points or presets; no per-persona, pe
 
 ### The room: three columns
 
+*Built 2026-10-09: the Team sidebar (with its state strip), the chat column and the rail holding the Outputs half. The Inbox and Sprint board rows, the Properties, Goal trace and Run sections and the Board view below are still proposed.*
+
 | Column | Holds | Replaces |
 |---|---|---|
 | **Team sidebar**, left | a state strip, the *Inbox* and *Sprint board* rows, the persona tiles | the Team half of the rail |
@@ -639,10 +645,10 @@ No animation of a width or a fold; no snap points or presets; no per-persona, pe
 | **Context panel**, right | *Properties*, *Goal trace*, *Outputs*, *Run* for the open conversation | the Outputs half of the rail |
 
 - **Persona order is unchanged.** Tiles stay grouped by `module` and `team` and in config order (*Persona tile order*). They are **not** regrouped by state, and nothing is sorted by who needs attention: AD-21's no relevance sort and no highlighting hold. State is the dot each tile already has; an idle persona dims (`--opacity-idle`), as it does now.
-- **The state strip** is four plain counts of the tiles' own dot states (running, idle, error, and changed on disk). It is read from the same source as the dots (AD-20), is never a badge and never counts anything unread. **[ASSUMPTION]** — the fourth cell is the `note` state; drop the strip if five dot states in four cells reads badly.
+- **The state strip** is four plain counts of the tiles' own dot states, read from the same `states` map as the dots (AD-20), is never a badge and never counts anything unread. *Settled:* the cells are **working** (`work`), **idle** (`idle` and `live`, a persona with a session open and no turn in flight being idle), **error** (`error`) and **changed** (`note`, a file changed on disk). It takes no accent, fill or badge and is not announced; a persona the map holds nothing for counts as idle, and an empty roster reads four zeros.
 - **The Inbox** lists the open decision blocks across personas, newest first, so a question from one persona is not lost while the user talks to another. It shows **no count** on its row. A row opens that persona's thread at the decision. It lists nothing the harness invented: an empty list says `nothing open`. **[ASSUMPTION]** — needs a read across sessions' unanswered decision blocks; check the session model has one before building.
 - **The context panel** shows facts about the open story and run, and nothing prescriptive. *Properties*: status, owner persona, current skill, branch. *Goal trace*: product, epic, story, read from `sprint-status.yaml`. *Outputs*: exactly the Outputs half as it is (*Output folder*, *Resizing and folding*), moved. *Run*: duration, tool calls, model. A field with no source is omitted, never shown empty.
-- **Widths.** Each side panel has its own splitter and range, as the rail does (*Resizing and folding*). Defaults: Team sidebar 244px, context panel 300px. **[ASSUMPTION]** — ranges 200–400px and 260–480px, the chat column kept at 420px; the old single rail width is dropped, not migrated, and both read as their default until set. At the existing narrow breakpoints the layout stacks and the context panel hides, as the Room panel does.
+- **Widths.** *Settled:* each side panel has its own splitter and range (*Resizing and folding*). Defaults: Team sidebar 244px (range 200–400px), right panel 300px (260–480px), the chat column kept at 420px between them; a stored rail width is read against the new range (kept inside 260–480px, the default outside it) and nothing is migrated. At ≤1000px the layout stacks, chat then sidebar then right panel, with no splitter; no breakpoint is added.
 
 ### The chat thread
 
@@ -894,7 +900,7 @@ With no command palette (*Banned everywhere*) there is no `⌘K` escape hatch, s
 | Decision option | each option is its own tab stop; `Enter`/`Space` chooses it, which sends the turn and removes the block |
 | Document card | the card is focusable; `Enter`/`Space` expands a collapsed card; the stop control is its own tab stop |
 | Rail — Outputs half | one tab stop for the list; arrows move between **folder headings and the rows that are showing**; `Enter` opens the document window on a row, and `Enter`/`Space` folds or unfolds on a heading; on a heading `←` folds and `→` unfolds |
-| Splitter (rail, Room panel) | one tab stop each, between the panel's neighbour and the panel; `←` grows, `→` shrinks (16px, 64 with `Shift`), `Home`/`End` go to min and max, `Enter` resets |
+| Splitter (Team sidebar, rail, Room panel) | one tab stop each, between the panel's neighbour and the panel; `←` grows and `→` shrinks a panel on the right, the sidebar the other way round (16px, 64 with `Shift`), `Home`/`End` go to min and max, `Enter` resets |
 | Document window | `Esc` closes. The three escapes are tab-reachable |
 | Party | cast chooser, header controls and composer all tab-reachable; no turn gate means no focus trap |
 | Welcome | *Open project folder…*, the recent list and the three theme words are the tab stops; arrows move between recent rows, `Enter` opens, `⌘O` opens the chooser. Persona cards are content and are not tab stops. See *Welcome → Accessibility* |

@@ -8,8 +8,8 @@
  * and the surface is still unreadable. This file names no theme: the ground
  * follows the token.
  *
- * Global rules only: the ground, the reset the shell relies on, and the
- * scrollbars (UX-DR28). No component selector belongs here — the shell's own
+ * Global rules only: the ground, the reset the shell relies on (including the
+ * button's inherited font and ink), and the scrollbars (UX-DR28). No component selector belongs here — the shell's own
  * furniture is in ui/shell/shell.css. At full size the body does not scroll:
  * one project per window, and the shell is one viewport tall (NFR27). The
  * stacked layout turns scrolling back on, in the shell's own stylesheet.
@@ -27,6 +27,23 @@ body {
   font-family: var(--sans);
   font-size: var(--fs-base);
   line-height: var(--lh-base);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* A native button takes the page's font and ink, not the browser's own: the mockup's
+   `button{font:inherit;color:inherit}`, spelled as longhands, and the family as the
+   page's own token, because the literal guard reads `font` and `font-family: inherit`
+   as a font stack and the body's family is that token. Without it a button falls back to the system
+   control font, 13.333px on a `normal` line-height, and any control whose stylesheet
+   sets only some of the font longhands is the wrong size, height or ink. A component
+   rule (one class, more specific than this) still sets whatever it means to differ. */
+button {
+  font-family: var(--sans);
+  font-size: inherit;
+  font-weight: inherit;
+  font-style: inherit;
+  line-height: inherit;
+  color: inherit;
 }
 
 /* The scrollbar: a thin track-less bar whose thumb floats behind a transparent

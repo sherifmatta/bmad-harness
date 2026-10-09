@@ -1,12 +1,17 @@
 /*
- * The decision block — DESIGN.md's *Decision option*: a `panel-2` block in the
- * base radius, 1px `line`, padded by `--decision-padding`, holding a title and
- * the options stacked at `--space-sm`. The key badge is the block's single use
- * of the accent.
+ * The decision block — DESIGN.md's *Decision option*, drawn as the mockup draws
+ * it (`.options` and `.opt`, :228-238): the block is a bare column, and each option
+ * is a card of its own, a `panel` button with a 1px `line` at the base radius, padded
+ * by `--decision-padding`, the cards stacked at `--space-sm`. The block carries the
+ * title above them and nothing else: no ground, border or padding of its own.
  *
- * Nothing here marks an option as more than another: no hover treatment, no
- * selected, disabled or default ground, no ordering. An option is a native
- * button with its chrome taken off; its focus ring is the shared one from
+ * The option's words are the mockup's option title (`.opt .txt b`): the name size,
+ * strong, in `text-strong`. The persona's option is one string where the mockup
+ * splits a title from a line of detail, so the whole string takes the title's
+ * treatment. The key badge is the block's single use of the accent. An option lifts
+ * its border to `--decision-hover-line` and its ground to `panel-2` under the
+ * pointer, and nothing else: no selected, disabled or default ground, no ordering.
+ * An option is a native button; its focus ring is the shared one from
  * `design/focus.css`, so this file has no focus rule of its own.
  *
  * Every value reaches the design system through `var()`.
@@ -16,11 +21,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
-  margin-top: var(--space-md);
-  padding: var(--decision-padding);
-  border: var(--rule-width) solid var(--line);
-  border-radius: var(--r);
-  background: var(--panel-2);
+  margin: var(--decision-margin);
 }
 
 .decision-title {
@@ -32,23 +33,30 @@
 
 .decision-option {
   display: flex;
-  align-items: baseline;
-  gap: var(--space-md);
+  align-items: flex-start;
+  gap: var(--space-lg);
   margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
+  padding: var(--decision-padding);
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--r);
+  background: var(--panel);
   color: var(--text);
   font-family: var(--sans);
-  font-size: var(--fs-body-ui);
-  line-height: var(--lh-tight);
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
   text-align: left;
   cursor: pointer;
 }
 
+.decision-option:hover {
+  border-color: var(--decision-hover-line);
+  background: var(--panel-2);
+}
+
 .decision-key {
   flex: 0 0 auto;
-  padding: 0 var(--space-xxs);
+  margin-top: var(--decision-key-top);
+  padding: var(--decision-key-padding);
   border: var(--rule-width) solid var(--accent-border);
   border-radius: var(--radius-chip);
   background: var(--accent-bg);
@@ -60,4 +68,7 @@
 .decision-text {
   min-width: 0;
   overflow-wrap: anywhere;
+  font-size: var(--fs-name);
+  font-weight: var(--weight-strong);
+  color: var(--text-strong);
 }

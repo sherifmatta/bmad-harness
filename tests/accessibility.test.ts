@@ -248,13 +248,14 @@ describe('the focus ring', () => {
   const structural = withoutAnyComments(focusCss)
   const rules = rulesIn(focusCss)
 
-  it('is three rules: one global :focus-visible, the stacked offset and the inset offset', () => {
+  it('is four rules: one global :focus-visible, the composer field’s exemption, the stacked offset and the inset offset', () => {
     // Pinned as a list rather than probed for a substring. Narrowing the base
     // selector to `button:focus-visible` still matches /:focus-visible/ while
     // leaving twelve of UX-DR23's thirteen surfaces with no ring at all, and
     // the globalness is half of what makes one rule enough for all of them.
     expect(rules.map(({ selector }) => selector)).toEqual([
       ':focus-visible',
+      '.composer-input:focus-visible',
       '.focus-stacked:focus-visible',
       '.focus-inset:focus-visible'
     ])
@@ -264,20 +265,27 @@ describe('the focus ring', () => {
     // Both declarations by name: deleting the offset draws the ring on the
     // element's own edge instead of 2px outside it, which is the geometry
     // DESIGN.md states twice and the one thing a substring check misses.
-    expect(rules, 'focus.css must hold exactly the three rules above').toHaveLength(3)
+    expect(rules, 'focus.css must hold exactly the four rules above').toHaveLength(4)
     expect(rules[0].declarations).toEqual([
       'outline: var(--focus-ring-width) solid var(--accent)',
       'outline-offset: var(--focus-ring-offset)'
     ])
   })
 
+  it('exempts the composer’s textarea and nothing else: the one place the ring is off, by the user’s decision', () => {
+    // The field you type into draws no ring and no border change. The rule is the whole
+    // exemption: one selector, one declaration, and the send button beside it is not named.
+    expect(rules[1].declarations).toEqual(['outline: none'])
+    expect(rules[1].selector).not.toMatch(/send|button/)
+  })
+
   it('offsets the stacked case and changes nothing else about the ring', () => {
-    expect(rules, 'focus.css must hold exactly the three rules above').toHaveLength(3)
-    expect(rules[1].declarations).toEqual(['outline-offset: var(--focus-ring-offset-stacked)'])
+    expect(rules, 'focus.css must hold exactly the four rules above').toHaveLength(4)
+    expect(rules[2].declarations).toEqual(['outline-offset: var(--focus-ring-offset-stacked)'])
   })
 
   it('offsets the inset case just inside the edge and changes nothing else about the ring', () => {
-    expect(rules[2].declarations).toEqual(['outline-offset: var(--focus-ring-offset-inset)'])
+    expect(rules[3].declarations).toEqual(['outline-offset: var(--focus-ring-offset-inset)'])
   })
 
   it('is clean under the NFR23 literal guard, which governs it', () => {
@@ -317,14 +325,18 @@ describe('the focus ring', () => {
     expect(sourcesMatching(/outline/i)).toEqual([FOCUS_CSS])
   })
 
-  it('is never switched off anywhere under src/, in any spelling', () => {
-    // The defect the binding mockup shipped: `outline:none` on the composer,
-    // replaced by nothing at all. Every way of writing it — the longhands, a
-    // zero with or without a unit, the quoted and camelCase JSX forms.
+  it('is never switched off anywhere under src/, in any spelling, but on the composer’s textarea in focus.css', () => {
+    // The mockup shipped `outline:none` on the composer, replaced by nothing at all, and
+    // this file once forbade it everywhere. The user has since asked for exactly that one
+    // field to draw no ring, so the one rule in focus.css that does it is taken out before
+    // the sweep reads, and the sweep still finds it anywhere else, in any spelling: the
+    // longhands, a zero with or without a unit, the quoted and camelCase JSX forms.
     const OFF =
       /\boutline(?:-?(?:style|width|color))?\s*[:=]\s*\{?\s*['"]?\s*(?:none|0(?:px|rem|em|%)?)\b/i
+    const COMPOSER_EXEMPTION = /\.composer-input:focus-visible\s*\{\s*outline:\s*none;\s*\}/
 
-    expect(sourcesMatching(OFF)).toEqual([])
+    expect(sources.filter((path) => OFF.test((sourceText.get(path) ?? '').replace(COMPOSER_EXEMPTION, '')))).toEqual([])
+    expect(sourcesMatching(COMPOSER_EXEMPTION)).toEqual([FOCUS_CSS])
     // The pattern is checked against the spellings it claims to catch, so a
     // rule that has stopped matching cannot pass by matching nothing.
     for (const spelling of [

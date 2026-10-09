@@ -22,7 +22,7 @@ export type LayoutContextValue = {
 function nothing(): void {}
 
 export const INERT_LAYOUT: LayoutContextValue = {
-  widths: { rail: null, room: null },
+  widths: { sidebar: null, rail: null, room: null },
   folded: new Set<string>(),
   saveWidth: nothing,
   saveFolded: nothing

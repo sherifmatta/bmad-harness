@@ -2482,7 +2482,7 @@ describe('App, the layout (Story 5.5)', () => {
     await settle()
   }
 
-  it('provides the stored layout to the rail and the Outputs list, and keeps a fold through the bridge', async () => {
+  it('provides the stored layout to the sidebar, the rail and the Outputs list, and keeps a fold through the bridge', async () => {
     const setFolded: string[][] = []
     const setPanelWidth: [string, number | null][] = []
     railNow = {
@@ -2494,7 +2494,7 @@ describe('App, the layout (Story 5.5)', () => {
       ]
     }
     Object.assign(window.harness, {
-      getLayout: () => ({ rail: 400, room: null, folded: ['_bmad/'] }),
+      getLayout: () => ({ sidebar: 300, rail: 400, room: null, folded: ['_bmad/'] }),
       setFolded: (dirs: string[]) => void setFolded.push([...dirs]),
       setPanelWidth: (panel: string, width: number | null) => void setPanelWidth.push([panel, width])
     })
@@ -2503,6 +2503,11 @@ describe('App, the layout (Story 5.5)', () => {
 
     const rail = mounted!.container.querySelector('.rail') as HTMLElement
     expect(rail.style.getPropertyValue('--rail')).toBe('400px')
+    // The Team sidebar is a panel of its own, with its own stored width.
+    const sidebar = mounted!.container.querySelector('.sidebar') as HTMLElement
+    expect(sidebar.style.getPropertyValue('--sidebar')).toBe('300px')
+    expect(sidebar.querySelector('.persona-tile')).not.toBeNull()
+    expect(rail.querySelector('.persona-tile')).toBeNull()
     const headings = [...mounted!.container.querySelectorAll<HTMLButtonElement>('.folder-heading')]
     expect(headings.map((heading) => heading.textContent)).toEqual(['_bmad/', '_bmad/ux/'])
     expect(headings[0].getAttribute('aria-expanded')).toBe('false')

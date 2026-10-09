@@ -7,18 +7,18 @@
 <style>
   /* ── :root verbatim from design/tokens.css (dark only, NFR15) ── */
   :root{
-    --bg:#f3f5f8; --chrome:#eceff3; --panel:#ffffff; --panel-2:#f7f8fa; --panel-3:#eef1f5;
-    --line:#d9dee5; --line-soft:#e6e9ee; --text:#2a323c; --text-strong:#10151b;
-    --dim:#556070; --faint:#6c7684; --accent:#2f62c0; --accent-bg:rgba(47,98,192,.10);
-    --green:#2a7547; --amber:#8f6a0a; --red:#a8443b;
+    --bg:#f2f2f2; --chrome:#eeeeee; --panel:#eaeaea; --panel-2:#e5e5e5; --panel-3:#dfdfdf;
+    --line:#d5d5d5; --line-soft:#e0e0e0; --text:#202020; --text-strong:#0e0e0e;
+    --dim:#505050; --faint:#696969; --accent:#1b1b1b; --accent-bg:rgba(27,27,27,.12);
+    --green:#4e7059; --amber:#786737; --red:#915a53;
     --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
     --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     --r:5px;
-    --accent-border:#b9caea; --meta:#7b8592; --win-line:#cdd3dc; --note:#3d5bc2;
+    --accent-border:#bcbcbc; --meta:#858585; --win-line:#c5c5c5; --note:#454545;
     color-scheme: light;
   }
   *{box-sizing:border-box;margin:0}
-  body{background:#dfe4eb;color:var(--text);font:13px/1.55 var(--sans);padding:32px 24px 80px}
+  body{background:#cdcdcd;color:var(--text);font:13px/1.55 var(--sans);padding:32px 24px 80px}
   button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-align:left}
   :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
@@ -36,7 +36,7 @@
   .notes .mono{font-family:var(--mono);font-size:10.5px;color:var(--text)}
 
   /* ── the window ── */
-  .win{width:100%;max-width:1080px;height:660px;margin:0 auto 0 0;border:1px solid var(--win-line);border-radius:8px;background:var(--bg);overflow:hidden;display:flex;flex-direction:column;box-shadow:0 30px 70px -20px rgba(20,30,50,.35)}
+  .win{width:100%;max-width:1080px;height:660px;margin:0 auto 0 0;border:1px solid var(--win-line);border-radius:8px;background:var(--bg);overflow:hidden;display:flex;flex-direction:column;box-shadow:0 30px 70px -20px rgba(8,8,8,.35)}
   .titlebar{height:36px;flex:0 0 36px;background:var(--chrome);display:flex;align-items:center;gap:7px;padding:0 14px}
   .titlebar i{width:11px;height:11px;border-radius:50%;background:var(--panel-3)}
   .topbar{height:42px;flex:0 0 42px;background:var(--chrome);border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;padding:0 12px}
@@ -60,9 +60,9 @@
   .link{color:var(--accent);font-size:13px;display:inline-flex;align-items:center;gap:9px;padding:3px 0}
   .link svg{width:15px;height:15px;stroke:var(--accent);fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;opacity:.85}
   .link:hover span.t{text-decoration:underline}
-  .btn{display:inline-flex;align-items:center;gap:10px;border:1px solid #b3c8ee;background:#dbe6f8;color:#1f3f7d;border-radius:4px;padding:7px 14px;font-size:12px;letter-spacing:.01em}
-  .btn:hover{background:#cddcf4}
-  .btn .kbd{color:#3d5f9e;border-color:#b3c8ee}
+  .btn{display:inline-flex;align-items:center;gap:10px;border:1px solid #b4b4b4;background:#c6c6c6;color:#212121;border-radius:4px;padding:7px 14px;font-size:12px;letter-spacing:.01em}
+  .btn:hover{background:#bdbdbd}
+  .btn .kbd{color:#1b1b1b;border-color:#b4b4b4}
   .btn svg{width:15px;height:15px;stroke:var(--accent);fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
   .pf{display:block;flex:0 0 auto}
   .pname{font-size:12.5px;font-weight:600;color:var(--text-strong)}
@@ -205,7 +205,7 @@ function portraitV2(a,size,label){
   else if(a.fringe==="straight"){g+=`<path d="M32.6,41 C32.6,28.5 39.6,22.5 50,22.5 C60.4,22.5 67.4,28.5 67.4,41 C67.4,34.5 60.5,31.2 50,31.2 C39.5,31.2 32.6,34.5 32.6,41 Z" fill="${a.hair}"/>`;}
   if(a.style!=="receding"){g+=`<path d="M36,32 C39,26.4 44.4,23.6 50,23.6 C55,23.6 59.2,25.2 61.8,28.2 C57.4,26.4 52.2,26.6 47.6,28.4 C42.8,30.3 38.6,31.4 36,32 Z" fill="${hairLite}" opacity=".3"/>`;}
   g+=`<path d="M37.4,42.8 Q42.4,39.6 47.6,41.9 Q42.6,41.4 38.1,44 Z" fill="${hairDark}"/><path d="M62.6,42.8 Q57.6,39.6 52.4,41.9 Q57.4,41.4 61.9,44 Z" fill="${hairDark}"/>`;
-  [42,58].forEach(x=>{g+=`<ellipse cx="${x}" cy="46.6" rx="4.4" ry="3.2" fill="${a.shade}" opacity=".2"/><path d="M${x-3.5},47 Q${x},43.5 ${x+3.5},47 Q${x},49.9 ${x-3.5},47 Z" fill="#f0ebe3"/><circle cx="${x}" cy="46.9" r="1.95" fill="${eye}"/><circle cx="${x}" cy="46.9" r=".92" fill="#17120f"/><circle cx="${x-.75}" cy="46.15" r=".5" fill="#ffffff" opacity=".75"/><path d="M${x-3.7},46.9 Q${x},43.1 ${x+3.7},46.9" fill="none" stroke="#3a2f29" stroke-width="1.3" stroke-linecap="round"/>`;});
+  [42,58].forEach(x=>{g+=`<ellipse cx="${x}" cy="46.6" rx="4.4" ry="3.2" fill="${a.shade}" opacity=".2"/><path d="M${x-3.5},47 Q${x},43.5 ${x+3.5},47 Q${x},49.9 ${x-3.5},47 Z" fill="#f0ebe3"/><circle cx="${x}" cy="46.9" r="1.95" fill="${eye}"/><circle cx="${x}" cy="46.9" r=".92" fill="#17120f"/><circle cx="${x-.75}" cy="46.15" r=".5" fill="#eaeaea" opacity=".75"/><path d="M${x-3.7},46.9 Q${x},43.1 ${x+3.7},46.9" fill="none" stroke="#3a2f29" stroke-width="1.3" stroke-linecap="round"/>`;});
   g+=`<path d="M50.2,45 C50.8,50 51.8,53.8 52.8,55.8" fill="none" stroke="${a.shade}" stroke-width="1.25" stroke-linecap="round" opacity=".6"/><ellipse cx="50" cy="56.2" rx="3.4" ry="1.7" fill="${a.shade}" opacity=".36"/><ellipse cx="47.4" cy="56.4" rx=".85" ry=".6" fill="${dark}" opacity=".55"/><ellipse cx="52.6" cy="56.4" rx=".85" ry=".6" fill="${dark}" opacity=".55"/>`;
   g+=`<path d="M45.3,61.4 Q50,63.2 54.7,61.4" fill="none" stroke="#8d5a4d" stroke-width="1.35" stroke-linecap="round"/><ellipse cx="50" cy="64" rx="4.2" ry="1.7" fill="${lite}" opacity=".22"/>`;
   if(a.glasses==="rect"){g+=`<g fill="rgba(240,246,255,.06)" stroke="#cdd4dc" stroke-width="1.3" stroke-linejoin="round"><rect x="35.6" y="41.6" width="12.8" height="9.6" rx="3"/><rect x="51.6" y="41.6" width="12.8" height="9.6" rx="3"/></g><path d="M48.4,45.4 H51.6 M35.6,44.8 L31,43.8 M64.4,44.8 L69,43.8" fill="none" stroke="#cdd4dc" stroke-width="1.3" stroke-linecap="round"/>`;}

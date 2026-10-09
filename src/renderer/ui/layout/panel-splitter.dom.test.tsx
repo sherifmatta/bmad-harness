@@ -41,7 +41,7 @@ afterEach(() => {
 
 function layout(widths: Partial<LayoutContextValue['widths']> = {}): LayoutContextValue {
   return {
-    widths: { rail: null, room: null, ...widths },
+    widths: { sidebar: null, rail: null, room: null, ...widths },
     folded: new Set(),
     saveWidth: (panel, width) => saved.push([panel, width]),
     saveFolded: () => {}
@@ -71,8 +71,9 @@ const party = (): ReactElement =>
   })
 
 const rail = (): HTMLElement => document.querySelector('.rail') as HTMLElement
+const sidebar = (): HTMLElement => document.querySelector('.sidebar') as HTMLElement
 const side = (): HTMLElement => document.querySelector('.party-side') as HTMLElement
-const splitter = (name: 'rail' | 'room'): HTMLElement => document.querySelector(`.panel-splitter--${name}`) as HTMLElement
+const splitter = (name: 'sidebar' | 'rail' | 'room'): HTMLElement => document.querySelector(`.panel-splitter--${name}`) as HTMLElement
 
 function press(target: HTMLElement, key: string, modifiers: KeyboardEventInit = {}): KeyboardEvent {
   const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...modifiers })
@@ -101,14 +102,14 @@ describe('the rail’s splitter', () => {
     expect(bar.getAttribute('role')).toBe('separator')
     expect(bar.getAttribute('aria-orientation')).toBe('vertical')
     expect(bar.getAttribute('aria-label')).toBe('rail width')
-    expect(bar.getAttribute('aria-valuemin')).toBe('280')
-    expect(bar.getAttribute('aria-valuemax')).toBe('560')
-    expect(bar.getAttribute('aria-valuenow')).toBe('348')
+    expect(bar.getAttribute('aria-valuemin')).toBe('260')
+    expect(bar.getAttribute('aria-valuemax')).toBe('480')
+    expect(bar.getAttribute('aria-valuenow')).toBe('300')
     expect(bar.tabIndex).toBe(0)
     // On the rail's inner edge: after the chat column, before the rail.
     expect(bar.previousElementSibling?.className).toBe('chat')
     expect(bar.nextElementSibling).toBe(rail())
-    expect(document.querySelectorAll('[role="separator"]')).toHaveLength(1)
+    expect(document.querySelectorAll('[role="separator"]')).toHaveLength(2)
   })
 
   it('leaves the rail at the token’s own width until a width is chosen: no inline value', () => {
@@ -129,7 +130,7 @@ describe('the rail’s splitter', () => {
     for (const stored of [12, 9999, 300.5, null]) {
       show(shell(), layout({ rail: stored as number }))
       expect(rail().style.length, String(stored)).toBe(0)
-      expect(splitter('rail').getAttribute('aria-valuenow')).toBe('348')
+      expect(splitter('rail').getAttribute('aria-valuenow')).toBe('300')
       view?.unmount()
     }
   })
@@ -140,49 +141,49 @@ describe('the rail’s splitter', () => {
       const bar = splitter('rail')
 
       press(bar, ARROW_LEFT)
-      expect(rail().style.getPropertyValue('--rail')).toBe('364px')
+      expect(rail().style.getPropertyValue('--rail')).toBe('316px')
       press(bar, ARROW_LEFT, { shiftKey: true })
-      expect(rail().style.getPropertyValue('--rail')).toBe('428px')
+      expect(rail().style.getPropertyValue('--rail')).toBe('380px')
       press(bar, ARROW_RIGHT)
-      expect(rail().style.getPropertyValue('--rail')).toBe('412px')
+      expect(rail().style.getPropertyValue('--rail')).toBe('364px')
       press(bar, ARROW_RIGHT, { shiftKey: true })
-      expect(rail().style.getPropertyValue('--rail')).toBe('348px')
-      expect(bar.getAttribute('aria-valuenow')).toBe('348')
-      expect(saved).toEqual([['rail', 364], ['rail', 428], ['rail', 412], ['rail', 348]])
+      expect(rail().style.getPropertyValue('--rail')).toBe('300px')
+      expect(bar.getAttribute('aria-valuenow')).toBe('300')
+      expect(saved).toEqual([['rail', 316], ['rail', 380], ['rail', 364], ['rail', 300]])
     })
 
     it('goes to the minimum on Home and the maximum on End', () => {
       show(shell())
 
       press(splitter('rail'), 'Home')
-      expect(splitter('rail').getAttribute('aria-valuenow')).toBe('280')
+      expect(splitter('rail').getAttribute('aria-valuenow')).toBe('260')
       press(splitter('rail'), 'End')
-      expect(splitter('rail').getAttribute('aria-valuenow')).toBe('560')
-      expect(saved).toEqual([['rail', 280], ['rail', 560]])
+      expect(splitter('rail').getAttribute('aria-valuenow')).toBe('480')
+      expect(saved).toEqual([['rail', 260], ['rail', 480]])
     })
 
     it('changes nothing and keeps nothing where a key meets a limit', () => {
-      show(shell(), layout({ rail: 560 }))
+      show(shell(), layout({ rail: 480 }))
       press(splitter('rail'), ARROW_LEFT)
       press(splitter('rail'), ARROW_LEFT, { shiftKey: true })
       press(splitter('rail'), 'End')
-      expect(rail().style.getPropertyValue('--rail')).toBe('560px')
+      expect(rail().style.getPropertyValue('--rail')).toBe('480px')
 
       press(splitter('rail'), 'Home')
       press(splitter('rail'), ARROW_RIGHT)
       press(splitter('rail'), 'Home')
-      expect(rail().style.getPropertyValue('--rail')).toBe('280px')
+      expect(rail().style.getPropertyValue('--rail')).toBe('260px')
       // The step to the limit and nothing after it.
-      expect(saved).toEqual([['rail', 280]])
+      expect(saved).toEqual([['rail', 260]])
     })
 
     it('returns to the default on Enter, forgetting the stored value', () => {
-      show(shell(), layout({ rail: 500 }))
+      show(shell(), layout({ rail: 400 }))
 
       press(splitter('rail'), 'Enter')
 
       expect(rail().style.length).toBe(0)
-      expect(splitter('rail').getAttribute('aria-valuenow')).toBe('348')
+      expect(splitter('rail').getAttribute('aria-valuenow')).toBe('300')
       expect(saved).toEqual([['rail', null]])
     })
 
@@ -209,7 +210,7 @@ describe('the rail’s splitter', () => {
   })
 
   it('returns to the default on a double-click, as Enter does', () => {
-    show(shell(), layout({ rail: 500 }))
+    show(shell(), layout({ rail: 400 }))
 
     act(() => void splitter('rail').dispatchEvent(new MouseEvent('dblclick', { bubbles: true })))
 
@@ -224,22 +225,22 @@ describe('the rail’s splitter', () => {
       down(splitter('rail'), 900)
       expect(rail().style.length).toBe(0)
       moveTo(850)
-      expect(rail().style.getPropertyValue('--rail')).toBe('398px')
-      expect(splitter('rail').getAttribute('aria-valuenow')).toBe('398')
+      expect(rail().style.getPropertyValue('--rail')).toBe('350px')
+      expect(splitter('rail').getAttribute('aria-valuenow')).toBe('350')
       moveTo(950)
-      expect(rail().style.getPropertyValue('--rail')).toBe('298px')
+      expect(rail().style.getPropertyValue('--rail')).toBe('260px')
       moveTo(800)
-      expect(rail().style.getPropertyValue('--rail')).toBe('448px')
+      expect(rail().style.getPropertyValue('--rail')).toBe('400px')
       // Nothing is kept while the pointer moves.
       expect(saved).toEqual([])
 
       release()
 
-      expect(rail().style.getPropertyValue('--rail')).toBe('448px')
-      expect(saved).toEqual([['rail', 448]])
+      expect(rail().style.getPropertyValue('--rail')).toBe('400px')
+      expect(saved).toEqual([['rail', 400]])
       // A later move is nobody's.
       moveTo(100)
-      expect(rail().style.getPropertyValue('--rail')).toBe('448px')
+      expect(rail().style.getPropertyValue('--rail')).toBe('400px')
     })
 
     it('holds at the limits when the pointer goes past them', () => {
@@ -247,21 +248,22 @@ describe('the rail’s splitter', () => {
 
       down(splitter('rail'), 900)
       moveTo(-5000)
-      expect(rail().style.getPropertyValue('--rail')).toBe('560px')
+      expect(rail().style.getPropertyValue('--rail')).toBe('480px')
       moveTo(9000)
-      expect(rail().style.getPropertyValue('--rail')).toBe('280px')
+      expect(rail().style.getPropertyValue('--rail')).toBe('260px')
       release()
-      expect(saved).toEqual([['rail', 280]])
+      expect(saved).toEqual([['rail', 260]])
     })
 
     it('never leaves the chat column under 420px: the maximum is what the container leaves it', () => {
-      panels.widths['view-conversation'] = 900
+      // 1000 - the sidebar's 244 - the chat column's 420.
+      panels.widths['view-conversation'] = 1000
       show(shell())
 
-      expect(splitter('rail').getAttribute('aria-valuemax')).toBe('480')
+      expect(splitter('rail').getAttribute('aria-valuemax')).toBe('336')
       down(splitter('rail'), 900)
       moveTo(0)
-      expect(rail().style.getPropertyValue('--rail')).toBe('480px')
+      expect(rail().style.getPropertyValue('--rail')).toBe('336px')
     })
 
     it('shows the resize cursor and selects no text for the drag, and gives both back on release', () => {
@@ -285,7 +287,7 @@ describe('the rail’s splitter', () => {
 
       down(splitter('rail'), 900)
       moveTo(700)
-      expect(rail().style.getPropertyValue('--rail')).toBe('560px')
+      expect(rail().style.getPropertyValue('--rail')).toBe('480px')
       const escape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
       act(() => void document.dispatchEvent(escape))
 
@@ -364,10 +366,10 @@ describe('the rail’s splitter', () => {
       for (const key of [ARROW_LEFT, 'Home', 'Enter']) {
         expect(press(splitter('rail'), key).defaultPrevented, key).toBe(false)
       }
-      expect(rail().style.getPropertyValue('--rail')).toBe('448px')
+      expect(rail().style.getPropertyValue('--rail')).toBe('400px')
       release()
-      expect(rail().style.getPropertyValue('--rail')).toBe('448px')
-      expect(saved).toEqual([['rail', 448]])
+      expect(rail().style.getPropertyValue('--rail')).toBe('400px')
+      expect(saved).toEqual([['rail', 400]])
       // And once it has ended, the keys are the splitter's again.
       expect(press(splitter('rail'), ARROW_LEFT).defaultPrevented).toBe(true)
     })
@@ -381,24 +383,43 @@ describe('the rail’s splitter', () => {
       down(splitter('rail'), 100)
       moveTo(800)
       release()
-      expect(saved).toEqual([['rail', 448]])
+      expect(saved).toEqual([['rail', 400]])
     })
   })
 
   describe('a narrowed window', () => {
-    it('pulls the panel in without touching what was chosen, and gives it back when the window widens', () => {
-      show(shell(), layout({ rail: 500 }))
-      expect(rail().style.getPropertyValue('--rail')).toBe('500px')
-
-      panels.widths['view-conversation'] = 900
+    it('draws the sidebar at the width it shows, and leaves the chat column its 420px, when the rail was chosen wide', () => {
+      show(shell(), layout({ rail: 480 }))
+      panels.widths['view-conversation'] = 1001
       act(() => panels.resize())
-      expect(rail().style.getPropertyValue('--rail')).toBe('480px')
-      expect(splitter('rail').getAttribute('aria-valuenow')).toBe('480')
-      expect(splitter('rail').getAttribute('aria-valuemax')).toBe('480')
+
+      // The unchosen sidebar is pulled in below its default and is drawn there, not at the token's 244.
+      expect(sidebar().style.getPropertyValue('--sidebar')).toBe('200px')
+      expect(splitter('sidebar').getAttribute('aria-valuenow')).toBe('200')
+      expect(rail().style.getPropertyValue('--rail')).toBe('381px')
+      expect(200 + 381 + 420).toBeLessThanOrEqual(1001)
+      expect(saved).toEqual([])
 
       panels.widths['view-conversation'] = 1400
       act(() => panels.resize())
-      expect(rail().style.getPropertyValue('--rail')).toBe('500px')
+      expect(sidebar().style.length).toBe(0)
+    })
+
+    it('pulls the panel in without touching what was chosen, and gives it back when the window widens', () => {
+      show(shell(), layout({ rail: 450 }))
+      expect(rail().style.getPropertyValue('--rail')).toBe('450px')
+
+      // The sidebar, at its default, gives way to its own minimum, 200, before the rail does: 1000 - 200 - 420.
+      panels.widths['view-conversation'] = 1000
+      act(() => panels.resize())
+      expect(rail().style.getPropertyValue('--rail')).toBe('380px')
+      expect(splitter('sidebar').getAttribute('aria-valuenow')).toBe('200')
+      expect(splitter('rail').getAttribute('aria-valuenow')).toBe('380')
+      expect(splitter('rail').getAttribute('aria-valuemax')).toBe('380')
+
+      panels.widths['view-conversation'] = 1400
+      act(() => panels.resize())
+      expect(rail().style.getPropertyValue('--rail')).toBe('450px')
       // Nothing was written for either.
       expect(saved).toEqual([])
     })
@@ -429,6 +450,167 @@ describe('the rail’s splitter', () => {
       expect((document.querySelector('.view-party') as HTMLElement).hidden).toBe(true)
       expect((document.querySelector('.view-conversation') as HTMLElement).hidden).toBe(false)
     })
+  })
+})
+
+describe('the sidebar’s splitter', () => {
+  it('is a separator between the sidebar and the chat column: labelled, 200 to 400, default 244, one tab stop', () => {
+    show(shell())
+
+    const bar = splitter('sidebar')
+    expect(bar.getAttribute('role')).toBe('separator')
+    expect(bar.getAttribute('aria-orientation')).toBe('vertical')
+    expect(bar.getAttribute('aria-label')).toBe('sidebar width')
+    expect(bar.getAttribute('aria-valuemin')).toBe('200')
+    expect(bar.getAttribute('aria-valuemax')).toBe('400')
+    expect(bar.getAttribute('aria-valuenow')).toBe('244')
+    expect(bar.tabIndex).toBe(0)
+    expect(bar.previousElementSibling).toBe(sidebar())
+    expect(bar.nextElementSibling?.className).toBe('chat')
+    expect(sidebar().style.length).toBe(0)
+  })
+
+  it('applies a chosen width as --sidebar on the sidebar, and reads a value out of range as the default', () => {
+    show(shell(), layout({ sidebar: 320 }))
+    expect(sidebar().getAttribute('style')).toBe('--sidebar: 320px;')
+    view?.unmount()
+
+    for (const stored of [199, 401, 12, 9999, 250.5, null]) {
+      show(shell(), layout({ sidebar: stored as number }))
+      expect(sidebar().style.length, String(stored)).toBe(0)
+      expect(splitter('sidebar').getAttribute('aria-valuenow')).toBe('244')
+      view?.unmount()
+    }
+  })
+
+  it('grows on the right arrow and shrinks on the left, by 16 and by 64 with Shift: the rail’s keys, swapped', () => {
+    show(shell())
+    const bar = splitter('sidebar')
+
+    press(bar, ARROW_RIGHT)
+    expect(sidebar().style.getPropertyValue('--sidebar')).toBe('260px')
+    press(bar, ARROW_RIGHT, { shiftKey: true })
+    expect(sidebar().style.getPropertyValue('--sidebar')).toBe('324px')
+    press(bar, ARROW_LEFT)
+    expect(sidebar().style.getPropertyValue('--sidebar')).toBe('308px')
+    press(bar, ARROW_LEFT, { shiftKey: true })
+    expect(sidebar().style.getPropertyValue('--sidebar')).toBe('244px')
+    expect(saved).toEqual([['sidebar', 260], ['sidebar', 324], ['sidebar', 308], ['sidebar', 244]])
+  })
+
+  it('goes to 200 on Home and 400 on End, and back to the default on Enter or a double-click', () => {
+    show(shell())
+
+    press(splitter('sidebar'), 'Home')
+    expect(splitter('sidebar').getAttribute('aria-valuenow')).toBe('200')
+    press(splitter('sidebar'), 'End')
+    expect(splitter('sidebar').getAttribute('aria-valuenow')).toBe('400')
+    press(splitter('sidebar'), 'Enter')
+    expect(sidebar().style.length).toBe(0)
+    press(splitter('sidebar'), 'End')
+    act(() => void splitter('sidebar').dispatchEvent(new MouseEvent('dblclick', { bubbles: true })))
+    expect(sidebar().style.length).toBe(0)
+    expect(saved).toEqual([['sidebar', 200], ['sidebar', 400], ['sidebar', null], ['sidebar', 400], ['sidebar', null]])
+  })
+
+  it('follows the pointer to the right, grows there, holds at its limits and keeps the width on release', () => {
+    show(shell())
+
+    down(splitter('sidebar'), 244)
+    moveTo(294)
+    expect(sidebar().style.getPropertyValue('--sidebar')).toBe('294px')
+    moveTo(100)
+    expect(sidebar().style.getPropertyValue('--sidebar')).toBe('200px')
+    moveTo(9000)
+    expect(sidebar().style.getPropertyValue('--sidebar')).toBe('400px')
+    expect(saved).toEqual([])
+    moveTo(344)
+    release()
+
+    expect(sidebar().style.getPropertyValue('--sidebar')).toBe('344px')
+    expect(saved).toEqual([['sidebar', 344]])
+  })
+
+  it('is cancelled by Escape: the width it started at is back and nothing is kept', () => {
+    show(shell(), layout({ sidebar: 300 }))
+
+    down(splitter('sidebar'), 300)
+    moveTo(380)
+    expect(sidebar().style.getPropertyValue('--sidebar')).toBe('380px')
+    act(() => void document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })))
+
+    expect(sidebar().style.getPropertyValue('--sidebar')).toBe('300px')
+    expect(saved).toEqual([])
+  })
+})
+
+describe('the two panels beside the chat column', () => {
+  it('leave the chat column 420px whichever is dragged to its maximum, the other at its default', () => {
+    panels.widths['view-conversation'] = 1000
+    show(shell())
+
+    // Sidebar: 1000 - the rail's default 300 - 420 = 280. Rail: 1000 - the sidebar's default 244 - 420 = 336.
+    expect(splitter('sidebar').getAttribute('aria-valuemax')).toBe('280')
+    expect(splitter('rail').getAttribute('aria-valuemax')).toBe('336')
+    press(splitter('sidebar'), 'End')
+    expect(sidebar().style.getPropertyValue('--sidebar')).toBe('280px')
+  })
+
+  it('reserve one another’s width: the sidebar leaves the rail’s chosen width, and the rail the sidebar’s width as shown', () => {
+    panels.widths['view-conversation'] = 1100
+    show(shell(), layout({ sidebar: 300, rail: 380 }))
+
+    // 1100 - 380 - 420 = 300 for the sidebar; 1100 - 300 - 420 = 380 for the rail: both fit as chosen.
+    expect(sidebar().style.getPropertyValue('--sidebar')).toBe('300px')
+    expect(rail().style.getPropertyValue('--rail')).toBe('380px')
+    expect(splitter('sidebar').getAttribute('aria-valuemax')).toBe('300')
+    expect(splitter('rail').getAttribute('aria-valuemax')).toBe('380')
+
+    // Narrowed, each shows less and the chat column keeps its 420px; nothing was stored.
+    panels.widths['view-conversation'] = 1000
+    act(() => panels.resize())
+    expect(splitter('sidebar').getAttribute('aria-valuenow')).toBe('200')
+    expect(splitter('rail').getAttribute('aria-valuenow')).toBe('380')
+    expect(saved).toEqual([])
+  })
+
+  it('give the rail less when the sidebar grows, and the sidebar less when the rail does', () => {
+    panels.widths['view-conversation'] = 1000
+    show(shell())
+
+    // The rail's room is 1000 - 420 - the sidebar's width: 336 at the sidebar's default.
+    expect(splitter('rail').getAttribute('aria-valuemax')).toBe('336')
+    press(splitter('sidebar'), 'End')
+    expect(splitter('rail').getAttribute('aria-valuemax')).toBe('300')
+    view?.unmount()
+
+    // The sidebar's room is 1000 - 420 - the rail's chosen or default width: 280 at the rail's default.
+    show(shell())
+    expect(splitter('sidebar').getAttribute('aria-valuemax')).toBe('280')
+    press(splitter('rail'), 'End')
+    expect(splitter('sidebar').getAttribute('aria-valuemax')).toBe('244')
+  })
+
+  it('keep their widths apart: each is stored under its own panel', () => {
+    show(shell())
+
+    press(splitter('sidebar'), ARROW_RIGHT)
+    press(splitter('rail'), ARROW_LEFT)
+
+    expect(saved).toEqual([['sidebar', 260], ['rail', 316]])
+  })
+
+  it('hold the sidebar left of the chat column, and the rail right of it', () => {
+    show(shell())
+
+    const row = document.querySelector('.view-conversation') as HTMLElement
+    expect([...row.children].map((child) => child.className.split(' ')[0])).toEqual([
+      'sidebar',
+      'panel-splitter',
+      'chat',
+      'panel-splitter',
+      'rail'
+    ])
   })
 })
 
@@ -488,7 +670,7 @@ describe('the Room panel’s splitter', () => {
   })
 
   it('is independent of the rail: the two widths are stored apart', () => {
-    show(party(), layout({ rail: 500, room: 260 }))
+    show(party(), layout({ rail: 400, room: 260 }))
 
     press(splitter('room'), ARROW_RIGHT)
 

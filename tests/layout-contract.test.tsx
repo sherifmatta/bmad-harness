@@ -73,7 +73,8 @@ describe('no animation of a width or a fold', () => {
   })
 
   it('gives a width only as the token’s own property on the panel, and a stylesheet no literal width for either panel', () => {
-    expect(code('src/renderer/ui/layout/use-panel-width.ts')).toContain("rail: '--rail', room: '--party-side'")
+    expect(code('src/renderer/ui/layout/use-panel-width.ts')).toContain("sidebar: '--sidebar', rail: '--rail', room: '--party-side'")
+    expect(code('src/renderer/ui/shell/shell.css')).toMatch(/\.sidebar\s*\{[^}]*flex:\s*0 0 var\(--sidebar\);[^}]*width:\s*var\(--sidebar\);/)
     expect(code('src/renderer/ui/shell/shell.css')).toMatch(/\.rail\s*\{[^}]*flex:\s*0 0 var\(--rail\);[^}]*width:\s*var\(--rail\);/)
     expect(code('src/renderer/ui/party/room-panel.css')).toMatch(/\.party-side\s*\{[^}]*flex:\s*0 0 var\(--party-side\);[^}]*width:\s*var\(--party-side\);/)
   })
@@ -126,7 +127,7 @@ function projected(): RailSnapshot {
 
 function draw(snapshot: RailSnapshot, folded: string[]): string {
   const value: LayoutContextValue = {
-    widths: { rail: null, room: null },
+    widths: { sidebar: null, rail: null, room: null },
     folded: new Set(folded),
     saveWidth: () => {},
     saveFolded: () => {}
@@ -200,10 +201,12 @@ describe('the panels’ defaults', () => {
   const tokens = read('src/renderer/design/tokens.css')
   const token = (name: string): number => Number(tokens.match(new RegExp(`${name}:\\s*(\\d+)px;`))?.[1])
 
-  it('are the widths --rail and --party-side already have, so a default is the token and no second spelling', () => {
+  it('are the widths --sidebar, --rail and --party-side already have, so a default is the token and no second spelling', () => {
+    expect(PANELS.sidebar.default).toBe(token('--sidebar'))
     expect(PANELS.rail.default).toBe(token('--rail'))
     expect(PANELS.room.default).toBe(token('--party-side'))
-    expect(token('--rail')).toBe(348)
+    expect(token('--sidebar')).toBe(244)
+    expect(token('--rail')).toBe(300)
     expect(token('--party-side')).toBe(240)
   })
 })
@@ -218,6 +221,11 @@ describe('the new tokens', () => {
     expect(declared('--splitter-line')).toBe('3px')
     expect(declared('--splitter-inset')).toBe('3px')
     expect(declared('--chevron-size')).toBe('9px')
+  })
+
+  it('are the Team sidebar’s width and the state strip’s one padding, in the same place, the padding on the spacing ladder', () => {
+    expect(declared('--sidebar')).toBe('244px')
+    expect(declared('--team-strip-padding')).toBe('var(--space-md) var(--space-xxs)')
   })
 
   it('make the splitter a net-zero-width item, and centre its line on the box', () => {

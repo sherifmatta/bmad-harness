@@ -112,8 +112,9 @@
   --fs-h1:20px;
 
   /* Four line-heights. --lh-base everywhere by default, --lh-read for both
-     reading measures, --lh-tight for the open-question block and the decision
-     option, --lh-none on the portrait wrapper to kill descender space. */
+     reading measures, --lh-tight for the open-question block (the decision
+     option reads at --lh-base, as the mockup's does), --lh-none on the portrait
+     wrapper to kill descender space. */
   --lh-base:1.55;
   --lh-read:1.72;
   --lh-tight:1.45;
@@ -121,7 +122,8 @@
 
   /* Tracking makes small type readable and marks a label as a label, never
      style. Uppercase appears only on rail heads, side-section heads, the legend
-     badge, markdown h3 and table headers — which is what --track-caps is for.
+     badge, markdown h3, table headers and the skill-row label (the mockup's, and
+     the user's call) — which is what --track-caps is for.
      It is deliberately not called --track-head: that would pair by name with
      --fs-head, the 14px chat-header name, whose tracking is --track-control. */
   --track-caps:.09em;
@@ -130,6 +132,7 @@
   --track-skill-code:.05em;
   --track-micro:.04em;
   --track-md-h3:.03em;
+  --track-sysline:.03em;
   --track-brand:.02em;
   --track-control:.01em;
   --track-h1:-.01em;
@@ -173,7 +176,8 @@
      keeps its surface's own name. Component dimensions — the 6px status dot,
      the 56px tile, portrait sizes, card paddings — are not here; they belong to
      the stories that build those components. */
-  --rail:348px;
+  --sidebar:244px;
+  --rail:300px;
   --topbar:42px;
   --rail-head:30px;
   --thread-max:940px;
@@ -436,6 +440,15 @@
   --chat-head-padding:10px 16px;
   --chat-head-sub-top:1px;
 
+  /* The status pill beside the chat header's state line: `.status-pill` (:162-166),
+     padded `3px 8px`, a 3px radius (--radius-chip), 11px mono (--fs-ident), in amber
+     on a faint amber wash with an amber hairline. The mockup paints it amber whatever
+     the state, and so does this. */
+  --pill-padding:3px 8px;
+  --status-pill-bg:rgba(185,163,103,.10);
+  --status-pill-line:rgba(185,163,103,.25);
+  --status-pill-ink:#d7b96a;
+
   /* ── The turn and the composer (Story 2.3), promoted so no stylesheet
      restates a literal (NFR23). Every line cited is harness-mockup.html's; the
      components are DESIGN.md `conversation-turn` and `composer`.
@@ -448,6 +461,11 @@
   --turn-padding:12px 10px;
   --turn-gap:12px;
   --turn-stack-gap:2px;
+  /* A party turn, `.pturn` (:304): one pixel tighter than a 1:1 turn, with no stack
+     gap of its own (the mockup's `.turn + .turn` rule does not reach it), and the
+     speaking persona's turn on a ground of #181d24 as well as the accent edge (:307). */
+  --party-turn-padding:11px 10px;
+  --party-live-ground:#181d24;
   --turn-avatar-top:1px;
   --turn-head-bottom:3px;
   --inset-turn-user:inset 2px 0 0 var(--accent-edge);
@@ -462,22 +480,30 @@
      turns'. */
   --sysline-margin:14px 2px 10px;
 
-  /* The decision block (Story 2.10): DESIGN.md's *Decision option* pads the
-     block `9px 11px`, the same pair the tile uses (--tile-padding) but named for
-     its own component so neither moves the other. Its radius is --r, its gap
-     --space-sm, its ground --panel-2. */
+  /* The decision options, as the mockup draws them (`.options` and `.opt`,
+     :228-238): a column of cards, each padded `9px 11px` (the same pair the tile
+     uses, --tile-padding, but named for its own component so neither moves the
+     other) on --panel with a 1px --line at --r, the column 8px under the words and
+     4px over what follows, the key badge padded `1px 5px` and dropped 1px, and a
+     hover border of #465264 on a --panel-2 ground. The gap between cards is
+     --space-sm. */
   --decision-padding:9px 11px;
+  --decision-margin:8px 0 4px;
+  --decision-key-padding:1px 5px;
+  --decision-key-top:1px;
+  --decision-hover-line:#465264;
 
   /* The composer: `.composer` (:246) is padded 9px 16px 11px, `.inputwrap`
-     (:257) 7px 8px 7px 11px, and the textarea (:259-262) 2px 0. The field's focus
-     border is #484848 (:258) and the placeholder #636363 (:263). The send
+     (:257) 7px 8px 7px 11px, and the textarea (:259-262) 2px 0. The mockup's focus-within border
+     (#484848, :258) is not carried: the user chose a field that draws no border change
+     and a textarea that draws no ring on focus (design/focus.css holds the one exemption). The placeholder is
+     #636363 (:263). The send
      button (:264-265) is padded 4px 12px on #393939, bordered #4b4b4b, glyph
      #dedede, hovering to #424242. The hint line (:266) sits 6px under the
      field with a 14px gap. */
   --composer-padding:9px 16px 11px;
   --composer-field-padding:7px 8px 7px 11px;
   --composer-text-padding:2px 0;
-  --composer-focus-line:#484848;
   --composer-placeholder:#636363;
   --send-padding:4px 12px;
   --send-bg:#393939;
@@ -580,11 +606,11 @@
   --pinned-width:100%;
 
   /* The card's foot (Story 3.12): padded `6px 11px` (`.doccard .df`, :222-223;
-     DESIGN.md `### Document card`, Foot), its items 14px apart and wrapping
-     (DESIGN.md, Foot). Its ground, rule, size and colour are --panel-2,
+     DESIGN.md `### Document card`, Foot), its items 8px apart (`gap:8px`, :223)
+     and wrapping. Its ground, rule, size and colour are --panel-2,
      --line-soft, --fs-label and --faint as they are. */
   --card-foot-padding:6px 11px;
-  --card-foot-gap:14px;
+  --card-foot-gap:8px;
 
   /* The caret: a 6.5 by 13 accent block dropped 2px (`.caret`, :220; DESIGN.md
      `components.document-card.caret`). */
@@ -596,6 +622,7 @@
      hover border `#515151` (:254; DESIGN.md `hoverBorder`). Its code chip is
      padded `0 4px` (:255), which --code-tag-padding already is. */
   --skill-button-padding:4px 9px 4px 6px;
+  --skill-label-trail:2px;
   --skill-button-hover-line:#515151;
 
   /* ── The Welcome (Story 5.1), read off DESIGN.md's `components.welcome` block
@@ -651,16 +678,25 @@
   --splitter-line:3px;
   --splitter-inset:3px;
   --chevron-size:9px;
+
+  /* ── The Team sidebar (three-column room). --sidebar and --rail are the two side panels'
+     DEFAULTS in the 1:1 view (DESIGN.md spacing `sidebar`, `rail`); a chosen width overrides
+     the property inline on the panel. The state strip's one dimension is its cell's padding;
+     its rules are --rule-width and its type --fs-head and --fs-micro as they are. */
+  --team-strip-padding:var(--space-md) var(--space-xxs);
 }
 
 /*
- * The light theme (Story 5.2): palette A, "cool paper", from DESIGN.md's
- * `colors-light` map and mockups/light-a-shell.html. A twin for every colour
+ * The light theme (Story 5.2), the dark theme reversed (2026-10-09): every
+ * grey is the dark one mirrored about the middle, so it has no tint, and the
+ * accent is a near-black where the dark one is a near-white. The status hues
+ * stay, muted, and are darkened until they clear 4.5:1 on `panel`. From
+ * DESIGN.md's `colors-light` map and mockups/light-a-shell.html. A twin for every colour
  * token in the two dark blocks above, and nothing else: no dimension, radius,
  * type size or motion changes with the theme, so a component that takes every
  * colour from a token is correct in both and names neither. The four colour
  * tokens the map leaves out (the two hover lines and the two shadows) take the
- * mockup's values. The surfaces step up to white as they rise; the portraits
+ * mockup's values. The surfaces mirror the dark ramp, so they step down from `bg` as they rise; the portraits
  * are not here, and are the same in both themes.
  *
  * `color-scheme: light` is said to the user agent in this block, so form
@@ -669,71 +705,75 @@
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --bg:#f3f5f8;
-  --chrome:#eceff3;
-  --panel:#ffffff;
-  --panel-2:#f7f8fa;
-  --panel-3:#eef1f5;
-  --line:#d9dee5;
-  --line-soft:#e6e9ee;
-  --text:#2a323c;
-  --text-strong:#10151b;
-  --dim:#556070;
-  --faint:#6c7684;
-  --accent:#2f62c0;
-  --accent-bg:rgba(47,98,192,.10);
-  --green:#2a7547;
-  --amber:#8f6a0a;
-  --red:#a8443b;
+  --bg:#f2f2f2;
+  --chrome:#eeeeee;
+  --panel:#eaeaea;
+  --panel-2:#e5e5e5;
+  --panel-3:#dfdfdf;
+  --line:#d5d5d5;
+  --line-soft:#e0e0e0;
+  --text:#202020;
+  --text-strong:#0e0e0e;
+  --dim:#505050;
+  --faint:#696969;
+  --accent:#1b1b1b;
+  --accent-bg:rgba(27,27,27,.12);
+  --green:#4e7059;
+  --amber:#786737;
+  --red:#915a53;
 
-  --note:#3d5bc2;
-  --disagree:#a5574c;
-  --disagree-border:rgba(168,68,59,.35);
-  --disagree-bg:rgba(168,68,59,.07);
+  --note:#454545;
+  --disagree:#a25042;
+  --disagree-border:rgba(145,90,83,.3);
+  --disagree-bg:rgba(145,90,83,.09);
 
-  --accent-border:#b9caea;
-  --accent-wash:rgba(47,98,192,.05);
-  --accent-edge:rgba(47,98,192,.5);
-  --halo-live:rgba(42,117,71,.16);
-  --halo-work:rgba(143,106,10,.16);
-  --meta:#7b8592;
-  --ink-doc:#3a4552;
-  --ink-doc-strong:#10151b;
-  --ink-doc-mute:#7b8592;
-  --ink-md:#2a323c;
-  --code-bg:#eef1f5;
-  --code-ink:#2f3b4a;
-  --initials-bg:#dfe4eb;
-  --initials-line:#c7cfd9;
-  --initials-ink:#4a5666;
-  --win-line:#cdd3dc;
-  --scrim:rgba(20,28,40,.35);
-  --legend-badge:#8a6a45;
-  --legend-badge-bg:rgba(138,106,69,.08);
-  --legend-badge-border:rgba(138,106,69,.3);
+  --accent-border:#bcbcbc;
+  --accent-wash:rgba(27,27,27,.045);
+  --accent-edge:rgba(27,27,27,.45);
+  --halo-live:rgba(78,112,89,.16);
+  --halo-work:rgba(120,103,55,.16);
+  --meta:#858585;
+  --ink-doc:#3d3d3d;
+  --ink-doc-strong:#151515;
+  --ink-doc-mute:#858585;
+  --ink-md:#2b2b2b;
+  --code-bg:#dfdfdf;
+  --code-ink:#333333;
+  --initials-bg:#cdcdcd;
+  --initials-line:#bebebe;
+  --initials-ink:#4d4d4d;
+  --win-line:#c5c5c5;
+  --scrim:rgba(8,8,8,.35);
+  --legend-badge:#88603f;
+  --legend-badge-bg:rgba(136,96,63,.08);
+  --legend-badge-border:rgba(136,96,63,.3);
 
-  --cast-speaking-border:#8fabdc;
-  --cast-speaking-ground:#ffffff;
-  --grad-cast:linear-gradient(180deg,#eef1f5,#e8ecf1);
-  --grad-titlebar:linear-gradient(180deg,#f4f6f9,#e9edf2);
-  --brand-mark-line:#b4bfd0;
-  --topbar-sep:#b9c0cb;
-  --raised:#e3e8ef;
-  --scrollbar-thumb:#c6ccd5;
-  --scrollbar-thumb-hover:#aab2be;
-  --tile-current:#e8eef8;
-  --code-tag-bg:#eef1f5;
-  --composer-focus-line:#7d9bd4;
-  --composer-placeholder:#8a94a1;
-  --send-bg:#dbe6f8;
-  --send-line:#b3c8ee;
-  --send-ink:#1f3f7d;
-  --send-hover:#cddcf4;
-  --win-light:#c3cad4;
-  --ghost-border-hover:#b5bdc8;
-  --skill-button-hover-line:#a8b2c0;
-  --shadow-window:0 30px 70px -20px rgba(20,30,50,.35);
-  --shadow-speaking:0 0 0 1px rgba(47,98,192,.22), 0 6px 18px -10px rgba(20,30,50,.18);
+  --cast-speaking-border:#a9a9a9;
+  --cast-speaking-ground:#dedede;
+  --grad-cast:linear-gradient(180deg,#e6e6e6,#eaeaea);
+  --grad-titlebar:linear-gradient(180deg,#d6d6d6,#dddddd);
+  --brand-mark-line:#b1b1b1;
+  --topbar-sep:#bebebe;
+  --raised:#d5d5d5;
+  --scrollbar-thumb:#cecece;
+  --scrollbar-thumb-hover:#bdbdbd;
+  --tile-current:#dadada;
+  --code-tag-bg:#dfdfdf;
+  --composer-placeholder:#858585;
+  --send-bg:#c6c6c6;
+  --send-line:#b4b4b4;
+  --send-ink:#212121;
+  --send-hover:#bdbdbd;
+  --win-light:#bebebe;
+  --ghost-border-hover:#bfbfbf;
+  --skill-button-hover-line:#aeaeae;
+  --decision-hover-line:#ababab;
+  --party-live-ground:#e1e1e1;
+  --status-pill-bg:rgba(120,103,55,.10);
+  --status-pill-line:rgba(120,103,55,.25);
+  --status-pill-ink:#6f5f32;
+  --shadow-window:0 30px 70px -20px rgba(8,8,8,.35);
+  --shadow-speaking:0 0 0 1px rgba(27,27,27,.22), 0 6px 18px -10px rgba(8,8,8,.18);
 }
 
 /* The three keyframes the inventory names, copied from the mockup. `blink` is

@@ -132,3 +132,43 @@
   letter-spacing: var(--track-micro);
   color: var(--dim);
 }
+
+/* ---------- the state strip ---------- */
+
+/* Four plain counts above the tiles (DESIGN.md, Team sidebar): a grid with a
+   line-soft rule between cells and below. No cell takes colour, a fill or the
+   accent; it is a count, not an alert. */
+.team-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-bottom: var(--rule-width) solid var(--line-soft);
+}
+
+.team-strip-cell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--team-strip-padding);
+  text-align: center;
+}
+
+.team-strip-cell + .team-strip-cell {
+  border-left: var(--rule-width) solid var(--line-soft);
+}
+
+.team-strip-figure {
+  font-size: var(--fs-head);
+  font-weight: var(--weight-strong);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-strong);
+}
+
+.team-strip-label {
+  font-size: var(--fs-micro);
+  letter-spacing: var(--track-micro);
+  text-transform: uppercase;
+  color: var(--faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

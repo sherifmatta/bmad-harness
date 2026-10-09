@@ -4,7 +4,7 @@ import { errnoOf } from '../errno'
 
 /**
  * Where the layout lives and how it is read and written (Story 5.5): one JSON
- * file, `<userData>/layout.json`, holding `{version, widths: {rail, room},
+ * file, `<userData>/layout.json`, holding `{version, widths: {sidebar, rail, room},
  * folded: {<projectKey>: string[]}}` and nothing else. It is the harness's own
  * bookkeeping, beside the recent list, the theme and the output folders; nothing
  * is ever written into a project.

@@ -96,8 +96,9 @@
 }
 
 /* The foot: the sections still to write and the other files the run wrote,
-   named and never shown. Label size
-   in the faint tier on the head's ground, under the inner rule, wrapping. */
+   named and never shown. Label size in the faint tier on the head's ground,
+   under the inner rule, wrapping, in the page's sans as the mockup's `.df` is
+   (:222-225), with its items 8px apart. */
 .run-card-foot {
   display: flex;
   flex-wrap: wrap;
@@ -106,7 +107,6 @@
   padding: var(--card-foot-padding);
   background: var(--panel-2);
   border-top: var(--rule-width) solid var(--line-soft);
-  font-family: var(--mono);
   font-size: var(--fs-label);
   color: var(--faint);
   min-width: 0;
