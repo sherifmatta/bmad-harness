@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-25-2026 17:00
-last_updated: 10-09-2026 14:32
+last_updated: 10-09-2026 14:41
 project: bmad-harness
 project_key: NOKEY
 tracking_system: file-system
@@ -66,7 +66,7 @@ development_status:
   2-11-a-session-outlives-the-install-changing-under-it: done
   2-12-confirm-continuity-actually-holds: done
   2-13-nothing-this-epic-promised-not-to-do: done
-  2-14-the-chat-look-flat-rows-initials-discs-one-line-header: review
+  2-14-the-chat-look-flat-rows-initials-discs-one-line-header: done
   2-15-the-name-you-typed-stays-in-your-turn: backlog
   epic-2-retrospective: done
 
