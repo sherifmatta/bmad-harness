@@ -27,6 +27,11 @@ export type UserEntry = {
   id: string
   at: number
   text: string
+  /**
+   * The literal `@name` the user typed to hand off to this persona (AD-25), drawn as a chip before the words.
+   * Display only: the persona got `text` alone. Absent on every other turn.
+   */
+  mention?: string
   user?: UserIdentity
   /**
    * The name of the persona whose turn this waits for. Present while the message

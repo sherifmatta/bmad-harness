@@ -217,6 +217,7 @@ export function Turns({
         key={entry.id}
         at={entry.at}
         text={entry.text}
+        mention={entry.mention}
         user={entry.user}
         queuedFor={entry.queuedFor}
         onCancel={onCancel === undefined ? undefined : () => onCancel(entry.id)}

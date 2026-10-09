@@ -367,7 +367,7 @@ describe('`@` in the composer', () => {
   })
 
   it('resolves a roster name other than the current persona’s, and only that', () => {
-    expect(handoffTarget('@Ben hello', ROSTER, ADA.id)).toEqual({ agent: BEN, text: 'hello' })
+    expect(handoffTarget('@Ben hello', ROSTER, ADA.id)).toEqual({ agent: BEN, text: 'hello', mention: '@Ben' })
     expect(handoffTarget('@Ada', ROSTER, ADA.id)).toBeNull()
   })
 })

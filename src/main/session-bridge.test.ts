@@ -15,7 +15,12 @@ import { transcriptFilePath, writeTranscript as writeThrough } from './sources/p
 import type { SessionProcess, SpawnOutcome, SpawnSessionOptions } from './sources/session/session-process'
 
 type OpenHandler = (event: { sender: FakeSender }, agentId: unknown) => Promise<unknown>
-type SendHandler = (event: { sender: FakeSender }, sessionId: unknown, text: unknown) => unknown
+type SendHandler = (
+  event: { sender: FakeSender },
+  sessionId: unknown,
+  text: unknown,
+  ...mention: unknown[]
+) => unknown
 
 const handlers = new Map<string, (...args: never[]) => unknown>()
 
@@ -182,8 +187,8 @@ const closeSession = (sender: FakeSender, sessionId: unknown) =>
     { sender },
     sessionId
   )
-const send = (sender: FakeSender, sessionId: unknown, text: unknown) =>
-  (handlers.get(TURN_SEND_CHANNEL) as unknown as SendHandler)({ sender }, sessionId, text)
+const send = (sender: FakeSender, sessionId: unknown, text: unknown, ...mention: unknown[]) =>
+  (handlers.get(TURN_SEND_CHANNEL) as unknown as SendHandler)({ sender }, sessionId, text, ...mention)
 
 async function opened(sender = new FakeSender(1), agentId = 'bmad-agent-analyst') {
   const pending = open(sender, agentId)
@@ -2640,5 +2645,94 @@ describe('a send into the room (Story 4.2)', () => {
 
     expect(await sending).toMatchObject({ ok: false })
     expect(proc.writes).toEqual(['/bmad-party-mode'])
+  })
+})
+
+describe('a typed mention on turn.send (Story 2.15, AD-25)', () => {
+  const userTurns = (sender: FakeSender) =>
+    registry.forProject(`/project-${sender.id}`).entries().filter((entry) => entry.kind === 'user')
+
+  async function idle(agentId = 'bmad-agent-dev') {
+    const made = await opened(new FakeSender(1), agentId)
+    made.proc.frame(result())
+    return made
+  }
+
+  it('records the mention beside the text, and the persona’s stdin holds the text alone', async () => {
+    const { sender, reply, proc } = await idle()
+
+    expect(await send(sender, reply.sessionId, 'go', '@Amelia')).toEqual({ ok: true })
+    expect(proc.writes).toEqual(['/bmad-agent-dev', 'go'])
+    expect(proc.writes.join('')).not.toMatch(/@amelia/i)
+    expect(userTurns(sender)).toEqual([
+      { kind: 'user', id: expect.any(String), at: expect.any(Number), text: 'go', mention: '@Amelia' }
+    ])
+  })
+
+  it('takes the roster name ignoring case, and keeps the token as typed', async () => {
+    const { sender, reply } = await idle()
+
+    await send(sender, reply.sessionId, 'go', '@aMeLiA')
+    expect(userTurns(sender)).toMatchObject([{ text: 'go', mention: '@aMeLiA' }])
+  })
+
+  it.each([
+    ['another persona’s name', '@John'],
+    ['no @', 'Amelia'],
+    ['the name with a space after the @', '@ Amelia'],
+    ['more than one token', '@amelia x'],
+    ['the name with punctuation stuck to it', '@amelia,'],
+    ['text before the @', 'hi @amelia'],
+    ['an empty string', ''],
+    ['a bare @', '@'],
+    ['a number', 3],
+    ['an object', { text: '@amelia' }],
+    ['null', null]
+  ])('drops %s silently: the turn is written and recorded with no mention', async (_why, mention) => {
+    const { sender, reply, proc } = await idle()
+
+    expect(await send(sender, reply.sessionId, 'go', mention)).toEqual({ ok: true })
+    expect(proc.writes).toEqual(['/bmad-agent-dev', 'go'])
+    const [turn] = userTurns(sender)
+    expect(turn).toMatchObject({ text: 'go' })
+    expect(turn).not.toHaveProperty('mention')
+  })
+
+  it('records a plain turn with no mention when none is sent', async () => {
+    const { sender, reply } = await idle()
+
+    await send(sender, reply.sessionId, 'go')
+    expect(userTurns(sender)[0]).not.toHaveProperty('mention')
+  })
+
+  it('drops a mention when the session’s persona has no roster name', async () => {
+    const { sender, reply } = await idle()
+    delete names['bmad-agent-dev']
+
+    await send(sender, reply.sessionId, 'go', '@Amelia')
+    expect(userTurns(sender)[0]).not.toHaveProperty('mention')
+  })
+
+  it('never takes one into the room, even one that names a member of its cast', async () => {
+    names = { 'bmad-agent-analyst': 'Mary', 'bmad-agent-pm': 'John' }
+    const sender = new FakeSender(1)
+    const pending = open(sender, { room: ['bmad-agent-analyst', 'bmad-agent-pm'] })
+    const proc = processes[processes.length - 1]
+    await proc.up()
+    const { sessionId } = (await pending) as { ok: true; sessionId: string }
+    proc.frame(result())
+
+    expect(await send(sender, sessionId, 'hello room', '@Mary')).toEqual({ ok: true })
+    expect(proc.writes[proc.writes.length - 1]).toBe('hello room')
+    const [turn] = userTurns(sender)
+    expect(turn).toMatchObject({ text: 'hello room', room: true })
+    expect(turn).not.toHaveProperty('mention')
+  })
+
+  it('records nothing when the turn is refused, mention or not', async () => {
+    const { sender, reply } = await opened(new FakeSender(1), 'bmad-agent-dev')
+
+    expect(await send(sender, reply.sessionId, 'go', '@Amelia')).toMatchObject({ error: { code: 'session/busy' } })
+    expect(userTurns(sender)).toEqual([])
   })
 })

@@ -43,7 +43,7 @@ let mounted: Mounted | null
 let opened: string[]
 /** The casts the window asked for a room of, in order. */
 let roomCasts: (readonly string[])[]
-let sent: [string, string][]
+let sent: ([string, string] | [string, string, string])[]
 let ended: string[]
 /** The runs the window asked main to stop, and what main answers a stop with (nothing: it took it). */
 let stopped: string[]
@@ -106,8 +106,8 @@ function installBridge(): void {
     closeSession: async (sessionId: string) => {
       closedSessions.push(sessionId)
     },
-    sendTurn: async (sessionId: string, text: string) => {
-      sent.push([sessionId, text])
+    sendTurn: async (sessionId: string, text: string, mention?: string) => {
+      sent.push(mention === undefined ? [sessionId, text] : [sessionId, text, mention])
     },
     stopRun: async (runId: string) => {
       stopped.push(runId)
@@ -515,16 +515,19 @@ describe('App, handing the work to the next persona', () => {
     expect(await announced()).toBe(handoff.text)
   })
 
-  it('@<name> with text sends that text to the new persona as the user’s turn, after the handoff', async () => {
+  it('@<name> with text sends the stripped text and the typed token to the new persona, after the handoff, and the turn reads the chip then the text', async () => {
     handoffs = [handoff]
     await start()
     await say('@John write the brief')
 
     expect(opened).toEqual([john.id])
-    expect(sent).toEqual([[`session-of-${john.id}`, 'write the brief']])
+    // The text without the name is what is sent; the token as typed (case kept) rides beside it (AD-25).
+    expect(sent).toEqual([[`session-of-${john.id}`, 'write the brief', '@John']])
     expect(thread()).toEqual(['sysline', 'turn turn--user'])
-    expect(mounted!.container.querySelector('.turn--user')?.textContent).toContain('write the brief')
-    expect(mounted!.container.querySelector('.turn--user')?.textContent).not.toContain('@')
+    const turn = mounted!.container.querySelector('.turn--user')!
+    expect(turn.querySelector('.turn-mention')?.textContent).toBe('@John')
+    expect(turn.querySelector('.turn-words')?.textContent).toBe('write the brief')
+    expect(turn.querySelector('.turn-mention')?.nextElementSibling).toBe(turn.querySelector('.turn-words'))
     expect(document.activeElement).toBe(field())
   })
 
@@ -541,6 +544,9 @@ describe('App, handing the work to the next persona', () => {
     expect(sent).toEqual([[`session-of-${mary.id}`, text]])
     expect(mounted!.container.querySelector('.sysline')).toBeNull()
     expect(mounted!.container.querySelector('.turn--user')?.textContent).toContain(text)
+    // Not a handoff: a plain turn, with no mention argument and no chip.
+    expect(sent[0]).toHaveLength(2)
+    expect(mounted!.container.querySelector('.turn-mention')).toBeNull()
     expect(tile('Mary').getAttribute('aria-current')).toBe('true')
     expect(mounted!.container.textContent).not.toMatch(/no such|unknown|did you mean|try @/i)
   })

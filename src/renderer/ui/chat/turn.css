@@ -74,12 +74,41 @@
 }
 
 /*
+ * The `@name` typed to hand off, before the words it came with (AD-25): a chip
+ * drawn from the stored mention, mono at --fs-ident on --panel-2 with a 1px
+ * --line border, text colour. Not a control: no tab stop, no hover, no action.
+ */
+
+.turn-said {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-md);
+}
+
+.turn-said .turn-words {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.turn-mention {
+  flex: 0 0 auto;
+  padding: 0 var(--space-xxs);
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--radius-chip);
+  background: var(--panel-2);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: var(--fs-ident);
+}
+
+/*
  * A message typed while its persona works: the avatar and words dim to the
  * hover opacity, and a mono line says what it waits for, with its cancel. The
  * same container as a sent turn, so promotion only drops this modifier.
  */
 
 .turn--queued .turn-av,
+.turn--queued .turn-mention,
 .turn--queued .turn-words {
   opacity: var(--opacity-hover);
 }

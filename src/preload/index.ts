@@ -184,11 +184,13 @@ const harness: HarnessApi = {
     }
   },
 
-  sendTurn: async (sessionId, text) => {
+  sendTurn: async (sessionId, text, mention) => {
     const reply = (await ipcRenderer.invoke(
       TURN_SEND_CHANNEL,
       sessionId,
-      text
+      text,
+      // Only when there is one: a plain turn crosses as it always did.
+      ...(mention === undefined ? [] : [mention])
     )) as ContractCommands['turn.send']['reply']
     if (!reply.ok) {
       throw reply.error

@@ -41,7 +41,7 @@ import type { TranscriptEntry } from './transcript-entry'
 export type ConversationBridge = {
   openSession(target: SessionTarget): Promise<OpenedSession>
   closeSession(sessionId: string): Promise<void>
-  sendTurn(sessionId: string, text: string): Promise<void>
+  sendTurn(sessionId: string, text: string, mention?: string): Promise<void>
   dispatchMenu(sessionId: string, code: string): Promise<string>
   stopRun(runId: string): Promise<void>
   getConversation(): Promise<ConversationSnapshot>
@@ -80,8 +80,8 @@ export type Conversation = {
    * is; nothing is written here, and with no live room nothing is sent.
    */
   writeSummary(folder: string): void
-  /** The user sent `text` to a persona. */
-  send(agentId: string, text: string): void
+  /** The user sent `text` to a persona; `mention` is the `@name` they typed to hand off to it, shown beside the text (AD-25). */
+  send(agentId: string, text: string, mention?: string): void
   /** The user took a queued message back, by its transcript entry's id. */
   cancel(entryId: string): void
   /**
@@ -227,7 +227,9 @@ export function createConversation(deps: ConversationDeps): Conversation {
     if (delivery === undefined) {
       return
     }
-    bridge.sendTurn(delivery.sessionId, delivery.text).catch((reason: unknown) => {
+    // The mention goes on only when there is one: a plain turn crosses as it always did.
+    const mention = delivery.mention === undefined ? [] : [delivery.mention]
+    bridge.sendTurn(delivery.sessionId, delivery.text, ...mention).catch((reason: unknown) => {
       if (asHarnessError(reason).code === 'session/busy') {
         commit(
           dispatchRefusedBusy(state, delivery, agentOf(delivery.agentId)?.name || delivery.agentId)
@@ -441,9 +443,9 @@ export function createConversation(deps: ConversationDeps): Conversation {
       transmitToRoom(asked.sessionId, asked.entryId, asked.text, false)
     },
 
-    send(agentId, text) {
+    send(agentId, text, mention) {
       onFailure(null)
-      const sent = sendMessage(state, agentId, now(), text, agentOf(agentId)?.name || agentId)
+      const sent = sendMessage(state, agentId, now(), text, agentOf(agentId)?.name || agentId, mention)
       commit(sent.state)
       transmit(sent.deliver)
       if (sessionOf(sent.state, agentId) === undefined) {
@@ -589,7 +591,7 @@ export function useConversation(
   sendToRoom: (text: string) => void
   /** Ask the room's session to write its summary under `folder`, the project's output folder, at the destination the panel shows. */
   writeSummary: (folder: string) => void
-  send: (agentId: string, text: string) => void
+  send: (agentId: string, text: string, mention?: string) => void
   cancel: (entryId: string) => void
   end: (projectId: string) => Promise<boolean>
   /** Close a persona's session; true when main did. */
@@ -667,7 +669,7 @@ export function useConversation(
   const sendToRoom = useCallback((text: string) => conversation.current?.sendToRoom(text), [])
   const writeSummary = useCallback((folder: string) => conversation.current?.writeSummary(folder), [])
   const send = useCallback(
-    (agentId: string, text: string) => conversation.current?.send(agentId, text),
+    (agentId: string, text: string, mention?: string) => conversation.current?.send(agentId, text, mention),
     []
   )
   const cancel = useCallback((entryId: string) => conversation.current?.cancel(entryId), [])

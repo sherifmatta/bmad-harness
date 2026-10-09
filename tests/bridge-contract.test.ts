@@ -768,6 +768,17 @@ it('sends sendTurn down the turn channel with the session id and the text', asyn
   expect(invoke).toHaveBeenCalledWith(sessionBridge.TURN_SEND_CHANNEL, 's1', 'hello')
 })
 
+it('sends a typed mention as the third argument of the same channel, and no third argument without one (AD-25)', async () => {
+  invoke.mockClear()
+  invoke.mockResolvedValue({ ok: true })
+  const sendTurn = exposedApis.get('harness')?.sendTurn as (id: string, text: string, mention?: string) => Promise<unknown>
+
+  await expect(sendTurn('s1', 'go', '@Amelia')).resolves.toBeUndefined()
+  expect(invoke).toHaveBeenLastCalledWith(sessionBridge.TURN_SEND_CHANNEL, 's1', 'go', '@Amelia')
+  await sendTurn('s1', 'go', undefined)
+  expect(invoke).toHaveBeenLastCalledWith(sessionBridge.TURN_SEND_CHANNEL, 's1', 'go')
+})
+
 it('turns a refused turn:send into a rejection carrying the envelope', async () => {
   const error = { code: 'session/busy', message: 'session · a turn is already in flight' }
   invoke.mockResolvedValue({ ok: false, error })

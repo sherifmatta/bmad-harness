@@ -64,12 +64,19 @@ export function foldPersonaSaid(state: TranscriptState, said: PersonaSaid): Tran
   })
 }
 
-export function foldUserTurn(state: TranscriptState, text: string, at: number, room?: true): TranscriptState {
+export function foldUserTurn(
+  state: TranscriptState,
+  text: string,
+  at: number,
+  room?: true,
+  mention?: string
+): TranscriptState {
   return withRecord(state, {
     kind: 'user',
     id: `m-${state.nextId}`,
     at,
     text,
+    ...(mention !== undefined ? { mention } : {}),
     ...(room === true ? { room: true as const } : {})
   })
 }

@@ -27,6 +27,7 @@ import {
 import type { Sender } from './bridge-kit'
 import { beginTurn } from './fold/turn-end'
 import { agentNameFor, menuEntryFor, rosterFor } from './install-model'
+import { validMention } from './mention'
 import type { RosterMember } from './install-model'
 import { personaProjectionFor } from './persona-states'
 import { createTranscriptRegistry } from './projections/transcript'
@@ -141,6 +142,7 @@ type Context = {
   transcripts: TranscriptRegistry
   registry: SessionRegistry
   handoffFor: ReturnType<typeof createHandoffComposer>
+  nameOf: NonNullable<SessionBridgeDeps['agentName']>
   roster: NonNullable<SessionBridgeDeps['roster']>
   menuEntryFor: NonNullable<SessionBridgeDeps['menuEntryFor']>
   newRunId: () => RunId
@@ -336,7 +338,12 @@ async function interruptedRoom(
 }
 
 function sendTurn(ctx: Context) {
-  const sendNow = async (event: IpcMainInvokeEvent, sessionId: unknown, text: unknown): Promise<SendReply> => {
+  const sendNow = async (
+    event: IpcMainInvokeEvent,
+    sessionId: unknown,
+    text: unknown,
+    mention: unknown
+  ): Promise<SendReply> => {
     const sender = senderOf(event)
     let target = writableSession(ctx, sender, sessionId, text)
     if (!target.ok) {
@@ -362,7 +369,9 @@ function sendTurn(ctx: Context) {
     if (entry.agentId === undefined) {
       transcript.recordUserTurn(target.arg, at, true)
     } else {
-      transcript.recordUserTurn(target.arg, at)
+      // A mention is kept only if it names the persona that received the turn; otherwise it is dropped, silently.
+      const named = validMention(mention, ctx.nameOf(sender.id, entry.agentId))
+      transcript.recordUserTurn(target.arg, at, undefined, named)
     }
     // A finished run's `live` ends when the next turn starts.
     service.personas.detach(entry.sessionId)
@@ -373,15 +382,20 @@ function sendTurn(ctx: Context) {
     ctx.registry.watch(sender, service, entry)
     return { ok: true }
   }
-  return (event: IpcMainInvokeEvent, sessionId: unknown, text: unknown): Promise<SendReply> => {
+  return (
+    event: IpcMainInvokeEvent,
+    sessionId: unknown,
+    text: unknown,
+    mention?: unknown
+  ): Promise<SendReply> => {
     const entry =
       typeof sessionId === 'string' ? ctx.registry.serviceOf(senderOf(event).id)?.bySession.get(sessionId) : undefined
     if (entry === undefined || entry.agentId !== undefined) {
-      return sendNow(event, sessionId, text)
+      return sendNow(event, sessionId, text, mention)
     }
     // The room's sends are one at a time (Story 4.2): each interrupts and writes after the one before it is
     // done, so none is refused as busy by another of the user's own, and they are written in the order made.
-    const run = entry.roomSends.then(() => sendNow(event, sessionId, text))
+    const run = entry.roomSends.then(() => sendNow(event, sessionId, text, undefined))
     entry.roomSends = run.catch(() => undefined)
     return run
   }
@@ -624,6 +638,7 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): SessionBrid
       nameOf: deps.agentName ?? agentNameFor,
       now
     }),
+    nameOf: deps.agentName ?? agentNameFor,
     roster: deps.roster ?? rosterFor,
     menuEntryFor: deps.menuEntryFor ?? menuEntryFor,
     newRunId,

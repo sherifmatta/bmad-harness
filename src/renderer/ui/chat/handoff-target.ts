@@ -18,6 +18,8 @@ export type HandoffTarget = {
   agent: AgentView
   /** What follows the `@<name>` token, trimmed; empty for a pure handoff. */
   text: string
+  /** The `@<name>` token exactly as typed, case kept: shown beside `text`, never sent to the persona. */
+  mention: string
 }
 
 export function handoffTarget(
@@ -40,5 +42,5 @@ export function handoffTarget(
   if (matches.length !== 1) {
     return null
   }
-  return { agent: matches[0], text: trimmed.slice(1 + token.length).trim() }
+  return { agent: matches[0], text: trimmed.slice(1 + token.length).trim(), mention: `@${token}` }
 }

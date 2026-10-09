@@ -427,7 +427,7 @@ components:
     role: '{typography.ident} sans, faint'
     time: '{typography.meta} mono, {colors.meta}, inline after the role, 8px apart on one baseline (not right-aligned)'
     words: '{typography.base} sans, text, pre-wrap, paragraphs split on blank lines only'
-    mention: 'DEFERRED, not built (EXPERIENCE.md → The chat look): an @name in your turn that handed off: {typography.label} mono, panel-2 ground, 1px line-soft, {rounded.micro}, padding 0 4px'
+    mention: '{components.mention}'
     caret: '{components.document-card.caret}, the same caret, at the tail of the last paragraph while the turn is in flight'
     stateLine: 'the `work` state line ({components.status-dot} work, `working · <elapsed>`) under the words, margin-top {spacing.md}, while the turn is in flight'
     pending: 'a persona turn with no words yet: initials disc, head timed from the turn''s start, the caret as the whole body, the state line under it'
@@ -466,6 +466,15 @@ components:
     min: '{spacing.composer-min}'
     max: '{spacing.composer-max}'
     inner: '{spacing.thread-max}'
+  mention:
+    form: 'the `@name` the user typed to hand off, in your turn, before the words it came with (AD-25); a chip, not a control: no tab stop, no hover, no action'
+    type: '{typography.ident} mono'
+    ground: '{colors.panel-2}'
+    border: '1px {colors.line}'
+    radius: '{rounded.chip}'
+    color: '{colors.text}'
+    padding: '0 {spacing.xxs}'
+    gap: '{spacing.md} between the chip and the words'
   cast-card:
     radius: '{rounded.card}'
     minWidth: 148px
@@ -985,7 +994,7 @@ The row must look right at **1 to 10 entries**. Its overflow behaviour — in-pl
 
 The conversation's most-repeated element, and the one the radius table names only in passing. **A flat row** (2026-10-09, from [`mockups/chat-thread-reference.png`](mockups/chat-thread-reference.png)): no container, no radius, no ground, no border. An initials disc (`{components.initials}`, 26px) on the left and, on the right, a header line over the words, 11px apart; successive turns 16px apart. The disc is the same for a persona and for you, with your tint (*Initials*). There is no portrait in the thread, in the 1:1 or in the room.
 
-The header is, on one baseline and 8px apart, the name at `{typography.name}` (12.5px/600, `text-strong`), the role at `{typography.ident}` (11px, sans, `faint`) and the clock time in mono at `{typography.meta}` (10px, `meta`), **inline after the role, not pushed to the right edge**. The words follow at `{typography.base}` (13px) in sans, `white-space: pre-wrap`, with paragraphs split on blank lines and nothing else: no prefix, frame, label, summary or classification of what a persona said. Everything a project or a persona supplies is rendered as text. The `@name` chip the screenshot draws in your turn is **deferred** (EXPERIENCE.md → *The chat look*): a handoff records only the text after the name, so there is no `@` to style until the transcript can hold a display text. Its anatomy is `mention` in the frontmatter.
+The header is, on one baseline and 8px apart, the name at `{typography.name}` (12.5px/600, `text-strong`), the role at `{typography.ident}` (11px, sans, `faint`) and the clock time in mono at `{typography.meta}` (10px, `meta`), **inline after the role, not pushed to the right edge**. The words follow at `{typography.base}` (13px) in sans, `white-space: pre-wrap`, with paragraphs split on blank lines and nothing else: no prefix, frame, label, summary or classification of what a persona said. Everything a project or a persona supplies is rendered as text. The `@name` a handoff was typed with is drawn in your turn as the `mention` chip (frontmatter) before the words: mono at `{typography.ident}`, `panel-2` ground, 1px `line` border, chip radius, `text` colour, not a control. It comes from the stored `mention` field beside the text (AD-25), never from parsing the words, so a restored turn reads as it did live; the persona received only the text.
 
 **Your turn** is the same row as a persona's. It has no ground and no rule: the one difference is your disc's tint and your name. It is not a different component.
 

@@ -83,6 +83,20 @@ describe('the transcript registry', () => {
     ])
   })
 
+  it('records a typed mention beside the user’s text, writes it and loads it again after a relaunch (Story 2.15)', () => {
+    const first = registry()
+    const transcript = first.forProject(project)
+    transcript.recordUserTurn('go', 5, undefined, '@Amelia')
+    transcript.recordUserTurn('plain', 6)
+    tick()
+
+    expect(onDisk().entries).toEqual([
+      { kind: 'user', id: 'm-0', at: 5, text: 'go', mention: '@Amelia' },
+      { kind: 'user', id: 'm-1', at: 6, text: 'plain' }
+    ])
+    expect(registry().forProject(project).entries()).toEqual(onDisk().entries)
+  })
+
   it('writes nothing until the scheduler fires, then once for every change before it', () => {
     const transcripts = registry({ debounceMs: 250 })
     const transcript = transcripts.forProject(project)

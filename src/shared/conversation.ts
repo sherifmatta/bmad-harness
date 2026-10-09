@@ -34,6 +34,11 @@ export type UserRecord = {
   id: string
   at: EpochMs
   text: string
+  /**
+   * The literal `@name` token the user typed to hand the work to this persona (AD-25), case kept. Display only:
+   * the persona received `text` alone. Absent on every other turn, and on a turn recorded before this field.
+   */
+  mention?: string
   /** Set on what the user sent into the room (Story 4.2): it belongs to the party thread. Absent otherwise. */
   room?: true
 }

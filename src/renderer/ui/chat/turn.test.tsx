@@ -143,6 +143,46 @@ describe('UserTurn', () => {
   })
 })
 
+describe('UserTurn with a typed mention (Story 2.15)', () => {
+  const markup = renderToStaticMarkup(<UserTurn at={0} text="go" mention="@Amelia" />)
+
+  it('draws the chip before the words, as its own element beside them', () => {
+    expect(markup).toContain(
+      '<div class="turn-said"><span class="turn-mention">@Amelia</span> <div class="turn-words"><p>go</p></div></div>'
+    )
+  })
+
+  it('reads as `@Amelia go` when copied, selected or spoken: a real space sits between the chip and the words', () => {
+    const text = markup.match(/<div class="turn-said">(.*)<\/div><\/div>/)![1].replace(/<[^>]*>/g, '')
+
+    expect(text).toBe('@Amelia go')
+  })
+
+  it('keeps the words as the text alone: the `@` is not in them', () => {
+    expect(markup.match(/<div class="turn-words">(.*?)<\/div>/)?.[1]).toBe('<p>go</p>')
+  })
+
+  it('is not a control: no tab stop, role, handler, link or button', () => {
+    const chip = markup.match(/<span class="turn-mention"[^>]*>/)?.[0] ?? ''
+
+    expect(chip).toBe('<span class="turn-mention">')
+    expect(markup).not.toMatch(/tabindex|role=|<button|<a /)
+  })
+
+  it('draws no chip and no wrapper without one, and renders a hostile mention as text', () => {
+    expect(renderToStaticMarkup(<UserTurn at={0} text="go" />)).not.toMatch(/turn-mention|turn-said/)
+    expect(renderToStaticMarkup(<UserTurn at={0} text="go" mention="<b>x</b>" />)).not.toContain('<b>')
+  })
+
+  it('shows the chip on a queued turn too, with the queued mark', () => {
+    const queued = renderToStaticMarkup(<UserTurn at={0} text="go" mention="@Amelia" queuedFor="Amelia" />)
+
+    expect(queued).toContain('<span class="turn-mention">@Amelia</span>')
+    expect(queued).toContain('turn--queued')
+    expect(queued).toContain('queued · sends when Amelia finishes')
+  })
+})
+
 describe('a queued UserTurn', () => {
   const markup = renderToStaticMarkup(
     <UserTurn at={0} text="later" queuedFor="John" onCancel={() => {}} />

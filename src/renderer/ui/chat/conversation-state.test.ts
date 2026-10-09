@@ -7,6 +7,7 @@ import {
   canAnswer,
   cancelQueued,
   dispatchFailed,
+  dispatchRefusedBusy,
   dispatchStarted,
   dropQueued,
   ended,
@@ -382,6 +383,120 @@ describe('sending', () => {
     send(idle, 'x')
 
     expect(JSON.stringify([idle.entries, [...idle.queue], [...idle.busy]])).toBe(snapshot)
+  })
+})
+
+describe('a typed mention (Story 2.15)', () => {
+  const idle = fold([openedEvent('s1', mary.id), awaitingTurn('s1')])
+  const busy = fold([openedEvent('s1', mary.id)])
+  const typed = (state: ConversationState, text: string, mention?: string) =>
+    sendMessage(state, mary.id, 50, text, 'Mary', mention)
+
+  it('sends it with the turn to an idle session, and shows it on the entry', () => {
+    const sent = typed(idle, 'go', '@Mary')
+
+    expect(sent.deliver).toEqual({ sessionId: 's1', agentId: mary.id, entryId: 'entry-0', text: 'go', mention: '@Mary' })
+    expect(sent.state.entries).toEqual([{ kind: 'user', id: 'entry-0', at: 50, text: 'go', mention: '@Mary' }])
+  })
+
+  it('sends a plain turn with no mention at all', () => {
+    const sent = typed(idle, 'go')
+
+    expect(sent.deliver).not.toHaveProperty('mention')
+    expect(sent.state.entries[0]).not.toHaveProperty('mention')
+  })
+
+  it('keeps it on the queued entry and the queue item, and sends it when the session is free', () => {
+    const queued = typed(busy, 'go', '@Mary')
+
+    expect(queued.deliver).toBeUndefined()
+    expect(queued.state.entries).toEqual([
+      { kind: 'user', id: 'entry-0', at: 50, text: 'go', mention: '@Mary', queuedFor: 'Mary' }
+    ])
+    expect(queued.state.queue.get(mary.id)).toEqual([{ entryId: 'entry-0', text: 'go', mention: '@Mary' }])
+
+    const freed = foldEvent(queued.state, awaitingTurn('s1'), agentOf)
+    expect(freed.deliver).toMatchObject({ text: 'go', mention: '@Mary' })
+    expect(freed.state.entries[0]).toEqual({ kind: 'user', id: 'entry-0', at: 50, text: 'go', mention: '@Mary' })
+  })
+
+  it('sends it when the session was not up at all, once it comes up', () => {
+    const queued = typed(initialConversation, 'go', '@Mary')
+
+    expect(queued.state.entries[0]).toMatchObject({ mention: '@Mary', queuedFor: 'Mary' })
+    expect(sessionReady(queued.state, mary.id, 's1').deliver).toMatchObject({ text: 'go', mention: '@Mary' })
+  })
+
+  it('goes back to the head of the queue with its mention when a send is refused as busy', () => {
+    const sent = typed(idle, 'go', '@Mary')
+    const refused = dispatchRefusedBusy(sent.state, sent.deliver!, 'Mary')
+
+    expect(refused.entries[0]).toMatchObject({ mention: '@Mary', queuedFor: 'Mary' })
+    expect(refused.queue.get(mary.id)).toEqual([{ entryId: 'entry-0', text: 'go', mention: '@Mary' }])
+  })
+
+  it('is taken out with the entry when the queued message is cancelled', () => {
+    const cancelled = cancelQueued(typed(busy, 'go', '@Mary').state, 'entry-0')
+
+    expect(cancelled.entries).toEqual([])
+    expect(cancelled.queue.size).toBe(0)
+  })
+
+  it.each([[3], [null], [''], ['  '], ['Mary'], ['@ Mary']])(
+    'restores a user turn whose stored mention is %j as a plain turn',
+    (bad) => {
+      const { state } = hydrate(
+        initialConversation,
+        {
+          entries: [{ kind: 'user', id: 'm-0', at: 5, text: 'go', mention: bad } as never],
+          sessions: [],
+          busy: [],
+          personas: [],
+          runs: []
+        },
+        agentOf
+      )
+
+      expect(state.entries).toEqual([{ kind: 'user', id: 'm-0', at: 5, text: 'go' }])
+    }
+  )
+
+  it('restores a room user turn carrying a mention as a plain room turn', () => {
+    const { state } = hydrate(
+      initialConversation,
+      {
+        entries: [{ kind: 'user', id: 'm-0', at: 5, text: 'go', room: true, mention: '@Mary' }],
+        sessions: [],
+        busy: [],
+        personas: [],
+        runs: []
+      },
+      agentOf
+    )
+
+    expect(state.entries).toEqual([{ kind: 'user', id: 'm-0', at: 5, text: 'go', room: true }])
+  })
+
+  it('shows a stored mention on a restored turn', () => {
+    const { state } = hydrate(
+      initialConversation,
+      {
+        entries: [
+          { kind: 'user', id: 'm-0', at: 5, text: 'go', mention: '@Mary' },
+          { kind: 'user', id: 'm-1', at: 6, text: 'plain' }
+        ],
+        sessions: [],
+        busy: [],
+        personas: [],
+        runs: []
+      },
+      agentOf
+    )
+
+    expect(state.entries).toEqual([
+      { kind: 'user', id: 'm-0', at: 5, text: 'go', mention: '@Mary' },
+      { kind: 'user', id: 'm-1', at: 6, text: 'plain' }
+    ])
   })
 })
 

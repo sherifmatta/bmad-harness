@@ -10,6 +10,7 @@ import {
 } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { StoredRun, TranscriptFile, TranscriptRecord } from '../../../shared/conversation'
+import { isStoredMention } from '../../../shared/stored-mention'
 import { errnoOf } from '../errno'
 
 /**
@@ -97,6 +98,23 @@ function isRecord(value: unknown): value is TranscriptRecord {
   )
 }
 
+/**
+ * A record as it is kept in memory: a `mention` is the user's typed `@name` and nothing else, so on a record that is
+ * not a user's, or that is not text, the field is left out and the record loads as a plain one (AD-25).
+ */
+function withoutBadMention(record: TranscriptRecord): TranscriptRecord {
+  const held = record as TranscriptRecord & { mention?: unknown }
+  if (held.mention === undefined) {
+    return record
+  }
+  if (isStoredMention(held, held.mention)) {
+    return record
+  }
+  const plain: Record<string, unknown> = { ...held }
+  delete plain.mention
+  return plain as TranscriptRecord
+}
+
 const RUN_STATUSES: ReadonlySet<unknown> = new Set(['running', 'finished', 'stopped', 'failed'])
 
 /** Whether a stored run is a run card with the moment of its last event: the fields a card is drawn from. */
@@ -165,7 +183,7 @@ export function loadTranscript(filePath: string, projectPath: string): LoadOutco
   if (file.projectPath !== projectPath || !Array.isArray(file.entries)) {
     return { kind: 'corrupt' }
   }
-  const entries = file.entries.filter(isRecord)
+  const entries = file.entries.filter(isRecord).map(withoutBadMention)
   // No `runs` is a file from before they were kept; a `runs` that is not a list is damage.
   const held: unknown[] = Array.isArray(file.runs) ? file.runs : []
   const runs = held.filter(isStoredRun)

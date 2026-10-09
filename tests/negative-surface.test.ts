@@ -885,6 +885,22 @@ describe("the handoff says only what is true and parses no skill (Story 2.9)", (
     expect(offenders(RENDERER_CODE, /autocomplete|typeahead|suggest(?:ion)?s?\b|popup/i)).toEqual([]);
   });
 
+  it("keeps the typed `@name` out of the words: the chip is its own element, the user's text still goes through `Words` unparsed, and only the parser reads an `@` (Story 2.15)", () => {
+    const turn = code.get("src/renderer/ui/chat/turn.tsx") ?? "";
+    const user = turn.slice(turn.indexOf("export function UserTurn"));
+
+    expect(user).toContain("<Words text={text} />");
+    expect(user).toContain('<span className="turn-mention">{mention}</span>');
+    // The turn names `mention` and parses nothing: no `@` test, split, match or slice anywhere in it.
+    expect(turn).not.toMatch(/['"`]@|\\@|startsWith|\.match\(|\.exec\(|\.split\(['"`]@/);
+    // Beyond the parser, the only reader of an `@` is main's check of what the renderer says it typed.
+    expect(offenders(RENDERER_CODE, /\^@|startsWith\(\s*['"`]@/).map((hit) => hit.split(":")[0])).toEqual([PARSER]);
+    expect(code.get("src/main/mention.ts") ?? "").toContain("/^@(\\S+)$/");
+    // The persona is handed the text alone.
+    const bridge = code.get(BRIDGE) ?? "";
+    expect(bridge.slice(bridge.indexOf("function sendTurn"))).not.toMatch(/write\w*\([^)]*mention/);
+  });
+
   it("authors the handoff text with no claim that context continues and no restart or cleared framing", () => {
     const text = code.get(HANDOFF) ?? "";
 
@@ -1247,7 +1263,12 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
       const checked = bodyOf("writableSession");
 
       expect(send).toContain("writeTurn(entry, target.arg)");
-      expect(send).toContain("recordUserTurn(target.arg, at)");
+      // The user's own words are what is recorded; a validated mention rides beside them (AD-25), and a room's never.
+      expect(send).toContain("recordUserTurn(target.arg, at, undefined, named)");
+      expect(send).toContain("recordUserTurn(target.arg, at, true)");
+      expect(send).toContain("validMention(mention, ctx.nameOf(sender.id, entry.agentId))");
+      // What the persona is handed is the text alone: the mention never reaches a write.
+      expect(send).not.toMatch(/writeTurn\([^)]*mention/);
       expect(checked).toContain("return { ok: true, service, entry, arg }");
       expect(write).toContain("entry.session?.write(text)");
       for (const body of [send, write, checked]) {

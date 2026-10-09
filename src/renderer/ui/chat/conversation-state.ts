@@ -3,11 +3,12 @@ import type { ContractEvent, PersonaState } from '../../../shared/events'
 import type { AgentView } from '../../../shared/install'
 import { roomDestination, roomTopicOf } from '../../../shared/room-destination'
 import { isRoomSummaryTurn, roomSummaryTurn } from '../../../shared/room-summary'
+import { isStoredMention } from '../../../shared/stored-mention'
 import { withPulled } from '../../../shared/section-plan'
 import type { RunCardEntry, TranscriptEntry, UserEntry } from './transcript-entry'
 
 /** A message typed for a persona, waiting for its turn to come: the entry that shows it, and its words. */
-export type QueuedMessage = { entryId: string; text: string }
+export type QueuedMessage = { entryId: string; text: string; mention?: string }
 
 /** What main last said of a persona's state, and when that state began. */
 export type PersonaStateEntry = { state: PersonaState; at: number }
@@ -84,6 +85,8 @@ export type Delivery = {
   agentId: string
   entryId: string
   text: string
+  /** The typed `@name` that goes with the turn (AD-25); absent on a plain one. */
+  mention?: string
 }
 
 export function sessionOf(state: ConversationState, agentId: string): string | undefined {
@@ -177,7 +180,13 @@ function drain(
   })
   return {
     state: withBusy(withQueue({ ...state, entries }, agentId, rest), sessionId, true),
-    deliver: { sessionId, agentId, entryId: first.entryId, text: first.text }
+    deliver: {
+      sessionId,
+      agentId,
+      entryId: first.entryId,
+      text: first.text,
+      ...(first.mention !== undefined ? { mention: first.mention } : {})
+    }
   }
 }
 
@@ -192,16 +201,19 @@ export function sendMessage(
   agentId: string,
   at: number,
   text: string,
-  personaName: string
+  personaName: string,
+  mention?: string
 ): { state: ConversationState; deliver?: Delivery } {
   const entryId = `entry-${state.nextId}`
-  const queued: QueuedMessage[] = [...(state.queue.get(agentId) ?? []), { entryId, text }]
+  const held = mention === undefined ? {} : { mention }
+  const queued: QueuedMessage[] = [...(state.queue.get(agentId) ?? []), { entryId, text, ...held }]
   const entered = withQueue(
     withEntry(state, {
       kind: 'user',
       id: entryId,
       at,
       text,
+      ...held,
       queuedFor: personaName
     }),
     agentId,
@@ -290,7 +302,11 @@ export function dispatchRefusedBusy(
   )
   return withBusy(
     withQueue({ ...state, entries }, delivery.agentId, [
-      { entryId: delivery.entryId, text: delivery.text },
+      {
+        entryId: delivery.entryId,
+        text: delivery.text,
+        ...(delivery.mention !== undefined ? { mention: delivery.mention } : {})
+      },
       ...(state.queue.get(delivery.agentId) ?? [])
     ]),
     delivery.sessionId,
@@ -747,6 +763,7 @@ export function hydrate(
             id: record.id,
             at: record.at,
             text: record.text,
+            ...(isStoredMention(record, record.mention) ? { mention: record.mention } : {}),
             ...(record.room === true ? { room: true as const } : {})
           }
   )

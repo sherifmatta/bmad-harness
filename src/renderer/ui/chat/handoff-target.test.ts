@@ -17,18 +17,19 @@ const agents = [mary, bob, amelia]
 
 describe('handoffTarget', () => {
   it('resolves @<name> at the start to the one persona of that name, case-insensitively, with no text for a pure handoff', () => {
-    expect(handoffTarget('@bob', agents, mary.id)).toEqual({ agent: bob, text: '' })
-    expect(handoffTarget('@BOB', agents, mary.id)).toEqual({ agent: bob, text: '' })
-    expect(handoffTarget('@aMeLiA', agents, mary.id)).toEqual({ agent: amelia, text: '' })
+    expect(handoffTarget('@bob', agents, mary.id)).toEqual({ agent: bob, text: '', mention: '@bob' })
+    expect(handoffTarget('@BOB', agents, mary.id)).toEqual({ agent: bob, text: '', mention: '@BOB' })
+    expect(handoffTarget('@aMeLiA', agents, mary.id)).toEqual({ agent: amelia, text: '', mention: '@aMeLiA' })
   })
 
   it('returns what follows the name as the user’s turn, without the token, trimmed', () => {
     expect(handoffTarget('@bob write the brief', agents, mary.id)).toEqual({
       agent: bob,
-      text: 'write the brief'
+      text: 'write the brief',
+      mention: '@bob'
     })
     expect(handoffTarget('@bob\n\n  two lines\nof text  ', agents, mary.id)?.text).toBe('two lines\nof text')
-    expect(handoffTarget('  @bob  hi  ', agents, mary.id)).toEqual({ agent: bob, text: 'hi' })
+    expect(handoffTarget('  @bob  hi  ', agents, mary.id)).toEqual({ agent: bob, text: 'hi', mention: '@bob' })
   })
 
   it.each([
@@ -56,7 +57,7 @@ describe('handoffTarget', () => {
   it('matches only a persona other than the current one, so a name it shares with the current persona is the other’s', () => {
     const twinned = [agent('x', 'Sam'), agent('y', 'Sam')]
 
-    expect(handoffTarget('@sam hi', twinned, 'x')).toEqual({ agent: twinned[1], text: 'hi' })
+    expect(handoffTarget('@sam hi', twinned, 'x')).toEqual({ agent: twinned[1], text: 'hi', mention: '@sam' })
   })
 
   it('never matches a skill, a menu code or an id: it reads nothing but the roster’s names', () => {

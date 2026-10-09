@@ -74,6 +74,38 @@ describe('Turns, queued', () => {
   })
 })
 
+describe('Turns, a typed mention (Story 2.15)', () => {
+  const handed: TranscriptEntry = { kind: 'user', id: 'u9', at: 1, text: 'go', mention: '@Amelia' }
+
+  it('draws the chip then the words, and the chip takes no focus and does nothing', () => {
+    render([handed])
+    const chip = container.querySelector<HTMLElement>('.turn--user .turn-mention')!
+
+    expect(chip.textContent).toBe('@Amelia')
+    expect(chip.nextElementSibling?.className).toBe('turn-words')
+    expect(chip.nextElementSibling?.textContent).toBe('go')
+    expect(container.querySelector('.turn-said')?.textContent).toBe('@Amelia go')
+    expect(chip.tabIndex).toBe(-1)
+    expect(chip.hasAttribute('tabindex')).toBe(false)
+    expect(chip.hasAttribute('role')).toBe(false)
+    expect(chip.querySelector('a, button, input')).toBeNull()
+    expect(chip.closest('a, button')).toBeNull()
+    // Nothing to tab to in a sent turn.
+    expect(container.querySelector('[tabindex], button, a')).toBeNull()
+  })
+
+  it('draws the chip while queued and keeps the same node once sent, losing only the marker', () => {
+    const queued: TranscriptEntry = { ...handed, queuedFor: 'Amelia' }
+    render([queued])
+    const chip = container.querySelector('.turn-mention')!
+    expect(container.querySelector('.turn-queued-mark')).not.toBeNull()
+
+    render([handed])
+    expect(container.querySelector('.turn-mention')).toBe(chip)
+    expect(container.querySelector('.turn-queued-mark')).toBeNull()
+  })
+})
+
 describe('Turns, a persona’s turn in flight', () => {
   const START = new Date(2026, 9, 8, 14, 0).getTime()
   const MARY: AgentView = { id: 'bmad-agent-analyst', module: 'bmm', name: 'Mary', title: 'Analyst', icon: 'i', description: 'd' }

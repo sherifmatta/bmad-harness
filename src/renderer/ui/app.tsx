@@ -364,7 +364,8 @@ export function App(): JSX.Element | null {
               setComposerFocus({ id: target.agent.id, n: 0 })
               const handedOff = conversation.activate(target.agent.id)
               if (target.text !== '') {
-                void handedOff.then(() => conversation.send(target.agent.id, target.text))
+                // The typed `@name` rides beside the text for display; the persona receives the text alone (AD-25).
+                void handedOff.then(() => conversation.send(target.agent.id, target.text, target.mention))
               }
             }}
           />

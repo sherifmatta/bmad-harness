@@ -117,6 +117,68 @@ describe('writeTranscript and loadTranscript', () => {
     expect(loaded.kind === 'loaded' && 'room' in loaded.entries[2]).toBe(false)
   })
 
+  it('keeps a user turn’s `mention` through a write and a read, and invents none (Story 2.15)', () => {
+    const file = transcriptFilePath(userData, project)
+    const held: TranscriptRecord[] = [
+      { kind: 'user', id: 'm-0', at: 1, text: 'go', mention: '@Amelia' },
+      { kind: 'user', id: 'm-1', at: 2, text: 'plain' }
+    ]
+    writeTranscript(file, project, held)
+
+    const loaded = loadTranscript(file, project)
+    expect(loaded).toEqual({ kind: 'loaded', entries: held, runs: [], dropped: 0 })
+    expect(loaded.kind === 'loaded' && 'mention' in loaded.entries[1]).toBe(false)
+  })
+
+  it('loads a file written before `mention` as plain turns, at the same version', () => {
+    const file = join(userData, 'before-mention.json')
+    const old = [{ kind: 'user', id: 'm-0', at: 1, text: 'implement story 5.6' }]
+    writeFileSync(file, JSON.stringify({ version: TRANSCRIPT_VERSION, projectPath: project, entries: old }))
+
+    expect(TRANSCRIPT_VERSION).toBe(1)
+    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', entries: old, runs: [], dropped: 0 })
+  })
+
+  it.each([[3], [null], [{}], [['@a']], [true], [''], ['  '], ['Amelia'], ['@'], ['@ a'], ['@a b']])(
+    'loads a record whose `mention` is %j as a plain turn, the field ignored and nothing counted as left out',
+    (bad) => {
+      const file = join(userData, 'bad-mention.json')
+      const stored = { kind: 'user', id: 'm-0', at: 1, text: 'kept', mention: bad }
+      writeFileSync(file, JSON.stringify({ version: 1, projectPath: project, entries: [stored] }))
+
+      const loaded = loadTranscript(file, project)
+      expect(loaded).toEqual({
+        kind: 'loaded',
+        entries: [{ kind: 'user', id: 'm-0', at: 1, text: 'kept' }],
+        runs: [],
+        dropped: 0
+      })
+      expect(loaded.kind === 'loaded' && 'mention' in loaded.entries[0]).toBe(false)
+    }
+  )
+
+  it('drops a `mention` from a room user record and from a record that is not a user’s, keeping the records', () => {
+    const file = join(userData, 'odd-mention-owner.json')
+    const stored = [
+      { kind: 'user', id: 'm-0', at: 1, text: 'to room', room: true, mention: '@Mary' },
+      { kind: 'persona', id: 'm-1', at: 2, agentId: 'a', messageId: 'x', text: 'hi', mention: '@Mary' },
+      { kind: 'sysline', id: 'm-2', at: 3, text: 'handed to Mary', mention: '@Mary' }
+    ]
+    writeFileSync(file, JSON.stringify({ version: 1, projectPath: project, entries: stored }))
+
+    const loaded = loadTranscript(file, project)
+    expect(loaded).toEqual({
+      kind: 'loaded',
+      entries: stored.map((record) => {
+        const plain: Record<string, unknown> = { ...record }
+        delete plain.mention
+        return plain
+      }),
+      runs: [],
+      dropped: 0
+    })
+  })
+
   it('counts a record whose `room` is anything but true as left out', () => {
     const file = join(userData, 'odd-room.json')
     const good = { kind: 'user', id: 'm-0', at: 1, text: 'kept' }

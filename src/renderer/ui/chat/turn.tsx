@@ -142,12 +142,15 @@ const YOU: UserIdentity = { name: 'You', title: 'you' }
 export function UserTurn({
   at,
   text,
+  mention,
   user = YOU,
   queuedFor,
   onCancel
 }: {
   at: number
   text: string
+  /** The `@name` typed to hand off to this persona (AD-25): drawn as a chip before the words, never part of them. */
+  mention?: string
   user?: UserIdentity
   /** The persona this message waits for; set while it is queued, dimmed and marked. */
   queuedFor?: string
@@ -160,7 +163,14 @@ export function UserTurn({
       </div>
       <div className="turn-body">
         <Head name={user.name} ident={user.title} at={at} />
-        <Words text={text} />
+        {mention === undefined ? (
+          <Words text={text} />
+        ) : (
+          <div className="turn-said">
+            <span className="turn-mention">{mention}</span>{' '}
+            <Words text={text} />
+          </div>
+        )}
         {queuedFor !== undefined && (
           <div className="turn-queued">
             <span className="turn-queued-mark">{`queued · sends when ${queuedFor} finishes`}</span>

@@ -262,4 +262,27 @@ describe('DESIGN.md', () => {
     expect(block).toContain('{components.initials.sizeThread}')
     expect(block).not.toMatch(/radius:|portraitSize|userBackground|userRule/)
   })
+
+  it('names the mention chip as a component and spends its values in the stylesheet (Story 2.15)', () => {
+    const block = design.slice(design.indexOf('  mention:\n'), design.indexOf('  cast-card:'))
+
+    expect(design).toContain("    mention: '{components.mention}'")
+    expect(design).not.toContain('DEFERRED, not built')
+    expect(block).toContain("type: '{typography.ident} mono'")
+    expect(block).toContain("ground: '{colors.panel-2}'")
+    expect(block).toContain("border: '1px {colors.line}'")
+    expect(block).toContain("radius: '{rounded.chip}'")
+    expect(block).toContain('not a control')
+
+    const css = read(TURN_CSS)
+    const chip = css.slice(css.indexOf('.turn-mention {'), css.indexOf('}', css.indexOf('.turn-mention {')))
+    expect(chip).toContain('font-family: var(--mono)')
+    expect(chip).toContain('font-size: var(--fs-ident)')
+    expect(chip).toContain('background: var(--panel-2)')
+    expect(chip).toContain('border: var(--rule-width) solid var(--line)')
+    expect(chip).toContain('border-radius: var(--radius-chip)')
+    expect(chip).toContain('color: var(--text)')
+    expect(chip).not.toMatch(/cursor|:hover|outline/)
+    expect(css).toMatch(/\.turn--queued \.turn-mention,/)
+  })
 })

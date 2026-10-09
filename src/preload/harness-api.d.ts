@@ -80,9 +80,11 @@ export interface HarnessApi {
   /**
    * Send one turn into a session. Resolves when it was written and rejects
    * with the `HarnessError` envelope when it was not (`session/busy` while a
-   * turn is in flight).
+   * turn is in flight). `mention` is the literal `@name` the user typed to hand
+   * off to this persona; main records it beside `text` for display and the
+   * persona never receives it.
    */
-  sendTurn(sessionId: SessionId, text: string): Promise<void>
+  sendTurn(sessionId: SessionId, text: string, mention?: string): Promise<void>
   /**
    * Run a persona's menu entry in its session: main resolves `code` and writes
    * the turn, and the run's events follow. Resolves with the run's id; rejects

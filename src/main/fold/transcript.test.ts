@@ -73,6 +73,16 @@ describe('the transcript fold', () => {
     ])
   })
 
+  it('records a typed mention on the user’s turn only when one is given, and leaves the text as sent', () => {
+    const state = foldUserTurn(foldUserTurn(EMPTY_TRANSCRIPT, 'go', 1, undefined, '@Amelia'), 'plain', 2)
+
+    expect(state.entries).toEqual([
+      { kind: 'user', id: 'm-0', at: 1, text: 'go', mention: '@Amelia' },
+      { kind: 'user', id: 'm-1', at: 2, text: 'plain' }
+    ])
+    expect('mention' in state.entries[1]).toBe(false)
+  })
+
   it('records the user’s turn, which ends a message so the next piece starts afresh', () => {
     let state = foldAll([said('m1', 'a')])
     state = foldUserTurn(state, 'hi', 20)

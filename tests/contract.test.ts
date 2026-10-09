@@ -128,7 +128,7 @@ describe('the commands in', () => {
     // A persona's agent id, or from Story 4.1 the room's cast: one argument, `SessionTarget`.
     expect(args('session.open')).toBe('target')
     expect(args('session.close')).toBe('sessionId')
-    expect(args('turn.send')).toBe('sessionId,text')
+    expect(args('turn.send')).toBe('sessionId,text,mention?')
     expect(args('menu.dispatch')).toBe('sessionId,code')
     expect(args('run.stop')).toBe('runId')
     expect(args('doc.open')).toBe('path')

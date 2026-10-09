@@ -46,7 +46,8 @@ const EMPTY: ConversationSnapshot = { entries: [], sessions: [], busy: [], perso
 
 class FakeBridge implements ConversationBridge {
   opens: string[] = []
-  sends: [string, string][] = []
+  /** What each send carried: the session, the text and, only when there was one, the typed mention. */
+  sends: ([string, string] | [string, string, string])[] = []
   listeners = new Set<(event: ContractEvent) => void>()
   openResult: Deferred<string>[] = []
   /** What the next send answers; one entry is consumed per send. */
@@ -95,8 +96,8 @@ class FakeBridge implements ConversationBridge {
     this.closed.push(sessionId)
     return this.closeResults.shift() ?? Promise.resolve()
   }
-  sendTurn(sessionId: string, text: string): Promise<void> {
-    this.sends.push([sessionId, text])
+  sendTurn(sessionId: string, text: string, ...mention: string[]): Promise<void> {
+    this.sends.push([sessionId, text, ...mention] as [string, string] | [string, string, string])
     return this.sendResults.shift() ?? Promise.resolve()
   }
   dispatches: [string, string][] = []
@@ -410,6 +411,72 @@ describe('send to a persona whose session is idle', () => {
       ['s1', 'next']
     ])
     expect(userTurns(last())).toHaveLength(2)
+  })
+})
+
+describe('send with a typed mention (Story 2.15)', () => {
+  it('shows the mention on the entry and passes it to the bridge as the third argument', async () => {
+    const { conversation, last } = build()
+    await connected(conversation)
+    bridge.push(opened('s1', mary.id))
+    bridge.push(awaiting('s1'))
+    conversation.send(mary.id, 'go', '@Mary')
+
+    expect(last().entries).toEqual([{ kind: 'user', id: 'entry-0', at: 101, text: 'go', mention: '@Mary' }])
+    expect(bridge.sends).toEqual([['s1', 'go', '@Mary']])
+  })
+
+  it('passes a plain send with no third argument at all', async () => {
+    const { conversation } = build()
+    await connected(conversation)
+    bridge.push(opened('s1', mary.id))
+    bridge.push(awaiting('s1'))
+    conversation.send(mary.id, 'go')
+
+    expect(bridge.sends[0]).toHaveLength(2)
+  })
+
+  it('keeps it on a queued turn and sends it with the turn when the session is free', async () => {
+    const { conversation, last } = build()
+    await connected(conversation)
+    bridge.push(opened('s1', mary.id))
+    conversation.send(mary.id, 'go', '@Mary')
+
+    expect(last().entries).toMatchObject([{ text: 'go', mention: '@Mary', queuedFor: 'Mary' }])
+    expect(bridge.sends).toEqual([])
+    bridge.push(awaiting('s1'))
+    expect(bridge.sends).toEqual([['s1', 'go', '@Mary']])
+    expect(last().entries[0]).toMatchObject({ mention: '@Mary' })
+    expect(last().entries[0]).not.toHaveProperty('queuedFor')
+  })
+
+  it('sends it after a session is opened for a persona that had none', async () => {
+    const { conversation } = build()
+    await connected(conversation)
+    conversation.send(john.id, 'go', '@John')
+    bridge.push(opened('s7', john.id))
+    bridge.openResult[0].resolve('s7')
+    await settle()
+    bridge.push(awaiting('s7'))
+
+    expect(bridge.sends).toEqual([['s7', 'go', '@John']])
+  })
+
+  it('keeps it when main refuses the send as busy, and sends it again with the next turn end', async () => {
+    const { conversation, last } = build()
+    await connected(conversation)
+    bridge.push(opened('s1', mary.id))
+    bridge.sendResults.push(Promise.reject({ code: 'session/busy', message: 'busy' }))
+    bridge.push(awaiting('s1'))
+    conversation.send(mary.id, 'go', '@Mary')
+    await settle()
+
+    expect(last().entries[0]).toMatchObject({ mention: '@Mary', queuedFor: 'Mary' })
+    bridge.push(awaiting('s1'))
+    expect(bridge.sends).toEqual([
+      ['s1', 'go', '@Mary'],
+      ['s1', 'go', '@Mary']
+    ])
   })
 })
 

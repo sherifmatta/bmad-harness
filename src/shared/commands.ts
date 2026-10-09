@@ -41,7 +41,7 @@ export type ContractCommands = {
     CommandReply
   >
   'turn.send': CommandSpec<
-    [sessionId: SessionId, text: string],
+    [sessionId: SessionId, text: string, mention?: string],
     'once per message, and one turn in flight per session',
     CommandReply
   >

@@ -65,7 +65,7 @@ export type ProjectTranscript = {
   entries(): readonly TranscriptRecord[]
   recordPersonaSaid(said: PersonaSaid): void
   /** `room` marks what the user sent into the room (Story 4.2): it belongs to the party thread. */
-  recordUserTurn(text: string, at: number, room?: true): void
+  recordUserTurn(text: string, at: number, room?: true, mention?: string): void
   /**
    * Write the harness's own line into the transcript and return the record it became;
    * `room` marks a line about a room (it opened, its turns, its process); every such line belongs to the party thread.
@@ -244,7 +244,7 @@ export function createTranscriptRegistry(deps: TranscriptRegistryDeps): Transcri
     return {
       entries: () => state.entries,
       recordPersonaSaid: (said) => changed(foldPersonaSaid(state, said)),
-      recordUserTurn: (text, at, room) => changed(foldUserTurn(state, text, at, room)),
+      recordUserTurn: (text, at, room, mention) => changed(foldUserTurn(state, text, at, room, mention)),
       recordSysline,
       recordRun(card, at) {
         if (ended.has(card.runId)) {
