@@ -44,6 +44,16 @@
   white-space: nowrap;
 }
 
+/* A card that writes no document names the skill it invoked: the name strong, `run` dim, one space apart. */
+.run-card-skill {
+  font-weight: var(--weight-strong);
+  color: var(--text-strong);
+}
+
+.run-card-run {
+  color: var(--dim);
+}
+
 /* Amber while writing, green once saved, red once it failed or was stopped. */
 .run-card-status {
   margin-left: auto;

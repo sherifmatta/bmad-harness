@@ -683,6 +683,53 @@ describe('the run list in the card (Story 3.17)', () => {
     expect(root.querySelector('.run-card-foot')).toBeNull()
   })
 
+  describe('the head names the skill the run invoked (Story 3.18)', () => {
+    it('reads `<skill> run` for a run that writes no document: the name, one space, then run, in their own spans', () => {
+      const view = draw(createProseStore(crank()), card({ steps, skill: 'bmad-build' }), () => {})
+      const head = view.root.container.querySelector('.run-card-path')
+      expect(head?.textContent).toBe('bmad-build run')
+      expect([...(head?.children ?? [])].map((node) => [node.className, node.textContent])).toEqual([
+        ['run-card-skill', 'bmad-build'],
+        ['run-card-run', 'run']
+      ])
+      expect(view.root.container.querySelector('.run-card-status')?.textContent).toBe('working')
+    })
+
+    it('reads `run` alone with no skill, exactly as before: no span', () => {
+      const head = draw(createProseStore(crank()), card({ steps })).root.container.querySelector('.run-card-path')
+      expect(head?.textContent).toBe('run')
+      expect(head?.children).toHaveLength(0)
+    })
+
+    it('draws a terminal card with no document the same way', () => {
+      const view = draw(createProseStore(crank()), card({ status: 'stopped', endedAt: Date.now(), steps, skill: 'bmad-build' }))
+      expect(view.root.container.querySelector('.run-card-path')?.textContent).toBe('bmad-build run')
+    })
+
+    it('leaves a document run’s head as its path, holding the skill undrawn', () => {
+      const store = createProseStore(crank())
+      store.append('r1', 'c1', '_bmad/prd.md', 'words')
+      const view = draw(store, card({ skill: 'bmad-build' }))
+      const root = view.root.container
+      expect(root.querySelector('.run-card-path')?.textContent).toBe('_bmad/prd.md')
+      expect(root.textContent).not.toContain('bmad-build')
+    })
+
+    it('draws nothing from the name but its text: no title, no data or aria attribute, no list, no button of its own', () => {
+      const root = draw(createProseStore(crank()), card({ steps, skill: 'bmad-build' }), () => {}).root.container
+      const name = root.querySelector('.run-card-skill') as HTMLElement
+      expect(name.getAttributeNames()).toEqual(['class'])
+      expect(root.querySelector('.run-card-run')?.getAttributeNames()).toEqual(['class'])
+      expect(root.querySelector('[title]')).toBeNull()
+      expect([...root.querySelectorAll('*')].flatMap((node) => node.getAttributeNames()).filter((attr) => attr.startsWith('data-'))).toEqual([])
+      for (const node of root.querySelectorAll('[aria-label], [aria-description], [aria-describedby]')) {
+        expect(node.getAttribute('aria-label') ?? '').not.toContain('bmad-build')
+      }
+      expect(root.querySelector('ul, ol, [role="list"], [role="menu"], [role="listbox"]')).toBeNull()
+      expect(root.querySelectorAll('button')).toHaveLength(1)
+    })
+  })
+
   it('keeps the head and the foot of a run that writes a document, in dead air', () => {
     const view = draw(createProseStore(crank()), card({ steps, plan: ['Vision'] }))
     const root = view.root.container

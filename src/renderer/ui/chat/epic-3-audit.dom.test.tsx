@@ -464,3 +464,44 @@ describe('reduced motion, drawn', () => {
     expect(media.calls()).toBe(0)
   })
 })
+
+describe('a card that names its skill (Story 3.18, FR27)', () => {
+  const NAME = 'bmad-build'
+  const ended = { endedAt: NOW - 1_000 }
+  const STATES: [string, Partial<RunCardEntry>][] = [
+    ['running', {}],
+    ['finished', { status: 'finished', ...ended }],
+    ['stopped', { status: 'stopped', ...ended }],
+    ['failed', { status: 'failed', error: { code: 'run/failed', message: 'run · the run failed' }, ...ended }]
+  ]
+
+  it.each(STATES)('draws the name as head text only, with no tooltip, attribute, list or palette from it, and keeps the banned set out, when %s', (_state, over) => {
+    // No plan and no document: the card is the run list alone, and its head is `<skill> run`.
+    mounted = mount(createElement(RunCard, { entry: card({ plan: undefined, skill: NAME, ...over }), prose: createProseStore(crank()), onStop: () => {} }))
+    const root = mounted.container
+    expect(root.querySelector('.run-card-path')?.textContent).toBe(`${NAME} run`)
+    // Once in the markup: the head's own span.
+    expect(root.innerHTML.split(NAME)).toHaveLength(2)
+    expect(root.querySelector('[title], [data-skill], [aria-description], [aria-describedby], [aria-label*="bmad"]')).toBeNull()
+    expect(root.querySelector('ul, ol, [role="list"], [role="menu"], [role="listbox"], [role="combobox"], dialog, [popover]')).toBeNull()
+    expect(root.querySelectorAll('a, input, select, textarea, [role="button"], [role="menuitem"]')).toHaveLength(0)
+    expect(root.innerHTML).not.toMatch(SPINNER_MARKUP)
+    expect(spoken(root)).not.toMatch(ARBITRATION)
+    expect(spoken(root)).not.toMatch(DENOMINATOR)
+  })
+
+  it('leaves the collapsed line as it is: the same fields and the same text with the skill as without it', () => {
+    const lineOf = (skill: string | undefined): { fields: string[]; text: string } => {
+      mounted = mount(createElement(RunCardLine, { entry: card({ plan: undefined, notes: [{ text: '- (decision) Fast path', at: NOW - 30_000 }], skill }), name: 'John', prose: createProseStore(crank()), onExpand: () => {} }))
+      const root = mounted.container
+      const read = { fields: [...root.querySelectorAll('button > *')].map((child) => child.className.split(' ')[0]), text: root.textContent ?? '' }
+      expect(root.querySelector('[title]')).toBeNull()
+      mounted.unmount()
+      return read
+    }
+    const named = lineOf(NAME)
+    expect(named.text).not.toContain(NAME)
+    expect(named).toEqual(lineOf(undefined))
+    expect(named.fields).toEqual(['status-dot', 'run-card-line-name', 'run-card-line-sep', 'run-card-line-reason', 'run-card-line-sep', 'run-card-elapsed'])
+  })
+})

@@ -239,8 +239,8 @@ describe('the run list, built from a recording by the folds', () => {
 
     expect(root.querySelectorAll('.run-step')).toHaveLength(entry.steps.length)
     expect(rowsOf(root)[0]).toBe('note')
-    // The head reads `run`, `working`, the elapsed and the stop, and the card has no foot.
-    expect(root.querySelector('.run-card-path')?.textContent).toBe('run')
+    // The head reads `<skill> run` (the entry dispatched a skill), `working`, the elapsed and the stop, and the card has no foot.
+    expect(root.querySelector('.run-card-path')?.textContent).toBe('bmad-prd run')
     expect(root.querySelector('.run-card-status')?.textContent).toBe('working')
     expect(root.querySelector('.run-card-foot')).toBeNull()
     expect(root.querySelector('.run-stop')).not.toBeNull()
@@ -263,7 +263,7 @@ describe('the run list, built from a recording by the folds', () => {
     expect([...(flow?.children ?? [])].map((node) => node.className)).toEqual(['run-note-feed', 'run-card-prose'])
     expect(root.querySelector('.run-card-body')?.children).toHaveLength(1)
     expect(root.querySelectorAll('.run-step')).toHaveLength(entry.steps.length)
-    expect(root.querySelector('.run-card-path')?.textContent).not.toBe('run')
+    expect(root.querySelector('.run-card-path')?.textContent).not.toMatch(/\brun$/)
   })
 
   it('draws a finished run with no step left running, pulsing or reading now', async () => {

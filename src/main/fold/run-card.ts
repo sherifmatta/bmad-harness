@@ -34,6 +34,7 @@ export function startCard(started: RunStarted): RunCardSnapshot {
     sessionId: started.sessionId,
     ...(started.agentId === undefined ? {} : { agentId: started.agentId }),
     code: started.code,
+    ...(started.skill === undefined ? {} : { skill: started.skill }),
     ...(started.plan === undefined ? {} : { plan: [...started.plan] }),
     startedAt: started.at,
     status: 'running',

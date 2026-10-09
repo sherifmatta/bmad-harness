@@ -78,7 +78,8 @@ type FakeSession = {
 }
 
 const MENU: Record<string, ResolvedMenuEntry> = {
-  CP: { code: 'CP', description: 'Create the PRD', action: { kind: 'skill', skill: 'bmad-prd' } }
+  CP: { code: 'CP', description: 'Create the PRD', action: { kind: 'skill', skill: 'bmad-prd' } },
+  VP: { code: 'VP', description: 'Validate it', action: { kind: 'prompt', prompt: 'Validate the PRD, please.' } }
 }
 
 let userData: string
@@ -185,12 +186,12 @@ const stopRun = (sender: FakeSender, runId: unknown) => call<Promise<unknown>>(R
 const NOT_FOUND = { ok: false, error: { code: 'run/not-found', message: 'run · no such run is in flight' } }
 
 /** One window, one persona's session open and its activation over, and a run dispatched into it. */
-async function running(agent = A, sender = new FakeSender(1)) {
+async function running(agent = A, sender = new FakeSender(1), code = 'CP') {
   await call<Promise<unknown>>(SESSION_OPEN_CHANNEL, sender, agent)
   const fake = fakes.get(agent)!
   fake.feed(result())
   const sessionId = `s${sessions}`
-  const reply = (await call<Promise<{ ok: true; runId: string }>>(MENU_DISPATCH_CHANNEL, sender, sessionId, 'CP')) as { ok: true; runId: string }
+  const reply = (await call<Promise<{ ok: true; runId: string }>>(MENU_DISPATCH_CHANNEL, sender, sessionId, code)) as { ok: true; runId: string }
   expect(reply.ok).toBe(true)
   sender.sent = []
   return { sender, fake, sessionId, runId: reply.runId }
@@ -520,7 +521,7 @@ describe('a stop replayed from the live recordings of 10-06-2026 (claude 2.1.285
 
     expect(sender.names.filter((name) => name !== 'doc:prose' && name !== 'run:step').slice(0, 4)).toEqual(['run:stopped', 'session:awaiting-turn', 'harness:said', 'run:started'])
     expect(sender.of('run:started')).toEqual([
-      { runId: 'r2', sessionId, agentId: A, code: 'CP', plan: ['Vision', 'Scope'], at: clock }
+      { runId: 'r2', sessionId, agentId: A, code: 'CP', skill: 'bmad-prd', plan: ['Vision', 'Scope'], at: clock }
     ])
     expect(sender.of('harness:said').map((said) => said.text)).toEqual([LINES.carriedOn])
     expect(sender.of('run:stopped')).toHaveLength(1)
@@ -786,7 +787,7 @@ describe('the work that carries on after a stop', () => {
 
     expect(sender.names).toEqual(['harness:said', 'run:started'])
     expect(sender.of('harness:said')).toEqual([{ sessionId, id: expect.any(String), text: LINES.carriedOn, at: clock }])
-    expect(sender.of('run:started')).toEqual([{ runId: 'r2', sessionId, agentId: A, code: 'CP', plan: ['Vision', 'Scope'], at: clock }])
+    expect(sender.of('run:started')).toEqual([{ runId: 'r2', sessionId, agentId: A, code: 'CP', skill: 'bmad-prd', plan: ['Vision', 'Scope'], at: clock }])
     expect(snapshot(sender).runs.map((run) => [run.runId, run.status])).toEqual([
       ['r1', 'stopped'],
       ['r2', 'running']
@@ -868,6 +869,53 @@ describe('the work that carries on after a stop', () => {
     expect(sender.of('run:started').map((started) => [started.runId, started.code])).toEqual([['r2', 'CP'], ['r3', 'CP']])
     expect(sender.of('harness:said').map((said) => said.text)).toEqual([LINES.carriedOn, LINES.carriedOn])
     expect(fake.interrupts).toHaveLength(2)
+  })
+
+  it('gives the continuation the stopped run’s skill with its code and plan, and again after a second stop (Story 3.18)', async () => {
+    templatePlan = { spine: ['Vision', 'Scope'], menu: [] }
+    const scene = await stopped()
+    const { sender, fake } = scene
+    fake.feed(unsent())
+
+    expect(sender.of('run:started').map((started) => [started.runId, started.code, started.skill, started.plan])).toEqual([
+      ['r2', 'CP', 'bmad-prd', ['Vision', 'Scope']]
+    ])
+    expect(snapshot(sender).runs[1].skill).toBe('bmad-prd')
+
+    await stopAgain(scene, 'r2')
+    fake.feed(unsent('m3'))
+    expect(sender.of('run:started').map((started) => [started.runId, started.skill])).toEqual([['r2', 'bmad-prd'], ['r3', 'bmad-prd']])
+  })
+
+  it('carries on a stopped prompt run with no skill, and no key', async () => {
+    const scene = await running(A, new FakeSender(1), 'VP')
+    const reply = stopRun(scene.sender, scene.runId)
+    await flush()
+    scene.fake.interrupts[0](true)
+    await reply
+    scene.fake.feed(result(true))
+    scene.sender.sent = []
+
+    scene.fake.feed(unsent())
+
+    expect(scene.sender.of('run:started')).toHaveLength(1)
+    expect(scene.sender.of('run:started')[0]).not.toHaveProperty('skill')
+    expect(snapshot(scene.sender).runs[1]).not.toHaveProperty('skill')
+  })
+
+  it('lets the skill go with the hold: a send, a dispatch or any other ending leaves a later turn nobody sent with no run to carry it', async () => {
+    const sent = await stopped()
+    await call<Promise<unknown>>(TURN_SEND_CHANNEL, sent.sender, sent.sessionId, 'something else')
+    sent.fake.feed(result(false))
+    sent.sender.sent = []
+    sent.fake.feed(unsent())
+    expect(sent.sender.of('run:started')).toEqual([])
+
+    const finished = await running(B, new FakeSender(2))
+    finished.fake.feed(result(false))
+    finished.sender.sent = []
+    finished.fake.feed(unsent())
+    expect(finished.sender.of('run:started')).toEqual([])
   })
 
   it('writes no interrupt and no turn of its own, and offers nothing: the line is the only thing the harness adds', async () => {

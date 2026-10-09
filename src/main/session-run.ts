@@ -3,6 +3,7 @@ import type { RunCardSnapshot } from '../shared/conversation'
 import type { ContractEvent } from '../shared/events'
 import type { RunId } from '../shared/ids'
 import type { ArtifactObservation } from '../shared/rail'
+import { skillOf } from '../shared/run-skill'
 import { pulledSections } from '../shared/section-plan'
 import type { TemplatePlan } from '../shared/section-plan'
 import type { Sender } from './bridge-kit'
@@ -61,6 +62,8 @@ const SUBTYPE = /^[a-z][a-z0-9_]{0,39}$/
 export type ActiveRun = {
   runId: RunId
   code: string
+  /** The skill the run invoked, a record only (AD-24); held for the run's life so a stop can carry it on. */
+  skill: string | undefined
   /** The Adapt-In names the skill's template offers, which a concern-scan note may pull into the plan. */
   menu: readonly string[]
   /** The section names the run's plan holds so far: the template's, then those pulled. */
@@ -84,6 +87,8 @@ export type ActiveRun = {
  */
 export type StoppedRun = {
   code: string
+  /** The stopped run's `skill`, held exactly as long as `code` is. */
+  skill: string | undefined
   menu: readonly string[]
   plan: readonly string[]
 }
@@ -200,13 +205,15 @@ export function startRun(
   entry: Entry,
   runId: RunId,
   code: string,
-  template?: TemplatePlan
+  template?: TemplatePlan,
+  skill?: string
 ): void {
   service.personas.detach(entry.sessionId)
   const plan = template?.spine ?? []
   // A run starting, the user's or the continuation, spends what a stop held.
   entry.afterStop = undefined
-  entry.run = { runId, code, menu: template?.menu ?? [], plan, prose: undefined, cancelFlush: undefined, stopping: false }
+  const named = skillOf(skill)
+  entry.run = { runId, code, skill: named, menu: template?.menu ?? [], plan, prose: undefined, cancelFlush: undefined, stopping: false }
   tell(kit, sender, service, entry, [
     {
       name: 'run:started',
@@ -215,6 +222,7 @@ export function startRun(
         sessionId: entry.sessionId,
         agentId: entry.agentId,
         code,
+        ...(named === undefined ? {} : { skill: named }),
         ...(plan.length === 0 ? {} : { plan: [...plan] }),
         at: kit.now()
       }
@@ -229,7 +237,7 @@ export function endRun(kit: RunKit, sender: Sender, service: Service, entry: Ent
   flush(kit, sender, service, entry)
   entry.run = undefined
   // A stop the user asked for holds what the run carried; any other ending lets it go.
-  entry.afterStop = ending === 'stopped' ? { code: run.code, menu: run.menu, plan: run.plan } : undefined
+  entry.afterStop = ending === 'stopped' ? { code: run.code, skill: run.skill, menu: run.menu, plan: run.plan } : undefined
   entry.route = withoutPendingWrites(entry.route)
   const base = { runId: run.runId, sessionId: entry.sessionId, at: kit.now() }
   let event: ContractEvent

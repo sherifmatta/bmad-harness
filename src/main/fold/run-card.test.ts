@@ -44,6 +44,20 @@ describe('the run card fold', () => {
     expect(startCard({ ...started, agentId: undefined })).not.toHaveProperty('agentId')
   })
 
+  it('is born with the skill run:started carried, and with no key when it carried none (Story 3.18)', () => {
+    expect(startCard({ ...started, skill: 'bmad-build' }).skill).toBe('bmad-build')
+    expect(startCard(started)).not.toHaveProperty('skill')
+    expect(startCard({ ...started, skill: undefined })).not.toHaveProperty('skill')
+  })
+
+  it('keeps the skill through every later event, to the run’s end', () => {
+    const card = [prose('x'), committed(['A']), { name: 'run:finished', payload: { runId: 'r1', sessionId: 's1', at: 200 } } as ContractEvent].reduce(
+      foldRunCard,
+      startCard({ ...started, skill: 'bmad-build' })
+    )
+    expect(card).toMatchObject({ status: 'finished', skill: 'bmad-build' })
+  })
+
   it('is born with the plan its run:started carried, as a copy, and with none when it carried none', () => {
     const plan = ['Vision', 'Scope']
     const card = startCard({ ...started, plan })

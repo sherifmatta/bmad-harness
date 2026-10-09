@@ -1094,6 +1094,16 @@ describe('a run’s card (Story 3.1)', () => {
     expect(runCardOf(fold([started, { name: 'run:note', payload: { ...R, text: '- n', at: 51 } }]), 'r1')).not.toHaveProperty('plan')
   })
 
+  it('holds the skill run:started carried, from the event and from a snapshot, and no key without one (Story 3.18)', () => {
+    const named: ContractEvent = { name: 'run:started', payload: { ...R, agentId: mary.id, code: 'CP', skill: 'bmad-build', at: 50 } }
+    expect(runCardOf(fold([named]), 'r1')?.skill).toBe('bmad-build')
+    expect(runCardOf(fold([started]), 'r1')).not.toHaveProperty('skill')
+    const base = { ...R, agentId: mary.id, code: 'CP', startedAt: 20, status: 'running' as const, notes: [], steps: [], documents: [] }
+    const snapshot = (card: object): ConversationSnapshot => ({ entries: [], sessions: [], busy: [], personas: [], runs: [card as never] })
+    expect(runCardOf(hydrate(initialConversation, snapshot({ ...base, skill: 'bmad-build' }), agentOf).state, 'r1')?.skill).toBe('bmad-build')
+    expect(runCardOf(hydrate(initialConversation, snapshot(base), agentOf).state, 'r1')).not.toHaveProperty('skill')
+  })
+
   it('carries a card’s plan from the snapshot a reloading window is handed (Story 3.3)', () => {
     const snapshot: ConversationSnapshot = {
       entries: [],

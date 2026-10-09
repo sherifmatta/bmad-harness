@@ -440,6 +440,33 @@ describe('the run cards stored beside the entries', () => {
     })
   })
 
+  describe('skill (Story 3.18)', () => {
+    const withSkill = (skill: unknown): StoredRun => ({ card: { ...card('r1'), skill } as unknown as RunCardSnapshot, lastAt: 40 })
+
+    it('is written with the card and read back as written', () => {
+      const file = transcriptFilePath(userData, project)
+      const runs = [withSkill('bmad-build')]
+      writeTranscript(file, project, entries, runs)
+
+      expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', entries, runs, dropped: 0 })
+    })
+
+    it('loads from a card written before it with no key, nothing counted as left out', () => {
+      const loaded = loadTranscript(filed([stored('r1')]), project)
+      expect(loaded).toMatchObject({ kind: 'loaded', dropped: 0 })
+      expect(loaded.kind === 'loaded' && loaded.runs[0].card).not.toHaveProperty('skill')
+    })
+
+    it.each([['not plain', 'a b'], ['empty', ''], ['too long', 'x'.repeat(65)], ['dashed', '-x'], ['a number', 3], ['null', null], ['an object', { a: 1 }]])(
+      'is dropped when it is %s, and the card kept',
+      (_name, bad) => {
+        const loaded = loadTranscript(filed([withSkill(bad)]), project)
+        expect(loaded).toEqual({ kind: 'loaded', entries, runs: [stored('r1')], dropped: 0 })
+        expect(loaded.kind === 'loaded' && loaded.runs[0].card).not.toHaveProperty('skill')
+      }
+    )
+  })
+
   it('count a `runs` that is not a list as one thing left out, with the entries kept', () => {
     expect(loadTranscript(filed({ r1: 1 }), project)).toEqual({ kind: 'loaded', entries, runs: [], dropped: 1 })
   })

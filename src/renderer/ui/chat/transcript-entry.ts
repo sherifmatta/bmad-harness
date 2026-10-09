@@ -74,6 +74,8 @@ export type RunCardEntry = {
   runId: string
   sessionId: string
   agentId?: string
+  /** `run:started.skill`: the skill the run invoked, kept only to draw the head (AD-24). Never sent anywhere. */
+  skill?: string
   status: RunStatus
   endedAt?: number
   error?: HarnessError

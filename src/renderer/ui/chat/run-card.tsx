@@ -128,7 +128,7 @@ export function RunCard({
     <section className="run-card" aria-busy={running ? true : undefined} tabIndex={focusFirst ? -1 : undefined} ref={container}>
       <div className="run-card-head">
         <StatusDot state={runDotState(entry)} />
-        <span className="run-card-path">{writes ? path : 'run'}</span>
+        <span className="run-card-path">{writes ? path : <RunHeadName skill={entry.skill} />}</span>
         <RunStatus entry={entry} written={written} progress={progress} hasText={hasText} working={!writes} />
         <RunElapsed entry={entry} />
         {running && onStop !== undefined && <RunStop runId={runId} label={path === '' ? undefined : path} onStop={onStop} />}
@@ -172,6 +172,19 @@ export function RunCard({
         </div>
       )}
     </section>
+  )
+}
+
+/**
+ * The head of a card that writes no document: `run`, or `<skill> run` when main recorded the skill the run
+ * invoked (AD-24). The name is drawn as text and nothing else: no tooltip, no attribute, and never sent anywhere.
+ */
+function RunHeadName({ skill }: { skill: string | undefined }): JSX.Element {
+  if (skill === undefined) return <>run</>
+  return (
+    <>
+      <span className="run-card-skill">{skill}</span> <span className="run-card-run">run</span>
+    </>
   )
 }
 

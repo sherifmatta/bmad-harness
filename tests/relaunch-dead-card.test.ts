@@ -86,8 +86,11 @@ let spawned: number
 let feed: (frame: unknown) => void
 /** What the transcript registry logged, as the app’s stderr would have it. */
 let logs: string[]
+/** Whether the menu entry `CP` still resolves: a relaunch after the install changed answers none. */
+let entryResolves: boolean
 
 beforeEach(() => {
+  entryResolves = true
   userData = mkdtempSync(join(tmpdir(), 'harness-relaunch-'))
   clock = 1_000
   sessions = 0
@@ -114,7 +117,7 @@ function launch() {
     agentName: () => 'John',
     writeDiagnostic: () => {},
     menuEntryFor: (_window, _agent, code) =>
-      code === 'CP' ? { code: 'CP', description: 'Create the PRD', action: { kind: 'skill', skill: 'bmad-prd' } } : undefined,
+      code === 'CP' && entryResolves ? { code: 'CP', description: 'Create the PRD', action: { kind: 'skill', skill: 'bmad-prd' } } : undefined,
     readPlan: () => Promise.resolve(undefined),
     readText: () => Promise.resolve(undefined),
     schedule: () => () => {},
@@ -362,6 +365,73 @@ describe('ending the conversation with a run in flight', () => {
   })
 })
 
+/** The window's own hydration over a snapshot, and the thread drawn from it with a stop handed down, as the window does. */
+function drawn(snapshot: ConversationSnapshot) {
+  const prose = createProseStore({ raf: (callback) => callback() })
+  const { state } = hydrate(initialConversation, snapshot, () => undefined)
+  for (const run of snapshot.runs) prose.seed(run.runId, run.documents)
+  const collapse: Collapse = { viewedId: A, expanded: new Set(), nameOf: () => 'John', onExpand: () => {} }
+  const markup = renderToStaticMarkup(createElement(Turns, { entries: state.entries, prose, onStop: () => {}, collapse }))
+  return { state, markup }
+}
+
+describe('the skill a run invoked, across a relaunch (Story 3.18)', () => {
+  /** A run dispatched into a persona and left in flight when the app went away: no plan, no document, only its skill. */
+  async function leftRunning(): Promise<void> {
+    const app = launch()
+    await app.call<Promise<unknown>>(SESSION_OPEN_CHANNEL, A)
+    feed(result())
+    await app.call<Promise<unknown>>(MENU_DISPATCH_CHANNEL, 's1', 'CP')
+    app.transcripts.flushAll()
+  }
+  const head = (markup: string): string | undefined => markup.match(/class="run-card-path">(.*?)<\/span>(?=<span class="run-card-status|<span class="run-card-elapsed)/)?.[1]?.replace(/<[^>]*>/g, '')
+
+  it('is stored on the card as main recorded it, and read back by a launch whose install changed, the head reading as it did live', async () => {
+    await leftRunning()
+    expect(fileOnDisk().runs?.[0].card.skill).toBe('bmad-prd')
+    entryResolves = false
+
+    const snapshot = launch().snapshot()
+
+    expect(snapshot.runs[0]).toMatchObject({ runId: 'r1', status: 'failed', skill: 'bmad-prd' })
+    const { markup } = drawn(snapshot)
+    expect(markup).toContain('<span class="run-card-skill">bmad-prd</span> <span class="run-card-run">run</span>')
+    expect(head(markup)).toBe('bmad-prd run')
+    expect(markup).not.toMatch(/title=|data-/)
+  })
+
+  it('hands a window that reloads inside the launch the same skill, and draws the same head', async () => {
+    await leftRunning()
+    const next = launch()
+    expect(next.snapshot().runs[0].skill).toBe('bmad-prd')
+    expect(head(drawn(next.snapshot()).markup)).toBe('bmad-prd run')
+  })
+
+  it('loads a card stored without one, and a stored one that is not a plain name with it dropped and the card kept; the head reads run', async () => {
+    await leftRunning()
+    const path = transcriptFilePath(userData, ROOT)
+    const file = fileOnDisk()
+    const [stored] = file.runs ?? []
+    const without = { ...stored.card } as Partial<RunCardSnapshot>
+    delete without.skill
+    const damaged = (id: string, skill: unknown) => ({ ...stored, card: { ...stored.card, runId: id, skill } })
+    writeFileSync(
+      path,
+      JSON.stringify({ ...file, runs: [{ ...stored, card: { ...without, runId: 'o1' } }, damaged('o2', 'a b'), damaged('o3', 42), damaged('o4', 'x'.repeat(65))] })
+    )
+    logs.length = 0
+
+    const snapshot = launch().snapshot()
+
+    expect(logs).toEqual([])
+    expect(snapshot.runs.map((card) => card.runId)).toEqual(['o1', 'o2', 'o3', 'o4'])
+    for (const card of snapshot.runs) expect(card).not.toHaveProperty('skill')
+    const { markup } = drawn(snapshot)
+    expect([...markup.matchAll(/class="run-card-path">run</g)]).toHaveLength(4)
+    expect(markup).not.toContain('run-card-skill')
+  })
+})
+
 describe('a launch after an older file, and after a damaged one', () => {
   it('loads a file written before the cards were kept with none, at the same version', () => {
     const app = launch()
@@ -391,16 +461,6 @@ describe('a launch after an older file, and after a damaged one', () => {
 })
 
 describe('the window, reading what the relaunched main hands it', () => {
-  /** The window's own hydration over a snapshot, and the thread drawn from it with a stop handed down, as the window does. */
-  function drawn(snapshot: ConversationSnapshot) {
-    const prose = createProseStore({ raf: (callback) => callback() })
-    const { state } = hydrate(initialConversation, snapshot, () => undefined)
-    for (const run of snapshot.runs) prose.seed(run.runId, run.documents)
-    const collapse: Collapse = { viewedId: A, expanded: new Set(), nameOf: () => 'John', onExpand: () => {} }
-    const markup = renderToStaticMarkup(createElement(Turns, { entries: state.entries, prose, onStop: () => {}, collapse }))
-    return { state, markup }
-  }
-
   it('draws each card dead: no stop control, no button at all, no caret and no busy card, with the words and elapsed time it ended with', async () => {
     await firstLaunch()
     const { state, markup } = drawn(launch().snapshot())

@@ -5,9 +5,10 @@ import { join, resolve } from 'node:path'
 import { createElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ConversationSnapshot } from '../src/shared/conversation'
 import type { ContractEvent } from '../src/shared/events'
 import type { TemplatePlan } from '../src/shared/section-plan'
-import { foldEvent, initialConversation } from '../src/renderer/ui/chat/conversation-state'
+import { foldEvent, hydrate, initialConversation } from '../src/renderer/ui/chat/conversation-state'
 import type { ConversationState } from '../src/renderer/ui/chat/conversation-state'
 import { createProseStore } from '../src/renderer/ui/chat/prose-store'
 import type { ProseStore } from '../src/renderer/ui/chat/prose-store'
@@ -41,6 +42,7 @@ vi.mock('electron', () => ({
 
 const { createTranscriptRegistry } = await import('../src/main/projections/transcript')
 const {
+  CONVERSATION_GET_CHANNEL,
   MENU_DISPATCH_CHANNEL,
   RUN_STOP_CHANNEL,
   SESSION_OPEN_CHANNEL,
@@ -78,15 +80,17 @@ let clock: number
 let timers: { at: number; run: () => void; cancelled: boolean }[]
 let fake: Fake
 let mounted: Mounted | null = null
+let runs: number
+/** What the skill's template gives: the recording's plan, or none (Story 3.18's runs write no document at first). */
+let templatePlan: TemplatePlan | undefined
+let transcripts: ReturnType<typeof createTranscriptRegistry>
 
-beforeEach(() => {
+/** The app over `userData`: a registry and a bridge that know nothing of any earlier launch. */
+function launch(): void {
   handlers.clear()
-  userData = mkdtempSync(join(tmpdir(), 'harness-continuation-replay-'))
-  clock = 1_000
-  timers = []
-  let runs = 0
+  transcripts = createTranscriptRegistry({ userDataPath: () => userData, schedule: () => () => {}, log: () => {} })
   registerSessionBridge({
-    transcripts: createTranscriptRegistry({ userDataPath: () => userData, schedule: () => () => {}, log: () => {} }),
+    transcripts,
     projectPathFor: () => cwd,
     now: () => clock,
     newSessionId: () => 's1',
@@ -94,7 +98,7 @@ beforeEach(() => {
     agentName: () => 'John',
     writeDiagnostic: () => {},
     menuEntryFor: () => ({ code: 'CP', description: 'Create the PRD', action: { kind: 'skill', skill: 'bmad-prd' } }),
-    readPlan: () => Promise.resolve(PLAN),
+    readPlan: () => Promise.resolve(templatePlan),
     readText: () => Promise.resolve(undefined),
     schedule: (run, ms) => {
       const timer = { at: clock + ms, run, cancelled: false }
@@ -114,6 +118,15 @@ beforeEach(() => {
       })
     }
   })
+}
+
+beforeEach(() => {
+  userData = mkdtempSync(join(tmpdir(), 'harness-continuation-replay-'))
+  clock = 1_000
+  timers = []
+  runs = 0
+  templatePlan = PLAN
+  launch()
 })
 
 afterEach(() => {
@@ -307,5 +320,53 @@ describe('the continuation card, built from the recorded events by the folds, as
     ])
     expect(finished(sender.sent)).toBe(true)
     expect(sender.sent.filter((event) => event.name === 'run:failed')).toEqual([])
+  })
+})
+
+describe('the skill a run invoked, through the real bridge (Story 3.18)', () => {
+  const NAME = 'bmad-prd'
+  const headOf = (entry: RunCardEntry, store: ProseStore): string | null | undefined => draw(entry, store, 'card').querySelector('.run-card-path')?.textContent
+
+  it('is recorded on the dispatched run, inherited by the carry-on run with its code, and drawn in the head of a card that writes no document, live, after a reload and after a relaunch', async () => {
+    templatePlan = undefined
+    const sender = await replay(started)
+    const starts = sender.sent.flatMap((event) => (event.name === 'run:started' ? [event.payload] : []))
+    expect(starts.map((payload) => [payload.runId, payload.code, payload.skill])).toEqual([
+      ['r1', 'CP', NAME],
+      ['r2', 'CP', NAME]
+    ])
+    expect(starts.every((payload) => payload.plan === undefined)).toBe(true)
+    // No other event names a skill.
+    expect(sender.sent.filter((event) => event.name !== 'run:started' && 'skill' in event.payload)).toEqual([])
+
+    // Live: the carry-on's card, born, writes no document and names its skill.
+    const live = window(sender.sent)
+    expect(cardOf(live.state, 'r2').skill).toBe(NAME)
+    expect(headOf(cardOf(live.state, 'r2'), live.store)).toBe(`${NAME} run`)
+
+    // A window that reloads is handed the same cards by main's own fold, and reads the same head.
+    const reply = call<{ ok: true; snapshot: ConversationSnapshot }>(CONVERSATION_GET_CHANNEL, sender)
+    expect(reply.snapshot.runs.map((card) => [card.runId, card.skill])).toEqual([
+      ['r1', NAME],
+      ['r2', NAME]
+    ])
+    const reloaded = hydrate(initialConversation, reply.snapshot, () => undefined).state
+    const prose = createProseStore({ raf: (run) => run() })
+    for (const run of reply.snapshot.runs) prose.seed(run.runId, run.documents)
+    expect(cardOf(reloaded, 'r2').skill).toBe(NAME)
+    expect(headOf(cardOf(reloaded, 'r2'), prose)).toBe(`${NAME} run`)
+
+    // A relaunch reads the stored cards: the skill is on the file, and the head reads the same.
+    transcripts.flushAll()
+    launch()
+    const again = call<{ ok: true; snapshot: ConversationSnapshot }>(CONVERSATION_GET_CHANNEL, new FakeSender())
+    expect(again.snapshot.runs.map((card) => [card.runId, card.skill])).toEqual([
+      ['r1', NAME],
+      ['r2', NAME]
+    ])
+    const relaunched = hydrate(initialConversation, again.snapshot, () => undefined).state
+    const dead = cardOf(relaunched, 'r2')
+    expect(dead.status).toBe('failed')
+    expect(headOf(dead, createProseStore({ raf: (run) => run() }))).toBe(`${NAME} run`)
   })
 })

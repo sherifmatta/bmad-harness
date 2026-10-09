@@ -57,7 +57,12 @@ class FakeSender {
 
 const MENU: Record<string, ResolvedMenuEntry> = {
   CP: { code: 'CP', description: 'Create the PRD', action: { kind: 'skill', skill: 'bmad-prd' } },
-  VP: { code: 'VP', description: 'Validate it', action: { kind: 'prompt', prompt: 'Validate the PRD, please.' } }
+  VP: { code: 'VP', description: 'Validate it', action: { kind: 'prompt', prompt: 'Validate the PRD, please.' } },
+  // Names that are not plain and bounded (Story 3.18): the run starts, and records none.
+  U1: { code: 'U1', description: 'Spaced', action: { kind: 'skill', skill: 'a b' } },
+  U2: { code: 'U2', description: 'Empty', action: { kind: 'skill', skill: '' } },
+  U3: { code: 'U3', description: 'Long', action: { kind: 'skill', skill: 'x'.repeat(65) } },
+  U4: { code: 'U4', description: 'Dashed', action: { kind: 'skill', skill: '-x' } }
 }
 
 let userData: string
@@ -216,7 +221,7 @@ describe('menu.dispatch', () => {
     expect(writes.at(-1)).toBe('/bmad-prd')
     expect(sender.sent[0]).toEqual({
       name: 'run:started',
-      payload: { runId: 'r1', sessionId: 's1', agentId: A, code: 'CP', at: clock }
+      payload: { runId: 'r1', sessionId: 's1', agentId: A, code: 'CP', skill: 'bmad-prd', at: clock }
     })
     expect(transcriptEntries()).toHaveLength(before)
     expect(snapshot(sender)).toMatchObject({ busy: ['s1'], runs: [{ runId: 'r1', status: 'running', code: 'CP' }] })
@@ -226,6 +231,36 @@ describe('menu.dispatch', () => {
     const sender = await idle()
     await dispatch(sender, 'VP')
     expect(writes.at(-1)).toBe('Validate the PRD, please.')
+  })
+
+  it('records the skill a skill entry invoked on run:started and on the card, and none for a prompt entry (Story 3.18)', async () => {
+    const sender = await idle()
+    await dispatch(sender, 'CP')
+    expect(sender.of('run:started')[0].skill).toBe('bmad-prd')
+    expect(snapshot(sender).runs[0].skill).toBe('bmad-prd')
+    feed(result())
+
+    await dispatch(sender, 'VP')
+    expect(sender.of('run:started')[1]).not.toHaveProperty('skill')
+    expect(snapshot(sender).runs[1]).not.toHaveProperty('skill')
+  })
+
+  it.each(['U1', 'U2', 'U3', 'U4'])('leaves an unplain skill name off, with no key, and starts the run and writes the turn as before (%s)', async (code) => {
+    const sender = await idle()
+    await expect(dispatch(sender, code)).resolves.toEqual({ ok: true, runId: 'r1' })
+    expect(writes.at(-1)).toBe(`/${(MENU[code].action as { skill: string }).skill}`)
+    expect(sender.of('run:started')[0]).not.toHaveProperty('skill')
+    expect(snapshot(sender).runs[0]).not.toHaveProperty('skill')
+    expect(snapshot(sender).runs[0]).toMatchObject({ runId: 'r1', status: 'running', code })
+  })
+
+  it('keeps the skill on the card through the run to its end, and hands it to a window that reloads', async () => {
+    const sender = await idle()
+    await dispatch(sender, 'CP')
+    feed(result())
+    expect(snapshot(sender).runs[0]).toMatchObject({ status: 'finished', skill: 'bmad-prd' })
+    // Only run:started carries it.
+    expect(sender.sent.filter((event) => event.name !== 'run:started').filter((event) => 'skill' in event.payload)).toEqual([])
   })
 
   it('refuses an unknown code, a busy, unknown or closed session and a code that is not a string, writing nothing', async () => {
@@ -696,6 +731,7 @@ describe('a window that reloads mid-run', () => {
         sessionId: 's1',
         agentId: A,
         code: 'CP',
+        skill: 'bmad-prd',
         startedAt: expect.any(Number),
         status: 'running',
         notes: [{ text: '- (event) n', at: expect.any(Number) }],

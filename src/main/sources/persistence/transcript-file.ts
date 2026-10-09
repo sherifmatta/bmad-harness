@@ -11,6 +11,7 @@ import {
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { RunCardStep, StoredRun, TranscriptFile, TranscriptRecord } from '../../../shared/conversation'
 import { MAX_STEPS } from '../../../shared/run-steps'
+import { isPlainSkillName } from '../../../shared/run-skill'
 import { isStoredMention } from '../../../shared/stored-mention'
 import { errnoOf } from '../errno'
 
@@ -167,6 +168,18 @@ function withSteps(stored: StoredRun): StoredRun {
   return { ...stored, card: { ...stored.card, steps } }
 }
 
+/**
+ * A stored run as it is kept in memory: a `skill` that is not a plain bounded name (a hand-edited file, a
+ * value of the wrong type) is left off and the card kept, so the head can never carry free text (AD-24).
+ */
+function withSkill(stored: StoredRun): StoredRun {
+  const held: unknown = (stored.card as { skill?: unknown }).skill
+  if (held === undefined || isPlainSkillName(held)) return stored
+  const card: Record<string, unknown> = { ...stored.card }
+  delete card.skill
+  return { ...stored, card: card as StoredRun['card'] }
+}
+
 /** What reading a project's file found. */
 export type LoadOutcome =
   /** There is no file: nothing was ever stored, which is not a problem. */
@@ -217,7 +230,7 @@ export function loadTranscript(filePath: string, projectPath: string): LoadOutco
   const entries = file.entries.filter(isRecord).map(withoutBadMention)
   // No `runs` is a file from before they were kept; a `runs` that is not a list is damage.
   const held: unknown[] = Array.isArray(file.runs) ? file.runs : []
-  const runs = held.filter(isStoredRun).map(withSteps)
+  const runs = held.filter(isStoredRun).map(withSteps).map(withSkill)
   const damaged = file.runs === undefined || Array.isArray(file.runs) ? 0 : 1
   return {
     kind: 'loaded',

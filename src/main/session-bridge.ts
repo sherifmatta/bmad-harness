@@ -16,6 +16,7 @@ import type { ContractCommands } from '../shared/commands'
 import type { ConversationReply, MenuDispatchReply } from '../shared/conversation'
 import type { RunId, SessionId } from '../shared/ids'
 import type { ArtifactObservation } from '../shared/rail'
+import { skillOf } from '../shared/run-skill'
 import {
   defaultProjectPathFor,
   defaultWriteDiagnostic,
@@ -448,7 +449,9 @@ function dispatchMenu(ctx: Context) {
       return reply
     }
     const runId = ctx.newRunId()
-    ctx.registry.startRun(sender, service, entry, runId, resolved.code, plan)
+    // The name is a record for the card's head: main reads it here and nothing dispatches by it.
+    const skill = resolved.action.kind === 'skill' ? skillOf(resolved.action.skill) : undefined
+    ctx.registry.startRun(sender, service, entry, runId, resolved.code, plan, skill)
     ctx.registry.watch(sender, service, entry)
     return { ok: true, runId }
   }

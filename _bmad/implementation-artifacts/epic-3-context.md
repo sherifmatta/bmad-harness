@@ -25,7 +25,7 @@ Make the central beat real: press a skill button belonging to the persona you ar
 - Story 3.15: The work that carries on after a stop has a card (done)
 - Story 3.16: Tool steps, from the stream (done)
 - Story 3.17: The run list: steps and notes in the card body (done)
-- Story 3.18: Name the skill a run invoked (new)
+- Story 3.18: Name the skill a run invoked (done)
 - Story 3.19: Stop a turn that is not a run (new)
 
 ## Requirements & Constraints
@@ -56,7 +56,7 @@ Make the central beat real: press a skill button belonging to the persona you ar
 
 - Card states: streaming, revising, quiet, stopped/failed, finished, dead. Body is prose or the run list: one time-ordered list, newest last, of step rows and run notes; when prose starts, earlier rows stay above it in the same scroll container.
 - Step row: grid `14px · 1fr · auto`, 9px gap, 3px vertical padding, no rules. Mark `✓` green done, amber `work` dot with the existing pulse while running, `✕` red failed; mono label (`dim` done, `text` running); tabular-mono elapsed (`faint` done, `now` in `dim` while running so liveness survives reduced motion). The pulse is the only motion added. No tab stop on rows.
-- A run writing no document: head reads `run`, `working`, elapsed, stop, with no foot. Head reads `<skill> run` (name in `ident`, weight 600; `run` in `dim`), or `run` alone.
+- A run writing no document: head reads `run`, `working`, elapsed, stop, with no foot. Head reads `<skill> run` (name in `ident`, weight 600; `run` in `dim`), or `run` alone. **Built (3.18):** `RunHeadName` in the card's path slot; a document card's head is its path, the name held but undrawn; the collapsed line is unchanged. The name is validated by `shared/run-skill.ts` (`skillOf`) at dispatch and on a stored card read back.
 - Prose mono, run notes sans; caret `steps(1)`, never a fade; harness microcopy lower case, mono, `·`-separated, no terminal punctuation.
 - Chat header: one ghost button whose label switches between `Stop` (any turn in flight, same frame) and `close session`, so focus stays on it; no confirmation, cost copy or "stopping…" state. An orphaned session keeps `close session` and its note line; its run keeps the card's stop.
 - Keyboard: skill row one tab stop with arrows; card focusable; stop its own tab stop; pinned card first in the chat column's order.

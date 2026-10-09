@@ -1123,6 +1123,19 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
   const BLOCK_COMPONENT = "src/renderer/ui/chat/decision-block.tsx";
 
   /**
+   * The only spellings of the word `skill` a chat source may hold besides the skill row
+   * (Story 3.18): the run's recorded `skill`, which the card's head draws as text. Each is the
+   * whole of what its file does with it, so any other use is left in the sweep and fails it.
+   */
+  const RECORDED_SKILL_SPELLINGS: Record<string, RegExp> = {
+    "src/renderer/ui/chat/transcript-entry.ts": /^  skill\?: string$/gm,
+    "src/renderer/ui/chat/conversation-state.ts":
+      /\.\.\.\((?:card\.)?skill === undefined \? \{\} : \{ skill(?:: card\.skill)? \}\),|const \{ runId, sessionId, agentId, skill, plan, at \}/g,
+    "src/renderer/ui/chat/run-card.tsx":
+      /<RunHeadName skill=\{entry\.skill\} \/>|function RunHeadName\(\{ skill \}: \{ skill: string \| undefined \}\)|if \(skill === undefined\)|className="run-card-skill">\{skill\}/g
+  };
+
+  /**
    * What a source says to a person: the contents of its string and template
    * literals, and the text between JSX tags. Identifiers are not copy, so a
    * variable named `opening` is not a sentence that says so.
@@ -1205,10 +1218,20 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
       // `runSkill(agentId, code)` and the bridge's `dispatchMenu(sessionId, code)`.
       const ROW = "src/renderer/ui/chat/skill-row.tsx";
       expect(CHAT_CODE).toContain(ROW);
-      const rest = CHAT_CODE.filter((path) => path !== ROW);
+      // Story 3.18: the run card's own files hold the one recorded field `skill`
+      // (a fact about a run already started, AD-24) and nothing else of the word.
+      // They are swept below with that spelling taken out; every other file is
+      // swept whole.
+      const RECORDED = Object.keys(RECORDED_SKILL_SPELLINGS);
+      const rest = CHAT_CODE.filter((path) => path !== ROW && !RECORDED.includes(path));
       expect(
         offenders(rest, /\bmenus?\b|\bskills?\b|\bMenuEntry\b|\bcodes\b/i),
       ).toEqual([]);
+      for (const path of RECORDED) {
+        expect(CHAT_CODE, path).toContain(path);
+        const left = (code.get(path) ?? "").replace(RECORDED_SKILL_SPELLINGS[path], "");
+        expect(left, path).not.toMatch(/\bmenus?\b|\bskills?\b|\bMenuEntry\b|\bcodes\b/i);
+      }
       expect(
         rest.flatMap((path) =>
           [...(code.get(path) ?? "").matchAll(/^.*\bcode\s*:.*$/gm)].map(([line]) => `${path}: ${line.trim()}`),
@@ -1308,6 +1331,43 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
           /(?<![\w-])title\s*=|(?<![\w-])data-[a-z]|aria-describedby|role=["']tooltip|\btooltip\b|\bpopover\b|\battr\(|\bdataset\b|\bsetAttribute\(/i,
         ),
       ).toEqual([]);
+    });
+
+    it("draws the run's recorded skill as text only: no tooltip, data or aria from it, no list, and no dispatch by it (Story 3.18, FR27)", () => {
+      for (const path of Object.keys(RECORDED_SKILL_SPELLINGS)) {
+        const lines = (code.get(path) ?? "").split("\n").filter((line) => /\bskill\b/.test(line));
+        expect(lines.length, path).toBeGreaterThan(0);
+        for (const line of lines) {
+          expect(line, path).not.toMatch(/\btitle\b|data-|aria-|\bdispatch|runSkill|\.map\(|\.filter\(|\.find\(|\.includes\(|onClick|href|menu/i);
+        }
+      }
+      // The head's name reaches nothing but the text of its own span.
+      const card = code.get("src/renderer/ui/chat/run-card.tsx") ?? "";
+      expect(card.match(/entry\.skill\b/g)).toHaveLength(1);
+      expect(card.match(/\{skill\}/g)).toHaveLength(1);
+      // Nothing else in the window reads a card's skill, and what dispatches takes a code.
+      expect(
+        offenders(
+          CHAT_CODE.filter((path) => !Object.keys(RECORDED_SKILL_SPELLINGS).includes(path)),
+          /\b(?:entry|card|run)\.skill\b/,
+        ),
+      ).toEqual([]);
+      expect(code.get(BRIDGE)).toContain("async (event: IpcMainInvokeEvent, sessionId: unknown, code: unknown): Promise<MenuDispatchReply>");
+      expect(offenders(["src/shared/commands.ts", "src/shared/channels.ts", "src/renderer/ui/chat/use-conversation.ts"], /\bskill\b/i)).toEqual([]);
+      const css = CHAT_ALL.filter((path) => path.endsWith(".css")).map((path) => code.get(path) ?? "").join("\n");
+      expect(css).not.toMatch(/\[class[*^$~|]?=[^\]]*skill|\[data-/);
+    });
+
+    it("styles the run's recorded skill from tokens alone: the name strong in text-strong, run in dim (Story 3.18)", () => {
+      const css = code.get("src/renderer/ui/chat/run-card.css") ?? "";
+      const rule = (selector: string): string =>
+        css.match(new RegExp(`${selector.replace(".", "\\.")}\\s*\\{([^}]*)\\}`))?.[1] ?? "";
+      expect(rule(".run-card-skill")).toMatch(/font-weight:\s*var\(--weight-strong\)/);
+      expect(rule(".run-card-skill")).toMatch(/color:\s*var\(--text-strong\)/);
+      expect(rule(".run-card-run")).toMatch(/color:\s*var\(--dim\)/);
+      for (const selector of [".run-card-skill", ".run-card-run"]) {
+        expect(rule(selector), selector).not.toMatch(/#[0-9a-f]{3,8}\b|\d+px|rgb|hsl|font-weight:\s*\d/i);
+      }
     });
 
     it("builds the turn, the transcript, the sysline and the decision block from no menu entry", () => {

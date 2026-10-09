@@ -90,13 +90,17 @@ export type PersonaStateChanged = { agentId: AgentId; state: PersonaState; at: E
  * A run began. `code` is the menu code that started it. `plan` is the section
  * names the skill's own template predicts for its document, leading numbering
  * stripped and in template order; absent when the skill has no readable
- * template, which is no failure.
+ * template, which is no failure. `skill` is the name of the skill the dispatched menu
+ * entry resolved to: set by main only for a skill entry whose name is plain and bounded
+ * (`shared/run-skill.ts`), never for a prompt entry, inherited by a carry-on run. A record
+ * of what was invoked and never an input: nothing dispatches or resolves by it (AD-24).
  */
 export type RunStarted = {
   runId: RunId
   sessionId: SessionId
   agentId?: AgentId
   code: string
+  skill?: string
   plan?: string[]
   at: EpochMs
 }

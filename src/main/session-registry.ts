@@ -193,7 +193,15 @@ export type SessionRegistry = {
    */
   interruptTurn(entry: Entry): Promise<boolean>
   /** A dispatch was written into a session: its run begins. */
-  startRun(sender: Sender, service: Service, entry: Entry, runId: RunId, code: string, plan?: TemplatePlan): void
+  startRun(
+    sender: Sender,
+    service: Service,
+    entry: Entry,
+    runId: RunId,
+    code: string,
+    plan?: TemplatePlan,
+    skill?: string
+  ): void
   /**
    * The user asked to stop the run `entry` has in flight: it is marked stopping
    * and interrupted (`session-stop`). `'not-found'` when the entry has no run.
@@ -289,7 +297,7 @@ function foldFrame(
     const held = entry.afterStop
     if (held !== undefined && entry.run === undefined) {
       say(sender, entry, LINES.carriedOn)
-      startRun(runs, sender, service, entry, newRunId(), held.code, { spine: [...held.plan], menu: [...held.menu] })
+      startRun(runs, sender, service, entry, newRunId(), held.code, { spine: [...held.plan], menu: [...held.menu] }, held.skill)
     }
   }
   const routed = routeFrame(entry.route, frame, {
@@ -581,7 +589,7 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
     openRoom,
     say,
     watch,
-    startRun: (sender, service, entry, runId, code, plan) => startRun(runs, sender, service, entry, runId, code, plan),
+    startRun: (sender, service, entry, ...started) => startRun(runs, sender, service, entry, ...started),
     stop: (sender, service, entry) => stopRun({ runs, say, finish }, sender, service, entry),
     interruptTurn: (entry) => interruptTurn(runs, entry),
     observe: (sender, projectRoot, observation) =>

@@ -36,11 +36,12 @@ function mainCard(events: ContractEvent[], runId: string): Card | undefined {
 function windowCard(state: ConversationState, prose: ProseStore, runId: string): Card | undefined {
   const entry = state.entries.find((each) => each.kind === 'run' && each.runId === runId)
   if (entry === undefined || entry.kind !== 'run') return undefined
-  const { at, notes, steps, documents, sessionId, status, plan } = entry
+  const { at, notes, steps, documents, sessionId, status, plan, skill } = entry
   return {
     runId: entry.runId,
     sessionId,
     ...(entry.agentId === undefined ? {} : { agentId: entry.agentId }),
+    ...(skill === undefined ? {} : { skill }),
     startedAt: at,
     status,
     ...(entry.endedAt === undefined ? {} : { endedAt: entry.endedAt }),
@@ -102,8 +103,14 @@ const rejected = (callId: string, path = 'prd.md'): ContractEvent => ({
   payload: { ...R, ok: false, callId, path, error: { code: 'doc/write-rejected', message: 'doc · the write was rejected' }, at: 121 }
 })
 
+const startedWithSkill: ContractEvent = {
+  name: 'run:started',
+  payload: { ...R, agentId: 'bmad-agent-pm', code: 'CP', skill: 'bmad-build', at: 100 }
+}
+
 const SEQUENCES: [string, ContractEvent[]][] = [
   ['a card just born', [started]],
+  ['a card born with the skill it invoked, kept through notes, a step and the end (Story 3.18)', [startedWithSkill, note('- (event) one', 101), stepRunning('s1', 'read a.md', 102), stepEnded('s1', 'done', 103), { name: 'run:finished', payload: { ...R, at: 140 } }]],
   ['notes before any prose', [started, note('- (event) one', 101), note('- (decision) **two**', 102)]],
   [
     'a write, its commit, a revision, a rejection and the end',

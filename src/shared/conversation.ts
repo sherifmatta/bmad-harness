@@ -157,6 +157,8 @@ export type RunCardSnapshot = {
   agentId?: AgentId
   /** The menu code that started the run. */
   code: string
+  /** `run:started.skill`: the skill the entry invoked, a recorded fact (AD-24). Absent for a prompt entry. */
+  skill?: string
   /**
    * The section names the run is predicted to write: `run:started.plan`, then
    * the Adapt-In names its notes pulled in, each once. Absent with no template.
