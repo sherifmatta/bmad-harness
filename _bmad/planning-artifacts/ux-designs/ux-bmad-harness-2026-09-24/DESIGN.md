@@ -4,7 +4,7 @@ type: design-spine
 description: 'Dense, hairline-ruled desktop shell in two themes, dark and light, whose entire restraint budget is spent on one thing: illustrated portraits of plausible colleagues.'
 status: final
 created: '2026-09-24'
-updated: '2026-10-08'
+updated: '2026-10-09'
 sources:
   - ../../../specs/spec-bmad-visual-harness/SPEC.md
   - ../../../specs/spec-bmad-visual-harness/ui-surfaces.md
@@ -566,24 +566,24 @@ The remaining tokens in the block above are not new colours. Each is a value alr
 
 | Pair | Dark | Light |
 |---|---|---|
-| `text` on `bg` | 14.3 | 11.9 |
-| `text-strong` on `panel` | 15.7 | 18.3 |
-| `dim` on `panel` | 6.5 | 6.4 |
-| `faint` on `panel` | 3.6 | 4.6 |
-| `meta` on `bg` | 3.1 | 3.4 |
-| `accent` on `panel` | 7.0 | 5.8 |
-| `green` on `panel` | 6.2 | 5.6 |
-| `amber` on `panel` | 7.2 | 5.0 |
-| `red` on `panel` | 5.3 | 5.9 |
-| `note` on `panel` | 6.4 | 6.0 |
-| `ink-doc` on `panel` | 9.8 | 9.8 |
-| `disagree` on `panel` | 6.9 | 5.2 |
+| `text` on `bg` | 14.5 | 11.9 |
+| `text-strong` on `panel` | 16.2 | 18.3 |
+| `dim` on `panel` | 6.6 | 6.4 |
+| `faint` on `panel` | 3.5 | 4.6 |
+| `meta` on `bg` | 3.2 | 3.4 |
+| `accent` on `panel` | 14.2 | 5.8 |
+| `green` on `panel` | 6.4 | 5.6 |
+| `amber` on `panel` | 7.4 | 5.0 |
+| `red` on `panel` | 6.1 | 5.9 |
+| `note` on `panel` | 5.6 | 6.0 |
+| `ink-doc` on `panel` | 10.2 | 9.8 |
+| `disagree` on `panel` | 7.3 | 5.2 |
 
 Every light pair that carries text clears 4.5 except `meta` (3.4), which holds only timestamps and micro-labels and, as in dark, never an actionable fact. The "no actionable fact at `faint` or `meta`" rule is unchanged and is *easier* to keep in light, where `faint` reaches 4.6.
 
 ### What has no colour
 
-No gradients except the two chrome fills (cast strip, window titlebar). No shadows carrying hue. No semantic colour on text below `dim` other than the four states. No colour-coding by persona, module, file type or recency — the portrait is the only per-persona colour in the product, and the rail is deliberately monochrome so it reads as a filesystem rather than a dashboard.
+No gradients except the two chrome fills (cast strip, window titlebar). No shadows carrying hue. No semantic colour on text below `dim` other than the four states. No colour-coding by persona, module, file type or recency — the portrait is the only per-persona colour in the product, and the rail is deliberately monochrome so it reads as a filesystem rather than a dashboard. (The proposed Board, below, is the one surface allowed to read as a dashboard, and it is monochrome too.)
 
 ## Typography
 
@@ -978,6 +978,51 @@ There is no transition on colour elsewhere, no easing curve library, no spring, 
 Streaming prose arrives in frame-sized bursts, with the caret at the tail; a persona's words in a turn arrive as main delivers them, with the same caret at their tail. **A per-character typewriter is not available and must not be simulated**, and a burst that arrives whole is drawn whole — the mechanism and the argument are EXPERIENCE.md's (→ *State Patterns → Progress, batch commit and revision*).
 
 **`@media (prefers-reduced-motion: reduce)` sets `* { animation: none !important; transition: none !important }` — globally, with no exceptions.** Not reduced: disabled. Every fact carried by motion must therefore also be legible with motion off, and nothing specified here may depend on movement to be understood. The per-signal mitigations — including what replaces the pulse as a liveness signal — are EXPERIENCE.md's (→ *Accessibility Floor → The `prefers-reduced-motion` hole*).
+
+### Proposed: layout, thread and Board anatomy
+
+*Added 2026-10-09. **Proposed, not built.** The behaviour, the data sources and the list of what is not adopted are in `EXPERIENCE.md` → *Layout, chat and Board*. Which of these become stories is not yet chosen, so nothing here is in `design/tokens.css` or the frontmatter above. Prototypes: `mockups/paperclip-layout-chat.html` and `mockups/paperclip-board.html`; they draw items the spec does not adopt, and **this section follows the spec.** Every value below is an existing token; a dimension marked *new* becomes a token when a story builds it (NFR23).*
+
+**Team sidebar.** `panel` ground, a 1px `line` on its right edge, default width *new* 244px, its own splitter (*Splitter*). Head: the rail head (`{spacing.rail-head}`, `panel-2`, `line-soft` below, the label at `{typography.label}` uppercase `dim`). Below it:
+
+| Part | Anatomy |
+|---|---|
+| State strip | a four-cell grid, 1px `line-soft` between cells. Each cell: the figure at `{typography.head}`, weight 600, tabular, `text-strong`; the label at `{typography.micro}` uppercase `faint`. No cell takes colour, a fill or the accent: it is a count, not an alert |
+| Nav row (*Inbox*, *Sprint board*) | padding `6px 11px`, `{typography.control}` in `dim`, a 1px `line-soft` below, `panel-2` on hover; the current row takes `panel-2` and `text-strong`. A trailing key hint is a chip: `{typography.label}` in `faint`, 1px `line`, `{rounded.chip}`. **No count** on either row |
+| Persona tile | the existing tile, unchanged, in config order. Idle tiles dim at `{opacity.idle}`. No group heading by state |
+
+**Context panel.** `panel` ground, a 1px `line` on its left edge, default width *new* 300px, scrolling inside, its own splitter. Head as the sidebar's. Sections are separated by `line-soft` with padding `9px 12px`; a section label is `{typography.micro}` uppercase `faint`, its right-hand note `{typography.meta}` in `faint`.
+
+| Section | Anatomy |
+|---|---|
+| Properties, Run | key and value rows at `{typography.control}`: the key `faint` in a *new* 78px column, the value `text`, mono for ids, branches and the model. Status is the existing status dot and its word, never a filled pill |
+| Goal trace | three rows, product then epic then story: the label in mono `text`, its note right-aligned in `faint` |
+| Outputs | the existing Outputs half (*Rail row*, *Outputs head*, *Folder heading*), unchanged |
+
+A field with no source is not drawn.
+
+**Thread additions.**
+
+| Element | Anatomy |
+|---|---|
+| Message actions | a toolbar on the turn's top-right edge: `panel-2`, 1px `line`, `{rounded.control}`, padding `2px`. Buttons at `{typography.control}` in `faint`, `text-strong` on hover and focus, a `panel-3` ground on hover. Shown on hover and on `:focus-within` of the turn; no animation |
+| Thinking row | one line at `{typography.ident}` mono in `faint`: a `▸` (`▾` open), then the persona's own thinking summary. Opened, the text reads in `{typography.doc-prose}` at `ink-doc-mute`, indented to the words, in the turn's measure |
+| Decision card | the existing decision block as a card: 1px `line`, `{rounded.card}`, `panel` ground; head `panel-2` with the persona and the position (`1 of 2`); options as rows at `{rounded.card}`, 1px `line-soft` on `bg`, the chosen one on `accent-bg` with a 1px `accent-border` and a 12px circle in `accent`, filled when chosen. Foot `panel-2`: *Confirm* is the one control that takes `accent-border` and `accent-bg`; *Skip* is a ghost button. The key hint sits right at `{typography.meta}` in `faint` |
+| Keyboard hints | one centred row under the composer: key chips as above, `faint`, `{typography.label}`. The same row in every state |
+
+**Board.** One scrolling column on `bg`, padding `16px 18px 20px`. Every region is a panel: `panel` ground, 1px `line`, `{rounded.card}`, head `panel-2`.
+
+| Region | Anatomy |
+|---|---|
+| Overview | three equal cells, gap `10px`. Label `{typography.micro}` uppercase `faint`; figure `{typography.h1}` weight 600, tabular, `text-strong`; a line under it at `{typography.body-ui}` `dim`. All three are alike: none takes the accent or a border |
+| Board | five columns in one panel, 1px `line-soft` between them, each padded `8px`. Column head: the status as the file writes it, `{typography.micro}` uppercase `faint`, **no count**. Cards stack with a `7px` gap |
+| Story card | `bg` ground, 1px `line`, `{rounded.control}`, padding `7px 8px`. Id in mono `{typography.label}` `faint`; the title at `{typography.control}` `text`; a foot at `{typography.ident}` `faint` with the owner's initials disc (*Initials*) and the run's `working · <elapsed>`. A card with a run on it takes the amber pulse dot and a 1px `accent-border`. **No progress bar** |
+| Epics | rows at `{typography.control}`: id in mono `faint`, title `text`, `n of m stories done` in mono `faint` on the right; 1px `line-soft` between rows. Text only |
+| Agents | the persona tile's anatomy in a panel: portrait or initials, name and title, the state line, the run's elapsed in mono `faint`. Idle rows dim at `{opacity.idle}` |
+| Recent activity | rows at `{typography.control}`: the status dot, the persona's name in `text`, what it did in `dim`, the time right-aligned in mono `faint`; 1px `line-soft` between rows |
+
+**Motion.** Nothing here adds to the closed motion inventory (*Motion*): no shimmer, no fade for the actions toolbar, no transition on a splitter.
+
 
 ## Do's and Don'ts
 
