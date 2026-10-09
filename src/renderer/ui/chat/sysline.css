@@ -31,6 +31,7 @@
 /* A long file list wraps rather than pushing the rules out of the thread. */
 .sysline-text {
   min-width: 0;
+  letter-spacing: var(--track-sysline);
   text-align: center;
   overflow-wrap: anywhere;
 }

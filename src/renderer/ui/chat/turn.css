@@ -65,7 +65,7 @@
 
 .turn-words {
   font-family: var(--sans);
-  font-size: var(--fs-body-ui);
+  font-size: var(--fs-base);
   line-height: var(--lh-base);
   color: var(--text);
 }

@@ -134,7 +134,6 @@ colors-light:
   scrollbar-thumb-hover: '#bdbdbd'
   tile-current: '#dadada'
   code-tag-bg: '#dfdfdf'
-  composer-focus-line: '#b7b7b7'
   composer-placeholder: '#858585'
   send-bg: '#c6c6c6'
   send-line: '#b4b4b4'
@@ -143,6 +142,11 @@ colors-light:
   win-light: '#bebebe'
   ghost-border-hover: '#bfbfbf'
   skill-button-hover-line: '#aeaeae'
+  decision-hover-line: '#ababab'
+  party-live-ground: '#e1e1e1'
+  status-pill-bg: 'rgba(120,103,55,.10)'
+  status-pill-line: 'rgba(120,103,55,.25)'
+  status-pill-ink: '#6f5f32'
   shadow-window: '0 30px 70px -20px rgba(8,8,8,.35)'
   shadow-speaking: '0 0 0 1px rgba(27,27,27,.22), 0 6px 18px -10px rgba(8,8,8,.18)'
 
@@ -370,7 +374,7 @@ components:
     name: '{typography.name} sans, text-strong'
     role: '{typography.ident} sans, faint'
     time: '{typography.meta} mono, {colors.meta}, right-aligned'
-    words: '{typography.body-ui} sans, text, pre-wrap, paragraphs split on blank lines only'
+    words: '{typography.base} sans, text, pre-wrap, paragraphs split on blank lines only'
     userBackground: '{colors.accent-wash}'
     userRule: 'inset 2px 0 0 {colors.accent-edge}'
     userAvatar: 'initials at 32px'
@@ -383,7 +387,6 @@ components:
     background: '{colors.panel}'
     border: '1px solid {colors.line}'
     radius: '{rounded.card}'
-    focusBorder: '#484848'
     placeholder: '#636363'
     sendBackground: '#393939'
     sendBorder: '#4b4b4b'
@@ -615,8 +618,8 @@ AD-14 states the type scale as "base 13px/1.55". That is the body rule, not the 
 | `badge` | 9px | mono, uppercase, .08em | The legend footer badge. One use. |
 | `micro` | 9.5px | mono, .04em | Code tags, skill-button code chip, cast status, party tags, run-note kind tags |
 | `meta` | 10px | mono | Timestamps, rail meta, the rail row's directory line (`dirline`), file group, card section, window foot |
-| `label` | 10.5px | mono | **Densest tier.** Chips, rail head/foot, tile state, sysline, run chip, card foot, option key, hint line, cast info, key/value key (`kv`). Uppercase at .09em for rail heads and side-section heads; sentence case elsewhere |
-| `ident` | 11px | mixed | Identifiers. Mono for file paths, window path, initials, handoff chip; sans for tile name span, turn role, status pill, and the rendered-markdown sub-line and table header (`md sub`, `md th`) |
+| `label` | 10.5px | mono | **Densest tier.** Chips, rail head/foot, tile state, sysline, run chip, card foot, option key, hint line, cast info, key/value key (`kv`). Uppercase at .09em for rail heads and side-section heads, and at .07em for the skill-row label; sentence case elsewhere |
+| `ident` | 11px | mixed | Identifiers. Mono for file paths, window path, initials, handoff chip, status pill; sans for tile name span, turn role, and the rendered-markdown sub-line and table header (`md sub`, `md th`) |
 | `body-ui` | 11.5px | sans | The working text size — breadcrumbs (`crumbs`), buttons, key/value rows (`kv`), option text, run notes. Mono variant at the same size for inline code and document-card prose |
 | `control` | 12px | sans, .01em | Segmented control. One use |
 | `name` | 12.5px | sans 600 | Names and titles — brand, tile, turn, option, cast. md h3 at this size uppercase .03em in `dim` |
@@ -627,13 +630,13 @@ AD-14 states the type scale as "base 13px/1.55". That is the body rule, not the 
 | `h2` | 14.5px | sans 600 | Markdown h2, document window only |
 | `h1` | 20px | sans 600, -.01em | Markdown h1, document window only. Never appears in the shell |
 
-Line-heights are four: `1.55` everywhere by default, `1.72` for both reading measures (card prose and rendered markdown), `1.45` for the open-question block and the decision option, and `0` on the portrait wrapper to kill inline descender space.
+Line-heights are four: `1.55` everywhere by default, `1.72` for both reading measures (card prose and rendered markdown), `1.45` for the open-question block, and `0` on the portrait wrapper to kill inline descender space.
 
 ### Weight and tracking
 
 **600 is the only non-default weight in the system.** There is no 500, no 700, no light. Emphasis is one step of weight or one step up the text ramp, never both and never a colour.
 
-Tracking is used to make small type readable and to mark a label as a label, never for style: `.09em` on uppercase rail and section heads, `.08em` on the legend badge, `.07em` skill-row label, `.05em` skill-button code, `.04em` on micro tags and table heads, `.03em` md h3, `.02em` brand, `.01em` segmented and chat-head name, `-.01em` on md h1 only.
+Tracking is used to make small type readable and to mark a label as a label, never for style: `.09em` on uppercase rail and section heads, `.08em` on the legend badge, `.07em` skill-row label, `.05em` skill-button code, `.04em` on micro tags and table heads, `.03em` md h3 and the sysline, `.02em` brand, `.01em` segmented and chat-head name, `-.01em` on md h1 only.
 
 Uppercase appears only on: rail heads, side-section heads, the legend badge, markdown h3, and table headers. Nowhere else — an all-caps button or label anywhere else is wrong.
 
@@ -826,7 +829,7 @@ Two visually distinct registers on one line, because AD-2 forbids merging them. 
 
 - **Head** — `panel-2` ground, `1px line-soft` bottom rule, `7px 11px`. Status dot · file path in `mono` `{typography.ident}` at `text` · status string in `mono` `{typography.meta}` right-aligned in `amber` while writing and `green` when saved · elapsed in `mono` `{typography.meta}` at `faint` · the stop control.
 - **Body** — `max-height: 230px`, scrolling, padding `11px 13px` `[ASSUMPTION]` (the one value no source states; matched to the side-section padding). **Two modes, both content, per the approved dead-air treatment.** In prose mode: `doc-prose` (mono 11.5/1.72) in `ink-doc`, `white-space: pre-wrap`, headings in `ink-doc-strong` at 600, muted runs in `ink-doc-mute`, with the streaming caret at the tail. In run-note mode: the run-note feed (below). The card never has an empty body. Which mode is showing, and when it switches, is EXPERIENCE.md's (→ *State Patterns → Document card*).
-- **Foot** — `panel-2`, `1px line-soft` top rule, `6px 11px`, `{typography.label}` at `faint`, 14px gaps, wrapping. Carries the counts and the **named list of not-yet-written sections** in `mono`. There is no denominator and no progress bar anywhere in the card.
+- **Foot** — `panel-2`, `1px line-soft` top rule, `6px 11px`, `{typography.label}` sans at `faint`, 8px gaps (the mockup's `.df`), wrapping. Carries the counts and the **named list of not-yet-written sections**. There is no denominator and no progress bar anywhere in the card.
 - **Caret** — 6.5 × 13px `accent` block, `blink 1.05s steps(1)`. Removed, not faded, when writing stops. It is one caret, shared with the conversation turn in flight (below): the same class, size, colour and blink wherever words are being written.
 
 ### Run note (the run-note feed)
@@ -853,10 +856,11 @@ Identical geometry, two tones. `{typography.micro}` type, `{rounded.chip}` radiu
 
 The block a persona raises inside its own turn when it stops to ask (Flow 1's FR-7 beat). Appearance only; when it appears, what activating it does, and what becomes of it afterwards are EXPERIENCE.md's (→ *Component Patterns*).
 
-- **Block** — `{rounded.DEFAULT}` (5px), `panel-2` ground, 1px `line`, `9px 11px`. One block per question, holding the title and the options; options stack at `{spacing.sm}`.
-- **Title** — `{typography.name}` (12.5px/600) in `text-strong`.
+- **Block** — a bare column, `8px` above and `4px` below, with no ground, border or padding of its own. One block per question, holding the title and the options; the options stack at `{spacing.sm}`.
+- **Option** — a card, as the mockup draws it: a `panel` ground, 1px `line`, `{rounded.DEFAULT}` (5px), `9px 11px`, the key and the text `{spacing.lg}` apart. Under the pointer the border goes to `#465264` and the ground to `panel-2`.
+- **Title** — `{typography.name}` (12.5px/600) in `text-strong`, above the cards.
 - **Option key** — the leading badge (`A` · `B` · `C`): `{typography.label}` mono in `{colors.accent}` on `{colors.accent-bg}`, 1px `{colors.accent-border}`, `{rounded.chip}`. This is the block's single accent use.
-- **Option text** — `{typography.body-ui}` in `text` at **line-height 1.45**, the tighter of the two reading measures: an option is read as a choice, not as prose.
+- **Option text** — the mockup's option title: `{typography.name}` (12.5px/600) in `text-strong`, at the default line-height. The persona's option is one string where the mockup splits a title from a line of detail, so the whole string takes the title's treatment.
 - **Lean** — where one option carries the persona's stated lean, the lean is part of that option's own words. No badge, no highlight, no sort order, no default selection, no recommended styling of any kind.
 
 The block has **no chosen state and no disabled state**, because it does not survive being answered: the whole block is removed once the question is answered.
@@ -865,7 +869,7 @@ The block has **no chosen state and no disabled state**, because it does not sur
 
 One treatment, everywhere: `{components.focus}` — a `0 0 0 2px {colors.accent}` ring at **2px** offset, drawn outside the element and inheriting its radius. Stacked initials take a **3px** offset so the ring clears the `-5px` overlap of the disc behind. There is no focus fill, no focus shadow, no colour change and no motion; the ring is the whole treatment and it is identical on every primitive.
 
-It is specified for **every surface EXPERIENCE.md requires to be keyboard-operable**: the view switch and each of its buttons, the persona tile, the skill button and `+N more`, the composer field and the send button, the decision option, the document card and its stop control, the rail row, the document window's three escapes, the cast chooser, the party header controls, and the initials token.
+It is specified for **every surface EXPERIENCE.md requires to be keyboard-operable**: the view switch and each of its buttons, the persona tile, the skill button and `+N more`, the composer's send button, the decision option, the document card and its stop control, the rail row, the document window's three escapes, the cast chooser, the party header controls, and the initials token.
 
 `:focus-visible` only — a mouse press never draws the ring. Hover and focus are separate treatments and must not be collapsed into one: hover is `panel-2`, focus is the accent ring, and a surface may carry both at once.
 
@@ -879,7 +883,7 @@ The row must look right at **1 to 10 entries**. Its overflow behaviour — in-pl
 
 The conversation's most-repeated element, and the one the radius table names only in passing. A `{rounded.card}` (6px) container padded `12px 10px` with a 12px gap, successive turns 2px apart: a 32px portrait on the left, and on the right a header line over the words.
 
-The header is the name at `{typography.name}` (12.5px/600, `text-strong`), the role at `{typography.ident}` (11px, sans, `faint`) and the timestamp in mono at `{typography.meta}` (10px, `meta`), pushed to the right edge. The words follow at `{typography.body-ui}` in sans, `white-space: pre-wrap`, with paragraphs split on blank lines and nothing else: no prefix, frame, label, summary or classification of what a persona said. Everything a project or a persona supplies is rendered as text.
+The header is the name at `{typography.name}` (12.5px/600, `text-strong`), the role at `{typography.ident}` (11px, sans, `faint`) and the timestamp in mono at `{typography.meta}` (10px, `meta`), pushed to the right edge. The words follow at `{typography.base}` (13px) in sans, `white-space: pre-wrap`, with paragraphs split on blank lines and nothing else: no prefix, frame, label, summary or classification of what a persona said. Everything a project or a persona supplies is rendered as text.
 
 **The user's turn** is the same container on the `accent-wash` ground with an `inset 2px 0 0 accent-edge` rule down its left edge, and the 32px initials token where the portrait would be — the user has no generated face. The wash and the rule are the only difference; the user's turn is not a different component.
 
@@ -893,7 +897,7 @@ No hover lift, no entrance animation, no typewriter reveal. The thread caps at `
 
 ### Composer
 
-`panel` ground, 1px `line`, `{rounded.card}` (6px) radius. Focus-within moves the border to `#484848`. Placeholder `#636363`. Textarea autogrows 20px→120px, clamped in CSS and sized from its content. It is never disabled and takes the shared focus ring itself; the field's border shift is a second cue, not a replacement. `Enter` sends, `Shift+Enter` is a newline, and no other chord sends. Send button: `#393939` ground, `#4b4b4b` border, `#dedede` glyph, `{rounded.control}` radius, `#424242` on hover. Hint lines below at `{typography.label}` in `{colors.meta}`.
+`panel` ground, 1px `line`, `{rounded.card}` (6px) radius. Focus changes nothing about the field: no border shift and no ring on the textarea (a decision; the mockup's `#484848` focus-within border is not carried, and the field is the one exemption from the shared ring). Placeholder `#636363`. Textarea autogrows 20px→120px, clamped in CSS and sized from its content. It is never disabled; the send button keeps the shared focus ring. `Enter` sends, `Shift+Enter` is a newline, and no other chord sends. Send button: `#393939` ground, `#4b4b4b` border, `#dedede` glyph, `{rounded.control}` radius, `#424242` on hover. Hint lines below at `{typography.label}` in `{colors.meta}`.
 
 ### Cast card
 

@@ -12,6 +12,7 @@
   display: flex;
   gap: var(--space-lg);
   padding: var(--cast-strip-padding);
+  border-bottom: var(--rule-width) solid var(--line);
   background: var(--grad-cast);
   overflow-x: auto;
 }

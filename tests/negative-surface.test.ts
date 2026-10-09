@@ -756,10 +756,6 @@ describe("the text ramp", () => {
       kind: "label",
       why: "the word under a state strip count (Working, Idle, Error, Changed); the figure above it is at --text-strong, and the tiles below state each persona's own state in words at --dim",
     },
-    "ui/chat/skill-row.css: .skill-more": {
-      kind: "restated",
-      why: "the `+N more` / `fewer` toggle on a long menu; the entries it hides are the same buttons it reveals, and the row reads as complete at five without it",
-    },
   };
 
   /** `file: selector` for every rule under `src/renderer/` that spends a faint token. */
@@ -947,9 +943,17 @@ describe("the decision block marks and decides nothing (Story 2.10)", () => {
   it("has no chosen, selected, disabled, hover, default, recommended or sorted state, and no pressed, selected or disabled aria", () => {
     for (const path of BLOCK) {
       expect(code.get(path) ?? "", path).not.toMatch(
-        /aria-(?:pressed|selected|disabled|checked|current)|\bdisabled\b|\bchosen\b|\bselected\b|\brecommend|\bdefault\b|:hover|:active|\.sort\(|\btoSorted\(|\.reverse\(|\blean\b|\bpreferred\b|\bbest\b/i,
+        /aria-(?:pressed|selected|disabled|checked|current)|\bdisabled\b|\bchosen\b|\bselected\b|\brecommend|\bdefault\b|:active|\.sort\(|\btoSorted\(|\.reverse\(|\blean\b|\bpreferred\b|\bbest\b/i,
       );
     }
+  });
+
+  it("lifts an option under the pointer and in no other state: the one `:hover` is the mockup's, on the option's own border and ground", () => {
+    for (const path of BLOCK) {
+      const text = code.get(path) ?? "";
+      expect(text.match(/:hover/g)?.length ?? 0, path).toBe(path.endsWith(".css") ? 1 : 0);
+    }
+    expect(code.get("src/renderer/ui/chat/decision-block.css") ?? "").toMatch(/\.decision-option:hover\s*\{/);
   });
 
   it("takes no key, owns no focus rule and no outline, and adds no live region, animation or sound", () => {
@@ -1573,7 +1577,9 @@ describe("the skill row knows nothing about what it runs (Story 3.1)", () => {
   it("styles the toggle with no animation, no literal value and no focus rule of its own", () => {
     const css = code.get("src/renderer/ui/chat/skill-row.css") ?? "";
     const rule = css.slice(css.indexOf(".skill-more {"));
-    expect(rule).toContain("var(--faint)");
+    // The toggle is drawn as a skill button, as the mockup's rendering of it is: the text ink, not the faint tier.
+    expect(rule).toContain("var(--text)");
+    expect(rule).not.toContain("var(--faint)");
     expect(rule).not.toMatch(/animation|transition|@keyframes|#[0-9a-f]{3,8}\b|\d+px|rgb\(|:focus/i);
     expect(css).not.toMatch(/:focus/);
   });

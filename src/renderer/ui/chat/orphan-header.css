@@ -15,17 +15,17 @@
 
 .orphan-close {
   flex: 0 0 auto;
-  padding: var(--switch-padding);
+  padding: var(--ghost-padding);
   border: var(--rule-width) solid var(--line);
   border-radius: var(--r);
   background: var(--panel-2);
   font-family: var(--sans);
-  font-size: var(--fs-control);
-  letter-spacing: var(--track-control);
+  font-size: var(--fs-body-ui);
   color: var(--dim);
   cursor: pointer;
 }
 
 .orphan-close:hover {
-  color: var(--text);
+  color: var(--text-strong);
+  border-color: var(--ghost-border-hover);
 }

@@ -156,23 +156,25 @@
 
 /* ---------- the end-session control ---------- */
 
-/* Neutral, in the view switch's own tokens: the same ground, rule, type and
-   dim text, and the same hover. It owns no ring, accent or state of its own. */
+/* The mockup's ghost button (`.ghost-btn`, :72-76): a `panel-2` ground, a 1px rule
+   at the base radius, dim text at the body-ui size, padded `4px 10px`; under the
+   pointer the text lifts to `text-strong` and the rule to the ghost hover line. It
+   owns no ring, accent or state of its own. */
 .end-session {
   flex: 0 0 auto;
-  padding: var(--switch-padding);
+  padding: var(--ghost-padding);
   border: var(--rule-width) solid var(--line);
   border-radius: var(--r);
   background: var(--panel-2);
   font-family: var(--sans);
-  font-size: var(--fs-control);
-  letter-spacing: var(--track-control);
+  font-size: var(--fs-body-ui);
   color: var(--dim);
   cursor: pointer;
 }
 
 .end-session:hover {
-  color: var(--text);
+  color: var(--text-strong);
+  border-color: var(--ghost-border-hover);
 }
 
 /* ---------- views ---------- */

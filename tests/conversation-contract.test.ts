@@ -85,7 +85,7 @@ describe('the turn', () => {
     expect(declared.get('--inset-turn-user')).toBe('inset 2px 0 0 var(--accent-edge)')
   })
 
-  it('sets the header at the name, ident and meta rungs and the words at body-ui', () => {
+  it('sets the header at the name, ident and meta rungs and the words at the base size, the mockup’s inherited 13px', () => {
     expect(ruleBody(turnCss, '.turn-name')).toMatch(/font-size: var\(--fs-name\)[\s\S]*font-weight: var\(--weight-strong\)/)
     expect(declared.get('--fs-name')).toBe('12.5px')
 
@@ -102,7 +102,8 @@ describe('the turn', () => {
 
     const words = ruleBody(turnCss, '.turn-words')
     expect(words).toContain('font-family: var(--sans)')
-    expect(words).toContain('font-size: var(--fs-body-ui)')
+    expect(words).toContain('font-size: var(--fs-base)')
+    expect(words).toContain('line-height: var(--lh-base)')
     expect(ruleBody(turnCss, '.turn-words p')).toContain('white-space: pre-wrap')
   })
 
@@ -114,15 +115,16 @@ describe('the turn', () => {
 })
 
 describe('the composer', () => {
-  it('is a panel field with a 1px line and a card radius, whose border shifts on focus-within', () => {
+  it('is a panel field with a 1px line and a card radius, whose border does not change on focus', () => {
     const body = ruleBody(composerCss, '.composer-field')
 
     expect(body).toContain('background: var(--panel)')
     expect(body).toContain('border: var(--rule-width) solid var(--line)')
     expect(body).toContain('border-radius: var(--radius-card)')
     expect(declared.get('--rule-width')).toBe('1px')
-    expect(ruleBody(composerCss, '.composer-field:focus-within')).toContain('border-color: var(--composer-focus-line)')
-    expect(declared.get('--composer-focus-line')).toBe('#484848')
+    // The mockup's focus-within border is not carried: no rule, no token.
+    expect(composerCss).not.toMatch(/:focus/)
+    expect(declared.has('--composer-focus-line')).toBe(false)
   })
 
   it('grows from --composer-min to --composer-max and takes its placeholder from a token', () => {

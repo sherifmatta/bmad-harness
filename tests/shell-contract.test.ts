@@ -315,18 +315,20 @@ describe('the shell furniture stays within scope', () => {
     ])
   })
 
-  it('draws the end-session control in the view switch’s own tokens', () => {
+  it('draws the end-session control as the mockup’s ghost button', () => {
     const body = ruleBody(shellCss, '.end-session') ?? ''
 
-    expect(body).toContain('padding: var(--switch-padding)')
+    expect(body).toContain('padding: var(--ghost-padding)')
     expect(body).toContain('border: var(--rule-width) solid var(--line)')
     expect(body).toContain('border-radius: var(--r)')
     expect(body).toContain('background: var(--panel-2)')
     expect(body).toContain('font-family: var(--sans)')
-    expect(body).toContain('font-size: var(--fs-control)')
-    expect(body).toContain('letter-spacing: var(--track-control)')
+    expect(body).toContain('font-size: var(--fs-body-ui)')
+    expect(body).not.toContain('letter-spacing')
     expect(body).toContain('color: var(--dim)')
-    expect(ruleBody(shellCss, '.end-session:hover')).toContain('color: var(--text)')
+    const hover = ruleBody(shellCss, '.end-session:hover')
+    expect(hover).toContain('color: var(--text-strong)')
+    expect(hover).toContain('border-color: var(--ghost-border-hover)')
   })
 
   it('draws the group heading once, for both rail halves to reuse', () => {

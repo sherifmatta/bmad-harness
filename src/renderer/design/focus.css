@@ -28,6 +28,17 @@
 }
 
 /*
+ * The one exemption: the composer's textarea. A field you type into is already
+ * the obvious place focus is, and the user asked for it to draw no ring and no
+ * border change. The rule is spelled out because the browser's own focus ring
+ * would otherwise take the field once the global rule no longer names it. Every
+ * other control keeps the ring above, the composer's send button included.
+ */
+.composer-input:focus-visible {
+  outline: none;
+}
+
+/*
  * The stacked case: initials discs overlap the disc before them by -5px and
  * hide the seam with a panel-coloured cut-out ring, which clips a 2px-offset
  * focus ring. 3px clears it. Only the offset changes — the ring itself is the

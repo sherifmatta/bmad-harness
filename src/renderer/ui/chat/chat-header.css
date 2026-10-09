@@ -65,24 +65,36 @@
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: var(--space-xl);
+  gap: var(--space-md);
   margin-left: auto;
 }
 
-/* The one control: neutral, in the end-session control's own tokens. */
+/* The one control: the mockup's ghost button, in the end-session control's own tokens. */
+/* The state as the mockup's status pill (`.status-pill`, :162-166): the dot and its
+   words on a faint amber wash with an amber hairline, 11px mono. The mockup paints
+   it amber whatever the state, and the dot beside the words still says which. */
+.chat-head-state .state-line {
+  padding: var(--pill-padding);
+  border: var(--rule-width) solid var(--status-pill-line);
+  border-radius: var(--radius-chip);
+  background: var(--status-pill-bg);
+  font-size: var(--fs-ident);
+  color: var(--status-pill-ink);
+}
+
 .chat-close {
   flex: 0 0 auto;
-  padding: var(--switch-padding);
+  padding: var(--ghost-padding);
   border: var(--rule-width) solid var(--line);
   border-radius: var(--r);
   background: var(--panel-2);
   font-family: var(--sans);
-  font-size: var(--fs-control);
-  letter-spacing: var(--track-control);
+  font-size: var(--fs-body-ui);
   color: var(--dim);
   cursor: pointer;
 }
 
 .chat-close:hover {
-  color: var(--text);
+  color: var(--text-strong);
+  border-color: var(--ghost-border-hover);
 }

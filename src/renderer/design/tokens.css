@@ -112,8 +112,9 @@
   --fs-h1:20px;
 
   /* Four line-heights. --lh-base everywhere by default, --lh-read for both
-     reading measures, --lh-tight for the open-question block and the decision
-     option, --lh-none on the portrait wrapper to kill descender space. */
+     reading measures, --lh-tight for the open-question block (the decision
+     option reads at --lh-base, as the mockup's does), --lh-none on the portrait
+     wrapper to kill descender space. */
   --lh-base:1.55;
   --lh-read:1.72;
   --lh-tight:1.45;
@@ -121,7 +122,8 @@
 
   /* Tracking makes small type readable and marks a label as a label, never
      style. Uppercase appears only on rail heads, side-section heads, the legend
-     badge, markdown h3 and table headers — which is what --track-caps is for.
+     badge, markdown h3, table headers and the skill-row label (the mockup's, and
+     the user's call) — which is what --track-caps is for.
      It is deliberately not called --track-head: that would pair by name with
      --fs-head, the 14px chat-header name, whose tracking is --track-control. */
   --track-caps:.09em;
@@ -130,6 +132,7 @@
   --track-skill-code:.05em;
   --track-micro:.04em;
   --track-md-h3:.03em;
+  --track-sysline:.03em;
   --track-brand:.02em;
   --track-control:.01em;
   --track-h1:-.01em;
@@ -437,6 +440,15 @@
   --chat-head-padding:10px 16px;
   --chat-head-sub-top:1px;
 
+  /* The status pill beside the chat header's state line: `.status-pill` (:162-166),
+     padded `3px 8px`, a 3px radius (--radius-chip), 11px mono (--fs-ident), in amber
+     on a faint amber wash with an amber hairline. The mockup paints it amber whatever
+     the state, and so does this. */
+  --pill-padding:3px 8px;
+  --status-pill-bg:rgba(185,163,103,.10);
+  --status-pill-line:rgba(185,163,103,.25);
+  --status-pill-ink:#d7b96a;
+
   /* ── The turn and the composer (Story 2.3), promoted so no stylesheet
      restates a literal (NFR23). Every line cited is harness-mockup.html's; the
      components are DESIGN.md `conversation-turn` and `composer`.
@@ -449,6 +461,11 @@
   --turn-padding:12px 10px;
   --turn-gap:12px;
   --turn-stack-gap:2px;
+  /* A party turn, `.pturn` (:304): one pixel tighter than a 1:1 turn, with no stack
+     gap of its own (the mockup's `.turn + .turn` rule does not reach it), and the
+     speaking persona's turn on a ground of #181d24 as well as the accent edge (:307). */
+  --party-turn-padding:11px 10px;
+  --party-live-ground:#181d24;
   --turn-avatar-top:1px;
   --turn-head-bottom:3px;
   --inset-turn-user:inset 2px 0 0 var(--accent-edge);
@@ -463,22 +480,30 @@
      turns'. */
   --sysline-margin:14px 2px 10px;
 
-  /* The decision block (Story 2.10): DESIGN.md's *Decision option* pads the
-     block `9px 11px`, the same pair the tile uses (--tile-padding) but named for
-     its own component so neither moves the other. Its radius is --r, its gap
-     --space-sm, its ground --panel-2. */
+  /* The decision options, as the mockup draws them (`.options` and `.opt`,
+     :228-238): a column of cards, each padded `9px 11px` (the same pair the tile
+     uses, --tile-padding, but named for its own component so neither moves the
+     other) on --panel with a 1px --line at --r, the column 8px under the words and
+     4px over what follows, the key badge padded `1px 5px` and dropped 1px, and a
+     hover border of #465264 on a --panel-2 ground. The gap between cards is
+     --space-sm. */
   --decision-padding:9px 11px;
+  --decision-margin:8px 0 4px;
+  --decision-key-padding:1px 5px;
+  --decision-key-top:1px;
+  --decision-hover-line:#465264;
 
   /* The composer: `.composer` (:246) is padded 9px 16px 11px, `.inputwrap`
-     (:257) 7px 8px 7px 11px, and the textarea (:259-262) 2px 0. The field's focus
-     border is #484848 (:258) and the placeholder #636363 (:263). The send
+     (:257) 7px 8px 7px 11px, and the textarea (:259-262) 2px 0. The mockup's focus-within border
+     (#484848, :258) is not carried: the user chose a field that draws no border change
+     and a textarea that draws no ring on focus (design/focus.css holds the one exemption). The placeholder is
+     #636363 (:263). The send
      button (:264-265) is padded 4px 12px on #393939, bordered #4b4b4b, glyph
      #dedede, hovering to #424242. The hint line (:266) sits 6px under the
      field with a 14px gap. */
   --composer-padding:9px 16px 11px;
   --composer-field-padding:7px 8px 7px 11px;
   --composer-text-padding:2px 0;
-  --composer-focus-line:#484848;
   --composer-placeholder:#636363;
   --send-padding:4px 12px;
   --send-bg:#393939;
@@ -581,11 +606,11 @@
   --pinned-width:100%;
 
   /* The card's foot (Story 3.12): padded `6px 11px` (`.doccard .df`, :222-223;
-     DESIGN.md `### Document card`, Foot), its items 14px apart and wrapping
-     (DESIGN.md, Foot). Its ground, rule, size and colour are --panel-2,
+     DESIGN.md `### Document card`, Foot), its items 8px apart (`gap:8px`, :223)
+     and wrapping. Its ground, rule, size and colour are --panel-2,
      --line-soft, --fs-label and --faint as they are. */
   --card-foot-padding:6px 11px;
-  --card-foot-gap:14px;
+  --card-foot-gap:8px;
 
   /* The caret: a 6.5 by 13 accent block dropped 2px (`.caret`, :220; DESIGN.md
      `components.document-card.caret`). */
@@ -597,6 +622,7 @@
      hover border `#515151` (:254; DESIGN.md `hoverBorder`). Its code chip is
      padded `0 4px` (:255), which --code-tag-padding already is. */
   --skill-button-padding:4px 9px 4px 6px;
+  --skill-label-trail:2px;
   --skill-button-hover-line:#515151;
 
   /* ── The Welcome (Story 5.1), read off DESIGN.md's `components.welcome` block
@@ -733,7 +759,6 @@
   --scrollbar-thumb-hover:#bdbdbd;
   --tile-current:#dadada;
   --code-tag-bg:#dfdfdf;
-  --composer-focus-line:#b7b7b7;
   --composer-placeholder:#858585;
   --send-bg:#c6c6c6;
   --send-line:#b4b4b4;
@@ -742,6 +767,11 @@
   --win-light:#bebebe;
   --ghost-border-hover:#bfbfbf;
   --skill-button-hover-line:#aeaeae;
+  --decision-hover-line:#ababab;
+  --party-live-ground:#e1e1e1;
+  --status-pill-bg:rgba(120,103,55,.10);
+  --status-pill-line:rgba(120,103,55,.25);
+  --status-pill-ink:#6f5f32;
   --shadow-window:0 30px 70px -20px rgba(8,8,8,.35);
   --shadow-speaking:0 0 0 1px rgba(27,27,27,.22), 0 6px 18px -10px rgba(8,8,8,.18);
 }

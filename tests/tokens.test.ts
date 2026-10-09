@@ -304,7 +304,7 @@ describe('the type scale', () => {
     expect(tokens.get('--lh-read')).toBe('1.72')
   })
 
-  it('is the nine tracking values, each named for what it tracks', () => {
+  it('is the ten tracking values, each named for what it tracks', () => {
     // `--track-caps` is DESIGN.md's `label` tracking — uppercase rail and
     // section heads. It is deliberately not called `--track-head`, which would
     // pair by name with `--fs-head` (the 14px chat-header name) and silently
@@ -318,6 +318,7 @@ describe('the type scale', () => {
       '--track-skill-code': '.05em',
       '--track-micro': '.04em',
       '--track-md-h3': '.03em',
+      '--track-sysline': '.03em',
       '--track-brand': '.02em',
       '--track-control': '.01em',
       '--track-h1': '-.01em'
@@ -863,8 +864,10 @@ describe('the light theme (Story 5.2, seam A)', () => {
     // five dimensions (Story 5.5) at its end, held by its digest: any byte moved in it, a
     // value or a comment, changes the dark theme's source. Re-pinned when the dark palette
     // moved from blue-tinted slate to neutral near-black and near-white (2026-10-08), and again for the three-column room
-    // (2026-10-09): `--sidebar` added, `--rail` 348px to 300px, and the state strip's one padding at the block's end.
-    expect(createHash('sha256').update(promotedBlock()).digest('hex')).toBe('948ddef5301e711a692c93a97c4fa726afeb71f5293b930a872bd270298c989f')
+    // (2026-10-09): `--sidebar` added, `--rail` 348px to 300px, and the state strip's one padding at the block's end. Re-pinned
+    // again when the chat UI was matched to the mockup (2026-10-09): `--composer-focus-line` removed, and the decision cards', the
+    // status pill's, the party turn's, the sysline's and the skill label's tokens added.
+    expect(createHash('sha256').update(promotedBlock()).digest('hex')).toBe('cdebaa815a83740e8bcfc72557bfebe34914c4a81c53734bd3eabe94b70273f5')
   })
 
   it('states color-scheme: light in its own block, and the dark theme still states dark', () => {
@@ -873,12 +876,12 @@ describe('the light theme (Story 5.2, seam A)', () => {
     expect(withoutComments(promotedBlock())).toMatch(/\bcolor-scheme\s*:\s*dark\b/)
   })
 
-  it('holds a twin for each of the 62 dark colour tokens, and no colour token without a dark original', () => {
+  it('holds a twin for each of the 66 dark colour tokens, and no colour token without a dark original', () => {
     const dark = darkColourTokens()
 
-    expect(dark).toHaveLength(62)
+    expect(dark).toHaveLength(66)
     expect([...light.keys()].sort()).toEqual([...dark].sort())
-    expect(light.size).toBe(62)
+    expect(light.size).toBe(66)
   })
 
   it('holds colour tokens only: no dimension, radius, type size, line height, tracking or motion value', () => {
@@ -903,7 +906,7 @@ describe('the light theme (Story 5.2, seam A)', () => {
     const omitted = ['--ghost-border-hover', '--skill-button-hover-line', '--shadow-window', '--shadow-speaking']
     const mapped = [...light.keys()].filter((name) => !omitted.includes(name))
 
-    expect(mapped).toHaveLength(58)
+    expect(mapped).toHaveLength(62)
     expect(mapped.filter((name) => light.get(name) !== designValue('colors-light', name.slice(2)))).toEqual([])
 
     expect(light.get('--ghost-border-hover')).toBe('#bfbfbf')
@@ -931,7 +934,7 @@ describe('the light theme (Story 5.2, seam A)', () => {
   })
 
   it('is the dark theme reversed: every grey is neutral, with no tint, and only the status hues carry any', () => {
-    const hued = new Set(['green', 'amber', 'red', 'disagree', 'legend-badge', 'disagree-border', 'disagree-bg', 'legend-badge-bg', 'legend-badge-border', 'halo-live', 'halo-work'])
+    const hued = new Set(['green', 'amber', 'red', 'disagree', 'legend-badge', 'disagree-border', 'disagree-bg', 'legend-badge-bg', 'legend-badge-border', 'halo-live', 'halo-work', 'status-pill-bg', 'status-pill-line', 'status-pill-ink'])
     const channels = (value: string): number[] =>
       value.startsWith('#') ? [1, 3, 5].map((at) => parseInt(value.slice(at, at + 2), 16)) : (value.match(/\d+/g) ?? []).slice(0, 3).map(Number)
     for (const [name, value] of light) {
@@ -1363,6 +1366,11 @@ describe('the sysline (Story 2.9)', () => {
     )
   })
 
+  it('tracks its words at the mockup’s .03em, on its own token', () => {
+    expect(tokens.get('--track-sysline')).toBe('.03em')
+    expect(css).toMatch(/\.sysline-text\s*\{[^}]*letter-spacing:\s*var\(--track-sysline\)/)
+  })
+
   it('has no ground, border, shadow, radius, animation or transition, and is not a .turn', () => {
     expect(css).not.toMatch(/\bbackground(?:-color)?:\s*var\(--(?!line\b)/)
     expect(css).not.toMatch(/box-shadow|border|radius|animation|transition|opacity|\.turn\b/)
@@ -1379,29 +1387,43 @@ describe('the decision block (Story 2.10)', () => {
     design.indexOf('### Focus')
   )
 
-  it('takes its padding from DESIGN.md’s Decision option, as one token of its own', () => {
+  it('takes its padding from DESIGN.md’s Decision option, as one token of its own, on each option card', () => {
     expect(section, 'DESIGN.md ### Decision option').toContain('`9px 11px`')
     expect(tokens.get('--decision-padding')).toBe('9px 11px')
-    expect(css).toMatch(/\.decision\s*\{[^}]*padding:\s*var\(--decision-padding\)/)
+    expect(css).toMatch(/\.decision-option\s*\{[^}]*padding:\s*var\(--decision-padding\)/)
     // The ladder keeps its ten rungs.
     expect(namesMatching('--space-')).toHaveLength(10)
   })
 
-  it('is a panel-2 block in the base radius with a 1px line, its options stacked at the sm rung', () => {
-    expect(section).toContain('`panel-2` ground, 1px `line`')
-    expect(css).toMatch(/\.decision\s*\{[^}]*background:\s*var\(--panel-2\)/)
-    expect(css).toMatch(/\.decision\s*\{[^}]*border:\s*var\(--rule-width\) solid var\(--line\)/)
-    expect(css).toMatch(/\.decision\s*\{[^}]*border-radius:\s*var\(--r\)/)
-    expect(css).toMatch(/\.decision\s*\{[^}]*flex-direction:\s*column[^}]*gap:\s*var\(--space-sm\)/)
+  it('is a bare column of cards, as the mockup draws it: the block has no ground of its own, each option a panel card in the base radius with a 1px line, stacked at the sm rung', () => {
+    expect(section).toContain('`panel` ground, 1px `line`')
+    expect(css).toMatch(/\.decision\s*\{[^}]*flex-direction:\s*column[^}]*gap:\s*var\(--space-sm\)[^}]*margin:\s*var\(--decision-margin\)/)
+    expect(css.match(/\.decision\s*\{[^}]*\}/)?.[0] ?? '').not.toMatch(/background|border|padding/)
+    expect(css).toMatch(/\.decision-option\s*\{[^}]*background:\s*var\(--panel\)/)
+    expect(css).toMatch(/\.decision-option\s*\{[^}]*border:\s*var\(--rule-width\) solid var\(--line\)/)
+    expect(css).toMatch(/\.decision-option\s*\{[^}]*border-radius:\s*var\(--r\)/)
+    expect(css).toMatch(/\.decision-option\s*\{[^}]*align-items:\s*flex-start[^}]*gap:\s*var\(--space-lg\)/)
+    expect(tokens.get('--decision-margin')).toBe('8px 0 4px')
     expect(tokens.get('--space-sm')).toBe(designValue('spacing', 'sm'))
   })
 
-  it('sets the title at the name size, strong, in text-strong, and the options at body-ui over the tight line-height', () => {
+  it('lifts an option’s border and ground under the pointer, to the mockup’s #465264 and panel-2', () => {
+    expect(css).toMatch(
+      /\.decision-option:hover\s*\{[^}]*border-color:\s*var\(--decision-hover-line\)[^}]*background:\s*var\(--panel-2\)/
+    )
+    expect(tokens.get('--decision-hover-line')).toBe('#465264')
+    expect(css.match(/:hover/g)).toHaveLength(1)
+  })
+
+  it('sets the title and the option’s words at the name size, strong, in text-strong, and the option over the default line-height', () => {
     expect(css).toMatch(
       /\.decision-title\s*\{[^}]*font-size:\s*var\(--fs-name\)[^}]*font-weight:\s*var\(--weight-strong\)[^}]*color:\s*var\(--text-strong\)/
     )
     expect(css).toMatch(
-      /\.decision-option\s*\{[^}]*font-size:\s*var\(--fs-body-ui\)[^}]*line-height:\s*var\(--lh-tight\)/
+      /\.decision-text\s*\{[^}]*font-size:\s*var\(--fs-name\)[^}]*font-weight:\s*var\(--weight-strong\)[^}]*color:\s*var\(--text-strong\)/
+    )
+    expect(css).toMatch(
+      /\.decision-option\s*\{[^}]*font-size:\s*var\(--fs-base\)[^}]*line-height:\s*var\(--lh-base\)/
     )
     expect(tokens.get('--lh-tight')).toBe('1.45')
   })
@@ -1410,14 +1432,108 @@ describe('the decision block (Story 2.10)', () => {
     expect(css).toMatch(
       /\.decision-key\s*\{[^}]*border:\s*var\(--rule-width\) solid var\(--accent-border\)[^}]*border-radius:\s*var\(--radius-chip\)[^}]*background:\s*var\(--accent-bg\)[^}]*color:\s*var\(--accent\)[^}]*font-family:\s*var\(--mono\)[^}]*font-size:\s*var\(--fs-label\)/
     )
+    expect(css).toMatch(/\.decision-key\s*\{[^}]*margin-top:\s*var\(--decision-key-top\)[^}]*padding:\s*var\(--decision-key-padding\)/)
+    expect(tokens.get('--decision-key-top')).toBe('1px')
+    expect(tokens.get('--decision-key-padding')).toBe('1px 5px')
     expect([...css.matchAll(/var\(--accent(?:-bg|-border)?\)/g)]).toHaveLength(3)
     expect(css.match(/--accent\b(?!-)/g)).toHaveLength(1)
   })
 
-  it('is governed by the literal guard and has no ring, hover, motion or literal of its own', () => {
+  it('is governed by the literal guard and has no ring, motion or literal of its own', () => {
     const path = 'src/renderer/ui/chat/decision-block.css'
     expect(guardedStylesheets()).toContain(path)
     expect(literalsIn(path, readFileSync(join(ROOT, path), 'utf8'))).toEqual([])
-    expect(css).not.toMatch(/outline|:focus|:hover|animation|transition|box-shadow|opacity/)
+    expect(css).not.toMatch(/outline|:focus|animation|transition|box-shadow|opacity/)
+  })
+})
+
+describe('the chat UI as the mockup draws it (2026-10-09)', () => {
+  const css = (path: string): string => withoutComments(readFileSync(join(ROOT, path), 'utf8'))
+  const rule = (source: string, selector: string): string => {
+    for (const [, selectors, body] of source.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      if (selectors.split(',').some((candidate) => candidate.trim() === selector)) {
+        return body
+      }
+    }
+    throw new Error(`no rule for ${selector}`)
+  }
+
+  it('sets the page font on a native button and smooths the text, as the mockup’s body and `button{font:inherit}` do', () => {
+    const page = css('src/renderer/design/page.css')
+
+    expect(rule(page, 'body')).toContain('-webkit-font-smoothing: antialiased')
+    const button = rule(page, 'button')
+    for (const declaration of ['font-size: inherit', 'font-weight: inherit', 'line-height: inherit', 'color: inherit']) {
+      expect(button, declaration).toContain(declaration)
+    }
+    expect(button).toContain('font-family: var(--sans)')
+  })
+
+  it('draws the three close controls as the mockup’s ghost button', () => {
+    for (const [path, selector] of [
+      ['src/renderer/ui/chat/chat-header.css', '.chat-close'],
+      ['src/renderer/ui/chat/orphan-header.css', '.orphan-close'],
+      ['src/renderer/ui/shell/shell.css', '.end-session']
+    ] as const) {
+      const source = css(path)
+      const body = rule(source, selector)
+      expect(body, selector).toContain('padding: var(--ghost-padding)')
+      expect(body, selector).toContain('font-size: var(--fs-body-ui)')
+      expect(body, selector).not.toContain('letter-spacing')
+      const hover = rule(source, `${selector}:hover`)
+      expect(hover, selector).toContain('color: var(--text-strong)')
+      expect(hover, selector).toContain('border-color: var(--ghost-border-hover)')
+    }
+    expect(tokens.get('--ghost-padding')).toBe('4px 10px')
+    expect(tokens.get('--ghost-border-hover')).toBe('#404040')
+  })
+
+  it('sets the skill row’s label uppercase and 2px off the first button, and its toggle as a skill button', () => {
+    const skills = css('src/renderer/ui/chat/skill-row.css')
+
+    expect(rule(skills, '.skill-row-label')).toContain('text-transform: uppercase')
+    expect(rule(skills, '.skill-row-label')).toContain('margin-right: var(--skill-label-trail)')
+    expect(tokens.get('--skill-label-trail')).toBe('2px')
+    expect(rule(skills, '.skill-more')).toContain('background: var(--panel-2)')
+    expect(rule(skills, '.skill-more')).toContain('border: var(--rule-width) solid var(--line)')
+    expect(rule(skills, '.skill-more:hover')).toContain('border-color: var(--skill-button-hover-line)')
+  })
+
+  it('draws the chat header’s state as the status pill, 11px mono in amber on a faint amber wash', () => {
+    const head = css('src/renderer/ui/chat/chat-header.css')
+    const pill = rule(head, '.chat-head-state .state-line')
+
+    expect(pill).toContain('padding: var(--pill-padding)')
+    expect(pill).toContain('border: var(--rule-width) solid var(--status-pill-line)')
+    expect(pill).toContain('border-radius: var(--radius-chip)')
+    expect(pill).toContain('background: var(--status-pill-bg)')
+    expect(pill).toContain('font-size: var(--fs-ident)')
+    expect(pill).toContain('color: var(--status-pill-ink)')
+    expect(tokens.get('--pill-padding')).toBe('3px 8px')
+    expect(tokens.get('--status-pill-bg')).toBe('rgba(185,163,103,.10)')
+    expect(tokens.get('--status-pill-line')).toBe('rgba(185,163,103,.25)')
+    expect(tokens.get('--status-pill-ink')).toBe('#d7b96a')
+    expect(rule(head, '.chat-head-state')).toContain('gap: var(--space-md)')
+  })
+
+  it('draws a party turn as `.pturn`: 11px 10px, no stack gap, and the speaker’s ground under the accent edge', () => {
+    const party = css('src/renderer/ui/party/party-view.css')
+
+    expect(rule(party, '.party-column .turn')).toContain('padding: var(--party-turn-padding)')
+    expect(rule(party, '.party-column .turn + .turn')).toContain('margin-top: 0')
+    expect(rule(party, '.turn--party-live')).toContain('background: var(--party-live-ground)')
+    expect(tokens.get('--party-turn-padding')).toBe('11px 10px')
+    expect(tokens.get('--party-live-ground')).toBe('#181d24')
+    expect(rule(css('src/renderer/ui/party/cast-strip.css'), '.cast-strip')).toContain(
+      'border-bottom: var(--rule-width) solid var(--line)'
+    )
+  })
+
+  it('sets the run card’s foot in the page’s sans with 8px between its items, as `.df` does', () => {
+    const foot = rule(css('src/renderer/ui/chat/run-card.css'), '.run-card-foot')
+
+    expect(foot).not.toContain('font-family')
+    expect(foot).toContain('gap: var(--card-foot-gap)')
+    expect(tokens.get('--card-foot-gap')).toBe('8px')
   })
 })

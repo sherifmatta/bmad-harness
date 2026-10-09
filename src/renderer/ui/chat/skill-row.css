@@ -3,8 +3,10 @@
  * harness-mockup.html's `.skillrow` and `.skillbtn` rules (:248-256). It sits
  * inside the composer, above the field.
  *
- * The label is mono at the meta size on the skill-label tracking, in sentence
- * case: DESIGN.md confines uppercase to five surfaces and this is not one. The
+ * The label is mono at the meta size on the skill-label tracking, uppercase,
+ * and sits 2px further from the first button than the row's gap, all as the
+ * mockup draws it (`.skillrow .lbl`, :249). DESIGN.md confines uppercase to five
+ * surfaces and this is not one; the mockup wins, by the user's instruction. The
  * button is a `panel-2` ground with a hairline `line` border at the control
  * radius; its code chip is the accent on its fill at the micro radius. A
  * disabled button keeps its words and loses its hover; there is no spinner or
@@ -24,7 +26,9 @@
   font-family: var(--mono);
   font-size: var(--fs-meta);
   letter-spacing: var(--track-skill-label);
+  text-transform: uppercase;
   color: var(--meta);
+  margin-right: var(--skill-label-trail);
 }
 
 .skill-button {
@@ -63,17 +67,27 @@
 }
 
 /*
- * `+N more` / `fewer`: the row's one toggle, in `faint`, on no ground and with no
- * border so it reads as a note on the row rather than as a ninth skill. It takes
+ * `+N more` / `fewer`: the row's one toggle. The mockup's rule for it
+ * (`.skillbtn .more{color:var(--faint)}`, :256) is a descendant selector and
+ * matches nothing, because the button is `.skillbtn.more`; what the mockup draws
+ * is a skill button, so this is one, ground, border, ink and hover alike. It takes
  * the shared focus ring and has no disabled look: a turn in flight never holds it.
  */
 .skill-more {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm-plus);
   padding: var(--skill-button-padding);
-  background: none;
-  border: var(--rule-width) solid transparent;
+  background: var(--panel-2);
+  border: var(--rule-width) solid var(--line);
   border-radius: var(--radius-control);
-  color: var(--faint);
+  color: var(--text);
   font-family: var(--sans);
   font-size: var(--fs-body-ui);
   cursor: pointer;
+}
+
+.skill-more:hover {
+  border-color: var(--skill-button-hover-line);
+  background: var(--panel-3);
 }
