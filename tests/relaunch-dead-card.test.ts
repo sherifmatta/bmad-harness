@@ -407,7 +407,7 @@ describe('the window, reading what the relaunched main hands it', () => {
 
     expect(markup.match(/class="run-card"/g)).toHaveLength(2)
     expect(markup).not.toMatch(/run-stop|<button/)
-    expect(markup).not.toMatch(/run-card-caret|aria-busy|run-card-line/)
+    expect(markup).not.toMatch(/class="caret"|aria-busy|run-card-line/)
     expect(markup.match(/class="run-card-elapsed">([^<]*)</g)).toEqual(['class="run-card-elapsed">2s<', 'class="run-card-elapsed">1s<'])
     // The run that was in flight ended failed with its session, and names the section its last confirmed write reached.
     expect(markup).toContain('class="run-card-status run-card-status--failed">failed · §1 Vision<')

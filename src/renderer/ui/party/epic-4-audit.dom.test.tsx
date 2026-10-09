@@ -17,10 +17,11 @@ import {
   roomRefused,
   roomSent,
   roomSummaryAsked,
+  roomTurnInFlight,
   roomTurnsOf,
   speakerOf
 } from '../chat/conversation-state'
-import type { ConversationState } from '../chat/conversation-state'
+import type { ConversationState, TurnInFlight } from '../chat/conversation-state'
 import type { TranscriptEntry } from '../chat/transcript-entry'
 import { DENOMINATOR, SPINNER_MARKUP, STAND_IN, spoken, withoutSplitters } from '../testing/audit-patterns'
 import '../testing/render-hook'
@@ -78,6 +79,8 @@ type Props = {
   rows: readonly RailRow[]
   folder: string
   agents: readonly AgentView[]
+  /** The room's turn in flight, as `roomTurnInFlight` reads it; absent in the cases drawn at rest. */
+  inFlight?: TurnInFlight
 }
 
 const BASE: Props = { room: 's1', roomCast: CAST, speaker: undefined, entries: [OPENED], topic: undefined, openedAt: NOW, turns: 0, rows: [], folder: '_bmad/', agents: ROSTER }
@@ -202,6 +205,7 @@ function render(props: Props): void {
         turns: props.turns,
         rows: props.rows,
         folder: props.folder,
+        inFlight: props.inFlight,
         onOpen: () => {},
         onSend: () => {},
         onWriteSummary: () => {},
@@ -621,5 +625,144 @@ describe('a message the room refused (Story 4.8)', () => {
     expect(all('.turn--user')).toEqual([])
     expect(all('.sysline').map(text).at(-1)).toBe(ROOM_REFUSED_LINE)
     expect(text(all('.party-side')[0])).toMatch(/_bmad\/party\/2026-10-08-<topic>\.md/)
+  })
+})
+
+describe('the room’s turn in flight, from the send to the last word', () => {
+  const roster = (id: string): AgentView | undefined => ROSTER.find((one) => one.id === id)
+  const fold = (state: ConversationState, ...events: ContractEvent[]): ConversationState =>
+    events.reduce((held, event) => foldEvent(held, event, roster).state, state)
+  /** The props the window gives the view for a state, with the room's turn in flight read by its selector. */
+  const flying = (state: ConversationState): Props => ({ ...propsOf(state), inFlight: roomTurnInFlight(state) })
+  const opened = (): ConversationState =>
+    roomReady(
+      fold(
+        initialConversation,
+        { name: 'session:opened', payload: { sessionId: 's1', at: NOW } },
+        { name: 'harness:said', payload: { id: 'm-0', at: NOW, text: OPENED.kind === 'sysline' ? OPENED.text : '', room: true } }
+      ),
+      's1',
+      CAST,
+      NOW
+    )
+  const awaiting: ContractEvent = { name: 'session:awaiting-turn', payload: { sessionId: 's1', at: NOW } }
+  const spoke = (agentId: string, messageId: string, text: string, at: number): ContractEvent => ({
+    name: 'persona:said',
+    payload: { sessionId: 's1', agentId, messageId, text, at, room: true }
+  })
+  const sent = (): ConversationState => roomSent(fold(opened(), awaiting), NOW + 5_000, 'Should the payouts ship first').state
+  const speaking = (): ConversationState => fold(sent(), spoke(MARY.id, 'a', 'The data says yes.\n\nAnd the second', NOW + 9_000))
+
+  const FLYING: Case[] = [
+    { name: 'the room opening, its greeting not yet said', props: flying(opened()), live: true },
+    { name: 'a send with no speaker yet', props: flying(sent()), live: true },
+    { name: 'a speaker mid-turn', props: flying(speaking()), live: true },
+    {
+      name: 'a reload mid-turn with no speaker yet, built by hydrate',
+      props: (() => {
+        const snapshot: ConversationSnapshot = {
+          entries: RECORDS.slice(0, 2),
+          sessions: [],
+          busy: ['s1'],
+          personas: [],
+          runs: [],
+          room: { sessionId: 's1', cast: CAST, openedAt: NOW }
+        }
+        return flying(hydrate(initialConversation, snapshot, roster).state)
+      })(),
+      live: true
+    },
+    { name: 'a reload mid-turn with a speaker, built by hydrate', props: { ...reloaded(true, RECORDS), inFlight: roomTurnInFlight(hydrate(initialConversation, { entries: RECORDS, sessions: [], busy: ['s1'], personas: [], runs: [], room: { sessionId: 's1', cast: CAST, openedAt: NOW } }, roster).state) }, live: true }
+  ]
+  const pending = (): HTMLElement[] => all('.party-thread .turn--pending')
+
+  it.each(FLYING)('draws no spinner, live region, busy flag, role or control for it, and no stand-in word, when $name', ({ props }) => {
+    mountWith(props)
+
+    expect(withoutSplitters(container.innerHTML)).not.toMatch(SPINNER_MARKUP)
+    expect(container.querySelector(`${LIVE}, [aria-busy], [aria-atomic], [hidden], ${ANNOUNCING}`)).toBeNull()
+    const indicator = [...all('.party-thread .turn--pending'), ...all('.party-thread .turn-state'), ...all('.party-thread .caret')]
+    expect(indicator.length).toBeGreaterThan(0)
+    for (const node of indicator) {
+      // Hidden from a reader, as a whole: nothing in it is announced or read.
+      expect(node.closest('[aria-hidden="true"]'), node.className).not.toBeNull()
+      expect(node.querySelector('button, a, input, [tabindex], [role="button"]')).toBeNull()
+    }
+    // Its one word is the state's: `working`, a separator and the counter. No other word stands in for one.
+    expect(all('.party-thread .turn-state').map(text).every((line) => /^working · \d+s$/.test(line))).toBe(true)
+    expect(all('.party-thread .turn-state').map(text).join(' ')).not.toMatch(STAND_IN)
+    // The composer is never switched off by a turn in flight.
+    expect((all('textarea')[0] as HTMLTextAreaElement).disabled).toBe(false)
+  })
+
+  it('draws a row with no portrait and no caret at the thread’s foot before anyone speaks, counting from the send', () => {
+    mountWith(flying(sent()))
+
+    expect(pending()).toHaveLength(1)
+    expect(all('.party-thread > *').at(-1)).toBe(pending()[0])
+    expect(pending()[0].querySelector('.portrait, .turn-av, .turn-name, .caret')).toBeNull()
+    // Sent five seconds after the room opened, and the clock is at the open: the counter is from the send.
+    vi.setSystemTime(NOW + 5_000)
+    render(flying(sent()))
+    expect(text(pending()[0])).toBe('working · 0s')
+    act(() => void vi.advanceTimersByTime(3_000))
+    expect(text(pending()[0])).toBe('working · 3s')
+    expect(all('.cast-card--speaking')).toHaveLength(0)
+  })
+
+  it('counts the greeting from the room’s open, and draws the same row until its words land', () => {
+    mountWith(flying(opened()))
+
+    expect(pending()).toHaveLength(1)
+    expect(text(pending()[0])).toBe('working · 0s')
+    expect(all('.party-thread .turn--persona')).toHaveLength(0)
+  })
+
+  it('moves to the speaker once known: the caret at the tail of the last paragraph, the line under the words, the card lit', () => {
+    vi.setSystemTime(NOW + 9_000)
+    mountWith(flying(speaking()))
+
+    expect(pending()).toHaveLength(0)
+    const turn = all('.party-thread .turn--persona')[0]
+    expect(turn.classList.contains('turn--party-live')).toBe(true)
+    expect(all('.party-thread .caret')).toHaveLength(1)
+    const paragraphs = [...turn.querySelectorAll('.turn-words p')]
+    expect(paragraphs.at(-1)?.lastElementChild?.className).toBe('caret')
+    expect(paragraphs[0].querySelector('.caret')).toBeNull()
+    expect([...(turn.querySelector('.turn-body') as HTMLElement).children].map((child) => child.className)).toEqual(['turn-head', 'turn-words', 'turn-state'])
+    expect(text(turn.querySelector('.turn-state'))).toBe('working · 4s')
+    // The words are the persona's, whole and as given: the caret adds no character to them.
+    expect(paragraphs.map(text).join('\n\n')).toBe('The data says yes.\n\nAnd the second')
+    expect(all('.cast-card--speaking .cast-name').map(text)).toEqual(['Mary'])
+  })
+
+  it('takes the caret and the line away when the room’s turn ends, and leaves the words exactly as they were', () => {
+    mountWith(flying(speaking()))
+    const words = all('.party-thread .turn--persona .turn-words')[0]
+    const node = all('.party-thread .turn--persona')[0]
+
+    render(flying(fold(speaking(), { name: 'session:awaiting-turn', payload: { sessionId: 's1', at: NOW + 10_000 } })))
+
+    expect(all('.party-thread .caret, .party-thread .turn-state, .party-thread .turn--pending')).toHaveLength(0)
+    expect(all('.party-thread .turn--persona')[0]).toBe(node)
+    expect(words.innerHTML).toBe('<p>The data says yes.</p><p>And the second</p>')
+  })
+
+  it('draws the row again after a reload, from the hydrated state alone', () => {
+    mountWith(FLYING[3].props)
+
+    expect(pending()).toHaveLength(1)
+    expect(text(pending()[0])).toMatch(/^working · \d+s$/)
+    expect(all('.party-thread .caret')).toHaveLength(0)
+
+    render(FLYING[4].props)
+    expect(pending()).toHaveLength(0)
+    expect(all('.party-thread .turn--party-live .caret')).toHaveLength(1)
+  })
+
+  it('draws nothing in flight in a stopped room, whatever it is handed', () => {
+    mountWith({ ...flying(sent()), room: undefined })
+
+    expect(all('.turn--pending, .caret, .turn-state')).toHaveLength(0)
   })
 })

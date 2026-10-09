@@ -577,8 +577,9 @@ describe("motion", () => {
     // is not a consumer: it names both properties in order to cancel them.
     expect(consumers.sort()).toEqual([
       "design/tokens.css: *,*::before,*::after",
-      // Story 3.1: the run card's caret, at the tail of prose being written.
-      "ui/chat/run-card.css: .run-card-caret",
+      // Story 3.1: the caret, at the tail of words being written: one class, shared by the run
+      // card's prose and a persona's turn in flight.
+      "ui/chat/caret.css: .caret",
       // Story 4.2: the cast card's transition when the speaker changes, and the equaliser's three bars.
       "ui/party/cast-strip.css: .cast-card",
       "ui/party/cast-strip.css: .cast-eq-bar",
@@ -1631,9 +1632,10 @@ describe("progress against a plan has no denominator, bar, stagger or tick-throu
     "src/shared/section-plan.ts",
   ];
   const CARD_CSS = "src/renderer/ui/chat/run-card.css";
+  const CARET_CSS = "src/renderer/ui/chat/caret.css";
 
   it("reads the sources it claims to sweep", () => {
-    for (const path of [...CARD_SOURCES, CARD_CSS]) {
+    for (const path of [...CARD_SOURCES, CARD_CSS, CARET_CSS]) {
       expect(code.get(path)?.length ?? 0, path).toBeGreaterThan(200);
     }
   });
@@ -1666,9 +1668,12 @@ describe("progress against a plan has no denominator, bar, stagger or tick-throu
   });
 
   it("adds no animation to the card beyond the caret's blink", () => {
-    const css = code.get(CARD_CSS) ?? "";
-    expect(css.match(/animation\s*:/g)).toHaveLength(1);
-    expect(css).toMatch(/\.run-card-caret\s*\{[^}]*animation\s*:/);
+    // The card's stylesheet animates nothing: its one moving part is the shared caret, which blinks and does nothing else.
+    expect(code.get(CARD_CSS) ?? "").not.toMatch(/animation\s*:/);
+    const caret = code.get(CARET_CSS) ?? "";
+    expect(caret.match(/animation\s*:/g)).toHaveLength(1);
+    expect(caret).toMatch(/\.caret\s*\{[^}]*animation\s*:\s*var\(--motion-blink\)/);
+    expect(code.get(CARD_SOURCES[0]) ?? "").toContain("<Caret />");
   });
 });
 
@@ -2301,6 +2306,10 @@ describe("nothing this epic promised not to do: the audit's static half (Story 3
   const ANNOUNCER = "src/renderer/ui/a11y/announcer.ts";
   const CONVERSATION = "src/renderer/ui/chat/use-conversation.ts";
   const CARD_CSS = "src/renderer/ui/chat/run-card.css";
+  const CARET = "src/renderer/ui/chat/caret.tsx";
+  const CARET_CSS = "src/renderer/ui/chat/caret.css";
+  const TURN_CSS = "src/renderer/ui/chat/turn.css";
+  const PARTY_CSS = "src/renderer/ui/party/party-view.css";
   const TOKENS = "src/renderer/design/tokens.css";
   const COMMANDS = "src/shared/commands.ts";
   const EVENTS = "src/shared/events.ts";
@@ -2322,7 +2331,8 @@ describe("nothing this epic promised not to do: the audit's static half (Story 3
   });
 
   it("styles the caret on at rest: one rule, and no opacity, visibility or `display: none` in it or anywhere that reaches it", () => {
-    const body = ruleBody(CARD_CSS, ".run-card-caret") ?? "";
+    // The caret is one shared class (the run card's prose and a persona's turn in flight), in its own stylesheet.
+    const body = ruleBody(CARET_CSS, ".caret") ?? "";
     expect(body).toContain("animation: var(--motion-blink)");
     // At rest it is a solid box in the accent, of a size the tokens give it, and nothing above it hides it.
     expect(body).toMatch(/background: var\(--accent\)/);
@@ -2331,16 +2341,21 @@ describe("nothing this epic promised not to do: the audit's static half (Story 3
     for (const ancestor of [".run-card", ".run-card-body", ".run-card-flow", ".run-card-prose", ".run-card-text"]) {
       expect(ruleBody(CARD_CSS, ancestor) ?? "", ancestor).not.toMatch(/\b(?:opacity|visibility|clip|clip-path|transform)\b/);
     }
+    // In a turn it sits in the words of a persona's turn, which nothing dims (only a queued message of the user's is).
+    for (const ancestor of [".turn", ".turn--persona", ".turn-body", ".turn-words", ".turn-words p", ".turn--party-live"]) {
+      expect(ruleBody(TURN_CSS, ancestor) ?? ruleBody(PARTY_CSS, ancestor) ?? "", ancestor).not.toMatch(/\b(?:opacity|visibility|clip|clip-path|transform)\b/);
+    }
     expect(body).not.toMatch(/\b(?:opacity|visibility|content|clip|clip-path|transform|transition|animation-fill-mode|animation-play-state)\b/);
     // `display` appears once, to give the empty span its box, and never takes the caret off the page.
     expect(body.match(/\bdisplay\s*:\s*([\w-]+)/g)).toEqual(["display: inline-block"]);
     // Nothing else in any stylesheet names the caret: no later rule can turn it off.
-    expect(RENDERER_ALL.filter((path) => path.endsWith(".css") && /run-card-caret/.test(code.get(path) ?? ""))).toEqual([CARD_CSS]);
-    expect(css(CARD_CSS).match(/\.run-card-caret/g)).toHaveLength(1);
-    // The markup hides it from a reader and from nothing else: no hidden attribute, no style.
+    expect(RENDERER_ALL.filter((path) => path.endsWith(".css") && /\.caret\b/.test(code.get(path) ?? ""))).toEqual([CARET_CSS]);
+    expect(css(CARET_CSS).match(/\.caret\b/g)).toHaveLength(1);
+    // The markup hides it from a reader and from nothing else: no hidden attribute, no style; one component draws it.
+    expect(code.get(CARET) ?? "").toContain('<span className="caret" aria-hidden="true" />');
+    expect(RENDERER_CODE.filter((path) => /className="caret"/.test(code.get(path) ?? ""))).toEqual([CARET]);
     const card = code.get(CARD) ?? "";
-    expect(card).toContain('<span className="run-card-caret" aria-hidden="true" />');
-    expect(card).toContain("running && hasText &&");
+    expect(card).toContain("{running && hasText && <Caret />}");
   });
 
   it("keeps `blink` a hard on/off that dips once, so taking the animation away leaves the caret on", () => {

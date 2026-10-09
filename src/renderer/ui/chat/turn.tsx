@@ -6,10 +6,12 @@ import { artParamsFor } from '../persona/art-params'
 import { Initials } from '../persona/initials'
 import { portrait } from '../persona/portrait'
 import type { PersonaState } from '../persona/portrait'
+import { Caret } from './caret'
 import { DecisionBlock } from './decision-block'
 import type { Decision } from './decision'
 import { formatTurnTime } from './format-turn-time'
 import type { UserIdentity } from './transcript-entry'
+import { TurnState } from './turn-state'
 
 /**
  * The conversation turn — UX-DR25, DESIGN.md's *Conversation turn*. One
@@ -30,15 +32,34 @@ function paragraphsOf(text: string): string[] {
   return text.split(PARAGRAPH_BREAK).filter((paragraph) => paragraph.trim() !== '')
 }
 
-export function Words({ text }: { text: string }): JSX.Element {
+/**
+ * A turn's words, one paragraph to each run between blank lines. While they are
+ * still being written (`caret`), the caret sits at the tail of the last paragraph,
+ * after the words and apart from them; with no word yet it is the body alone. The
+ * words themselves are the same either way.
+ */
+export function Words({ text, caret = false }: { text: string; caret?: boolean }): JSX.Element {
+  const paragraphs = paragraphsOf(text)
+  const last = paragraphs.length - 1
   return (
     <div className="turn-words">
-      {paragraphsOf(text).map((paragraph, index) => (
-        <p key={index}>{paragraph}</p>
+      {paragraphs.map((paragraph, index) => (
+        <p key={index}>
+          {paragraph}
+          {caret && index === last && <Caret />}
+        </p>
       ))}
+      {caret && last === -1 && (
+        <p>
+          <Caret />
+        </p>
+      )}
     </div>
   )
 }
+
+/** A turn in flight: when it began, where that is known. */
+export type Writing = { since: number | undefined }
 
 export function Head({ name, ident, at }: { name: string; ident: string; at: number }): JSX.Element {
   return (
@@ -53,13 +74,15 @@ export function Head({ name, ident, at }: { name: string; ident: string; at: num
 /**
  * A persona's turn: their 32px portrait, name, role, time, and their words. A
  * decision they raised draws after the words, inside the turn; the words are
- * rendered whole either way.
+ * rendered whole either way. While the turn is still in flight (`writing`), the
+ * caret sits at the tail of the words and the `work` state line under them.
  */
 export function PersonaTurn({
   agent,
   at,
   text,
   state = 'idle',
+  writing,
   decision,
   onChoose
 }: {
@@ -67,6 +90,8 @@ export function PersonaTurn({
   at: number
   text: string
   state?: PersonaState
+  /** Set while this is the turn in flight: the words so far, with the caret and the state line. */
+  writing?: Writing
   /** The question this turn ends in, when it can be answered now. */
   decision?: Decision
   /** Send an option's text as the user's turn. */
@@ -77,10 +102,31 @@ export function PersonaTurn({
       <div className="turn-av">{portrait(artParamsFor(agent.id), 32, state, agent)}</div>
       <div className="turn-body">
         <Head name={agent.name} ident={agent.title} at={at} />
-        <Words text={text} />
+        <Words text={text} caret={writing !== undefined} />
+        {writing !== undefined && <TurnState since={writing.since} />}
         {decision !== undefined && onChoose !== undefined && (
           <DecisionBlock decision={decision} onChoose={onChoose} />
         )}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * A persona's turn in flight before its first word: the same portrait and head
+ * (timed from when the turn began), the caret as the whole body, and the `work`
+ * state line under it. It is no entry: it is drawn from the persona's state and
+ * goes when the words arrive or the turn ends. Hidden from a reader as a whole,
+ * since everything in it is the indicator and the tile says the same state.
+ */
+export function PendingTurn({ agent, since }: { agent: AgentView; since: number }): JSX.Element {
+  return (
+    <div className="turn turn--persona turn--pending" aria-hidden="true">
+      <div className="turn-av">{portrait(artParamsFor(agent.id), 32, 'idle', agent)}</div>
+      <div className="turn-body">
+        <Head name={agent.name} ident={agent.title} at={since} />
+        <Words text="" caret />
+        <TurnState since={since} />
       </div>
     </div>
   )

@@ -1,0 +1,19 @@
+/*
+ * The caret — DESIGN.md's *Motion* `blink` and `components.document-card.caret`,
+ * from harness-mockup.html's `.caret` (:220). One caret for every place words are
+ * being written: the run card's document prose (Story 3.1) and a persona's turn in
+ * flight, in a 1:1 thread or in the room.
+ *
+ * It spends the inventory's own blink, hard on/off; with reduced motion the
+ * global reset stops it and it stays drawn, on. It is removed, not faded, when
+ * the writing stops. Every value reaches the design system through `var()`.
+ */
+
+.caret {
+  display: inline-block;
+  width: var(--caret-width);
+  height: var(--caret-height);
+  background: var(--accent);
+  vertical-align: var(--caret-drop);
+  animation: var(--motion-blink);
+}

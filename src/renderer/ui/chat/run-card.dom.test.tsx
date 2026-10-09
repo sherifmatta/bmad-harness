@@ -132,7 +132,7 @@ describe('the run card’s prose', () => {
     store.seed('r1', [{ callId: 'c1', path: 'a.md', text: '## Vision\nwhole', written: 15, sections: ['Vision'] }])
     const view = draw(store)
     expect(view.text()).toBe('## Vision\nwhole')
-    expect(view.root.container.querySelector('.run-card-caret')).not.toBeNull()
+    expect(view.root.container.querySelector('.caret')).not.toBeNull()
   })
 
   it('removes the caret, rather than fading it, when the run finishes, and drops aria-busy', () => {
@@ -142,7 +142,7 @@ describe('the run card’s prose', () => {
     const running = draw(store)
     expect(running.root.container.querySelector('section')?.getAttribute('aria-busy')).toBe('true')
     const finished = running.rerender(card({ status: 'finished', endedAt: Date.now(), documents: [{ path: 'a.md', sections: ['A'] }] }))
-    expect(finished.root.container.querySelector('.run-card-caret')).toBeNull()
+    expect(finished.root.container.querySelector('.caret')).toBeNull()
     expect(finished.root.container.querySelector('section')?.hasAttribute('aria-busy')).toBe(false)
     expect(finished.root.container.querySelector('.run-card-status')?.textContent).toBe('saved · just now · 1 section')
   })

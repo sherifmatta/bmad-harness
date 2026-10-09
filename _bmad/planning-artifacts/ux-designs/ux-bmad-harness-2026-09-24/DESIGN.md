@@ -369,6 +369,10 @@ components:
     userBackground: '{colors.accent-wash}'
     userRule: 'inset 2px 0 0 {colors.accent-edge}'
     userAvatar: 'initials at 32px'
+    caret: '{components.document-card.caret}, the same caret, at the tail of the last paragraph while the turn is in flight'
+    stateLine: 'the `work` state line ({components.status-dot} work, `working · <elapsed>`) under the words, margin-top {spacing.md}, while the turn is in flight'
+    pending: 'a persona turn with no words yet: portrait, head timed from the turn''s start, the caret as the whole body, the state line under it'
+    roomPending: 'the room before a speaker is known: the turn container with no portrait, no head and no caret, only the state line'
     max: '{spacing.thread-max}'
   composer:
     background: '{colors.panel}'
@@ -513,7 +517,7 @@ The `:root` block above is copied from `harness-mockup.html` unchanged, in sourc
 
 ### Accent
 
-`accent` (`#7fa6e8`) is the single chromatic voice: the current-persona edge on a tile, the pressed underline on the segmented control, the streaming caret, the skill-button code chip, the decision-option key, the requirement ids in rendered markdown (`.fr`), and the speaking ring on a cast portrait. `accent-bg` is its 12% fill and is the only accent *fill* in the product — accent is a line, an edge, a chip border, almost never a surface.
+`accent` (`#7fa6e8`) is the single chromatic voice: the current-persona edge on a tile, the pressed underline on the segmented control, the caret at the tail of words being written (a document card's prose, a persona's turn in flight), the skill-button code chip, the decision-option key, the requirement ids in rendered markdown (`.fr`), and the speaking ring on a cast portrait. `accent-bg` is its 12% fill and is the only accent *fill* in the product — accent is a line, an edge, a chip border, almost never a surface.
 
 Accent is not a state. That distinction is the reason for the next token.
 
@@ -817,7 +821,7 @@ Two visually distinct registers on one line, because AD-2 forbids merging them. 
 - **Head** — `panel-2` ground, `1px line-soft` bottom rule, `7px 11px`. Status dot · file path in `mono` `{typography.ident}` at `text` · status string in `mono` `{typography.meta}` right-aligned in `amber` while writing and `green` when saved · elapsed in `mono` `{typography.meta}` at `faint` · the stop control.
 - **Body** — `max-height: 230px`, scrolling, padding `11px 13px` `[ASSUMPTION]` (the one value no source states; matched to the side-section padding). **Two modes, both content, per the approved dead-air treatment.** In prose mode: `doc-prose` (mono 11.5/1.72) in `ink-doc`, `white-space: pre-wrap`, headings in `ink-doc-strong` at 600, muted runs in `ink-doc-mute`, with the streaming caret at the tail. In run-note mode: the run-note feed (below). The card never has an empty body. Which mode is showing, and when it switches, is EXPERIENCE.md's (→ *State Patterns → Document card*).
 - **Foot** — `panel-2`, `1px line-soft` top rule, `6px 11px`, `{typography.label}` at `faint`, 14px gaps, wrapping. Carries the counts and the **named list of not-yet-written sections** in `mono`. There is no denominator and no progress bar anywhere in the card.
-- **Caret** — 6.5 × 13px `accent` block, `blink 1.05s steps(1)`. Removed, not faded, when writing stops.
+- **Caret** — 6.5 × 13px `accent` block, `blink 1.05s steps(1)`. Removed, not faded, when writing stops. It is one caret, shared with the conversation turn in flight (below): the same class, size, colour and blink wherever words are being written.
 
 ### Run note (the run-note feed)
 
@@ -874,6 +878,12 @@ The header is the name at `{typography.name}` (12.5px/600, `text-strong`), the r
 **The user's turn** is the same container on the `accent-wash` ground with an `inset 2px 0 0 accent-edge` rule down its left edge, and the 32px initials token where the portrait would be — the user has no generated face. The wash and the rule are the only difference; the user's turn is not a different component.
 
 No hover lift, no entrance animation, no typewriter reveal. The thread caps at `{spacing.thread-max}`.
+
+**A turn in flight** is drawn in the thread with these same parts and nothing new. While a persona's turn is in flight, the **caret** (the document card's: 6.5 × 13px `accent`, `blink`) sits at the tail of the last paragraph of its words, inside the paragraph and after the last character, and the persona's **`work` state line** sits under the words: the amber dot with its halo and pulse, and `working · <elapsed>` in `{typography.label}` mono at `dim`, `{spacing.md}` below the words. Both are removed, not faded, when the turn ends; the words are then exactly as they were said.
+
+- **The pending turn.** Before a persona's first word, the thread's foot carries a persona turn with no words: the same container, the 32px portrait and the head (name, role, the time the turn began), the caret as the **whole body**, and the state line under it. It is drawn from the same parts as a turn with words, and is replaced by the persona's turn when the first word lands, with the caret then at the tail of those words. It sits above any queued message of the user's, which keeps its own treatment.
+- **The room's pending row.** In the party thread, before anyone is known to be speaking, the foot carries a row in the turn container with **no portrait, no head and no caret**: only the state line, counted from the user's send. Once a speaker's words land, their live turn (accent edge, as before) takes the caret and the state line, and the cast card lights as it always has.
+- **Nothing else.** No skeleton of a turn, no placeholder word (`thinking`, `typing`, `…`), no spinner, no new animation: the pulse and the blink are the two the motion table already lists. Words arrive as main delivers them; a burst (an opening greeting comes from the CLI whole) lands whole and is never paced out.
 
 ### Composer
 
@@ -956,14 +966,14 @@ Motion is **information or it does not exist**. AD-20: no element animates unles
 | Name | Declaration | Depicts |
 |---|---|---|
 | `pulse` | `1.5s ease-in-out infinite`; opacity `1 → .35 → 1` | A turn is in flight. Slow and shallow — nothing strobes |
-| `blink` | `1.05s steps(1) infinite`; `50% { opacity: 0 }` | A caret at the tail of prose being written. **`steps(1)` is mandatory — a hard on/off, never a fade.** A fading caret reads as a decorative glow |
+| `blink` | `1.05s steps(1) infinite`; `50% { opacity: 0 }` | A caret at the tail of words being written: a document card's prose, or a persona's words in a conversation turn in flight. **`steps(1)` is mandatory — a hard on/off, never a fade.** A fading caret reads as a decorative glow |
 | `eq` | `.9s ease-in-out infinite`, height `3px → 8px`, delays `.15s / .3s / .45s` | Who is speaking right now. The only ambient-looking motion in the product, and it is bound to a single fact |
 | reveal | `.16s ease` on `max-height` and `opacity` | A persona tile's menu hint opening. A reveal, not a slide |
 | cast | `.25s ease` on `opacity`, `border-color`, `background` | The speaker changing |
 
 There is no transition on colour elsewhere, no easing curve library, no spring, no entrance animation, no skeleton, no spinner — at any point, in any state.
 
-Streaming prose arrives in frame-sized bursts, with the caret at the tail. **A per-character typewriter is not available and must not be simulated** — the mechanism and the argument are EXPERIENCE.md's (→ *State Patterns → Progress, batch commit and revision*).
+Streaming prose arrives in frame-sized bursts, with the caret at the tail; a persona's words in a turn arrive as main delivers them, with the same caret at their tail. **A per-character typewriter is not available and must not be simulated**, and a burst that arrives whole is drawn whole — the mechanism and the argument are EXPERIENCE.md's (→ *State Patterns → Progress, batch commit and revision*).
 
 **`@media (prefers-reduced-motion: reduce)` sets `* { animation: none !important; transition: none !important }` — globally, with no exceptions.** Not reduced: disabled. Every fact carried by motion must therefore also be legible with motion off, and nothing specified here may depend on movement to be understood. The per-signal mitigations — including what replaces the pulse as a liveness signal — are EXPERIENCE.md's (→ *Accessibility Floor → The `prefers-reduced-motion` hole*).
 
@@ -985,6 +995,7 @@ Streaming prose arrives in frame-sized bursts, with the caret at the tail. **A p
 | Render `icon` from config as plain text in the harness's own register | Render `icon` as a portrait, ever, including as a fallback |
 | Animate only what is actually happening | Animate a transition, a reveal, an entrance, or anything decorative; substitute a spinner or skeleton at any point |
 | Use `steps(1)` for the caret | Fade the caret — a fading caret is decoration |
+| Draw a turn in flight with the parts the thread has: the caret, the `work` state line, the portrait and head | Draw a skeleton turn, a placeholder word, a spinner, or pace a burst out character by character |
 | Disable **all** animation and transition globally under `prefers-reduced-motion: reduce` | Keep "essential" animation running, or leave a fact legible only while something moves |
 | Restate any `faint`-tier fact at `dim` or above | Put a fact only a user can act on at `faint` or `{colors.meta}` on `bg` — the locked ramp makes that a real contrast risk |
 | Express absence and inattention with opacity | Remove a chosen persona's face from the room |

@@ -271,6 +271,27 @@ A run in flight survives a **window reload** — main owns durable state and re-
 | `run:finished` | head → `saved · just now · N sections`, dot `work` → `live`, caret removed | permitted — the state change is real |
 
 
+### A turn in flight, in the thread
+
+*Added 2026-10-08. Appearance: `DESIGN.md` → Components → Conversation turn.*
+
+A persona can load, think and call tools for several seconds before its first word, and fall silent mid-turn while a tool runs. The thread says a turn is in flight for the whole of it, from the moment the turn begins until it ends, in a 1:1 and in the room. It says so with the parts the thread already has and with nothing that stands in for a word.
+
+| Moment | 1:1 thread | Party thread |
+|---|---|---|
+| the turn begins | a **pending turn** at the foot: the persona's portrait and head, the caret as the body, `working · 0s` under it | a **pending row** at the foot: the state line alone, counting from the user's send |
+| the first words land | the words replace the lone caret; the caret moves to their tail and the state line stays under them | the speaker's live turn takes the caret and the state line; the cast card lights as it always has |
+| a silence mid-turn (a tool call) | the caret stays at the tail of the last words, the state line under them, the counter ticking | the same, on the speaker's turn |
+| the turn ends, fails or is stopped | the caret and the line go; the words are exactly what was said. A failure keeps its existing sysline | the same |
+| the session opens (the greeting) | the pending turn until the greeting lands | the pending row, counted from the room's open |
+| the window reloads mid-turn | drawn again from the hydrated state; no delta needs to have been witnessed | the same |
+
+- **What drives it.** In a 1:1, the persona's **state as main reports it** (`persona:state` is `work`), and nothing the window decides for itself; the counter is from when main says the state began. In the room, the room's session being **busy**; the counter is from the user's last message into this room, else the room's open. The words of the turn are the persona's latest entry when it is no older than the turn.
+- **Where it sits.** At the thread's foot, **above** any message of the user's still queued, which stays below it unchanged. With words, the caret and the line are on the entry those words are in.
+- **The greeting is not paced.** A persona's opening greeting arrives from the CLI as one burst, and is drawn whole when it lands; the pending turn covers the wait before it. No burst is ever paced out.
+- **Never a gate.** The composer stays enabled throughout, in both threads; a message typed meanwhile is queued as it always was (1:1) or sent with no gate (the room).
+- **Never a stand-in.** No spinner, skeleton, typewriter or placeholder word (`thinking`, `typing`, `…`); the one word is `working`, the state's own, beside its counter. Under reduced motion the pulse stops, the caret stays on, and the counter carries liveness.
+
 ### Queued composer
 
 A message typed during a run lands in the transcript **immediately**, in the user-turn treatment, dimmed, marked `queued · sends when John finishes`. It is **cancellable** — it is the user's own unsent message, not arbitration of anything on disk, so AD-12's no-arbitration rule does not apply.
@@ -768,7 +789,7 @@ AD-14 binds a `288px` party side panel as a literal. **That constant is supersed
 |---|---|---|
 | `work` (a turn is in flight) | pulsing `{colors.amber}` dot | the dot keeps its **amber fill — unique to `work` among the five dot states** — and its halo, which is not unique, since `live` carries one too; **liveness is carried by the elapsed counter**, which is changing *data*, not an animation, and must keep ticking (≥1s) on the card head and the collapsed line |
 | a rail row being written (`changing`) | the row's dot, pulsing | the textual state string `changing`, which is always present and never motion-dependent |
-| streaming prose | caret blink + body growth | body growth. **[ASSUMPTION]** — the caret renders static-**on**, never static-off; a frozen invisible caret reads as a hung cursor |
+| streaming prose, or a persona's words in a turn in flight | caret blink + body growth | body growth. **[ASSUMPTION]** — the caret renders static-**on**, never static-off; a frozen invisible caret reads as a hung cursor. In the thread the state line's counter under the turn keeps ticking (≥1s) and carries liveness, as on the card head |
 | batch commit | already motionless by decision | unchanged |
 
 **No state anywhere is carried by motion alone, and no state is carried by colour alone** — every dot is paired with a text string in the same row. That pairing is the reduced-motion fix and the colour-blindness mitigation simultaneously, which is why it is stated as a hard rule rather than a guideline.
@@ -815,6 +836,7 @@ A single card streams **69,031 characters across 5,795 deltas** in one write. Ne
 | Content | Policy |
 |---|---|
 | document prose | **never announced.** Not a live region. The card carries `aria-busy="true"` while its run is in flight and `false` at the terminal event |
+| a turn in flight in the thread (the caret, the state line under it, the pending turn, the room's pending row) | **never announced.** Not a live region, no `aria-busy` of its own: the indicator is `aria-hidden`, since the persona's tile (and, in the room, the cast) carries the same state. A persona's words, once they land, are ordinary thread text |
 | run notes | **announced politely.** Their cadence is minutes apart, not milliseconds, and during dead air they are the only evidence of life — this is the screen-reader equivalent of watching the feed. **[ASSUMPTION]** — no source specifies this; it follows from the run-note feed being the dependable dead-air feed |
 | run lifecycle — started, `doc:committed`, finished, stopped, failed | **announced politely**, one announcement per event. A 15-section commit is **one** event and gets **one** announcement naming the count |
 | rail changes (`rail:changed`) | **not announced.** Filesystem churn is asynchronous and constant; the rail is a status region read on demand |

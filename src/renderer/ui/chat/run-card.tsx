@@ -7,6 +7,7 @@ import { useNow } from '../outputs/use-now'
 import { formatElapsed } from '../status/format-elapsed'
 import { StatusDot } from '../status/status-dot'
 import { pendingSections } from '../../../shared/section-plan'
+import { Caret } from './caret'
 import type { ProseStore, RunProgress } from './prose-store'
 import { RunStop } from './run-stop'
 import { bodyNotes, runDotState, runStatusText, subjectWritten } from './run-status'
@@ -135,7 +136,7 @@ export function RunCard({
           <RunNoteFeed notes={bodyNotes(entry)} />
           <div className="run-card-prose" hidden={!hasText}>
             <ProseText runId={runId} prose={prose} />
-            {running && hasText && <span className="run-card-caret" aria-hidden="true" />}
+            {running && hasText && <Caret />}
           </div>
         </div>
       </div>

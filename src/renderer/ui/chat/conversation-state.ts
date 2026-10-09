@@ -465,6 +465,85 @@ export function speakerOf(state: ConversationState): string | undefined {
 }
 
 /**
+ * A turn in flight, as the thread draws it: when it began (`undefined` when the state does not
+ * say), and the entry its words are being written into so far (`undefined` before the first word).
+ */
+export type TurnInFlight = { since: number | undefined; entryId: string | undefined }
+
+/**
+ * The personas with a turn in flight, by agent id, in the order their turns began: those whose
+ * state main last reported is `work`, and nothing the window decided. A persona's words for the
+ * turn are its last entry in its own thread (never the room's) when that entry is no older than the
+ * turn; an older one, or none, means no word of this turn has landed yet. A persona with a run in flight
+ * and no word yet is left out: the run's card already shows that work. A pure function of the
+ * state, so a reload draws the same from what main hands back.
+ */
+export function personaTurnsInFlight(state: ConversationState): ReadonlyMap<string, TurnInFlight & { since: number }> {
+  const turns: [string, TurnInFlight & { since: number }][] = []
+  for (const [agentId, { state: personaState, at: since }] of state.personas) {
+    if (personaState !== 'work') {
+      continue
+    }
+    let entryId: string | undefined
+    for (let at = state.entries.length - 1; at >= 0; at -= 1) {
+      const entry = state.entries[at]
+      if (entry.kind === 'persona' && entry.room !== true && entry.agent.id === agentId) {
+        entryId = entry.at >= since ? entry.id : undefined
+        break
+      }
+    }
+    // A run in flight with no word of this turn yet is drawn by its card, which is that work's indicator.
+    if (entryId === undefined && state.entries.some((entry) => entry.kind === 'run' && entry.agentId === agentId && entry.status === 'running')) {
+      continue
+    }
+    // In the order the turns began, ties keeping the map's: inserted from the tail, as the transcript orders.
+    let place = turns.length
+    while (place > 0 && turns[place - 1][1].since > since) {
+      place -= 1
+    }
+    turns.splice(place, 0, [agentId, { since, entryId }])
+  }
+  return new Map(turns)
+}
+
+/**
+ * The room's turn in flight, while the room has one (its session is busy), else `undefined`. It
+ * began at the user's last message into this room (one at or after the room's open time), else
+ * when the room opened. Its words are the current speaker's last entry, as `speakerOf` reads it, when
+ * that entry is no older than the room; before anyone speaks there is none.
+ */
+export function roomTurnInFlight(state: ConversationState): TurnInFlight | undefined {
+  if (state.room === undefined || !state.busy.has(state.room)) {
+    return undefined
+  }
+  const openedAt = state.roomOpenedAt
+  let since = openedAt
+  let entryId: string | undefined
+  let spoken = false
+  for (let at = state.entries.length - 1; at >= 0; at -= 1) {
+    const entry = state.entries[at]
+    if (entry.kind === 'run' || entry.room !== true) {
+      continue
+    }
+    if (!spoken && entry.kind === 'persona') {
+      // Words older than this room are an earlier room's, never this turn's.
+      entryId = openedAt === undefined || entry.at >= openedAt ? entry.id : undefined
+      spoken = true
+      continue
+    }
+    if (entry.kind === 'sysline' || entry.kind === 'user') {
+      // What the user sent, or a line about the room, ends whoever spoke before it.
+      spoken = true
+    }
+    if (entry.kind === 'user' && (openedAt === undefined || entry.at >= openedAt)) {
+      since = entry.at
+      break
+    }
+  }
+  return { since, entryId }
+}
+
+/**
  * How many turns the room has had (Story 4.3): its persona entries from the room's opening on. A
  * message of the user's is not a turn, and neither is an entry of an earlier room, which is older
  * than this one's open time. Without an open time there are none.

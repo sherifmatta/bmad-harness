@@ -8,7 +8,7 @@ import { handoffTarget } from './chat/handoff-target'
 import { SkillRow } from './chat/skill-row'
 import { RunCard } from './chat/run-card'
 import { pinnedRun, Turns } from './chat/transcript'
-import type { RunCollapse } from './chat/transcript'
+import type { PersonaInFlight, RunCollapse } from './chat/transcript'
 import { useConversation } from './chat/use-conversation'
 import { connectRunRevealed } from './chat/use-reveal'
 import { ErrorLine } from './install/error-line'
@@ -243,6 +243,22 @@ export function App(): JSX.Element | null {
   // flight: drawn in the shell's pinned slot and skipped in the thread (Story 3.14).
   const viewed = currentAgent(displayOrder(groupAgents(snapshot.agents)), currentId)
   const pinnedEntry = pinnedRun(conversation.entries, viewed?.id)
+  // The personas with a turn in flight, by main's state, each named as the transcript names them:
+  // the roster's, an orphan's, else the id standing as the name.
+  const inFlight: PersonaInFlight[] = [...conversation.turnsInFlight].map(([agentId, turn]) => ({
+    agent:
+      snapshot.agents.find((agent) => agent.id === agentId) ??
+      conversation.orphans.find((agent) => agent.id === agentId) ?? {
+        id: agentId,
+        module: '',
+        name: agentId,
+        title: '',
+        icon: '',
+        description: ''
+      },
+    since: turn.since,
+    entryId: turn.entryId
+  }))
   // The user's own turns outside the room: a rise is a send, and the thread goes to its bottom (Story 5.3).
   const sends = conversation.entries.filter((entry) => entry.kind === 'user' && entry.room !== true).length
   // A card names its persona as the lifecycle line does: the roster's name, an orphan's, else the id.
@@ -301,6 +317,7 @@ export function App(): JSX.Element | null {
             room={conversation.room}
             roomCast={conversation.roomCast}
             speaker={conversation.speaker}
+            inFlight={conversation.roomInFlight}
             entries={conversation.entries}
             topic={conversation.roomTopic}
             openedAt={conversation.roomOpenedAt}
@@ -358,7 +375,7 @@ export function App(): JSX.Element | null {
           <ErrorLine key={`${error.code}-${index}`} error={error} />
         ))}
         {conversation.failure !== null && <ErrorLine error={conversation.failure} />}
-        <Turns entries={conversation.entries} onCancel={conversation.cancel} canAnswer={conversation.canAnswer} onChoose={answer} prose={conversation.prose} pinnedRunId={pinnedEntry?.id} collapse={collapse} onStop={conversation.stopRun} />
+        <Turns entries={conversation.entries} onCancel={conversation.cancel} canAnswer={conversation.canAnswer} onChoose={answer} prose={conversation.prose} pinnedRunId={pinnedEntry?.id} collapse={collapse} onStop={conversation.stopRun} inFlight={inFlight} />
       </Shell>
       <LiveRegion key="live-region" announcer={announcer} />
     </LayoutContext.Provider>

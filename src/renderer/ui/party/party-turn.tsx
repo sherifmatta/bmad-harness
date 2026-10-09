@@ -2,6 +2,7 @@ import type { JSX } from 'react'
 
 import type { AgentView } from '../../../shared/install'
 import { Head, Words } from '../chat/turn'
+import { TurnState } from '../chat/turn-state'
 import { artParamsFor } from '../persona/art-params'
 import { portrait } from '../persona/portrait'
 
@@ -11,25 +12,47 @@ import { portrait } from '../persona/portrait'
  * are rendered as untrusted text, whole, and never framed, tagged, quoted or classified.
  *
  * The latest turn of the persona speaking now (`live`) carries an accent edge down its left side; the
- * caller says so, and only while that persona is the room's current speaker.
+ * caller says so, and only while that persona is the room's current speaker. While the room's turn is
+ * in flight and these are its words (`writing`), the caret sits at their tail and the `work` state line,
+ * counted from the room's turn, under them.
  */
 export function PartyTurn({
   agent,
   at,
   text,
-  live
+  live,
+  writing
 }: {
   agent: AgentView
   at: number
   text: string
   live: boolean
+  /** Set while the room's turn is in flight and this turn holds its words: since when it began. */
+  writing?: { since: number | undefined }
 }): JSX.Element {
   return (
     <div className={live ? 'turn turn--persona turn--party-live' : 'turn turn--persona'}>
       <div className="turn-av">{portrait(artParamsFor(agent.id), 32, 'idle', agent)}</div>
       <div className="turn-body">
         <Head name={agent.name} ident={agent.title} at={at} />
-        <Words text={text} />
+        <Words text={text} caret={writing !== undefined} />
+        {writing !== undefined && <TurnState since={writing.since} />}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The room's turn in flight before anyone has said a word of it: a row at the foot of the room
+ * thread with no portrait and no caret, since nobody is yet known to be speaking, only the `work`
+ * state line counted from the user's send (or the room's open). Hidden from a reader, like the line
+ * under a turn, and gone when a speaker's first word lands or the room's turn ends.
+ */
+export function PartyPending({ since }: { since: number | undefined }): JSX.Element {
+  return (
+    <div className="turn turn--pending" aria-hidden="true">
+      <div className="turn-body">
+        <TurnState since={since} />
       </div>
     </div>
   )

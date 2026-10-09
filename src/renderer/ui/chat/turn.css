@@ -112,3 +112,20 @@
   text-decoration: underline;
   cursor: pointer;
 }
+
+/*
+ * A turn in flight: the persona's `work` state line under its words, or under
+ * the caret alone before the first word (the caret is caret.css's). The line is
+ * the status dot's own; this only sets it apart from the words above it, by the
+ * gap a paragraph has. The pending turn is the same container as any persona's.
+ */
+
+.turn-state {
+  display: flex;
+  margin-top: var(--space-md);
+}
+
+/* The room's row before a speaker is known is the state line alone, with nothing above it. */
+.turn-body > .turn-state:first-child {
+  margin-top: 0;
+}

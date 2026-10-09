@@ -296,13 +296,18 @@ describe('App, the conversation glue', () => {
     expect(header().textContent).toMatch(/^working · 1m 0\ds$/)
     expect(tileState('John').textContent).toBe('idle')
     expect(tile('Mary').getAttribute('aria-label')).toBe('Mary, Role, working')
-    expect(container.querySelectorAll('.status-dot--work')).toHaveLength(2)
+    // The tile, the chat header and the turn in flight at the thread's foot: the same state, counted from the same moment.
+    expect(container.querySelectorAll('.status-dot--work')).toHaveLength(3)
+    const pending = container.querySelector('.thread .turn--pending') as Element
+    expect(pending.querySelector('.turn-name')?.textContent).toBe('Mary')
+    expect(pending.querySelector('.state-text')?.textContent).toMatch(/^working · 1m 0\ds$/)
 
     push({ name: 'persona:state', payload: { agentId: mary.id, state: 'idle', at: Date.now() } })
 
     expect(tileState('Mary').textContent).toBe('idle')
     expect(header().textContent).toBe('idle')
     expect(container.querySelector('.state-elapsed')).toBeNull()
+    expect(container.querySelector('.turn--pending, .caret, .turn-state')).toBeNull()
   })
 
   it('ends the conversation from the topbar: sends this window’s project, empties the thread, announces it once, and leaves no new live region', async () => {
@@ -953,7 +958,7 @@ describe('App, pressing a skill button (Story 3.1)', () => {
     await act(frame)
     expect(card?.querySelector('.run-card-text')?.textContent).toBe('## Vision\nwords')
     expect(card?.querySelector('.run-card-path')?.textContent).toBe('_bmad/prd.md')
-    expect(card?.querySelector('.run-card-caret')).not.toBeNull()
+    expect(card?.querySelector('.caret')).not.toBeNull()
 
     push({ name: 'doc:committed', payload: { ...R, ok: true, callId: 'c1', path: '_bmad/prd.md', sections: ['Vision'], at: Date.now() } })
     push({ name: 'run:finished', payload: { ...R, at: Date.now() } })
@@ -966,7 +971,7 @@ describe('App, pressing a skill button (Story 3.1)', () => {
     // The remount kept the document: path and text come from the prose store, not from the old element.
     expect(saved?.querySelector('.run-card-path')?.textContent).toBe('_bmad/prd.md')
     expect(saved?.querySelector('.run-card-text')?.textContent).toBe('## Vision\nwords')
-    expect(saved?.querySelector('.run-card-caret')).toBeNull()
+    expect(saved?.querySelector('.caret')).toBeNull()
     expect(saved?.hasAttribute('aria-busy')).toBe(false)
     expect(buttons().every((button) => !button.disabled)).toBe(true)
   })
@@ -1924,7 +1929,10 @@ describe('the party view (Story 4.1)', () => {
     expect([...party().querySelectorAll('.sysline')].map((line) => line.textContent)).toEqual([
       'room opened by you · present · Mary · John'
     ])
-    expect(party().querySelector('.turn, .persona-tile')).toBeNull()
+    // No one has spoken: the room's greeting turn is in flight, so its foot holds the state line alone.
+    expect(party().querySelector('.turn:not(.turn--pending), .persona-tile')).toBeNull()
+    expect(party().querySelectorAll('.turn--pending')).toHaveLength(1)
+    expect(party().querySelector('.turn--pending .caret, .turn--pending .portrait')).toBeNull()
     // The cast the user chose is in the strip, one card each, nobody lit while the room awaits.
     expect([...party().querySelectorAll('.cast-card .cast-name')].map((name) => name.textContent)).toEqual(['Mary', 'John'])
     expect(party().querySelector('.cast-card--speaking')).toBeNull()

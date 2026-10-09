@@ -5,6 +5,7 @@ import './party-view.css'
 import type { AgentView } from '../../../shared/install'
 import type { RailRow } from '../../../shared/rail'
 import { Composer } from '../chat/composer'
+import type { TurnInFlight } from '../chat/conversation-state'
 import { Sysline } from '../chat/sysline'
 import { orderEntries } from '../chat/transcript'
 import type { TranscriptEntry } from '../chat/transcript-entry'
@@ -15,7 +16,7 @@ import { usePanelWidth } from '../layout/use-panel-width'
 import { CastChooser } from './cast-chooser'
 import { CastStrip } from './cast-strip'
 import { PartyHeader } from './party-header'
-import { PartyTurn } from './party-turn'
+import { PartyPending, PartyTurn } from './party-turn'
 import { RoomPanel } from './room-panel'
 
 /** The entries the party thread draws: what the room said, what the user said into it, and the harness's lines about it. */
@@ -46,6 +47,7 @@ export function PartyView({
   room,
   roomCast,
   speaker,
+  inFlight,
   entries,
   topic,
   openedAt,
@@ -65,6 +67,11 @@ export function PartyView({
   roomCast: readonly string[]
   /** The agent id of the persona speaking now, or `undefined`. */
   speaker: string | undefined
+  /**
+   * The room's turn in flight, from main's busy state alone (`roomTurnInFlight`), or `undefined`: its
+   * words so far carry the caret and the state line, and before any word a row at the foot carries the line.
+   */
+  inFlight?: TurnInFlight
   /** The whole transcript; only the room's entries are drawn. */
   entries: readonly TranscriptEntry[]
   /** What the room is about: the user's first message into it, shaped; `undefined` until then. */
@@ -114,6 +121,7 @@ export function PartyView({
               at={entry.at}
               text={entry.text}
               live={live && index === lastSpoken && speaker === entry.agent.id}
+              writing={live && inFlight !== undefined && inFlight.entryId === entry.id ? { since: inFlight.since } : undefined}
             />
           )
         }
@@ -122,6 +130,7 @@ export function PartyView({
         }
         return entry.kind === 'sysline' ? <Sysline key={entry.id} text={entry.text} /> : null
       })}
+      {live && inFlight !== undefined && inFlight.entryId === undefined && <PartyPending since={inFlight.since} />}
     </div>
   )
   useEffect(() => {

@@ -234,7 +234,7 @@ function audit(root: HTMLElement, as: 'card' | 'line', expected: Expected): void
   const own = as === 'line' ? ['run-card-line-button', 'run-stop'] : ['run-stop']
   expect(buttons).toEqual(expected.running ? own : as === 'line' ? ['run-card-line-button'] : [])
   if (expected.running) expect(root.querySelector('.run-stop')?.textContent).toBe('stop')
-  expect(root.querySelectorAll('.run-card-caret')).toHaveLength(as === 'card' && expected.caret ? 1 : 0)
+  expect(root.querySelectorAll('.caret')).toHaveLength(as === 'card' && expected.caret ? 1 : 0)
   expect(root.querySelector('[aria-busy="true"]') !== null).toBe(expected.running)
   expect(root.querySelector('.run-card-elapsed')?.textContent).toMatch(/^(?:\d+m )?\d+s$/)
   if (as === 'card') {

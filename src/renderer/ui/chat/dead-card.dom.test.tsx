@@ -91,7 +91,7 @@ describe('a conversation read back after a relaunch, drawn', () => {
 
     expect(root.querySelectorAll('.run-card')).toHaveLength(2)
     expect(root.querySelectorAll('.run-stop, button')).toHaveLength(0)
-    expect(root.querySelector('.run-card-caret')).toBeNull()
+    expect(root.querySelector('.caret')).toBeNull()
     expect(root.querySelector('[aria-busy]')).toBeNull()
     expect([...root.querySelectorAll('.run-card-elapsed')].map((each) => each.textContent)).toEqual(['2s', '1m 05s'])
     expect(root.querySelectorAll('.run-card-status--failed')).toHaveLength(1)

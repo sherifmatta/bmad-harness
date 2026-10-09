@@ -230,7 +230,7 @@ describe('the sources', () => {
     expect(app).toMatch(/import \{ pinnedRun, Turns \} from '\.\/chat\/transcript'/)
     expect(app).toContain('<Composer')
     expect(app).toMatch(
-      /<Turns entries=\{conversation\.entries\} onCancel=\{conversation\.cancel\} canAnswer=\{conversation\.canAnswer\} onChoose=\{answer\} prose=\{conversation\.prose\} pinnedRunId=\{pinnedEntry\?\.id\} collapse=\{collapse\} onStop=\{conversation\.stopRun\} \/>/
+      /<Turns entries=\{conversation\.entries\} onCancel=\{conversation\.cancel\} canAnswer=\{conversation\.canAnswer\} onChoose=\{answer\} prose=\{conversation\.prose\} pinnedRunId=\{pinnedEntry\?\.id\} collapse=\{collapse\} onStop=\{conversation\.stopRun\} inFlight=\{inFlight\} \/>/
     )
     // The shell takes a render prop and a callback; it imports no conversation part.
     expect(shell).not.toMatch(/from '\.\.\/chat\/(?:composer|transcript|turn|use-conversation|conversation-state)'/)

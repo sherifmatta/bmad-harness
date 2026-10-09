@@ -251,7 +251,7 @@ describe.each([
     } else {
       expect(root.querySelector('.run-card-line-reason')?.textContent).toBe('§2 Scope')
     }
-    expect(root.querySelectorAll('.run-card-caret').length).toBe(each.caret ? 1 : 0)
+    expect(root.querySelectorAll('.caret').length).toBe(each.caret ? 1 : 0)
     expect(root.querySelector('.run-card-elapsed')?.textContent).toMatch(/^(?:\d+m )?\d+s$/)
   })
 
@@ -274,7 +274,7 @@ describe.each([
       const flying = each.stop
       expect(root.querySelector('[aria-busy="true"]') !== null, each.name).toBe(flying)
       if (!flying) {
-        expect(root.querySelector('.run-card-caret'), each.name).toBeNull()
+        expect(root.querySelector('.caret'), each.name).toBeNull()
         expect(root.querySelector('button'), each.name).toBeNull()
       }
       mounted?.unmount()
@@ -423,9 +423,9 @@ describe('reduced motion, drawn', () => {
     const root = mounted.container
     expect(root.querySelector('.run-card-elapsed')?.textContent).toBe('4s')
     expect(root.querySelector('.run-card-status')?.textContent).toBe('writing · §2 Scope')
-    expect(root.querySelector('.run-card-caret')).not.toBeNull()
+    expect(root.querySelector('.caret')).not.toBeNull()
     // The caret is not hidden by any attribute or inline style: nothing in the markup turns it off.
-    const caret = root.querySelector('.run-card-caret') as HTMLElement
+    const caret = root.querySelector('.caret') as HTMLElement
     expect(caret.hidden).toBe(false)
     expect(caret.getAttribute('style')).toBeNull()
 
@@ -433,7 +433,7 @@ describe('reduced motion, drawn', () => {
     expect(root.querySelector('.run-card-elapsed')?.textContent).toBe('5s')
     act(() => void vi.advanceTimersByTime(60_000))
     expect(root.querySelector('.run-card-elapsed')?.textContent).toBe('1m 05s')
-    expect(root.querySelector('.run-card-caret')).not.toBeNull()
+    expect(root.querySelector('.caret')).not.toBeNull()
     expect(root.querySelector('.run-card-status')?.textContent).toBe('writing · §2 Scope')
     // No component of the card or its dot asked the browser whether motion is reduced.
     expect(media.calls()).toBe(0)

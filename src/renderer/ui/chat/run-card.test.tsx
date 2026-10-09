@@ -70,7 +70,7 @@ describe('a card just born', () => {
   })
 
   it('draws no spinner, skeleton, progress bar or caret before any prose', () => {
-    expect(markup).not.toMatch(/<progress|role="progressbar"|aria-valuenow|run-card-caret|skeleton|spinner/)
+    expect(markup).not.toMatch(/<progress|role="progressbar"|aria-valuenow|class="caret"|skeleton|spinner/)
     expect(markup).toMatch(/<div class="run-card-prose" hidden="">/)
   })
 })
@@ -122,7 +122,7 @@ describe('a card with notes and prose', () => {
     expect(markup).toContain('<span class="run-card-path">_bmad/prds/x/prd.md</span>')
     expect(markup).toContain('run-note-kind--accent')
     expect(markup).toContain('<strong>Fast</strong>')
-    expect(markup).toContain('<span class="run-card-caret" aria-hidden="true"></span>')
+    expect(markup).toContain('<span class="caret" aria-hidden="true"></span>')
     expect(markup).not.toMatch(/<div class="run-card-prose" hidden/)
   })
 
@@ -187,7 +187,7 @@ describe('a finished card', () => {
   it('reads saved · just now · N sections, with the elapsed fixed and the caret removed', () => {
     expect(markup).toContain('<span class="run-card-status run-card-status--finished">saved · just now · 3 sections</span>')
     expect(markup).toContain('<span class="run-card-elapsed">1m 05s</span>')
-    expect(markup).not.toContain('run-card-caret')
+    expect(markup).not.toContain('class="caret"')
     expect(markup).not.toContain('aria-busy')
     expect(markup).toContain('status-dot--live')
   })
@@ -223,7 +223,7 @@ describe('a card that ended early with a confirmed write (Story 3.8)', () => {
     expect(markup).toContain(`<span class="run-card-status run-card-status--${status}">${head}</span>`)
     // No foot at all: a terminal card names nothing still to write and no other file.
     expect(markup).not.toContain('run-card-foot')
-    expect(markup).not.toContain('run-card-caret')
+    expect(markup).not.toContain('class="caret"')
     expect(markup).not.toContain('aria-busy')
     expect(markup).toContain('status-dot--error')
     expect(markup).not.toMatch(STAND_IN)

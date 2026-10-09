@@ -16,10 +16,12 @@ import {
   hydrate,
   initialConversation,
   orphansOf,
+  personaTurnsInFlight,
   roomReady,
   roomRefused,
   roomSent,
   roomSummaryAsked,
+  roomTurnInFlight,
   roomTurnsOf,
   roomUnsent,
   runCardOf,
@@ -29,7 +31,7 @@ import {
   speakerOf,
   withHandoff
 } from './conversation-state'
-import type { ConversationState, Delivery, PersonaStateEntry } from './conversation-state'
+import type { ConversationState, Delivery, PersonaStateEntry, TurnInFlight } from './conversation-state'
 import { createProseStore } from './prose-store'
 import type { ProseStore } from './prose-store'
 import { runLifecycleLine, subjectWritten } from './run-status'
@@ -579,6 +581,10 @@ export function useConversation(
   roomReturned: { key: number; text: string } | undefined
   /** The agent id of the room's current speaker, or none (Story 4.2). */
   speaker: string | undefined
+  /** The personas with a turn in flight by main's state, by agent id, in the order their turns began. */
+  turnsInFlight: ReadonlyMap<string, TurnInFlight & { since: number }>
+  /** The room's turn in flight while its session is busy, else none. */
+  roomInFlight: TurnInFlight | undefined
   /** Send text into the room, with no gate; main interrupts the speaker. */
   sendToRoom: (text: string) => void
   /** Ask the room's session to write its summary under `folder`, the project's output folder, at the destination the panel shows. */
@@ -682,6 +688,7 @@ export function useConversation(
   const stopRoom = useCallback(async () => (await conversation.current?.stopRoom()) ?? false, [])
   const orphans = useMemo(() => orphansOf(state, agents), [state, agents])
   const live = useMemo(() => new Set(state.sessions.keys()), [state.sessions])
+  const turnsInFlight = useMemo(() => personaTurnsInFlight(state), [state])
 
   // Who spoke is read from the roster as it is now, so a window that met the
   // transcript before the install was read names them once it is.
@@ -711,6 +718,8 @@ export function useConversation(
     roomTurns: roomTurnsOf(state),
     roomReturned: state.roomReturned,
     speaker: speakerOf(state),
+    turnsInFlight,
+    roomInFlight: roomTurnInFlight(state),
     sendToRoom,
     writeSummary,
     send,

@@ -284,7 +284,7 @@ describe('interrupt-inband: a stop pressed mid-Write', () => {
     expect(markup).toContain('<span class="run-card-status run-card-status--stopped">stopped</span>')
     expect(markup).not.toContain('§')
     expect(markup).not.toContain('run-card-foot')
-    expect(markup).not.toContain('run-card-caret')
+    expect(markup).not.toContain('class="caret"')
     expect(markup).not.toContain('aria-busy')
     expect(markup).toContain('status-dot--error')
     // One announcement, word for word the head's, with the persona's name before it.

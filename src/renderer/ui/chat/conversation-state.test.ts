@@ -14,11 +14,13 @@ import {
   hydrate,
   initialConversation,
   orphansOf,
+  personaTurnsInFlight,
   ROOM_REFUSED_LINE,
   roomReady,
   roomRefused,
   roomSent,
   roomSummaryAsked,
+  roomTurnInFlight,
   roomTurnsOf,
   roomUnsent,
   runCardOf,
@@ -1408,5 +1410,193 @@ describe('a message the room refused (Story 4.8)', () => {
       room: { sessionId: 'r1', cast: [mary.id], openedAt: at }
     }
     expect(hydrate(initialConversation, snapshot, agentOf).state.entries).toEqual([])
+  })
+})
+
+describe('a turn in flight, as the thread draws it', () => {
+  const stateOf = (agentId: string, state: PersonaState, at: number): ContractEvent => ({
+    name: 'persona:state',
+    payload: { agentId, state, at }
+  })
+  const opened = (sessionId: string, agentId?: string, at = 1): ContractEvent => ({
+    name: 'session:opened',
+    payload: { sessionId, ...(agentId === undefined ? {} : { agentId }), at }
+  })
+  const spoke = (agentId: string, messageId: string, text: string, at: number, room = false): ContractEvent => ({
+    name: 'persona:said',
+    payload: { sessionId: room ? 'r1' : 's1', agentId, messageId, text, at, ...(room ? { room: true as const } : {}) }
+  })
+  const awaiting = (sessionId: string, at = 99): ContractEvent => ({ name: 'session:awaiting-turn', payload: { sessionId, at } })
+
+  describe('in a 1:1', () => {
+    it('has none while no persona is reported working, whatever is busy', () => {
+      expect(personaTurnsInFlight(initialConversation).size).toBe(0)
+      // The window's own busy mark is no turn of main's: only the state main reports draws one.
+      const sent = send(fold([opened('s1', mary.id), awaiting('s1')]), 'hello', 50)
+      expect(sent.state.busy.has('s1')).toBe(true)
+      expect(personaTurnsInFlight(sent.state).size).toBe(0)
+    })
+
+    it('is in flight from the instant main says work, with no words before the first lands', () => {
+      const state = fold([opened('s1', mary.id), awaiting('s1', 2), stateOf(mary.id, 'work', 60)])
+
+      expect([...personaTurnsInFlight(state)]).toEqual([[mary.id, { since: 60, entryId: undefined }]])
+    })
+
+    it('holds the words of the turn once they arrive, in the entry they are written into', () => {
+      const state = fold([stateOf(mary.id, 'work', 60), spoke(mary.id, 'm1', 'Hello', 61), spoke(mary.id, 'm1', ' there', 62)])
+      const entry = state.entries[0]
+
+      expect(personaTurnsInFlight(state).get(mary.id)).toEqual({ since: 60, entryId: entry.id })
+      expect(entry.kind === 'persona' && entry.text).toBe('Hello there')
+    })
+
+    it('keeps the last words of the turn through a quiet stretch, and moves to the next message of the same turn', () => {
+      const first = fold([stateOf(mary.id, 'work', 60), spoke(mary.id, 'm1', 'Looking.', 61)])
+      expect(personaTurnsInFlight(first).get(mary.id)?.entryId).toBe(first.entries[0].id)
+
+      const second = fold([spoke(mary.id, 'm2', 'Found it.', 70)], first)
+      expect(personaTurnsInFlight(second).get(mary.id)?.entryId).toBe(second.entries[1].id)
+    })
+
+    it('does not count words of an earlier turn as this one’s', () => {
+      const earlier = fold([spoke(mary.id, 'm0', 'Before.', 10), stateOf(mary.id, 'work', 60)])
+
+      expect(personaTurnsInFlight(earlier).get(mary.id)).toEqual({ since: 60, entryId: undefined })
+    })
+
+    it('never reads the room’s words as a persona’s own turn', () => {
+      const state = fold([stateOf(mary.id, 'work', 60), spoke(mary.id, 'm1', 'In the room.', 61, true)])
+
+      expect(personaTurnsInFlight(state).get(mary.id)).toEqual({ since: 60, entryId: undefined })
+    })
+
+    it('ends with the turn, as main reports it, and leaves the words as they were', () => {
+      const working = fold([stateOf(mary.id, 'work', 60), spoke(mary.id, 'm1', 'Done.', 61)])
+      for (const end of ['idle', 'live', 'error', 'note'] as const) {
+        const ended = fold([stateOf(mary.id, end, 70)], working)
+        expect(personaTurnsInFlight(ended).size, end).toBe(0)
+        expect(ended.entries).toBe(working.entries)
+      }
+    })
+
+    it('covers a session opening: the greeting turn is in flight from main’s work', () => {
+      const state = fold([opened('s1', mary.id, 5), stateOf(mary.id, 'work', 5)])
+
+      expect(personaTurnsInFlight(state).get(mary.id)).toEqual({ since: 5, entryId: undefined })
+    })
+
+    it('leaves out a persona whose run is in flight with no word of this turn yet: the run’s card shows it', () => {
+      const run: ContractEvent = { name: 'run:started', payload: { runId: 'r-1', sessionId: 's1', agentId: mary.id, code: 'CP', at: 61 } }
+      const running = fold([opened('s1', mary.id), stateOf(mary.id, 'work', 60), run])
+      expect(personaTurnsInFlight(running).size).toBe(0)
+
+      // Words it says during the run are this turn's, and get the caret.
+      const speaking = fold([spoke(mary.id, 'm1', 'Writing now.', 62)], running)
+      expect(personaTurnsInFlight(speaking).get(mary.id)).toEqual({ since: 60, entryId: speaking.entries.at(-1)?.id })
+
+      // A run that has ended is no indicator: the turn still in flight is drawn.
+      const finished = fold([{ name: 'run:finished', payload: { runId: 'r-1', sessionId: 's1', at: 70 } }], running)
+      expect(personaTurnsInFlight(finished).get(mary.id)).toEqual({ since: 60, entryId: undefined })
+    })
+
+    it('lists several in the order their turns began', () => {
+      const state = fold([stateOf(john.id, 'work', 80), stateOf(mary.id, 'work', 60)])
+
+      expect([...personaTurnsInFlight(state).keys()]).toEqual([mary.id, john.id])
+    })
+
+    it('is drawn again from a hydrated snapshot after a reload, with no delta witnessed', () => {
+      const { state } = hydrate(
+        initialConversation,
+        {
+          entries: [{ kind: 'persona', id: 'm-1', at: 61, agentId: mary.id, messageId: 'a', text: 'Half a' }],
+          sessions: [{ agentId: mary.id, sessionId: 's1' }],
+          busy: ['s1'],
+          personas: [{ agentId: mary.id, state: 'work', at: 60 }],
+          runs: []
+        },
+        agentOf
+      )
+
+      expect(personaTurnsInFlight(state).get(mary.id)).toEqual({ since: 60, entryId: 'm-1' })
+    })
+  })
+
+  describe('in the room', () => {
+    const live = (): ConversationState => roomReady(fold([opened('r1', undefined, 100)]), 'r1', [mary.id, john.id], 100)
+
+    it('has none without a room, or while the room is not busy', () => {
+      expect(roomTurnInFlight(initialConversation)).toBeUndefined()
+      expect(roomTurnInFlight(fold([awaiting('r1')], live()))).toBeUndefined()
+    })
+
+    it('counts the opening greeting from the room’s open, before anyone speaks', () => {
+      expect(roomTurnInFlight(live())).toEqual({ since: 100, entryId: undefined })
+    })
+
+    it('counts from the user’s send, with no speaker yet', () => {
+      const sent = roomSent(fold([awaiting('r1')], live()), 150, 'hello').state
+
+      expect(roomTurnInFlight(sent)).toEqual({ since: 150, entryId: undefined })
+    })
+
+    it('holds the speaker’s words once they are known, and moves with the speaker', () => {
+      const sent = roomSent(fold([awaiting('r1')], live()), 150, 'hello').state
+      const mary1 = fold([spoke(mary.id, 'a', 'Hi', 151, true)], sent)
+      expect(roomTurnInFlight(mary1)).toEqual({ since: 150, entryId: mary1.entries.at(-1)?.id })
+      expect(speakerOf(mary1)).toBe(mary.id)
+
+      const john1 = fold([spoke(john.id, 'b', 'No.', 152, true)], mary1)
+      expect(roomTurnInFlight(john1)).toEqual({ since: 150, entryId: john1.entries.at(-1)?.id })
+    })
+
+    it('ends with the room’s turn', () => {
+      const sent = roomSent(fold([awaiting('r1')], live()), 150, 'hello').state
+      const spoken = fold([spoke(mary.id, 'a', 'Hi', 151, true)], sent)
+
+      expect(roomTurnInFlight(fold([awaiting('r1', 160)], spoken))).toBeUndefined()
+    })
+
+    it('reads no word of an earlier room as this turn’s: a new room open and busy has none yet', () => {
+      const closed: ContractEvent = { name: 'session:closed', payload: { sessionId: 'r1', reason: 'process-exited', at: 120 } }
+      const old = fold([spoke(mary.id, 'a', 'Hi', 110, true), closed], live())
+      const again = fold(
+        [{ name: 'harness:said', payload: { sessionId: 'r2', id: 'm-9', text: 'room opened by you · present · Mary', at: 200, room: true } }],
+        roomReady(fold([opened('r2', undefined, 200)], old), 'r2', [mary.id], 200)
+      )
+      expect(again.busy.has('r2')).toBe(true)
+      expect(roomTurnInFlight(again)).toEqual({ since: 200, entryId: undefined })
+
+      // Without the open line between them, the earlier room's words are still older than this room.
+      const unlined: ConversationState = { ...again, entries: again.entries.filter((entry) => entry.kind !== 'sysline') }
+      expect(roomTurnInFlight(unlined)).toEqual({ since: 200, entryId: undefined })
+    })
+
+    it('reads no message of an earlier room as this one’s send', () => {
+      const earlier: ConversationState = {
+        ...live(),
+        entries: [{ kind: 'user', id: 'old', at: 20, text: 'before', room: true }]
+      }
+
+      expect(roomTurnInFlight(earlier)).toEqual({ since: 100, entryId: undefined })
+    })
+
+    it('is drawn again from a hydrated snapshot after a reload', () => {
+      const { state } = hydrate(
+        initialConversation,
+        {
+          entries: [{ kind: 'user', id: 'm-0', at: 110, text: 'hello', room: true }],
+          sessions: [],
+          busy: ['r1'],
+          personas: [],
+          runs: [],
+          room: { sessionId: 'r1', cast: [mary.id], openedAt: 100 }
+        },
+        agentOf
+      )
+
+      expect(roomTurnInFlight(state)).toEqual({ since: 110, entryId: undefined })
+    })
   })
 })
