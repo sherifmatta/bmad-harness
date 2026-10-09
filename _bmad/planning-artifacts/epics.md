@@ -12,6 +12,7 @@ inputDocuments:
   - _bmad/planning-artifacts/ux-designs/ux-bmad-harness-2026-09-24/EXPERIENCE.md
   - _bmad/planning-artifacts/ux-designs/ux-bmad-harness-2026-09-24/mockups/portrait.html
   - _bmad/planning-artifacts/ux-designs/ux-bmad-harness-2026-09-24/mockups/document-card-dead-air.html
+  - _bmad/planning-artifacts/ux-designs/ux-bmad-harness-2026-09-24/mockups/paperclip-board.html
 ---
 
 # bmad-harness - Epic Breakdown
@@ -37,11 +38,11 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **FR7:** Launch preflight verifies three prerequisites and, on failure, names the specific one and its remedy rather than opening an empty room: (a) `claude` on `PATH` **and** authenticated — two distinct messages; (b) `uv` present **and** resolving Python 3.11+ — two distinct messages; (c) the target project resolves at least one agent.
 - **FR8:** The "no agents resolve" preflight message must state four things: what was looked for (agents), where (this project, under `--setting-sources project,local`), why a correctly installed BMad can still resolve none there (a user-scoped rather than project-scoped install), and what would change it. It must not read as "no agents found".
 - **FR9:** Launch presents no setup step, no onboarding wizard, and no "where are you in the process?" question.
-- **FR10:** Pipeline position is derived from the artifacts present under `_bmad/` and from the sprint status file. The harness never asks and never stores its own answer — **and the negative is the substance of this requirement**, because no surface in v1 consumes a parsed pipeline position and the product forbids every affordance that would. v1 therefore reads artifact *presence* and treats the sprint status file as one more artifact without parsing its contents; the parsing is deferred until a consumer exists. **The file was nonetheless verified during planning so a future consumer need not re-research it**: it sits at `_bmad/implementation-artifacts/sprint-status.yaml` (so the rail already watches it); `development_status` is a **flat map** whose keys carry the structure (`epic-1`, `1-1-<slug>`, `epic-1-retrospective` share one namespace), so position comes from parsing key shape, not from walking nesting; the status vocabulary is **six values** — `backlog`, `ready-for-dev`, `in-progress`, `review`, `done`, plus `optional` for retrospectives — not the three (`planned`/`started`/`unstarted`) the install contract describes; and timestamps are `MM-DD-YYYY HH:MM`, not ISO. An unrecognised status must degrade rather than break the derivation.
+- **FR10:** Pipeline position is derived from the artifacts present under `_bmad/` and from the sprint status file. The harness never asks and never stores its own answer — **and the negative is the substance of this requirement**, because no surface in v1 consumes a parsed pipeline position and the product forbids every affordance that would. v1 therefore reads artifact *presence* and treats the sprint status file as one more artifact without parsing its contents; the parsing is deferred until a consumer exists. **The file was nonetheless verified during planning so a future consumer need not re-research it**: it sits at `_bmad/implementation-artifacts/sprint-status.yaml` (so the rail already watches it); `development_status` is a **flat map** whose keys carry the structure (`epic-1`, `1-1-<slug>`, `epic-1-retrospective` share one namespace), so position comes from parsing key shape, not from walking nesting; the status vocabulary is **six values** — `backlog`, `ready-for-dev`, `in-progress`, `review`, `done`, plus `optional` for retrospectives — not the three (`planned`/`started`/`unstarted`) the install contract describes; and timestamps are `MM-DD-YYYY HH:MM`, not ISO. An unrecognised status must degrade rather than break the derivation. *Amended 2026-10-09 by FR118 and Story 6.2: the Board is the consumer this requirement waited for, and the file's contents are parsed from then on, by one reader in `src/main/` and by nothing else. Pipeline position is still never asked or stored.*
 
 #### CAP-2 — Conversation and project state in one window
 
-- **FR11:** The shell presents two mutually exclusive top-level views behind a single switch — **1:1 Conversation** and **Party Mode**. There is no third view. A **Help** entry point is reserved in the topbar layout but does not render in v1.
+- **FR11:** The shell presents two mutually exclusive top-level views behind a single switch — **1:1 Conversation** and **Party Mode**. There is no third view. A **Help** entry point is reserved in the topbar layout but does not render in v1. *Amended 2026-10-09 by FR117 and Story 6.3: the Board is a third view, and the switch is one control of three. It read "two mutually exclusive top-level views … There is no third view" and held for Epics 1 to 5. Help is still not a view.*
 - **FR12:** The 1:1 view is a chat column on the left and a fixed-width right rail split 50/50: the **Team half** (persona tiles) above, the **Outputs half** (file rows) below. Chat and rail are simultaneously visible for the full length of a session running from PRD through build.
 - **FR13:** The topbar carries brand, project path, install chip, branch chip, and the view switch.
 - **FR14:** The chat column holds conversation entries in time order — persona turns, user turns, syslines, and document cards — plus the skill button row and the composer.
@@ -184,6 +185,18 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **FR115:** The rail in 1:1 and the Room panel in Party Mode are resizable by a splitter on their inner edge. The rail defaults to 348px and ranges 280–560px, keeping the chat column at 420px at least; the Room panel defaults to 240px and ranges 200–400px, keeping the party column at 480px at least. A drag follows the pointer with no easing or snapping; double-click or `Enter` resets the panel; `←`/`→` move it 16px (64 with `Shift`) and `Home`/`End` go to its limits. Each width is remembered per user under `userData`; an unreadable or out-of-range value reads as the default. Resizing touches no session, run, transcript or card, and adds no breakpoint.
 - **FR116:** Each directory heading in the Outputs half folds that directory's rows away, by click, `Enter`/`Space`, or `←`/`→`. Folding is of that directory only. While a directory is folded and a row under it is `changing`, its heading carries the amber dot and the word `changing`, so a live state is never folded out of sight. A folded folder shows no count of files, is not unfolded by a file arriving, and is remembered per project (project-relative directory paths, under `userData`). There is no collapse-all.
 
+#### CAP-14 — The Board
+
+*Added 2026-10-09 from `mockups/paperclip-board.html`, filtered through `EXPERIENCE.md` → *Layout, chat and Board*, which wins where the two differ. Two things in that section are **deferred by decision, 2026-10-09**: the Inbox (and with it the Board's* decisions open *figure and a* question asked *activity row), because open decisions are renderer-local and no main-held read of them exists; and the context panel and thread additions, which are a later epic.*
+
+- **FR117:** The shell gains a third top-level view, **Board**, beside 1:1 Conversation and Party Mode, behind the same single switch and mutually exclusive with both. It is reached from the switch or by `g` then `b`. The Board is **read-only**: it reads and writes nothing, and offers no drag, no status control, no *New story* and no editing affordance. A status changes when a skill changes it.
+- **FR118:** The Board's source is the sprint status file, `sprint-status.yaml`, read as disk truth (AD-1) and updated live when it changes. `development_status` is a flat map whose keys carry the structure; the six statuses are shown in the file's own words (`backlog`, `ready-for-dev`, `in-progress`, `review`, `done`, `optional`); an unrecognised status or key degrades to a neutral row and never breaks the view. A missing, unreadable or malformed file reads as `no sprint status` with the watched path beneath, and nothing is invented. (`_bmad/implementation-artifacts/sprint-status.yaml`, verified in FR10.)
+- **FR119:** The story board has one column per BMad status in the file's own words, each column's order the file's own, with no count on a heading. A card is the story id and its title and nothing else until a run is on it. There is no progress bar, no priority order, no highlight, and the Board never recommends a next story.
+- **FR120:** The overview is **two plain figures**: *agents running* (of the roster) and *stories in progress*. Neither takes the accent, a border or a highlight, and neither is a badge. Beneath the board is one row per epic: its id, its title and `n of m stories done`, as text, with no bar. There is no spend, budget or cost figure anywhere, because no source carries one.
+- **FR121:** The Agents panel has one row per installed persona: the portrait or initials, name and title, its state as the tile's own dot and word, what it is on, and the run's elapsed time while one is in flight. An idle persona dims. The state and the elapsed time are read from the same source as the tiles (AD-20).
+- **FR122:** Recent activity lists persona events across the project, newest first: a run started, finished, stopped or failed, each with the persona's name and its time as `HH:MM`, built from the stored runs the transcript already keeps. It reads the same after a relaunch as it did live. It lists nothing the harness cannot show from a run, so no approval, no split, no question asked.
+- **FR123:** A story's **owner** is the persona of the run that is, or was last, on it. A story no run has been on has none and shows none. A story with a run in flight shows the owner's initials, `working · <elapsed>` and the amber pulse dot; a card with an owner is a button that opens that persona's thread, and a card with none is not a control. The rule that links a run to a story is settled by Story 6.1 and stated in its spike note.
+
 ### NonFunctional Requirements
 
 - **NFR1 (Architecture paradigm):** Read-only projection — an event-sourced read model with **no write side**. The harness owns no state of its own; it observes three external sources of truth (the project filesystem, the BMad install, a session's event stream), folds each into a read model, and renders it.
@@ -293,10 +306,12 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **UX-DR44 — The follow control** (`DESIGN.md` → Components → Follow control, `EXPERIENCE.md` → Following the thread): one literal string, `↓ latest`, in `label` mono at `dim` on `panel-2` with a 1px `line` border and `control` radius, centred above the composer, present only while a thread is not following, in one frame in and out, one tab stop between the thread and the composer. No count, dot, *new*, pulse, shadow or sound, and no animated scroll anywhere.
 - **UX-DR45 — The Outputs head and the output-folder control** (`DESIGN.md` → Components → Outputs head, `EXPERIENCE.md` → Output folder): the head shows the watched folder in `meta` mono at `dim` and `change…` in `accent`; one state line beneath it only while there is a state, in `dim` mono with no colour and no icon; a File menu in a project window with *Output Folder…* and *Use BMad's Output Folder* and no accelerators; refusals announced politely once; no prompt, no recommendation, no second folder.
 - **UX-DR46 — The splitter and the folder heading** (`DESIGN.md` → Components → Splitter, Folder heading; `EXPERIENCE.md` → Resizing and folding): a 9px hit area on the panel's inner border, 1px `line` at rest and 3px `accent-border` / `accent` on hover / drag and focus, with the shared ring, no motion, a `separator` with its value, minimum and maximum exposed; a folder heading as a button with a stroked chevron, `badge`-tier mono at `dim`, `aria-expanded` and `aria-controls`, the amber dot and `changing` while folded over a changing row, and no count; neither announced through the live region; no splitter at ≤1000px or where its panel is hidden.
+- **UX-DR47 — The Board's anatomy** (`DESIGN.md` → Components → *Proposed: layout, thread and Board anatomy* → Board, which this epic promotes from proposed to built): one scrolling column on `bg` at `16px 18px 20px`; every region a panel (`panel` ground, 1px `line`, `card` radius, head on `panel-2`); the overview as two equal cells, not three (the third, *decisions open*, is deferred; the anatomy's "three equal cells" is amended to two when 6.5 lands); five status columns in one panel with 1px `line-soft` between them and the status as the file writes it in `micro` uppercase `faint` with no count; story cards on `bg` at `control` radius; the owner's initials disc and `working · <elapsed>` in the foot, and a card with a run on it takes the amber pulse dot and a 1px `accent-border`; epic rows as text; agent rows with the tile's anatomy; activity rows with the dot, the persona's name, what it did and `HH:MM`. Every value reaches the design system through a token (NFR23), and nothing is added to the closed motion inventory (UX-DR12).
+- **UX-DR48 — The Board's reach and prohibitions** (`EXPERIENCE.md` → *Layout, chat and Board* → Accessibility, Banned here): the view switch is one control of three in the roving order; each column is a list under its status heading and each card with an owner is a button; the Board's figures and rows are text and are not announced through the live region; the keyboard chord is `g` then `b`, bound only while no field has focus. Banned: a count, badge or highlight on a figure, a column or a card; a progress bar on a card or an epic row; any spend, budget or cost figure; any editing affordance; a recommended or highlighted next story; a skill list or `/` command; relative times; drag to move.
 
 ### FR Coverage Map
 
-Every one of the 116 FRs maps to exactly one epic.
+Every one of the 123 FRs maps to exactly one epic.
 
 | FR | Epic | Covers |
 |---|---|---|
@@ -416,8 +431,15 @@ Every one of the 116 FRs maps to exactly one epic.
 | FR114 | Epic 5 | What follows the folder, what stays at `_bmad/`, and the head's three facts |
 | FR115 | Epic 5 | The rail and the Room panel resize: ranges, keys, reset, remembered per user |
 | FR116 | Epic 5 | Outputs folders fold; a changing file is never folded out of sight; remembered per project |
+| FR117 | Epic 6 | The Board is a third, read-only view behind the one switch; `g b` |
+| FR118 | Epic 6 | `sprint-status.yaml` read as disk truth, live; six statuses; unknowns degrade; absent reads `no sprint status` |
+| FR119 | Epic 6 | The story board: a column per status in the file's words, the file's order, no count, no bar |
+| FR120 | Epic 6 | Two overview figures, an epic row of `n of m stories done` as text, and no money |
+| FR121 | Epic 6 | The Agents panel: state, what it is on, elapsed; idle dims |
+| FR122 | Epic 6 | Recent activity from stored runs, newest first, surviving a relaunch |
+| FR123 | Epic 6 | A story's owner and live run on its card; a card with an owner opens that thread |
 
-**Coverage by epic:** Epic 1 — 42 FRs · Epic 2 — 20 FRs · Epic 3 — 34 FRs · Epic 4 — 9 FRs · **Total 105.**
+**Coverage by epic:** Epic 1 — 42 FRs · Epic 2 — 20 FRs · Epic 3 — 34 FRs · Epic 4 — 9 FRs · Epic 5 — 11 FRs · Epic 6 — 7 FRs · **Total 123.**
 
 ## Standing Constraint on Story Creation
 
@@ -539,6 +561,29 @@ The harness stops opening to a native dialog. It opens to a Welcome that offers 
 - **The light theme reverses NFR15** (Story 5.2). Dark is unchanged to the byte; the light theme is an additional block, so Epics 1 to 4's token tests keep passing as they are.
 - The five descriptions are a static table (the one roster shown before any install is read). They are written from each agent's `role`; they are not read from a project and not attributed to a persona.
 - **Negative-surface check:** each story's own final criteria verify the UX-DR38 prohibitions on its surfaces. The Welcome's: no badge or count, no recommended persona, no spinner or animation, no tour or wizard, no sound, no *clear recent* control.
+
+### Epic 6: The room as a Board
+
+The shell gains a third view, the Board, a read-only picture of where the work stands, read from the project's own `sprint-status.yaml`: every story in a column by its BMad status, each epic as `n of m stories done`, who is working and on what, and what the personas did recently. A story shows the persona that last worked on it, and opens that persona's thread. The Board steers nothing: it never recommends a next story, never counts what you have not read, never shows money, and writes nothing.
+
+**Standalone:** a new view over data the project already holds. It changes nothing in 1:1 or Party Mode except one more segment in the view switch.
+
+**FRs covered:** FR117, FR118, FR119, FR120, FR121, FR122, FR123 (FR10 and FR11 amended)
+
+**NFRs addressed:** NFR1, NFR3, NFR4, NFR5, NFR12, NFR17, NFR18, NFR19, NFR20, NFR22, NFR23, NFR24, NFR25, NFR27
+
+**UX-DRs addressed:** UX-DR47, UX-DR48 (and UX-DR12, UX-DR16, UX-DR23, UX-DR38 as constraints)
+
+**Implementation notes:**
+- **Deferred by decision, 2026-10-09: the Inbox.** `EXPERIENCE.md` → *Layout, chat and Board* specifies an Inbox row, a list of open decisions across personas and a third overview figure, *decisions open*. None is built here: a decision block is renderer-local (`src/renderer/ui/chat/decision.ts`) and main holds no read of unanswered decisions across sessions, so the Inbox needs its own projection and its own decision about a relaunch. `EXPERIENCE.md` and `DESIGN.md` keep describing it, marked proposed; nothing in this epic may render it, reserve a slot for it, or leave a hole where it would be (the overview is two figures, the activity feed has no *question asked* row). Also deferred, for a later epic: the context panel (*Properties*, *Goal trace*, *Run*), message actions, the thinking row, the keyboard cheatsheet and `j`/`k`.
+- **`sprint-status.yaml` has never been read.** `src/main/fold/artifact-owner.ts` says so in its header, and FR10 deferred the parsing "until a consumer exists". This epic is that consumer. The format is verified in FR10 and reproduced in `artifact-owner.ts`; **every story that parses it cites the file it read** (Standing Constraint).
+- **One new event and one new read carry the Board:** `board:changed` (once per revision of the parsed file) and `board.get`, through enumerated, named methods in `src/shared/channels.ts`, with no generic `invoke(channel, …)` (NFR7). Agents come from the existing `persona:state` and elapsed projection (AD-20); activity and ownership come from the stored runs the transcript already keeps (`StoredRun`, `RunCardSnapshot`). The FR101 count of events and commands is amended where it is stated, by Story 6.2.
+- **The rail's watcher stays a stat-only watcher** (`src/main/sources/project/watch-artifacts.ts`, FR54 as the code cites it): it learns that `sprint-status.yaml` changed, as it does now. The new reader is a second, separate edge in `sources/` that opens that one file, so the rail's guarantee that it never opens a file is untouched.
+- **Titles are not in the file.** Keys are slugs and some are cut short (`1-4-the-accessibility-floor-focus-keyboard-reach-and-one-live-re`). Story titles are the `### Story N.M:` headings and epic titles the `## Epic N:` headings of `epics.md`, which is also the project's own source for them.
+- **Owner is derived, never stored, and its rule is a spike's finding.** `sprint-status.yaml` carries no owner and a run carries a menu `code` and an `agentId`, not a story id. Story 6.1 settles how a run is tied to a story, or that it cannot be; Stories 6.2 to 6.7 do not depend on it, and Story 6.8 does.
+- **The Board is the third view, so `VIEWS` stops being two.** `src/renderer/ui/shell/view.ts` says a third view "is not a later addition to this list"; that clause, the FR11 text and the pinned view tests are amended by Story 6.3 and nowhere else.
+- **Sequencing:** 6.1 first, as a spike with no code beside it. 6.2 then 6.3, then 6.4, 6.5, 6.6 and 6.7 in any order, then 6.8, which needs 6.1 and 6.4. 6.9 last. If the Team sidebar (`spec-three-column-room-layout.md`) has landed, the Board's entry is also a *Sprint board* row there; that row is part of that work, not of this epic.
+- **Negative-surface check:** Story 6.9 verifies the UX-DR38 and UX-DR48 prohibitions on every region: no count, badge or highlight on a figure, column or card; no bar; no money; no editing affordance; no recommended story; no relative time; no Inbox.
 
 
 ---
@@ -2753,3 +2798,372 @@ So that the thread, the room and the file list fit the way I work, and stay that
 **Decisions to confirm before build (defaults in brackets):** the rail's range [280–560px] and the Room panel's [200–400px]; folding is flat, one directory at a time [yes]; a folded directory shows `changing` and nothing else [yes]; no *collapse all* [yes]; the fold is per project and the widths per user [yes].
 
 **Boundaries:** no new command, event or channel for the layout (the stored values reach main through enumerated, named methods in `src/shared/channels.ts`, pinned in the contract tests deliberately, with no generic `invoke(channel, …)`); no change to the Team half, the Room panel's contents, the thread or any row's content; the default widths, `--rail` and `--party-side`, keep their values.
+
+---
+
+## Epic 6: The room as a Board
+
+The shell gains a third view, the Board, a read-only picture of where the work stands, read from the project's own `sprint-status.yaml`. It opens with a spike, because the one thing the Board wants that nothing in the harness holds is which persona is on which story.
+
+*Added 2026-10-09 from `mockups/paperclip-board.html` and `EXPERIENCE.md` → Layout, chat and Board. The Inbox, the* decisions open *figure, the context panel and the thread additions are deferred (see the epic's implementation notes). Stories 6.2 to 6.7 do not depend on Story 6.1's answer; Story 6.8 does.*
+
+### Story 6.1: What a run knows about its story
+
+As a developer on the harness,
+I want to know whether a run can be tied to the story it worked on, and by what rule,
+So that Story 6.8 shows an owner only when the harness can stand behind it.
+
+**Implements:** *(no FRs: this spike settles the rule FR123 refers to, and whether the stored runs are enough for FR122)*
+
+**Evidence:** `sprint-status.yaml` carries no owner (`_bmad/implementation-artifacts/sprint-status.yaml`, a flat `development_status` map and a list of `action_items`). `RunStarted` is `{ runId, sessionId, agentId?, code, plan?, at }` and `RunCardSnapshot` is `{ runId, sessionId, agentId?, code, plan?, startedAt, status, endedAt?, error?, notes, documents }` (`src/shared/events.ts:95`, `src/shared/conversation.ts:136`); neither names a story. What a run does carry is the paths of the documents it wrote (`documents[].path`) and its notes. This repo's own stories leave files named `_bmad/implementation-artifacts/spec-<epic>-<n>-<slug>.md`, and `bmad-sprint-planning` writes `sprint-status.yaml`, so a path is the likeliest link and the one to test first. `fixtures/runs/` holds recorded sessions and `.memlog.md` files exist in this repo to read.
+
+**Acceptance Criteria:**
+
+**Given** the recorded runs in `fixtures/runs/`, this repository's own run history where a transcript for it exists under `userData`, and the `.memlog.md` files in the repo
+**Then** the spike note lists, for each run, the story key the candidate rules would assign it, or none
+**And** the rules tried are at least: a written document's path that names a story key; a write to `sprint-status.yaml` that changes one story's status; the story named in the user turn that started the run.
+
+**Given** each rule
+**Then** the note records how many runs it assigns, how many of those are right when checked by hand against the work done, and its false positives
+**And** says what a run that no rule assigns shows: nothing.
+
+**Given** the best rule
+**Then** the note states it as one sentence a test can pin, says whether it can be computed from `RunCardSnapshot` as stored today or needs a field added to the stored run, and gives the cost of adding it
+**And** if no rule is right often enough to show an owner without ever misleading, the note says so and Story 6.8 is cut to the run's live pulse and elapsed time on a persona's row only, with FR123 amended in `epics.md`.
+
+**Given** Story 6.7
+**Then** the note says whether `StoredRun` is enough to build recent activity that reads the same after a relaunch, and how many runs a transcript keeps (the cap, if any).
+
+**Given** the spike's output
+**Then** it is `_bmad/spikes/spike-run-to-story.md`, with the evidence it was run on, and no product code changes.
+
+**Decisions to confirm before build (defaults in brackets):** a wrong owner is worse than none, so a rule that is right less often than a run is checked by a person is not shipped [yes]; the spike may read this repo's own transcripts but copies none into the repo [yes]; a run is tied to the story of the **last** document it wrote that names one, if several [yes].
+
+**Boundaries:** no code in `src/`; no new event or field; nothing written into a project (AD-1).
+
+### Story 6.2: The sprint status, read once in main
+
+As someone who wants to see where the work stands,
+I want the harness to read the project's `sprint-status.yaml` and keep what it reads current,
+So that every Board region draws from one reading of one file, and the file stays the truth.
+
+**Implements:** FR118 · FR10 and FR101 amended · NFR1, NFR3, NFR4, NFR5, NFR12
+
+**Evidence:** `src/main/fold/artifact-owner.ts` records the file's format and that no consumer reads it; FR10 is the verified description: `development_status` is a flat map whose keys carry the structure (`epic-1`, `1-1-<slug>` and `epic-1-retrospective` share one namespace), six statuses, `MM-DD-YYYY HH:MM` timestamps, and an unrecognised status must degrade. The file is at `_bmad/implementation-artifacts/sprint-status.yaml` in this project and sits under the output folder the rail already watches (`src/main/sources/project/watch-artifacts.ts`, Story 5.4). Titles are in `_bmad/planning-artifacts/epics.md` as `## Epic N: <title>` and `### Story N.M: <title>`. `src/main/sources/project/read-text.ts` reads project text.
+
+**Acceptance Criteria:**
+
+**Given** a `sprint-status.yaml` with `development_status`
+**Then** a pure fold in `src/main/fold/` turns its text into one snapshot: epics in the file's order, each with its status and its stories in the file's order, each story with its key, its number (`N.M`), its status and its title
+**And** a key of the shape `epic-N` is an epic, `N-M-<slug>` a story, `epic-N-retrospective` a retrospective, and any other key is kept as an unrecognised row and never makes the fold throw
+**And** the fold reads no file, no clock and no environment (NFR5).
+
+**Given** a status that is one of `backlog`, `ready-for-dev`, `in-progress`, `review`, `done`, `optional`
+**Then** the snapshot carries it as the file wrote it
+**And** any other status is carried as written and flagged unrecognised, so a later view can place it in its own column and nothing breaks.
+
+**Given** the titles
+**Then** a story's title is the heading text of `### Story N.M:` in `epics.md` with the `Story N.M:` stripped, and an epic's the text of `## Epic N:`
+**And** where `epics.md` is missing, unreadable, or has no heading for a key, the title is the key's slug with hyphens read as spaces, exactly as written and never completed or invented
+**And** a slug cut short in the file reads cut short.
+
+**Given** the keys other than stories and epics
+**Then** `action_items`, `generated`, `last_updated` and every top-level key but `development_status` are ignored, and the timestamps are never parsed or shown.
+
+**Given** the file is absent, unreadable, empty, or not a map
+**Then** the snapshot says `none` with the reason as one `code` and `message`, and the view draws `no sprint status`; no error dialog and no stack trace (FR91)
+**And** the file appearing later fills the snapshot with no restart.
+
+**Given** a write to the file, in the same moment or later
+**Then** one `board:changed` event carries the new snapshot, coalesced as the rail's observations are, once per revision, and `board.get` answers the current one for a window that opens or reloads
+**And** both are declared once in `src/shared/` with a payload type and a stated cardinality, enumerated in `src/shared/channels.ts` and pinned in the contract tests deliberately, with no generic `invoke(channel, …)`
+**And** the FR101 tally of events and commands is amended where it is stated.
+
+**Given** the reader
+**Then** it is a source in `src/main/sources/` that opens only that file, and the rail's watcher still never opens one
+**And** it writes nothing, anywhere, and a test fails if the file's bytes or mtime change over its life.
+
+**Given** a snapshot in the real file of this repository
+**Then** a test reads a committed copy of that file (a fixture, not the live file) and asserts its epic and story counts, and the cited path is named in the test.
+
+**Decisions to confirm before build (defaults in brackets):** titles come from `epics.md` first and the slug second [yes]; a story file's own front matter title is not consulted, because those titles are not consistent across the project [yes]; the retrospective keys are parsed and not shown [yes]; epics are shown in the file's order [yes].
+
+**Boundaries:** no write to a project; no change to the rail's watcher or its rows; no parse of any other file's body but `epics.md`'s headings; no Board view yet.
+
+### Story 6.3: The Board, a third view
+
+As someone looking at where the work stands,
+I want a Board view beside 1:1 and Party Mode,
+So that the project's whole state is one switch away and nothing I am doing is disturbed.
+
+**Implements:** FR117 · FR11 and NFR20 amended · UX-DR47 (the frame), UX-DR48 · NFR20, NFR21, NFR22, NFR23, NFR27
+
+**Evidence:** `VIEWS` has exactly two entries and its comment says a third is "not a later addition to this list" (`src/renderer/ui/shell/view.ts`); the switch is native buttons, one pressed (`src/renderer/ui/shell/view-switch.tsx`); no keyboard shortcut exists in the renderer outside the document window's `Esc`, and NFR20 says "there is no shortcut layer beyond this". The pinned tests are `src/renderer/ui/shell/negative-surface.test.tsx`, `src/renderer/ui/shell/shell.test.tsx` and `tests/shell-contract.test.ts`; read each before editing and change the number they pin, not their intent.
+
+**Acceptance Criteria:**
+
+**Given** a project window
+**Then** the view switch has three segments, `1:1 Conversation`, `Party Mode` and `Board`, one pressed, each a native button with the shared focus ring
+**And** `VIEWS`' comment, FR11 and the tests that pinned two are amended in this story and nowhere else.
+
+**Given** the Board is pressed
+**Then** the Board fills the body below the topbar, in one frame, with no transition, and the 1:1 and Party views are not shown
+**And** while the Board is shown no session, run, transcript, card, persona state, scroll position or follow state changes, and returning to 1:1 or Party Mode shows each as it was left, scrolled where it was
+**And** nothing is announced.
+
+**Given** no project `sprint-status.yaml` (the snapshot says `none`)
+**Then** the Board reads `no sprint status` in the harness's register, with the watched path beneath it, and draws no region
+
+**Given** keyboard focus is not in a text field and no modifier is held
+**Then** `g` followed by `b` within one second shows the Board, and any other key between them cancels the chord
+**And** `g` and `b` typed in the composer or any other field do nothing outside the field
+**And** this is the one chord in the product and is listed where *Keyboard reach* lists keys, and NFR20's "no shortcut layer beyond this" is amended to name it.
+
+**Given** a window at ≤1000px
+**Then** the Board scrolls as a column and stacks its regions, with no breakpoint added
+**And** at ≤1180px nothing about the Board changes.
+
+**Given** the Board is the current view and the window reloads
+**Then** the window opens on the Board's snapshot from `board.get` and the persona sessions it holds are as they were (FR100)
+**And** which view was current is not stored, and a launch opens on 1:1.
+
+**Given** the negative surface
+**Then** the switch carries no count, no badge and no dot on any segment, and the Board is never the default view.
+
+**Decisions to confirm before build (defaults in brackets):** the Board fills the body and the Team tiles and Outputs are not shown in it [yes]; the switch keeps native buttons, each its own tab stop, as today [yes] (`EXPERIENCE.md`'s "one control in the roving order" is read as the switch being one control); the chord is `g` then `b` with a one-second window and is the only chord [yes]; a launch always opens on 1:1 [yes].
+
+**Boundaries:** no Board region built here (that is 6.4 to 6.7); no change to Party Mode or 1:1; no persisted view; no Inbox row.
+
+### Story 6.4: Every story, in its column
+
+As someone looking at where the work stands,
+I want every story in the column its status says,
+So that the state of the sprint reads at a glance, as the file has it.
+
+**Implements:** FR119 · UX-DR47 (Board, Story card), UX-DR48 · NFR19, NFR23, NFR25
+
+**Evidence:** the five statuses and their order of progress are `backlog`, `ready-for-dev`, `in-progress`, `review`, `done` (`_bmad/implementation-artifacts/sprint-status.yaml:8-13`, the file's own definitions); the anatomy is `DESIGN.md` → *Proposed: layout, thread and Board anatomy* → Board, and the prototype `mockups/paperclip-board.html` draws it with a bar, a gate pill, a *needs you* line and an *Amelia next* line, none of which is adopted (`EXPERIENCE.md` → *Not adopted*).
+
+**Acceptance Criteria:**
+
+**Given** a snapshot with stories
+**Then** the Board panel has one column per status, in the order above, each headed with the status exactly as the file writes it, in `micro` uppercase `faint`, with no count
+**And** each column is a list under its heading, and a card is a list item.
+
+**Given** a story
+**Then** its card shows its number (`6.2`) in mono and its title, and nothing else
+**And** cards stay in the file's order within a column, with no sort by priority, owner, age or anything else.
+
+**Given** a story whose status is not one of the five
+**Then** its card sits in one more column after `done`, headed with the status as written, and no card is dropped
+**And** there is no such column when no story needs it.
+
+**Given** an epic whose status is `done`
+**Then** its stories draw no cards, and the epic still has its row (Story 6.5)
+**And** an epic in any other status draws all of its stories, every one in its own column, so a `done` story of an open epic shows in `done`.
+
+**Given** a column with no card
+**Then** it draws its heading and nothing else, with no empty-state text.
+
+**Given** the file changes a story's status
+**Then** its card is in its new column in the same frame, with no animation, no announcement, and no change to scroll position or focus.
+
+**Given** a long column
+**Then** the Board scrolls as a whole, and no column scrolls inside itself.
+
+**Given** the card
+**Then** it is not a control, takes no tab stop and is not clickable in this story, and has no bar, pill, owner line, highlight or recommended marker.
+
+**Decisions to confirm before build (defaults in brackets):** a `done` epic's stories draw no cards [yes], so the board shows work that is not finished and the epics list shows what is; the unrecognised-status column is the only column that can be added [yes]; no per-column scroll [yes].
+
+**Boundaries:** no owner, no elapsed time, no click (Story 6.8); no figure (Story 6.5); no change to the file.
+
+### Story 6.5: How far each epic is, in words
+
+As someone looking at where the work stands,
+I want two plain figures and one row per epic saying `n of m stories done`,
+So that I can read the sprint's size without a chart implying a pace.
+
+**Implements:** FR120 · UX-DR47 (Overview, Epics), UX-DR48 · NFR17, NFR18, NFR19, NFR24, NFR25
+
+**Evidence:** `src/main/persona-states.ts` and `src/main/fold/persona-state.ts` project the five persona states (AD-20); a persona's `work` is a turn in flight. The roster is the install model's (`src/main/install-model.ts`). The prototype's four cards include *Spend this epic* and *Pending approvals*, neither adopted: no source carries cost, and the harness has no approval state (`EXPERIENCE.md` → *Not adopted*).
+
+**Acceptance Criteria:**
+
+**Given** the overview
+**Then** it is two equal cells: *agents running* with the number of personas whose state is `work`, and under it `of <n> installed`; and *stories in progress* with the number of stories whose status is `in-progress`, and under it `of <m> stories` over the stories the board shows
+**And** both figures are tabular, `text-strong`, and take no accent, border, fill or badge, and neither opens anything.
+
+**Given** a persona state change
+**Then** the first figure follows it in the same frame, read from the same states as the tiles' dots (AD-20), and is not announced.
+
+**Given** the epics
+**Then** the Epics panel has one row per epic in the file's order: the epic's id in mono (`Epic 6`), its title, and `n of m stories done` in mono at the right
+**And** `n` counts stories whose status is `done` and `m` counts all the epic's stories, and retrospective keys count in neither
+**And** an epic with no story keys reads `no stories`, and an epic whose title cannot be found reads its id alone.
+
+**Given** the rows
+**Then** there is no bar, meter, percentage, tick or colour on a row, and a finished epic reads like an unfinished one except in its numbers.
+
+**Given** the negative surface
+**Then** no spend, budget, cost, token or tool-call figure appears anywhere on the Board, and no third cell stands in for the deferred *decisions open*.
+
+**Decisions to confirm before build (defaults in brackets):** *agents running* counts `work` only, not `live` [yes]; the line under *stories in progress* is the board's story count [yes]; epics keep the file's order, oldest first [yes], not newest first as the prototype draws them.
+
+**Boundaries:** no click on a figure or a row; no new event (the figures read the snapshot and the persona states already in the window); `DESIGN.md`'s "three equal cells" is amended to two.
+
+### Story 6.6: Who is on what
+
+As someone with several personas in the room,
+I want one row per persona saying what state it is in and what it is on,
+So that I can see who is working without opening each thread.
+
+**Implements:** FR121 · UX-DR16, UX-DR47 (Agents) · NFR17, NFR18, NFR19, NFR25
+
+**Evidence:** a tile already shows the persona's dot, its state word and an elapsed counter while it works (`src/renderer/ui/team/persona-tile.tsx`, the elapsed from `src/main/fold/elapsed.ts`, `useNow`); `RunCardSnapshot` holds the run's `code` and the path of the document it is writing (`src/shared/conversation.ts:136`); the roster order is config order (*Persona tile order*). The prototype's Agents panel adds spend and a tool-call count to each row, neither adopted.
+
+**Acceptance Criteria:**
+
+**Given** the Board
+**Then** the Agents panel has one row per installed persona in the roster's own order, never regrouped or sorted by state
+**And** each row has the persona's portrait, its name and title, and the state as the tile gives it: the same dot and the same word, from the same source.
+
+**Given** a persona with a run in flight
+**Then** its row also says what it is on, as the run's menu `code` and the path of the document the card is showing, in mono, and the run's elapsed time, ticking at least once a second (NFR17)
+**And** a persona in a turn that is not a run says `in a turn`, and says nothing of what.
+
+**Given** a persona in any other state
+**Then** its row says the state's word and nothing it cannot show from a source, and an idle persona dims as an idle tile does (`--opacity-idle`)
+**And** no row shows a last-run age, a cost, a count of tool calls or a count of anything.
+
+**Given** a persona that has several sessions
+**Then** its row is the one row the tile aggregates them into (FR104), as the tile is.
+
+**Given** a persona going to work and coming back
+**Then** the row follows in the same frame, and an elapsed time is never shown for a state that is not `work`.
+
+**Given** the row
+**Then** it is not a control and takes no tab stop, and nothing on it is announced.
+
+**Decisions to confirm before build (defaults in brackets):** the line saying what a persona is on is the run's `code` and document path [yes]; a persona in a turn without a run says `in a turn` [yes]; the row is not a control, because the tile is the way to a persona [yes].
+
+**Boundaries:** no new event, no new projection (the row reads `persona:state`, the stored runs and the roster the window holds); no cost, no tool-call count.
+
+### Story 6.7: What the personas did, newest first
+
+As someone who stepped away,
+I want a list of what the personas did, newest first, that reads the same after I relaunch,
+So that I can see what happened without scrolling every thread.
+
+**Implements:** FR122 · UX-DR47 (Recent activity), UX-DR48 · NFR12, NFR17, NFR18, NFR22, NFR24
+
+**Evidence:** a run is kept as `StoredRun { card, lastAt }` in the project's transcript under `userData`, and a card that was `running` when the app went away is read back as a run that failed at the moment it was last heard of (`src/main/fold/stored-runs.ts`, `src/shared/conversation.ts:89`); a run's card has `agentId`, `code`, `startedAt`, `status`, `endedAt`. Times are formatted in one place, `formatTurnTime`, as `HH:MM`, so a restored transcript reads as it did live (`src/renderer/ui/chat/format-turn-time.ts`). The prototype's feed includes *approved story*, *split a story* and *asked a question*, none of which a run can show.
+
+**Acceptance Criteria:**
+
+**Given** the stored and the live runs of the project
+**Then** each run gives one row when it started and one when it ended, the second saying `finished`, `stopped` or `failed`, each row with the persona's name, what it did in `dim` as `started <code>`, `finished <code>`, `stopped <code>` or `failed <code>`, and its time
+**And** rows are newest first, by the event's own time, and a run still in flight has its start row only.
+
+**Given** a row
+**Then** it carries the dot of the state the event left the persona in (`work` for a start, `error` for stopped or failed, idle for finished), and only the run still in flight pulses (AD-20)
+**And** no row carries a count, a badge or a colour of its own.
+
+**Given** the time
+**Then** it is absolute, mono, `MM-DD HH:MM` in the machine's zone, identical live and after a relaunch, and never relative (`4m ago`)
+**And** the formatting is one function in the renderer and none in main.
+
+**Given** a relaunch
+**Then** the rows built from the stored runs are the same rows, and a run cut off by the relaunch reads as `failed` at the time it was last heard of, as its card does.
+
+**Given** the list
+**Then** it shows the newest 20 rows, and nothing says more exist, and there is no *load more*, filter or search.
+
+**Given** a party session
+**Then** it raises no row, because it is not a persona's run.
+
+**Given** a new terminal event
+**Then** the row appears at the top in one frame with no animation, nothing is announced, and focus and scroll do not move.
+
+**Decisions to confirm before build (defaults in brackets):** 20 rows [yes]; `MM-DD HH:MM` rather than `HH:MM` alone, because the feed spans days [yes]; the list is built in main from the stored runs and carried by `board:changed` [yes], unless Story 6.1 finds `StoredRun` too thin, in which case the field it needs is added there and not here.
+
+**Boundaries:** no *question asked* row (the Inbox is deferred); no approval or split row; no relative time; no new stored file; nothing written into the project.
+
+### Story 6.8: The persona on a story
+
+As someone looking at a story,
+I want to see which persona last worked on it, and a pulse while a run is on it,
+So that the board connects to the room, and I can open that persona's thread from the card.
+
+**Implements:** FR123 · UX-DR47 (Story card), UX-DR48 · NFR17, NFR18, NFR20, NFR21, NFR25
+
+**Evidence:** the rule that ties a run to a story is Story 6.1's finding (`_bmad/spikes/spike-run-to-story.md`), stated there as a sentence a test pins. Activating a persona's tile opens that persona's session and thread and keeps focus on the tile (NFR21; `src/renderer/ui/team/tile-nav.ts`, `persona-tile.tsx`). The initials disc is UX-DR15. *Depends on 6.1 and 6.4. If 6.1 finds no rule that never misleads, this story is cut as 6.1 says.*
+
+**Acceptance Criteria:**
+
+**Given** a story that a run is on, by the rule 6.1 settled
+**Then** its card foot shows the owner's initials disc and `working · <elapsed>` in mono, the elapsed time ticking at least once a second, the amber pulse dot, and a 1px `accent-border` on the card
+**And** the elapsed time is the run's, from `run:started`, as the tile's is.
+
+**Given** a story whose last run has ended
+**Then** its card foot shows the owner's initials disc and the persona's name and no time, no pulse and no border change
+**And** an ended run reads the same after a relaunch.
+
+**Given** a story no run has been on, by the rule
+**Then** its card shows no owner, no placeholder and no empty slot.
+
+**Given** two runs on one story
+**Then** the one in flight is the owner, and otherwise the one that started last.
+
+**Given** a card with an owner
+**Then** it is a button that does exactly what activating that persona's tile does: the view becomes 1:1, that persona's session opens or is reused, its thread shows, and focus lands on that tile
+**And** a card with no owner is not a control and takes no tab stop.
+
+**Given** the shared focus ring
+**Then** it draws on a card's `:focus-visible` only, and the cards are one tab stop each in reading order, columns left to right.
+
+**Given** a run on a story ending
+**Then** the card's pulse and border go in the same frame and nothing is announced.
+
+**Given** the owner
+**Then** it is derived on every snapshot and stored nowhere, and a test fails if a file under `userData` or the project names a story owner.
+
+**Decisions to confirm before build (defaults in brackets):** activating a card is the same act as activating its persona's tile [yes]; focus lands on the tile [yes]; an ended run shows the persona's name and no time [yes].
+
+**Boundaries:** no assignment, reassignment or filter by owner; no per-owner count; nothing written to `sprint-status.yaml`.
+
+### Story 6.9: Nothing this epic promised not to do
+
+As a developer on the harness,
+I want the Board's prohibitions to be tests,
+So that the first dashboard-shaped feature does not become the last one to ask for a badge.
+
+**Implements:** UX-DR38, UX-DR48 · NFR3, NFR22, NFR23, NFR25
+
+**Evidence:** every earlier epic closed with this story (1.14, 2.13, 3.11, 4.6); the pattern is a mounted-surface audit built from the real projection, not by hand (`src/renderer/ui/shell/negative-surface.test.tsx`, `src/renderer/ui/party/epic-4-audit.dom.test.tsx`, `tests/negative-surface.test.ts`). The prototype draws the things refused here: bars, a spend card, a *needs you* group, relative times, drag, *New story*, an Inbox with a count.
+
+**Acceptance Criteria:**
+
+**Given** the Board mounted with a full snapshot (every status, an unrecognised one, an epic with no stories, a story with an owner and a run in flight, a persona in each state) built from the real projections
+**Then** a test finds no number in any column heading, no `progress`, `meter` or `role="progressbar"`, no `%`, no currency sign, no `ago`, and no element that is `draggable`, `contenteditable`, an `input`, a `select` or a `textarea`
+**And** no *New story*, *Approve*, *Retry*, *Inbox*, *next*, *recommended* or *needs you* text exists on the Board
+**And** no element on the Board is announced through the live region.
+
+**Given** the Board's life
+**Then** a test counts every write the harness makes to the filesystem while the Board is shown, a file changes and a run ends, and finds none inside the project, and `sprint-status.yaml` is byte-identical at the end.
+
+**Given** the Board's styles
+**Then** a test fails on a literal colour or dimension (NFR23), on a `transition`, `animation` or `@keyframes` the motion inventory does not already own (UX-DR12), and on a use of the accent on a figure or a column.
+
+**Given** the view switch
+**Then** a test fails if it carries a count, badge or dot, or if a fourth view exists, and the chord handler fails if it acts while a field has focus.
+
+**Given** the contract
+**Then** a test pins `board:changed` and `board.get` by name, cardinality and payload in the contract tests, and `layering.test.ts` passes with the new reader in `sources/`, the fold in `fold/` and nothing in `ui/` reaching either.
+
+**Given** the epic's record
+**Then** `EXPERIENCE.md` and `DESIGN.md` name the Inbox and *decisions open* as deferred where they describe them, and `DESIGN.md`'s overview anatomy reads two cells, so the documents say what was built.
+
+**Decisions to confirm before build (defaults in brackets):** this story also performs the document amendments above, as Story 1.13 did for the planning contract [yes].
+
+**Boundaries:** no feature work; no change to any region beyond what a failing prohibition requires.
