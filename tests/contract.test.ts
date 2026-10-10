@@ -111,6 +111,20 @@ describe('the events out', () => {
   it('reuse the rail snapshot rather than redefine it', () => {
     expect(declared.get('rail:changed')).toMatch(/RailSnapshot\s*>/)
   })
+
+  it('push the Board’s snapshot once per revision, and carry no other payload for it (Story 6.9)', () => {
+    expect(declared.get('board:changed')).toMatch(/^EventSpec<\s*'main',\s*'once per board revision',\s*BoardSnapshot\s*>/)
+  })
+
+  it('answer the Board’s one read with the snapshot or the envelope, and nothing else (Story 6.9)', () => {
+    const board = withoutComments(read('src/shared/board.ts'))
+
+    expect(board).toMatch(/export type BoardSnapshot = BoardBody & \{ revision: number \}/)
+    expect(board).toMatch(/export type BoardReply =\s*\|\s*\{ ok: true; snapshot: BoardSnapshot \}\s*\|\s*\{ ok: false; error: HarnessError \}/)
+    // The body is one of two: a file that was read, or the one code and message that say there is none.
+    expect(board).toMatch(/\{ kind: 'read'; epics: BoardEpic\[\]; others: BoardOther\[\] \}/)
+    expect(board).toMatch(/\{ kind: 'none'; code: string; message: string \}/)
+  })
 })
 
 describe('the commands in', () => {

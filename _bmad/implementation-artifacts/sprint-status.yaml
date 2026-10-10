@@ -120,7 +120,7 @@ development_status:
   6-6-who-is-on-what: done
   6-7-what-the-personas-did-newest-first: done
   6-8-the-persona-on-a-story: backlog
-  6-9-nothing-this-epic-promised-not-to-do: backlog
+  6-9-nothing-this-epic-promised-not-to-do: done
   epic-6-retrospective: optional
 action_items:
   - id: "epic-1-retro-item-1-make-the-packaged-app-find-claude-and-uv"

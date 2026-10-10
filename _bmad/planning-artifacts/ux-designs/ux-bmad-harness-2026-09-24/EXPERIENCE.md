@@ -218,9 +218,9 @@ Project **content** is untrusted because it is largely model-authored (AD-13). M
 | *File ▸ Use BMad's Output Folder* | project window menu | forgets this project's choice |
 | `theme · system · light · dark` | welcome, bottom edge | the same choice, from the one window with no project |
 | Recent row | welcome | opens that project's window |
-| Inbox row | Team sidebar | lists the open decisions across personas; opens the one chosen in its persona's thread |
+| Inbox row | Team sidebar | **Deferred, not built:** no row and no reserved slot. Would list the open decisions across personas and open the one chosen in its persona's thread |
 | Message actions | on hover or focus of a turn | *Copy*, *Quote* (into the composer), *Open document* (when the turn names one) |
-| `?` · `g b` · `g i` · `g c` · `j`/`k` | anywhere outside the composer | cheatsheet · Board · Inbox · composer · next and previous turn |
+| `?` · `g b` · `g i` · `g c` · `j`/`k` | anywhere outside the composer | cheatsheet · Board · Inbox · composer · next and previous turn. **Built: `g b` alone** (ignored while a field has focus, and the only chord); `g i` waits on the deferred Inbox |
 
 **Chat turns and skill invocations are both turns into the same session.** There is no second run kind, and the composer and the skill row must not read as two modes (AD-18).
 
@@ -677,17 +677,17 @@ No animation of a width or a fold; no snap points or presets; no per-persona, pe
 
 ### The room: three columns
 
-*Built 2026-10-09: the Team sidebar (with its state strip), the chat column and the rail holding the Outputs half. The Inbox and Sprint board rows, the Properties, Goal trace and Run sections and the Board view below are still proposed.*
+*Built 2026-10-09: the Team sidebar (with its state strip), the chat column and the rail holding the Outputs half. Built 2026-10-10: the Board view (see *The Board view*). The Inbox (deferred) and Sprint board rows and the Properties, Goal trace and Run sections are still proposed.*
 
 | Column | Holds | Replaces |
 |---|---|---|
-| **Team sidebar**, left | a state strip, the *Inbox* and *Sprint board* rows, the persona tiles | the Team half of the rail |
+| **Team sidebar**, left | a state strip, the *Sprint board* row (the *Inbox* row is deferred and has no reserved slot), the persona tiles | the Team half of the rail |
 | **Chat column**, centre | the thread and the composer, as now | nothing |
 | **Context panel**, right | *Properties*, *Goal trace*, *Outputs*, *Run* for the open conversation | the Outputs half of the rail |
 
 - **Persona order is unchanged.** Tiles stay grouped by `module` and `team` and in config order (*Persona tile order*). They are **not** regrouped by state, and nothing is sorted by who needs attention: AD-21's no relevance sort and no highlighting hold. State is the dot each tile already has; an idle persona dims (`{opacity.idle}`), as it does now.
 - **The state strip** is four plain counts of the tiles' own dot states, read from the same `states` map as the dots (AD-20), is never a badge and never counts anything unread. *Settled:* the cells are **working** (`work`), **idle** (`idle` and `live`, a persona with a session open and no turn in flight being idle), **error** (`error`) and **changed** (`note`, a file changed on disk). It takes no accent, fill or badge and is not announced; a persona the map holds nothing for counts as idle, and an empty roster reads four zeros.
-- **The Inbox** lists the open decision blocks across personas, newest first, so a question from one persona is not lost while the user talks to another. It shows **no count** on its row. A row opens that persona's thread at the decision. It lists nothing the harness invented: an empty list says `nothing open`. **[ASSUMPTION]** — needs a read across sessions' unanswered decision blocks; check the session model has one before building.
+- **The Inbox (deferred, not built; no row, no figure, no slot)** lists the open decision blocks across personas, newest first, so a question from one persona is not lost while the user talks to another. It shows **no count** on its row. A row opens that persona's thread at the decision. It lists nothing the harness invented: an empty list says `nothing open`. **[ASSUMPTION]** — needs a read across sessions' unanswered decision blocks; check the session model has one before building.
 - **The context panel** shows facts about the open story and run, and nothing prescriptive. *Properties*: status, owner persona, current skill, branch. *Goal trace*: product, epic, story, read from `sprint-status.yaml`. *Outputs*: exactly the Outputs half as it is (*Output folder*, *Resizing and folding*), moved. *Run*: duration, tool calls, model. A field with no source is omitted, never shown empty.
 - **Widths.** *Settled:* each side panel has its own splitter and range (*Resizing and folding*). Defaults: Team sidebar 244px (range 200–400px), right panel 300px (260–480px), the chat column kept at 420px between them; a stored rail width is read against the new range (kept inside 260–480px, the default outside it) and nothing is migrated. At ≤1000px the layout stacks, chat then sidebar then right panel, with no splitter; no breakpoint is added.
 
@@ -726,7 +726,7 @@ The thread is one continuous conversation: the user's turns, the persona's words
 | Decision block | the existing block, restyled as a card: options with a key each (`1`–`9`), *Confirm*. It still sends the chosen option as the user's turn and then removes itself |
 | Message actions | on hover **and on focus** of a turn: *Copy*, *Quote*, *Open document*. They are real buttons in the turn's tab order; hover alone reveals nothing a keyboard cannot reach |
 | Composer | unchanged: `@<name>` hands off, `Enter` sends, `Shift+Enter` breaks the line |
-| Keyboard hints | one quiet row under the composer: `?` opens the shortcut cheatsheet (a window, not a palette); `g` then `b` / `i` / `c` go to the Board / Inbox / composer; `j` and `k` move between turns. **[ASSUMPTION]** — the chords are this document's proposal; none is binding until *Keyboard reach* lists it |
+| Keyboard hints | one quiet row under the composer: `?` opens the shortcut cheatsheet (a window, not a palette); `g` then `b` / `i` / `c` go to the Board / Inbox (deferred) / composer; `j` and `k` move between turns. **[ASSUMPTION]** — the chords are this document's proposal; none is binding until *Keyboard reach* lists it |
 
 ### The Board view
 
@@ -734,15 +734,15 @@ A read-only view of where the work stands, reached from the view switch or `g b`
 
 | Region | Shows |
 |---|---|
-| Overview | three plain figures: **agents running** (of the roster), **stories in progress**, **decisions open**. The third highlights nothing and opens the Inbox |
-| Board | one column per BMad status in the file's own words: `backlog`, `ready-for-dev`, `in-progress`, `review`, `done`. A card is the story id, its title and, when a run is on it, the owning persona and the run's elapsed time under the run's pulse dot |
-| Epics | one row per epic: its title and `n of m stories done`, as text |
+| Overview | **two** plain figures, built so: **agents running** (of the roster) and **stories in progress**. There is no third: **decisions open** belongs to the deferred Inbox and has neither a cell nor a reserved slot |
+| Board | one column per BMad status in the file's own words: `backlog`, `ready-for-dev`, `in-progress`, `review`, `done`. An empty column says `no stories`. A card is the story id and its title and nothing else: the owner and the run's elapsed on a card are Story 6.8, **blocked** (no run-to-story rule exists), so no card carries an owner, a handler or a tab stop |
+| Epics | one row per epic: its title and `n of m stories done` in words, with one thin decorative track (`aria-hidden`, a filled span over an empty one) beside them; an epic with no stories says `no stories` and draws no track |
 | Agents | one row per persona: its state, what it is on and the run's elapsed time; an idle persona dims |
-| Recent activity | persona events across the project (run started, finished, stopped, question asked), newest first, built from the run notes |
+| Recent activity | what the personas did (run started, finished, stopped or failed), newest first, with each event's absolute time; built from the window's run entries. A question asked is not an event here |
 
-- **A story's owner** is the persona of the run that is or was last on it; a story with no run has none and shows none. **[ASSUMPTION]** — `sprint-status.yaml` carries no owner, so this is derived from run history and must be confirmed against what the session store keeps.
+- **A story's owner (not built: Story 6.8 is blocked).** It is the persona of the run that is or was last on it; a story with no run has none and shows none. **[ASSUMPTION]** — `sprint-status.yaml` carries no owner, so this is derived from run history and must be confirmed against what the session store keeps.
 - **No money.** A *spend* card, per-persona cost and a budget are **not adopted**: nothing in the harness's data source carries cost, and a figure with no source is the one thing AD-20 forbids. Revisit if the runs begin to report it.
-- **No bar.** Neither a story card nor an epic row draws a progress bar: bars imply steady incremental advance (*Banned everywhere*). The count is the text above.
+- **No bar that carries the figure.** No story card, and no epic row, draws a progress bar, meter or percentage: bars imply steady incremental advance (*Banned everywhere*). *Settled 2026-10-10, by a design audit that reversed the first ruling:* an epic row may carry one decorative track, hidden from readers, which only repeats the words; the words are the one place the figure is stated, and no `<progress>`, `<meter>`, `role="progressbar"` or `%` is ever drawn.
 - **Reading, not steering.** The Board never recommends a next story, highlights the one to do, or orders by priority. Within a column the order is the file's.
 
 ### Not adopted
@@ -755,7 +755,7 @@ Each is something Paperclip does or the prototypes drew that this product refuse
 | *Review gate* card with *Approve* / *Request changes*, and a *Suggested follow-ups* card | the harness has no approval state, and both are recommended next actions (*Banned everywhere*) |
 | A count on the Inbox row, a *needs you* group of tiles, a *Needs you* figure | badges, unread counts and relevance sorting are banned |
 | A shimmer on the running step | the motion inventory is closed at five declarations (UX-DR12); the running step carries the existing amber pulse dot |
-| A step bar on a run card, a bar on a story or epic | no progress bars implying steady advance |
+| A step bar on a run card, a bar on a story, a meter or a percentage anywhere | no progress bars implying steady advance. The epic row's one decorative, `aria-hidden` track is the single built exception (*The Board view*) |
 | Relative timestamps | a restored transcript must read the same as it did live |
 | *Retry* in the message actions | a retry is a new turn the user sends; the harness has no retry semantic |
 | Dropping a file onto the composer | no attachment path exists in the session |
@@ -763,11 +763,11 @@ Each is something Paperclip does or the prototypes drew that this product refuse
 
 ### Accessibility
 
-The view switch gains a third segment and stays one control in the roving order. Each side panel's splitter and the Inbox rows follow *Resizing and folding* and *Keyboard reach*: real buttons, the shared focus ring, no announcement of a drag. The Inbox is a list; the Board's columns are lists under their status headings, each card a button that opens that story's persona thread. The state strip and the Board's figures are text and are not announced through the live region (*Live-region policy* is unchanged).
+The view switch gains a third segment and stays one control in the roving order. Each side panel's splitter and the Inbox rows follow *Resizing and folding* and *Keyboard reach*: real buttons, the shared focus ring, no announcement of a drag. The Inbox is a list; the Board's columns are lists under their status headings, and a card is text, not a control: no button, handler or tab stop (a card opening its owner's thread waits on Story 6.8, which is blocked). The state strip and the Board's figures are text and are not announced through the live region (*Live-region policy* is unchanged).
 
 ### Banned here
 
-No count, badge or highlight on the Inbox, a tile or a Board figure; no regrouping of tiles by state; no progress bar; no spend or budget until a source exists; no editing affordance on the Board; no recommended next story; no skill list in the composer; no `/` command.
+No count, badge or highlight on the Inbox, a tile or a Board figure; no regrouping of tiles by state; no progress bar; no spend or budget until a source exists; no editing affordance on the Board and no control on a card; no Inbox figure or slot; no recommended next story; no skill list in the composer; no `/` command.
 
 ---
 

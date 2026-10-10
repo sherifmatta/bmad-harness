@@ -1571,6 +1571,10 @@ describe('the Board’s regions (Stories 6.4 to 6.7)', () => {
     selectors.split(',').some((selector) => /^\.board-(stories|column|cards|card|overview|figure|epics|epic|agents|agent|activity)\b/.test(selector.trim()))
   )
 
+  /** Every rule of the sheet with a selector that names `part` anywhere in it, not only at its start. */
+  const boardRulesAnywhere = (part: RegExp): RegExpMatchArray[] =>
+    [...source.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([, selectors]) => selectors.split(',').some((selector) => part.test(selector)))
+
   it('finds the column rules', () => {
     expect(rules.length).toBeGreaterThanOrEqual(20)
   })
@@ -1581,6 +1585,27 @@ describe('the Board’s regions (Stories 6.4 to 6.7)', () => {
       expect(body.replace(/animation:\s*none;/g, ''), selectors).not.toMatch(/overflow(?!-wrap)|transition|animation|cursor/)
     }
     expect(literalsIn(path, readFileSync(join(ROOT, path), 'utf8'))).toEqual([])
+  })
+
+  it('gives every Board rule, the empty state’s and the view’s too, no motion beyond `animation: none`, and the sheet no keyframes', () => {
+    const every = boardRulesAnywhere(/\.(?:board-|view-board\b)/)
+
+    expect(every.length).toBeGreaterThan(rules.length - 1)
+    for (const [, selectors, body] of every) {
+      expect(body.replace(/animation:\s*none;/g, ''), selectors).not.toMatch(/transition|animation|(?<![-\w])transform\s*:|will-change/)
+    }
+    expect(source).not.toMatch(/@keyframes/)
+  })
+
+  it('puts no accent on a figure or a column: neither the overview’s figures nor the story columns name --accent', () => {
+    // Anywhere in a selector: `.board-overview .board-figure-value` and `.view-board .board-column-head` are held too.
+    const figuresAndColumns = boardRulesAnywhere(/\.board-(?:figure|column)/)
+
+    // Both are found, or the guard guards nothing.
+    expect(figuresAndColumns.length).toBeGreaterThanOrEqual(8)
+    for (const [, selectors, body] of figuresAndColumns) {
+      expect(body, selectors).not.toMatch(/--accent/)
+    }
   })
 
   it('stills the dot of every Recent activity row that is not a run in flight, and sets the time in mono at --dim, never --faint', () => {

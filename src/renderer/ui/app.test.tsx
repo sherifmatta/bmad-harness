@@ -301,6 +301,38 @@ describe('App, the Board', () => {
     expect(figures()).toEqual(['0', '1'])
   })
 
+  it('says nothing in the window’s one live region when a new Board revision arrives and a persona changes state (Story 6.9)', async () => {
+    const epic = (status: string): unknown => ({
+      key: 'epic-6',
+      number: 6,
+      title: 'Board',
+      status: 'in-progress',
+      known: true,
+      stories: [{ key: '6-9-x', number: '6.9', title: 'T', status, known: true }]
+    })
+    boardNow = async () => ({ revision: 1, kind: 'read', epics: [epic('in-progress')], others: [] })
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    pressBoard()
+
+    const region = (): HTMLElement[] => [...mounted!.container.querySelectorAll<HTMLElement>(LIVE_REGIONS)]
+    const said = (): string => region().map((node) => node.textContent ?? '').join('')
+    // The one region is the window's own, drawn outside the Board.
+    expect(region()).toHaveLength(1)
+    expect(boardSection().contains(region()[0])).toBe(false)
+    expect(said()).toBe('')
+
+    act(() => boardListeners.forEach((listener) => listener({ revision: 2, kind: 'read', epics: [epic('review')], others: [] })))
+    act(() => listeners.forEach((listener) => listener({ name: 'persona:state', payload: { agentId: mary.id, state: 'work', at: Date.now() } })))
+    expect(boardSection().querySelector('.board-card')?.closest('.board-column')?.querySelector('.board-column-head')?.textContent).toBe('review')
+    expect([...boardSection().querySelectorAll('.board-figure-value')].map((node) => node.textContent)).toEqual(['1', '0'])
+
+    // Longer than the region's drain interval and the announcer's throttle: anything queued would have been said by now.
+    await act(async () => void (await new Promise((resolve) => setTimeout(resolve, 2500))))
+    expect(said()).toBe('')
+  })
+
   it('moves a persona’s Agents row with its state: the run line while `work` with a run in flight, `in a turn` without one, and nothing back at idle (Story 6.6)', async () => {
     boardNow = async () => ({ revision: 1, kind: 'read', epics: [], others: [] })
     mounted = mount(createElement(App))
