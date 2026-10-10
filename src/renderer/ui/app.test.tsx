@@ -343,6 +343,32 @@ describe('App, the Board', () => {
     expect(row().className).toContain('board-agent--idle')
   })
 
+  it('puts a run’s end row at the top in the render that changed the entries, with no announcement (Story 6.7)', async () => {
+    boardNow = async () => ({ revision: 1, kind: 'read', epics: [], others: [] })
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    pressBoard()
+
+    const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
+    const feed = (): string[] =>
+      [...boardSection().querySelectorAll('.board-activity-row')].map(
+        (row) => `${row.querySelector('.board-activity-who')?.textContent} ${row.querySelector('.board-activity-did')?.textContent}`
+      )
+    expect(feed()).toEqual([])
+    expect(boardSection().querySelector('.board-activity-head')?.textContent).toBe('recent activity')
+
+    push({ name: 'run:started', payload: { runId: 'r1', sessionId: 's-Mary', agentId: mary.id, code: 'CP', at: Date.now() - 5_000 } })
+    expect(feed()).toEqual(['Mary started CP'])
+    expect(boardSection().querySelector('.board-activity-row .status-dot--work')).not.toBeNull()
+    expect(boardSection().querySelector('.board-activity-row')?.classList.contains('board-activity-still')).toBe(false)
+
+    push({ name: 'run:finished', payload: { runId: 'r1', sessionId: 's-Mary', at: Date.now() } })
+    expect(feed()).toEqual(['Mary finished CP', 'Mary started CP'])
+    expect([...boardSection().querySelectorAll('.board-activity-row')].every((row) => row.classList.contains('board-activity-still'))).toBe(true)
+    expect([...boardSection().querySelectorAll('.board-activity, .board-activity *')].filter((el) => el.closest('svg') === null).some((el) => el.getAttributeNames().some((name) => name === 'role' || name === 'tabindex' || name === 'title' || (name.startsWith('aria-') && name !== 'aria-hidden')))).toBe(false)
+  })
+
   it('reads the same when getBoard rejects', async () => {
     boardNow = async () => {
       throw { code: 'board/unexpected', message: 'board · unexpected failure' }

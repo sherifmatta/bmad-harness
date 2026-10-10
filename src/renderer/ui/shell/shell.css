@@ -512,6 +512,78 @@
   overflow-wrap: anywhere;
 }
 
+/* Recent activity (Story 6.7): the Agents panel's frame, then one text row per
+   event. The dot of an ended run's start row is drawn still; only a run in flight pulses. */
+.board-activity {
+  margin: var(--rail-group-padding);
+  background: var(--panel);
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+.board-activity-head {
+  margin: 0;
+  padding: var(--space-md) var(--space-xl);
+  background: var(--panel-2);
+  border-top-left-radius: var(--radius-card);
+  border-top-right-radius: var(--radius-card);
+  font-size: var(--fs-micro);
+  font-weight: var(--weight-strong);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.board-activity-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.board-activity-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-lg);
+  padding: var(--space-md) var(--space-xl);
+  font-size: var(--fs-control);
+}
+
+.board-activity-row + .board-activity-row {
+  border-top: var(--rule-width) solid var(--line-soft);
+}
+
+.board-activity-row .status-dot {
+  align-self: center;
+}
+
+.board-activity-who {
+  flex: 0 1 auto;
+  min-width: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.board-activity-did {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+
+.board-activity-time {
+  flex: 0 0 auto;
+  margin-left: auto;
+  text-align: right;
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  font-variant-numeric: tabular-nums;
+  color: var(--dim);
+}
+
+.board-activity-still .status-dot {
+  animation: none;
+}
+
 /* ---------- 1:1 : the chat column ---------- */
 
 .chat {

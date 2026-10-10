@@ -291,4 +291,56 @@ describe('BoardView', () => {
       expect(markup(null, failure)).not.toContain('board-agents')
     })
   })
+  describe('the Recent activity panel (Story 6.7)', () => {
+    const NOW = 1_700_000_000_000
+    const entry = (id: string, agentId: string | undefined, over: Partial<RunCardEntry> = {}): RunCardEntry => ({
+      kind: 'run',
+      id,
+      at: NOW,
+      runId: id,
+      sessionId: `s-${id}`,
+      ...(agentId === undefined ? {} : { agentId }),
+      code: 'CP',
+      status: 'running',
+      notes: [],
+      steps: [],
+      documents: [],
+      ...over
+    })
+    const render = (entries: readonly RunCardEntry[]): string =>
+      renderToStaticMarkup(
+        <BoardView snapshot={read} failure={null} folder="_bmad/" states={NO_STATES} installed={ROSTER} entries={entries} />
+      )
+    const rows = (html: string): string[] => html.split('<li class="board-activity-row').slice(1)
+
+    it('draws the panel after the Agents panel, newest first, with each row’s words', () => {
+      const html = render([
+        entry('r1', 'a', { at: NOW - 60_000, status: 'finished', endedAt: NOW - 30_000 }),
+        entry('r2', 'b', { at: NOW })
+      ])
+
+      expect(html.indexOf('board-agents')).toBeLessThan(html.indexOf('board-activity'))
+      expect([...html.matchAll(/<h3 class="board-activity-head">([^<]*)</g)].map((match) => match[1])).toEqual(['recent activity'])
+      expect([...html.matchAll(/board-activity-did">([^<]*)</g)].map((match) => match[1])).toEqual([
+        'started CP',
+        'finished CP',
+        'started CP'
+      ])
+      expect(rows(html)[0]).toContain('status-dot--work')
+      expect(rows(html)[0]).not.toContain('board-activity-still')
+      expect(rows(html)[1]).toContain('status-dot--idle')
+      expect(rows(html)[2]).toContain('board-activity-still')
+    })
+
+    it('raises no row for a party run, and draws the head over an empty list for no runs', () => {
+      expect(rows(render([entry('p1', undefined)]))).toHaveLength(0)
+      expect(render([])).toContain('board-activity-head')
+      expect(rows(render([]))).toHaveLength(0)
+    })
+
+    it('draws no panel for none, a failure or no snapshot', () => {
+      expect(markup(none)).not.toContain('board-activity')
+      expect(markup(null, failure)).not.toContain('board-activity')
+    })
+  })
 })

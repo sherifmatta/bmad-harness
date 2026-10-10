@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 
 import type { BoardSnapshot } from '../../../shared/board'
 import type { AgentView, InstallSnapshot } from '../../../shared/install'
+import type { RunCardEntry } from '../chat/transcript-entry'
 import type { DocSnapshot } from '../../../shared/document'
 import type { RailRow, RailSnapshot } from '../../../shared/rail'
 import { DocWindowView } from '../doc/doc-app'
@@ -216,6 +217,41 @@ describe('the Board’s Agents panel', () => {
     const text = panel(markup).replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<[^>]*>/g, ' ')
 
     expect(text).not.toMatch(/spend|budget|\bcost|token|tool[- ]call|\bago\b|\blast run\b|\d+ (?:runs?|turns?)/i)
+  })
+})
+
+describe('the Board’s Recent activity panel', () => {
+  const board: BoardSnapshot = { revision: 1, kind: 'read', epics: [], others: [] }
+  const run = (id: string, over: Partial<RunCardEntry> = {}): RunCardEntry => ({
+    kind: 'run',
+    id,
+    at: 1_700_000_000_000,
+    runId: id,
+    sessionId: `s-${id}`,
+    agentId: ROSTER[0].id,
+    code: 'CP',
+    status: 'finished',
+    endedAt: 1_700_000_060_000,
+    notes: [],
+    steps: [],
+    documents: [],
+    ...over
+  })
+  const party = run('r3')
+  delete party.agentId
+  const markup = shell({ board, runs: [run('r1'), run('r2', { status: 'running' }), party] })
+  const start = markup.indexOf('<section class="board-activity"')
+  const html = markup.slice(start, markup.indexOf('</section>', start))
+
+  it('draws text rows only: no control, tab stop, handler, live region, role or tooltip', () => {
+    expect(html.match(/<li class="board-activity-row/g)).toHaveLength(3)
+    expect(html).not.toMatch(/<button|<input|<a |tabindex|onclick|role=|title=|aria-(?!hidden)/i)
+  })
+
+  it('draws no count, badge, cost, token, tool-call figure, relative time or line saying more exist', () => {
+    const text = html.replace(/<[^>]*>/g, ' ')
+
+    expect(text).not.toMatch(/spend|budget|\bcost|token|tool[- ]call|\bago\b|\bmore\b|load|\bquestion\b|approv|\d+ (?:runs?|events?|rows?)/i)
   })
 })
 

@@ -310,10 +310,17 @@ describe("no badge, unread count, quest marker, sort or recommendation", () => {
 
     expect(sorts.map(({ path }) => path).sort()).toEqual([
       "src/main/fold/rail-rows.ts",
+      // Story 6.7: the Recent activity feed is newest-first by the event's own time (a log, not a sort by priority, owner or age).
+      "src/renderer/ui/board/board-activity.ts",
       "src/renderer/ui/outputs/row-groups.ts",
       "src/renderer/ui/outputs/row-groups.ts",
     ]);
     for (const { path, call } of sorts) {
+      // The feed's own time order is the one other comparator, and it lives in one file: pinned to the event's time, newest first.
+      if (path === "src/renderer/ui/board/board-activity.ts") {
+        expect(call, path).toMatch(/^\.sort\(\(a, b\) => b\.row\.at - a\.row\.at \|\|/);
+        continue;
+      }
       // The comparator is `byCodeUnit` on a path or a name, and nothing else.
       expect(
         call.slice(0, call.indexOf("byCodeUnit") + "byCodeUnit".length),
@@ -590,6 +597,8 @@ describe("motion", () => {
       "ui/party/cast-strip.css: .cast-eq-bar:nth-child(1)",
       "ui/party/cast-strip.css: .cast-eq-bar:nth-child(2)",
       "ui/party/cast-strip.css: .cast-eq-bar:nth-child(3)",
+      // Story 6.7: Recent activity stills the dot of any row that is not a run in flight (`animation: none`); it adds no motion.
+      "ui/shell/shell.css: .board-activity-still .status-dot",
       "ui/status/status-dot.css: .status-dot--work",
       "ui/team/team.css: .menu-hint",
     ]);
@@ -679,6 +688,10 @@ describe("the text ramp", () => {
     "ui/shell/shell.css: .board-agents-head": {
       kind: "label",
       why: "the Agents panel's head word; each row beneath names its persona and its state at --text or --dim",
+    },
+    "ui/shell/shell.css: .board-activity-head": {
+      kind: "label",
+      why: "the Recent activity panel's head word; each row beneath names its persona, what it did and when at --text, --dim or the time's own column",
     },
     "ui/shell/shell.css: .board-epics-head": {
       kind: "label",

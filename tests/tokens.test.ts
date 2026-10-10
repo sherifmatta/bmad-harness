@@ -1564,11 +1564,11 @@ describe('the chat UI as the mockup draws it (2026-10-09)', () => {
   })
 })
 
-describe('the Board’s regions (Stories 6.4 to 6.6)', () => {
+describe('the Board’s regions (Stories 6.4 to 6.7)', () => {
   const path = 'src/renderer/ui/shell/shell.css'
   const source = withoutComments(readFileSync(join(ROOT, path), 'utf8'))
   const rules = [...source.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([, selectors]) =>
-    selectors.split(',').some((selector) => /^\.board-(stories|column|cards|card|overview|figure|epics|epic|agents|agent)\b/.test(selector.trim()))
+    selectors.split(',').some((selector) => /^\.board-(stories|column|cards|card|overview|figure|epics|epic|agents|agent|activity)\b/.test(selector.trim()))
   )
 
   it('finds the column rules', () => {
@@ -1577,9 +1577,21 @@ describe('the Board’s regions (Stories 6.4 to 6.6)', () => {
 
   it('gives no column or card an overflow, transition, animation or literal of its own', () => {
     for (const [, selectors, body] of rules) {
-      expect(body, selectors).not.toMatch(/overflow(?!-wrap)|transition|animation|cursor/)
+      // The one animation word a Board rule may carry is Recent activity's `animation: none`, which stills a dot.
+      expect(body.replace(/animation:\s*none;/g, ''), selectors).not.toMatch(/overflow(?!-wrap)|transition|animation|cursor/)
     }
     expect(literalsIn(path, readFileSync(join(ROOT, path), 'utf8'))).toEqual([])
+  })
+
+  it('stills the dot of every Recent activity row that is not a run in flight, and sets the time in mono at --dim, never --faint', () => {
+    const body = (selector: string): string => rules.find(([, selectors]) => selectors.trim() === selector)?.[2] ?? ''
+
+    expect(body('.board-activity-still .status-dot')).toMatch(/animation:\s*none/)
+    expect(body('.board-activity-time')).toContain('font-family: var(--mono)')
+    expect(body('.board-activity-time')).toContain('color: var(--dim)')
+    expect(body('.board-activity-did')).toContain('color: var(--dim)')
+    expect(body('.board-activity')).toContain('border: var(--rule-width) solid var(--line)')
+    expect(body('.board-activity-row + .board-activity-row')).toContain('var(--line-soft)')
   })
   it('sets the Agents panel’s run line and persona title at --dim, never --faint, and dims an idle row at --opacity-idle', () => {
     const body = (selector: string): string => rules.find(([, selectors]) => selectors.trim() === selector)?.[2] ?? ''

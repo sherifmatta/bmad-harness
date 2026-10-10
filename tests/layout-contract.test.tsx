@@ -60,7 +60,8 @@ describe('no animation of a width or a fold', () => {
       expect(code(path), path).not.toMatch(/\btransition/)
     }
     for (const path of [`${LAYOUT_DIR}/panel-splitter.css`, 'src/renderer/ui/party/room-panel.css', 'src/renderer/ui/shell/shell.css']) {
-      expect(code(path), path).not.toMatch(/\banimation|@keyframes|will-change|\bscroll-behavior/)
+      // Recent activity stills a dot with `animation: none` (Story 6.7); no other animation word is allowed.
+      expect(code(path).replace(/animation:\s*none;/g, ''), path).not.toMatch(/\banimation|@keyframes|will-change|\bscroll-behavior/)
     }
     const outputs = code(`${OUTPUTS_DIR}/outputs.css`)
     expect(outputs.match(/\.folder-[\w-]+[^{]*\{[^}]*\}/g)?.join('') ?? '').not.toMatch(/animation|transition|transform|rotate/)

@@ -108,7 +108,8 @@ describe('the view switch', () => {
 describe('the shell stylesheet', () => {
   it('holds no stacking index, focus stroke, keyframes, animation or transition', () => {
     for (const forbidden of [/z-index/, /outline/, /@keyframes/, /animation/, /transition/]) {
-      expect(read(SHELL_CSS), String(forbidden)).not.toMatch(forbidden)
+      // Recent activity stills a dot with `animation: none` (Story 6.7); the shell's stylesheet may carry that and no other animation.
+      expect(read(SHELL_CSS).replace(/animation:\s*none;/g, ''), String(forbidden)).not.toMatch(forbidden)
       expect(read(LIVE_CSS), String(forbidden)).not.toMatch(forbidden)
     }
   })
