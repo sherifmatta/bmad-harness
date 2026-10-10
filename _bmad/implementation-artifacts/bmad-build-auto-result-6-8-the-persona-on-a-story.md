@@ -1,11 +1,12 @@
 ---
-status: blocked
+status: cut
 ---
 
 # BMad Build Auto Result: Story 6.8, The persona on a story
 
-Status: blocked
-Blocking condition: intent gap
+Status: cut (was blocked on an intent gap)
+
+**Resolved 2026-10-10 by the owner (Sherif): cut Story 6.8 and amend FR123.** Reading 2 below. `epics.md` (FR123, the coverage table, UX-DR47, UX-DR48, the Epic 6 notes and Story 6.8), `EXPERIENCE.md`, `DESIGN.md`, `epic-6-context.md` and `sprint-status.yaml` were amended; the story key was removed from `sprint-status.yaml` so no Board column or `n of m` count holds it.
 
 ## What the story needs
 
@@ -25,6 +26,6 @@ Every acceptance criterion of Story 6.8 turns on "the rule 6.1 settled": which r
 
 Nothing in the intent, the spike or the epic context selects between them, so none was picked.
 
-## Decision needed from the owner
+## Decision
 
-Which of the three readings applies to Story 6.8? Until then `sprint-status.yaml` keeps `6-8-the-persona-on-a-story: backlog` and no code changed.
+Reading 2. No code changed.

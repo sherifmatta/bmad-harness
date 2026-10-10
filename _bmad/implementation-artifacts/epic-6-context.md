@@ -4,7 +4,7 @@
 
 ## Goal
 
-Add a third shell view, the Board: a read-only picture of where the work stands, read from the project's own `sprint-status.yaml`. It shows every story in a column by BMad status, each epic as `n of m stories done`, who is working and on what, and what personas did recently. A story card can show the persona that last worked on it and open that persona's thread. The Board never steers (no recommended story, no unread counts, no money) and writes nothing.
+Add a third shell view, the Board: a read-only picture of where the work stands, read from the project's own `sprint-status.yaml`. It shows every story in a column by BMad status, each epic as `n of m stories done`, who is working and on what, and what personas did recently. The Board never steers (no recommended story, no unread counts, no money) and writes nothing.
 
 ## Stories
 
@@ -15,7 +15,7 @@ Add a third shell view, the Board: a read-only picture of where the work stands,
 - Story 6.5: How far each epic is, in words
 - Story 6.6: Who is on what
 - Story 6.7: What the personas did, newest first
-- Story 6.8: The persona on a story
+- Story 6.8: The persona on a story (cut 2026-10-10)
 - Story 6.9: Nothing this epic promised not to do
 
 ## Requirements & Constraints
@@ -24,9 +24,9 @@ Add a third shell view, the Board: a read-only picture of where the work stands,
 - Statuses: `backlog`, `ready-for-dev`, `in-progress`, `review`, `done` (plus `optional`). Columns use the file's words, in that order, no counts, no empty-state text. An unrecognised status degrades to one extra column after `done`; nothing is dropped and nothing throws. A missing or unreadable file reads `no sprint status` with the watched path (no error dialog); the file appearing later fills the Board without restart.
 - Overview is two figures only (agents running = personas in `work`; stories in progress). Epic rows are text, `n of m stories done`, with no bar, meter, percentage or colour. Retrospective keys count in neither. A `done` epic's stories draw no cards; its row remains.
 - Negative surface: no money, spend, token or tool-call figures; no relative times (`4m ago`); no count/badge/dot on the view switch; no recommended or "needs you" marker; no Inbox or "decisions open" figure, and no reserved slot for them (deferred). Times are absolute and read the same live and after a relaunch.
-- A wrong owner is worse than none. Owner of a story is derived on every snapshot and stored nowhere. 6.1 did not score any rule (see Technical Decisions), so 6.8 may build only the cut form (persona-row pulse and elapsed time) until a rule is scored; if none proves right, FR123 is amended in `epics.md`.
+- No story owner: Story 6.8 was cut 2026-10-10 because no run-to-story rule could be shown never to mislead (a wrong owner is worse than none), and FR123 was amended in `epics.md`. The cut form is the Agents panel (6.6). A card is its number and title and is not a control.
 - Layout: at ≤1000px the Board scrolls as a column; no per-column scroll; no breakpoint added. State changes appear in the same frame, with no animation, no announcement, and no focus or scroll shift. A launch always opens on 1:1; the current view is not persisted.
-- Cards and agent rows are not controls, except a card with an owner (6.8), which acts as that persona's tile. Shared focus ring on `:focus-visible` only.
+- Cards and agent rows are not controls. Shared focus ring on `:focus-visible` only.
 - Elapsed times tick at least once a second. Styles use tokens only (no literal colours or dimensions) and add no new motion declarations.
 
 ## Technical Decisions
@@ -39,7 +39,6 @@ Add a third shell view, the Board: a read-only picture of where the work stands,
 - Agents panel (6.6) reads `persona:state` and the elapsed projection (AD-20: indicators come from real state only), the stored runs and the roster order; no new event or projection. One row per persona, aggregating its sessions as the tile does.
 - Recent activity (6.7) is folded in the renderer from the window's run entries, which hold the live runs and the stored ones restored on launch (main applies `deadOf` first), so no event, channel or projection is added (as 6.6). Stored runs are `StoredRun { card, lastAt }` under `userData`. Each run gives a start row and, when ended, a finished/stopped/failed row; newest 20; a run cut off by relaunch reads as failed at the time last heard of; party sessions raise no row. `StoredRun` is enough (the spike confirms). No cap on stored runs exists and the file grows with every run, so read newest-first and show a fixed window. Time formatting is one renderer function (`MM-DD HH:MM`, machine zone). Run `steps` (≤300) and `skill` change no row and are not owner evidence.
 - Run-to-story spike (`_bmad/spikes/spike-run-to-story.md`) is only partly answered: all three candidate rules assigned 0 of 11 recorded runs, and the real run history under `userData` was not read, so accuracy is unmeasured. Candidate sentence: a run's story is the story key in the file name of the last document on its card whose path is `spec-<epic>-<n>-<slug>.md`; otherwise none. It is computable from the stored card with no new field, but blind to documents written through Bash. The sprint-status-write rule needs a new stored field; the user-turn rule is not on the card. Open: score the rule against real history, and decide whether the heredoc-aware document interpreter should come first.
-- Owner precedence (6.8): a run in flight wins, otherwise the run that started last. Activating an owned card does what activating that persona's tile does (view becomes 1:1, session opened or reused, focus lands on the tile).
 - Open from 6.2 review: a retrospective key whose epic has no row (e.g. `epic-9-retrospective` without `epic-9`) lands among the unrecognised rows, and 6.4 must hide it or accept it. A file written without pause is not re-read until writes stop; titles come only from `planning-artifacts/epics.md` (a sharded epics folder gives slug titles).
 
 ## UX & Interaction Patterns
@@ -47,12 +46,11 @@ Add a third shell view, the Board: a read-only picture of where the work stands,
 - View switch: three native buttons (`1:1 Conversation`, `Party Mode`, `Board`), one pressed. The Board fills the body in one frame; switching views leaves sessions, runs, scroll and follow state untouched.
 - Regions: overview (two cells), story board by status, epics, agents, recent activity. Column headings are `micro` uppercase `faint`; story card shows number in mono plus title; epic row shows `Epic N`, title, and `n of m stories done` at right in mono.
 - Agents row: portrait, name and title, state dot and word as the tile; a persona on a run shows run `code`, document path and elapsed in mono; a persona in a non-run turn says `in a turn`; idle dims (`--opacity-idle`).
-- Owned card foot: initials disc plus `working · <elapsed>`, amber pulse dot and 1px `accent-border` while a run is on it; ended run shows disc and name only, no time or pulse. An unowned card shows no owner and no placeholder.
 - Activity row dot: `work` for a start (the only pulsing one, while in flight), `error` for stopped/failed, idle for finished.
 - Mockup `paperclip-board.html` illustrates only; its bars, spend card, gate pill, *needs you* and *next* lines, relative times, Inbox count and *New story* are not adopted.
 
 ## Cross-Story Dependencies
 
-- 6.1 to 6.7 are done. 6.6 and 6.7 were built in either order; both need 6.2 and 6.3 (done). 6.8 needs 6.1 and 6.4 (both done) and is the only story depending on 6.1's answer, which is still open. 6.9 is last and audits every region (including the planning docs naming the Inbox as deferred and the overview as two cells).
+- 6.1 to 6.7 are done and 6.8 is cut. 6.9 is done: it audited every region (including the planning docs naming the Inbox as deferred and the overview as two cells).
 - Depends on earlier epics: persona state and tiles (Epics 1 and 2), run cards, steps and stored runs (Epic 3), and the rail's artifact watcher (Epic 5).
 - Outside this epic: the Team sidebar's *Sprint board* row belongs to the three-column layout work; the Inbox is deferred.

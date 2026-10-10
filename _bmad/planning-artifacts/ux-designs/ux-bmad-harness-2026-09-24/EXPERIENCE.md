@@ -735,12 +735,12 @@ A read-only view of where the work stands, reached from the view switch or `g b`
 | Region | Shows |
 |---|---|
 | Overview | **two** plain figures, built so: **agents running** (of the roster) and **stories in progress**. There is no third: **decisions open** belongs to the deferred Inbox and has neither a cell nor a reserved slot |
-| Board | one column per BMad status in the file's own words: `backlog`, `ready-for-dev`, `in-progress`, `review`, `done`. An empty column says `no stories`. A card is the story id and its title and nothing else: the owner and the run's elapsed on a card are Story 6.8, **blocked** (no run-to-story rule exists), so no card carries an owner, a handler or a tab stop |
+| Board | one column per BMad status in the file's own words: `backlog`, `ready-for-dev`, `in-progress`, `review`, `done`. An empty column says `no stories`. A card is the story id and its title and nothing else: the owner and the run's elapsed on a card were Story 6.8, **cut 2026-10-10** (no run-to-story rule exists), so no card carries an owner, a handler or a tab stop; a persona's run is on its Agents row |
 | Epics | one row per epic: its title and `n of m stories done` in words, with one thin decorative track (`aria-hidden`, a filled span over an empty one) beside them; an epic with no stories says `no stories` and draws no track |
 | Agents | one row per persona: its state, what it is on and the run's elapsed time; an idle persona dims |
 | Recent activity | what the personas did (run started, finished, stopped or failed), newest first, with each event's absolute time; built from the window's run entries. A question asked is not an event here |
 
-- **A story's owner (not built: Story 6.8 is blocked).** It is the persona of the run that is or was last on it; a story with no run has none and shows none. **[ASSUMPTION]** — `sprint-status.yaml` carries no owner, so this is derived from run history and must be confirmed against what the session store keeps.
+- **A story's owner (cut 2026-10-10 with Story 6.8; FR123 amended).** It is the persona of the run that is or was last on it; a story with no run has none and shows none. **[ASSUMPTION]** — `sprint-status.yaml` carries no owner, so this is derived from run history and must be confirmed against what the session store keeps.
 - **No money.** A *spend* card, per-persona cost and a budget are **not adopted**: nothing in the harness's data source carries cost, and a figure with no source is the one thing AD-20 forbids. Revisit if the runs begin to report it.
 - **No bar that carries the figure.** No story card, and no epic row, draws a progress bar, meter or percentage: bars imply steady incremental advance (*Banned everywhere*). *Settled 2026-10-10, by a design audit that reversed the first ruling:* an epic row may carry one decorative track, hidden from readers, which only repeats the words; the words are the one place the figure is stated, and no `<progress>`, `<meter>`, `role="progressbar"` or `%` is ever drawn.
 - **Reading, not steering.** The Board never recommends a next story, highlights the one to do, or orders by priority. Within a column the order is the file's.
@@ -763,7 +763,7 @@ Each is something Paperclip does or the prototypes drew that this product refuse
 
 ### Accessibility
 
-The view switch gains a third segment and stays one control in the roving order. Each side panel's splitter and the Inbox rows follow *Resizing and folding* and *Keyboard reach*: real buttons, the shared focus ring, no announcement of a drag. The Inbox is a list; the Board's columns are lists under their status headings, and a card is text, not a control: no button, handler or tab stop (a card opening its owner's thread waits on Story 6.8, which is blocked). The state strip and the Board's figures are text and are not announced through the live region (*Live-region policy* is unchanged).
+The view switch gains a third segment and stays one control in the roving order. Each side panel's splitter and the Inbox rows follow *Resizing and folding* and *Keyboard reach*: real buttons, the shared focus ring, no announcement of a drag. The Inbox is a list; the Board's columns are lists under their status headings, and a card is text, not a control: no button, handler or tab stop (a card opening its owner's thread was Story 6.8, cut). The state strip and the Board's figures are text and are not announced through the live region (*Live-region policy* is unchanged).
 
 ### Banned here
 

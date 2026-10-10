@@ -11,6 +11,8 @@
 - The AC says to cut Story 6.8 to the live pulse and elapsed time and amend FR123 only when no rule is right often enough. That has not been shown, so **`epics.md` is not amended here**. Until the history is scored, Story 6.8 may only build the cut form (the story's own default, "a wrong owner is worse than none", points that way).
 - To close the spike: apply the same three rules to the stored cards in `userData` (a card's `documents[].path` stands in for the stream's `Write`/`Edit` paths) and hand-check each assignment. Copy none of that history into the repo.
 
+**Resolved 2026-10-10 (owner's decision): Story 6.8 is cut and FR123 amended in `epics.md`.** The run history for this project under `userData` held no runs, so no rule could be scored; the rule is a new requirement if it is ever wanted, and starts from a scored history. The open items below stand as the way to reopen it.
+
 ## The question
 
 Can a run be tied to the story it worked on, by a rule Story 6.8 can state as one sentence and a test can pin, so an owner is shown only when the harness can stand behind it? And is `StoredRun` enough for Story 6.7's recent activity?

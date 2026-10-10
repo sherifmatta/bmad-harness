@@ -199,7 +199,7 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **FR120:** The overview is **two plain figures**: *agents running* (of the roster) and *stories in progress*. Neither takes the accent, a border or a highlight, and neither is a badge. Beneath the board is one row per epic: its id, its title and `n of m stories done`, as text, with no bar. There is no spend, budget or cost figure anywhere, because no source carries one.
 - **FR121:** The Agents panel has one row per installed persona: the portrait or initials, name and title, its state as the tile's own dot and word, what it is on, and the run's elapsed time while one is in flight. An idle persona dims. The state and the elapsed time are read from the same source as the tiles (AD-20).
 - **FR122:** Recent activity lists persona events across the project, newest first: a run started, finished, stopped or failed, each with the persona's name and its time as `HH:MM`, built from the stored runs the transcript already keeps. It reads the same after a relaunch as it did live. It lists nothing the harness cannot show from a run, so no approval, no split, no question asked.
-- **FR123:** A story's **owner** is the persona of the run that is, or was last, on it. A story no run has been on has none and shows none. A story with a run in flight shows the owner's initials, `working · <elapsed>` and the amber pulse dot; a card with an owner is a button that opens that persona's thread, and a card with none is not a control. The rule that links a run to a story is settled by Story 6.1 and stated in its spike note.
+- **FR123:** *(Amended 2026-10-10: Story 6.8 cut.)* The Board shows no story owner. Story 6.1's spike found no rule that ties a run to a story without ever misleading, and this project's own run history held no runs to score one against, so no card shows an owner, a run's pulse or its elapsed time, and no card is a control. What a run is on is shown on the persona's row in the Agents panel (FR121), which is the cut form Story 6.1 named. A story's owner may return only as a new requirement, with a rule scored against real history first.
 
 #### Chat look, run steps and turn stop
 
@@ -320,8 +320,8 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **UX-DR44 — The follow control** (`DESIGN.md` → Components → Follow control, `EXPERIENCE.md` → Following the thread): one literal string, `↓ latest`, in `label` mono at `dim` on `panel-2` with a 1px `line` border and `control` radius, centred above the composer, present only while a thread is not following, in one frame in and out, one tab stop between the thread and the composer. No count, dot, *new*, pulse, shadow or sound, and no animated scroll anywhere.
 - **UX-DR45 — The Outputs head and the output-folder control** (`DESIGN.md` → Components → Outputs head, `EXPERIENCE.md` → Output folder): the head shows the watched folder in `meta` mono at `dim` and `change…` in `accent`; one state line beneath it only while there is a state, in `dim` mono with no colour and no icon; a File menu in a project window with *Output Folder…* and *Use BMad's Output Folder* and no accelerators; refusals announced politely once; no prompt, no recommendation, no second folder.
 - **UX-DR46 — The splitter and the folder heading** (`DESIGN.md` → Components → Splitter, Folder heading; `EXPERIENCE.md` → Resizing and folding): a 9px hit area on the panel's inner border, 1px `line` at rest and 3px `accent-border` / `accent` on hover / drag and focus, with the shared ring, no motion, a `separator` with its value, minimum and maximum exposed; a folder heading as a button with a stroked chevron, `badge`-tier mono at `dim`, `aria-expanded` and `aria-controls`, the amber dot and `changing` while folded over a changing row, and no count; neither announced through the live region; no splitter at ≤1000px or where its panel is hidden.
-- **UX-DR47 — The Board's anatomy** (`DESIGN.md` → Components → *Proposed: layout, thread and Board anatomy* → Board, which this epic promotes from proposed to built): one scrolling column on `bg` at `16px 18px 20px`; every region a panel (`panel` ground, 1px `line`, `card` radius, head on `panel-2`); the overview as two equal cells, not three (the third, *decisions open*, is deferred; the anatomy's "three equal cells" is amended to two when 6.5 lands); five status columns in one panel with 1px `line-soft` between them and the status as the file writes it in `micro` uppercase `faint` with no count; story cards on `bg` at `control` radius; the owner's initials disc and `working · <elapsed>` in the foot, and a card with a run on it takes the amber pulse dot and a 1px `accent-border`; epic rows as text; agent rows with the tile's anatomy; activity rows with the dot, the persona's name, what it did and `HH:MM`. Every value reaches the design system through a token (NFR23), and nothing is added to the closed motion inventory (UX-DR12).
-- **UX-DR48 — The Board's reach and prohibitions** (`EXPERIENCE.md` → *Layout, chat and Board* → Accessibility, Banned here): the view switch is one control of three in the roving order; each column is a list under its status heading and each card with an owner is a button; the Board's figures and rows are text and are not announced through the live region; the keyboard chord is `g` then `b`, bound only while no field has focus. Banned: a count, badge or highlight on a figure, a column or a card; a progress bar on a card or an epic row; any spend, budget or cost figure; any editing affordance; a recommended or highlighted next story; a skill list or `/` command; relative times; drag to move.
+- **UX-DR47 — The Board's anatomy** (`DESIGN.md` → Components → *Proposed: layout, thread and Board anatomy* → Board, which this epic promotes from proposed to built): one scrolling column on `bg` at `16px 18px 20px`; every region a panel (`panel` ground, 1px `line`, `card` radius, head on `panel-2`); the overview as two equal cells, not three (the third, *decisions open*, is deferred; the anatomy's "three equal cells" is amended to two when 6.5 lands); five status columns in one panel with 1px `line-soft` between them and the status as the file writes it in `micro` uppercase `faint` with no count; story cards on `bg` at `control` radius; *(amended 2026-10-10: the foot with the owner's initials disc, `working · <elapsed>`, the amber pulse dot and the 1px `accent-border` is cut with Story 6.8; a card is its number and title)*; epic rows as text; agent rows with the tile's anatomy; activity rows with the dot, the persona's name, what it did and `HH:MM`. Every value reaches the design system through a token (NFR23), and nothing is added to the closed motion inventory (UX-DR12).
+- **UX-DR48 — The Board's reach and prohibitions** (`EXPERIENCE.md` → *Layout, chat and Board* → Accessibility, Banned here): the view switch is one control of three in the roving order; each column is a list under its status heading and a card is text, not a control (the card button was cut with Story 6.8); the Board's figures and rows are text and are not announced through the live region; the keyboard chord is `g` then `b`, bound only while no field has focus. Banned: a count, badge or highlight on a figure, a column or a card; a progress bar on a card or an epic row; any spend, budget or cost figure; any editing affordance; a recommended or highlighted next story; a skill list or `/` command; relative times; drag to move.
 - **UX-DR49 — Run step** (`DESIGN.md` → Components → *Run step*; `EXPERIENCE.md` → State Patterns → *The run list*): a row on a grid `14px · 1fr · auto` at 9px gap and 3px vertical padding, no rule between rows; mark in mono (`✓` `green` done, the amber `work` dot with the existing pulse while running, `✕` `red` failed), label in mono at `ident` (`dim` once done, `text` while running), elapsed in mono at `meta` with tabular figures (`faint` once done, `now` in `dim` while running, so it carries the liveness under reduced motion). No shimmer, bar, pending row or `n of m`; steps and notes interleave in one list, and prose mode keeps them above it.
 - **UX-DR50 — Chat header** (`DESIGN.md` → *Chat header*): 46px, `chrome`, 1px `line` below, `0 16px`, 10px gaps, one line: the 22px initials disc, the name at `name`, `title · story <id>` in `dim` (the story reference only with a source), the status pill, then a ghost button that reads `Stop` while a turn is in flight and `close session` otherwise; name and line truncate with an ellipsis.
 - **UX-DR51 — Conversation turn** (`DESIGN.md` → *Conversation turn*, *Initials*): a flat row, with a 26px initials disc (the user's tinted) and a head of name, role and clock time on one baseline, 8px apart, the words below at `base`, turns 16px apart, no container, radius, ground or rule; the room's live turn alone keeps its accent edge `[OPEN]`; the user's `@name` of a handoff renders as a chip before the sent text (Story 2.15), its anatomy to be added to `DESIGN.md`.
@@ -454,7 +454,7 @@ Every one of the 123 FRs maps to exactly one epic.
 | FR120 | Epic 6 | Two overview figures, an epic row of `n of m stories done` as text, and no money |
 | FR121 | Epic 6 | The Agents panel: state, what it is on, elapsed; idle dims |
 | FR122 | Epic 6 | Recent activity from stored runs, newest first, surviving a relaunch |
-| FR123 | Epic 6 | A story's owner and live run on its card; a card with an owner opens that thread |
+| FR123 | Epic 6 | *Cut 2026-10-10 (Story 6.8):* no story owner and no card control; a persona's run is on its Agents row (FR121) |
 | FR124 | Epic 3 | Tool steps: `run:step` from main, a short label, carried by the card; the run list in the card body |
 | FR125 | Epic 3 | `turn.stop`: any turn in flight can be stopped; the header's `Stop` / `close session` slot |
 | FR126 | Epic 3 | `run:started.skill`, a recorded fact; the card head reads `<skill> run` |
@@ -588,7 +588,7 @@ The harness stops opening to a native dialog. It opens to a Welcome that offers 
 
 ### Epic 6: The room as a Board
 
-The shell gains a third view, the Board, a read-only picture of where the work stands, read from the project's own `sprint-status.yaml`: every story in a column by its BMad status, each epic as `n of m stories done`, who is working and on what, and what the personas did recently. A story shows the persona that last worked on it, and opens that persona's thread. The Board steers nothing: it never recommends a next story, never counts what you have not read, never shows money, and writes nothing.
+The shell gains a third view, the Board, a read-only picture of where the work stands, read from the project's own `sprint-status.yaml`: every story in a column by its BMad status, each epic as `n of m stories done`, who is working and on what, and what the personas did recently. A story card shows its number and title and nothing more (a story's owner was cut, see Story 6.8). The Board steers nothing: it never recommends a next story, never counts what you have not read, never shows money, and writes nothing.
 
 **Standalone:** a new view over data the project already holds. It changes nothing in 1:1 or Party Mode except one more segment in the view switch.
 
@@ -604,9 +604,9 @@ The shell gains a third view, the Board, a read-only picture of where the work s
 - **One new event and one new read carry the Board:** `board:changed` (once per revision of the parsed file) and `board.get`, through enumerated, named methods in `src/shared/channels.ts`, with no generic `invoke(channel, …)` (NFR7). Agents come from the existing `persona:state` and elapsed projection (AD-20); activity and ownership come from the stored runs the transcript already keeps (`StoredRun`, `RunCardSnapshot`). The FR101 count of events and commands is amended where it is stated, by Story 6.2.
 - **The rail's watcher stays a stat-only watcher** (`src/main/sources/project/watch-artifacts.ts`, FR54 as the code cites it): it learns that `sprint-status.yaml` changed, as it does now. The new reader is a second, separate edge in `sources/` that opens that one file, so the rail's guarantee that it never opens a file is untouched.
 - **Titles are not in the file.** Keys are slugs and some are cut short (`1-4-the-accessibility-floor-focus-keyboard-reach-and-one-live-re`). Story titles are the `### Story N.M:` headings and epic titles the `## Epic N:` headings of `epics.md`, which is also the project's own source for them.
-- **Owner is derived, never stored, and its rule is a spike's finding.** `sprint-status.yaml` carries no owner and a run carries a menu `code` and an `agentId`, not a story id. Story 6.1 settles how a run is tied to a story, or that it cannot be; Stories 6.2 to 6.7 do not depend on it, and Story 6.8 does.
+- **Owner is derived, never stored, and its rule is a spike's finding.** `sprint-status.yaml` carries no owner and a run carries a menu `code` and an `agentId`, not a story id. Story 6.1 settles how a run is tied to a story, or that it cannot be; Stories 6.2 to 6.7 do not depend on it, and Story 6.8 did: it was cut on 2026-10-10 because no rule could be shown never to mislead.
 - **The Board is the third view, so `VIEWS` stops being two.** `src/renderer/ui/shell/view.ts` says a third view "is not a later addition to this list"; that clause, the FR11 text and the pinned view tests are amended by Story 6.3 and nowhere else.
-- **Sequencing:** 6.1 first, as a spike with no code beside it. 6.2 then 6.3, then 6.4, 6.5, 6.6 and 6.7 in any order, then 6.8, which needs 6.1 and 6.4. 6.9 last. If the Team sidebar (`spec-three-column-room-layout.md`) has landed, the Board's entry is also a *Sprint board* row there; that row is part of that work, not of this epic.
+- **Sequencing:** 6.1 first, as a spike with no code beside it. 6.2 then 6.3, then 6.4, 6.5, 6.6 and 6.7 in any order, then 6.8 (cut 2026-10-10). 6.9 last. If the Team sidebar (`spec-three-column-room-layout.md`) has landed, the Board's entry is also a *Sprint board* row there; that row is part of that work, not of this epic.
 - **Negative-surface check:** Story 6.9 verifies the UX-DR38 and UX-DR48 prohibitions on every region: no count, badge or highlight on a figure, column or card; no bar; no money; no editing affordance; no recommended story; no relative time; no Inbox.
 
 
@@ -3233,7 +3233,7 @@ So that the thread, the room and the file list fit the way I work, and stay that
 
 The shell gains a third view, the Board, a read-only picture of where the work stands, read from the project's own `sprint-status.yaml`. It opens with a spike, because the one thing the Board wants that nothing in the harness holds is which persona is on which story.
 
-*Added 2026-10-09 from `mockups/paperclip-board.html` and `EXPERIENCE.md` → Layout, chat and Board. The Inbox, the* decisions open *figure, the context panel and the thread additions are deferred (see the epic's implementation notes). Stories 6.2 to 6.7 do not depend on Story 6.1's answer; Story 6.8 does.*
+*Added 2026-10-09 from `mockups/paperclip-board.html` and `EXPERIENCE.md` → Layout, chat and Board. The Inbox, the* decisions open *figure, the context panel and the thread additions are deferred (see the epic's implementation notes). Stories 6.2 to 6.7 do not depend on Story 6.1's answer; Story 6.8 did, and was cut.*
 
 ### Story 6.1: What a run knows about its story
 
@@ -3521,50 +3521,11 @@ So that I can see what happened without scrolling every thread.
 
 *Amended 2026-10-09 (Story 3.16).* A stored run now also carries its `steps`, up to 300 per card, so a transcript file grows with them and is rewritten whole on each debounce. Recent activity reads only a run's status, `code` and times, so steps change no row. Story 3.16's replay measures the stored file's size against the longest recorded run, and if it is a problem the cap lowers there and not here. The *Decisions to confirm* line on how many runs a transcript keeps stands. The context panel's *Run* figures (`EXPERIENCE.md` → The room: three columns) are not planned in Epic 6; if a later story adds a tool-calls figure, the run's `steps` are its first honest source, and Story 6.6's rule that no Agents row shows a count of tool calls stands.
 
-### Story 6.8: The persona on a story
+### Story 6.8: The persona on a story (cut)
 
-As someone looking at a story,
-I want to see which persona last worked on it, and a pulse while a run is on it,
-So that the board connects to the room, and I can open that persona's thread from the card.
+**Cut 2026-10-10, by decision of the owner (Sherif), on the evidence of Story 6.1 (`_bmad/spikes/spike-run-to-story.md`).** The story would have shown the owner's initials disc and `working · <elapsed>` on a story card, made an owned card a button that opens that persona's thread, and derived the owner from the run that is, or was last, on the story. It rested on a rule tying a run to a story. Story 6.1 found none it could show right: all three candidates assigned 0 of 11 recorded runs, and this project's run history under `userData` held no runs to score them against. Story 6.1's acceptance criterion says what follows: *"if no rule is right often enough to show an owner without ever misleading, the note says so and Story 6.8 is cut to the run's live pulse and elapsed time on a persona's row only, with FR123 amended"*. That cut form is already built: the Agents panel of Story 6.6 shows each persona's run `code`, document path, elapsed time and pulse. So nothing is left to build, and FR123 is amended above.
 
-**Implements:** FR123 · UX-DR47 (Story card), UX-DR48 · NFR17, NFR18, NFR20, NFR21, NFR25
-
-**Evidence:** the rule that ties a run to a story is Story 6.1's finding (`_bmad/spikes/spike-run-to-story.md`), stated there as a sentence a test pins. Activating a persona's tile opens that persona's session and thread and keeps focus on the tile (NFR21; `src/renderer/ui/team/tile-nav.ts`, `persona-tile.tsx`). The initials disc is UX-DR15. *Depends on 6.1 and 6.4. If 6.1 finds no rule that never misleads, this story is cut as 6.1 says.*
-
-**Acceptance Criteria:**
-
-**Given** a story that a run is on, by the rule 6.1 settled
-**Then** its card foot shows the owner's initials disc and `working · <elapsed>` in mono, the elapsed time ticking at least once a second, the amber pulse dot, and a 1px `accent-border` on the card
-**And** the elapsed time is the run's, from `run:started`, as the tile's is.
-
-**Given** a story whose last run has ended
-**Then** its card foot shows the owner's initials disc and the persona's name and no time, no pulse and no border change
-**And** an ended run reads the same after a relaunch.
-
-**Given** a story no run has been on, by the rule
-**Then** its card shows no owner, no placeholder and no empty slot.
-
-**Given** two runs on one story
-**Then** the one in flight is the owner, and otherwise the one that started last.
-
-**Given** a card with an owner
-**Then** it is a button that does exactly what activating that persona's tile does: the view becomes 1:1, that persona's session opens or is reused, its thread shows, and focus lands on that tile
-**And** a card with no owner is not a control and takes no tab stop.
-
-**Given** the shared focus ring
-**Then** it draws on a card's `:focus-visible` only, and the cards are one tab stop each in reading order, columns left to right.
-
-**Given** a run on a story ending
-**Then** the card's pulse and border go in the same frame and nothing is announced.
-
-**Given** the owner
-**Then** it is derived on every snapshot and stored nowhere, and a test fails if a file under `userData` or the project names a story owner.
-
-**Decisions to confirm before build (defaults in brackets):** activating a card is the same act as activating its persona's tile [yes]; focus lands on the tile [yes]; an ended run shows the persona's name and no time [yes].
-
-**Boundaries:** no assignment, reassignment or filter by owner; no per-owner count; nothing written to `sprint-status.yaml`.
-
-*Amended 2026-10-09 (Stories 3.16 and 3.18).* The owner rule stays Story 6.1's. The fields the card gains, `steps` and `skill`, are not inputs to it unless 6.1 adopts one by name, and nothing here stores an owner.
+**Consequences:** a story card is its number and title (Story 6.4) and is not a control; no owner is derived, shown or stored. The rule, if ever wanted again, is a new requirement and starts from a scored history (candidate: the story key in the file name of the last document on a run's card named `spec-<epic>-<n>-<slug>.md`, blind to documents written through Bash). Story 6.9's audit already asserts that no card carries an owner, a handler or a tab stop.
 
 ### Story 6.9: Nothing this epic promised not to do
 
