@@ -146,7 +146,7 @@ describe('what preflight never does', () => {
     expect(bridge).toMatch(/createInstallProjection\(\{[\s\S]*?checks: createChecks\(\)/)
   })
 
-  it('leaves the bridge with exactly its twenty-two methods (the layout’s getLayout, setFolded and setPanelWidth arrived in Story 5.5, chooseOutputFolder arrived in Story 5.4, getBranch arrived in Story 1.9, the two rail methods in Story 1.11, the two document methods in Story 1.12, the three session methods in Story 2.4, getConversation in Story 2.7, endConversation in Story 2.8, closeSession in Story 2.11, dispatchMenu in Story 3.1, stopRun in Story 3.7, onRunRevealed in Story 3.10, stopTurn in Story 3.19)', () => {
+  it('leaves the bridge with exactly its twenty-four methods (the Board’s getBoard and onBoardChanged arrived in Story 6.2, the layout’s getLayout, setFolded and setPanelWidth arrived in Story 5.5, chooseOutputFolder arrived in Story 5.4, getBranch arrived in Story 1.9, the two rail methods in Story 1.11, the two document methods in Story 1.12, the three session methods in Story 2.4, getConversation in Story 2.7, endConversation in Story 2.8, closeSession in Story 2.11, dispatchMenu in Story 3.1, stopRun in Story 3.7, onRunRevealed in Story 3.10, stopTurn in Story 3.19)', () => {
     const api = readFileSync(join(SRC, 'preload/harness-api.d.ts'), 'utf8')
     const body = api.match(/interface HarnessApi \{([\s\S]*?)\n\}/)
 
@@ -157,12 +157,14 @@ describe('what preflight never does', () => {
       'closeSession',
       'dispatchMenu',
       'endConversation',
+      'getBoard',
       'getBranch',
       'getConversation',
       'getInstall',
       'getLayout',
       'getProjectPath',
       'getRail',
+      'onBoardChanged',
       'onDocClosed',
       'onInstallChanged',
       'onRailChanged',

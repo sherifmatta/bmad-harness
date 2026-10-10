@@ -162,3 +162,9 @@
 - source_spec: `_bmad/implementation-artifacts/spec-chat-look-flat-rows-and-initials.md`
   summary: Remove the per-persona written-file tracking (`service.written`, `fold/written-paths`, the clear in `session-bridge.ts`) that no longer feeds the handoff line.
   evidence: The handoff composer was its only reader; the handoff line now reads `handed to <Name>` and names no files.
+- source_spec: `_bmad/implementation-artifacts/spec-6-2-the-sprint-status-read-once-in-main.md`
+  summary: Decide how the Board shows a retrospective key whose epic has no row (`epic-9-retrospective` with no `epic-9`), which the fold now keeps among the unrecognised rows.
+  evidence: Epic 6 says retrospective keys are shown and counted nowhere; the fold has no epic to attach it to, so it surfaces in `others`. Story 6.4 draws the unrecognised rows and must either hide this one or accept it.
+- source_spec: `_bmad/implementation-artifacts/spec-6-2-the-sprint-status-read-once-in-main.md`
+  summary: A file written without pause never settles the Board's quiet window, so it is not re-read until writes stop; `epics.md` sharded into a folder gives slug titles with no signal to the view.
+  evidence: Review (edge cases): `schedule()` resets its timer on every observation with no maximum wait; titles come only from `planning-artifacts/epics.md`. Neither affects the file as it is written today.

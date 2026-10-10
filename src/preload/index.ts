@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import {
+  BOARD_CHANGED_CHANNEL,
+  BOARD_GET_CHANNEL,
   CONVERSATION_END_CHANNEL,
   CONVERSATION_GET_CHANNEL,
   DOC_CLOSED_CHANNEL,
@@ -23,6 +25,7 @@ import {
   TURN_SEND_CHANNEL,
   TURN_STOP_CHANNEL
 } from '../shared/channels'
+import type { BoardReply, BoardSnapshot } from '../shared/board'
 import type { ContractCommands } from '../shared/commands'
 import type {
   ConversationReply,
@@ -46,6 +49,8 @@ import type { HarnessApi } from './harness-api'
 // it - a name changed on one side alone would leave lint, typecheck and build
 // green while the window rendered an error.
 export {
+  BOARD_CHANGED_CHANNEL,
+  BOARD_GET_CHANNEL,
   CONVERSATION_END_CHANNEL,
   CONVERSATION_GET_CHANNEL,
   DOC_CLOSED_CHANNEL,
@@ -108,6 +113,23 @@ const harness: HarnessApi = {
     ipcRenderer.on(RAIL_CHANGED_CHANNEL, wrapper)
     return () => {
       ipcRenderer.removeListener(RAIL_CHANGED_CHANNEL, wrapper)
+    }
+  },
+
+  // The Board's snapshot (Story 6.2), beside the rail's: read on connecting, then pushed once per revision.
+  getBoard: async () => {
+    const reply = (await ipcRenderer.invoke(BOARD_GET_CHANNEL)) as BoardReply
+    if (reply.ok) {
+      return reply.snapshot
+    }
+    throw reply.error
+  },
+
+  onBoardChanged: (listener) => {
+    const wrapper = (_event: unknown, snapshot: BoardSnapshot): void => listener(snapshot)
+    ipcRenderer.on(BOARD_CHANGED_CHANNEL, wrapper)
+    return () => {
+      ipcRenderer.removeListener(BOARD_CHANGED_CHANNEL, wrapper)
     }
   },
 

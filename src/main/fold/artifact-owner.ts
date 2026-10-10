@@ -19,8 +19,9 @@
  * key shape, not nesting); the status vocabulary is six values (`backlog`,
  * `ready-for-dev`, `in-progress`, `review`, `done`, `optional`), not the three
  * the install contract describes; timestamps are `MM-DD-YYYY HH:MM`, not ISO;
- * and an unrecognised status must degrade, not break. No consumer exists in
- * v1, so nothing reads it.
+ * and an unrecognised status must degrade, not break. This file still never
+ * reads it: the Board is that consumer from Story 6.2, through one fold in
+ * `fold/sprint-status.ts` and one reader in `sources/project/`.
  */
 
 const OWNER_BY_BASENAME: ReadonlyMap<string, string> = new Map([

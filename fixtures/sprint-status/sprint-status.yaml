@@ -1,0 +1,656 @@
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created, ready for development
+#   - in-progress: Developer actively working on implementation
+#   - review: Implementation complete, ready for review
+#   - done: Story completed
+
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+
+# Action Item Status:
+#   - open: Committed during a retrospective, not yet addressed
+#   - in-progress: Actively being worked on
+#   - done: Completed
+
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when its first story starts (via build's sprint sync)
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates the next story after the previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+# - Retrospective appends its action items to action_items; the status view surfaces open ones
+generated: 09-25-2026 17:00
+last_updated: 10-10-2026 10:51
+project: bmad-harness
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad/implementation-artifacts
+development_status:
+  epic-1: done
+  1-1-settle-what-stopping-a-run-actually-costs: done
+  1-2-a-running-application-on-the-pinned-stack: done
+  1-3-the-visual-contract-in-one-file: done
+  1-4-the-accessibility-floor-focus-keyboard-reach-and-one-live-re: done
+  1-5-watch-the-reasoning-the-run-note-feed-over-a-real-memlog: done
+  1-6-faces-that-read-as-colleagues: done
+  1-7-the-team-read-from-the-project-s-own-install: done
+  1-8-launch-tells-you-what-is-missing: done
+  1-9-conversation-and-project-state-in-one-window: done
+  1-10-the-team-with-faces-in-the-rail: done
+  1-11-the-project-s-files-changing-as-they-change: done
+  1-12-read-a-document-at-full-size-without-losing-the-room: done
+  1-13-the-planning-contract-says-what-actually-governs-the-build: done
+  1-14-nothing-the-product-promised-not-to-do: done
+  epic-1-retrospective: done
+
+  epic-2: done
+  2-1-a-recorded-corpus-to-build-against: done
+  2-2-one-contract-across-the-bridge: done
+  2-3-the-turn-and-the-composer: done
+  2-4-open-a-session-and-hear-back: done
+  2-5-type-while-they-work: done
+  2-6-every-indicator-means-something: done
+  2-7-the-conversation-is-still-there-tomorrow: done
+  2-8-end-a-conversation-deliberately: done
+  2-9-hand-the-work-to-the-next-persona: done
+  2-10-when-a-persona-stops-to-ask: done
+  2-11-a-session-outlives-the-install-changing-under-it: done
+  2-12-confirm-continuity-actually-holds: done
+  2-13-nothing-this-epic-promised-not-to-do: done
+  2-14-the-chat-look-flat-rows-initials-discs-one-line-header: done
+  2-15-the-name-you-typed-stays-in-your-turn: done
+  epic-2-retrospective: done
+
+  epic-3: done
+  3-1-press-a-button-and-watch-a-document-write-itself: done
+  3-12-a-card-follows-one-document: done
+  3-13-a-finished-run-leaves-its-persona-live: done
+  3-14-the-running-card-stays-in-view: done
+  3-2-the-whole-menu-and-only-ever-the-menu: done
+  3-3-progress-you-can-read-against-a-plan: done
+  3-4-the-card-is-never-empty: done
+  3-5-the-run-you-are-not-looking-at: done
+  3-6-the-rail-learns-who-is-writing: done
+  3-7-stop-a-run-knowing-what-it-costs: done
+  3-8-understand-a-run-that-ended-early: done
+  3-9-two-writers-one-file-no-arbitration: done
+  3-10-told-once-quietly-when-you-are-elsewhere: done
+  3-11-nothing-this-epic-promised-not-to-do: done
+  3-15-the-work-that-carries-on-after-a-stop-has-a-card: done
+  3-16-tool-steps-from-the-stream: done
+  3-17-the-run-list-steps-and-notes-in-the-card-body: done
+  3-18-name-the-skill-a-run-invoked: done
+  3-19-stop-a-turn-that-is-not-a-run: done
+  epic-3-retrospective: done
+
+  epic-4: done
+  4-1-choose-who-is-in-the-room: done
+  4-2-everyone-stays-in-the-room: done
+  4-3-what-the-room-is-about-on-screen: done
+  4-4-take-the-room-away-with-you: done
+  4-5-the-room-ends-it-does-not-pause: done
+  4-6-nothing-this-epic-promised-not-to-do: done
+  4-7-the-room-is-still-the-room-after-the-window-reloads: done
+  4-8-a-message-the-room-refused-says-so: done
+  epic-4-retrospective: done
+
+  epic-5: done
+  5-1-choose-a-project-from-a-welcome-not-a-dialog: done
+  5-2-choose-light-dark-or-the-system-s-theme: done
+  5-3-the-thread-follows-what-is-being-said: done
+  5-4-choose-the-folder-that-holds-the-output: done
+  5-5-size-the-side-panels-fold-the-output-folders: done
+  epic-5-retrospective: optional
+
+  epic-6: in-progress
+  6-1-what-a-run-knows-about-its-story: done
+  6-2-the-sprint-status-read-once-in-main: backlog
+  6-3-the-board-a-third-view: backlog
+  6-4-every-story-in-its-column: backlog
+  6-5-how-far-each-epic-is-in-words: backlog
+  6-6-who-is-on-what: backlog
+  6-7-what-the-personas-did-newest-first: backlog
+  6-8-the-persona-on-a-story: backlog
+  6-9-nothing-this-epic-promised-not-to-do: backlog
+  epic-6-retrospective: optional
+action_items:
+  - id: "epic-1-retro-item-1-make-the-packaged-app-find-claude-and-uv"
+    epic: 1
+    action: "Make the packaged app find claude and uv: build the child env once in
+      main (login-shell PATH or known install dirs) and pass it to preflight and the
+      resolvers, with a test on the env. Deferred: packaged app out of scope for now."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-2-let-preflight-recover-drop-the-cached-to"
+    epic: 1
+    action: "Let preflight recover: drop the cached tool verdict on any tool error,
+      never cache check-failed, re-ask on window focus, and have the watchers see
+      creation of _bmad and .claude/skills after launch. Before Epic 2."
+    owner: "dev"
+    status: done
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-3-fix-the-document-sanitiser-allow-list-ad"
+    epic: 1
+    action: "Fix the document sanitiser allow-list (add s and numeric ol start) and
+      add one test that runs renderMarkdown through a DOM-capable DOMPurify. Before
+      Epic 2."
+    owner: "dev"
+    status: done
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-4-decide-the-dom-test-environment-jsdom-or"
+    epic: 1
+    action: "Decide the DOM test environment (jsdom or happy-dom, or an explicit no),
+      then cover useRail, useInstall, useDocument, LiveRegion and useNow. Before story
+      2.3."
+    owner: "Sherif + dev"
+    status: done
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-5-decide-the-main-window-reload-route-and"
+    epic: 1
+    action: "Decide the main-window reload route and zoom (both removed by story 1.14's
+      menu) or amend Epic 2's 'window reloads, nothing is lost' AC. Before story 2.7."
+    owner: "Sherif + architect"
+    status: done
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-6-correct-the-stop-mechanism-everywhere-st"
+    epic: 1
+    action: "Correct the stop mechanism everywhere still stale: FR83, FR87, FR90,
+      story 1.1 and 3.7 ACs, ARCHITECTURE-SPINE.md:190,267,338, EXPERIENCE.md:370,381,
+      epic-1-context.md:62. Route via the owning skills. Before Epic 3."
+    owner: "PM + architect"
+    status: done
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-7-reconcile-the-as-built-into-the-contract"
+    epic: 1
+    action: "Reconcile the as-built into the contract: nineteen memlog kinds, four-argument
+      portrait, hover on current tile, absent session-owner branch, resolve_party
+      not invoked, 1.9 thread contents, overflow:hidden on the segmented control,
+      document window geometry, branch chip source."
+    owner: "PM + UX"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-8-retire-the-preview-scaffolding-move-reso"
+    epic: 1
+    action: "Retire the Preview scaffolding: move resolver and menu error lines into
+      a real shell surface first, then delete Preview, PREVIEW_DERIVED and derivedName."
+    owner: "dev"
+    status: done
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-9-harden-failure-paths-watcher-onerror-cha"
+    epic: 1
+    action: "Harden failure paths: watcher onError channels, did-fail-load loop, doc:open
+      rejections and backslash filenames, render-process-gone on the stage window,
+      document-window parent focus, escape-action containment re-check, install-bridge
+      ready race, navigation guard and CSP, empty-roster flip, UTF-8 truncation boundary."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-10-extract-the-shared-bridge-skeleton-one-c"
+    epic: 1
+    action: "Extract the shared bridge skeleton, one channels module and one failure-mapping
+      function (the two copies already diverge) plus shared test fixtures, before
+      Epic 2 adds a fourth bridge."
+    owner: "dev"
+    status: done
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-11-make-roster-handling-tolerant-icon-and-d"
+    epic: 1
+    action: "Make roster handling tolerant: icon and description optional, reject
+      or order integer-like agent ids, drop only a bad entry with a named error instead
+      of the whole roster."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-12-decide-outputs-rail-scope-install-intern"
+    epic: 1
+    action: "Decide Outputs rail scope (install internals, config files, uniform 'saved
+      just now' at load), whether a config file listed as data satisfies the no-config-path
+      AC, and the faint-tier rail-group and chat-head-sub copy."
+    owner: "Sherif + UX"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-13-once-a-dom-environment-exists-test-the-n"
+    epic: 1
+    action: "Once a DOM environment exists, test the negative surface by behavior:
+      media-emulated reduced motion, real keydown on the shell, the application menu
+      read back from Electron."
+    owner: "dev"
+    status: in-progress
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-14-refresh-deferred-work-md-and-tracking-cl"
+    epic: 1
+    action: "Refresh deferred-work.md and tracking: close LiveRegion and stacked-ring
+      entries, correct the main-window normalisation premise, ingest ~18 frontmatter-only
+      deferred items, set epic-1 done, set the cleanup spec to done, reconcile three
+      mismatched story keys."
+    owner: "dev"
+    status: in-progress
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-15-process-a-story-whose-acceptance-needs-a"
+    epic: 1
+    action: "Process: a story whose acceptance needs a person does not move to done
+      without a recorded decision (accept commit or note)."
+    owner: "Sherif"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-1-retro-item-16-process-a-deferral-that-names-a-later-st"
+    epic: 1
+    action: "Process: a deferral that names a later story must add the item to that
+      story's ACs at the time, since those AC lists are frozen."
+    owner: "Sherif"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
+  - id: "epic-2-retro-item-17-before-epic-3-replace-any-main-thread-re"
+    epic: 2
+    action: "Before Epic 3: replace 'any main-thread result frees the session' with
+      a pending-turn model; add a bridge test that replays fast-path-opus.jsonl and
+      asserts session/busy and persona working until the true end of the turn; reject
+      text deltas with no open block and give empty message ids a unique id."
+    owner: "dev"
+    status: done
+    ref: "_bmad/implementation-artifacts/epic-2-retro-2026-10-02.md"
+  - id: "epic-2-retro-item-18-before-epic-3-give-every-non-orphan-sess"
+    epic: 2
+    action: "Before Epic 3: give every non-orphan session a way out of a wedged turn
+      (watchdog plus per-session stop or close), surface is_error results and process
+      exit as a visible harness line and persona error, keep queued messages on process
+      exit, fail the send on a dead-pipe write; decide whether the Epic 3 in-band
+      interrupt covers chat turns."
+    owner: "dev"
+    status: done
+    ref: "_bmad/implementation-artifacts/epic-2-retro-2026-10-02.md"
+  - id: "epic-2-retro-item-19-before-epic-3-transcript-load-separates"
+    epic: 2
+    action: "Before Epic 3: transcript load separates no-file from every other failure,
+      renames an unreadable, corrupt or unknown-version file aside before the first
+      write, validates entries individually; fix the realish root-parent slice; replace
+      the shape-bound clear() pin with a behavior test."
+    owner: "dev"
+    status: done
+    ref: "_bmad/implementation-artifacts/epic-2-retro-2026-10-02.md"
+  - id: "epic-2-retro-item-20-conversation-view-follow-the-newest-turn"
+    epic: 2
+    action: "Conversation view: follow the newest turn, take order and time of a queued
+      message from main's reply so live and reload agree, keep selection and composer
+      target across reload, mark a persona record cut off by session close, persist
+      the queue in main or announce the loss."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-2-retro-2026-10-02.md"
+  - id: "epic-2-retro-item-21-handoff-set-lastopened-before-the-await"
+    epic: 2
+    action: "Handoff: set lastOpened before the await, write a sysline only when the
+      from persona has spoken since its last open, record a path only after a non-error
+      tool_result, name Bash and memlog writes or state the limit, persist or derive
+      lastOpened."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-2-retro-2026-10-02.md"
+  - id: "epic-2-retro-item-22-validate-session-open-against-the-main-h"
+    epic: 2
+    action: "Validate session.open against the main-held roster, cap live sessions,
+      add CSP, will-navigate guard and setWindowOpenHandler to the main window (Epic
+      1 item 9)."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-2-retro-2026-10-02.md"
+  - id: "epic-2-retro-item-23-before-epic-3-extract-the-shared-bridge"
+    epic: 2
+    action: "Before Epic 3: extract the shared bridge skeleton (shared channels module,
+      one failure and unexpected mapping, diagnostics, one Sender), split session-bridge.ts
+      into registry, IPC handlers and handoff composer, align the four errno mappings,
+      correct the stale comment at src/main/index.ts:15-18."
+    owner: "dev"
+    status: done
+    ref: "_bmad/implementation-artifacts/epic-2-retro-2026-10-02.md"
+  - id: "epic-2-retro-item-24-rule-on-the-nfr6-raw-stream-json-log-bui"
+    epic: 2
+    action: "Rule on the NFR6 raw stream-json log (build it in Epic 3 and wire CONTRACT_VERSION
+      and corpus contractVersion, or amend NFR6 and AD-4), and decide whether the
+      queue is owned by main (AD-7, AD-18) or the renderer; amend spine or code to
+      match."
+    owner: "PM + architect"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-2-retro-2026-10-02.md"
+  - id: "epic-2-retro-item-25-run-the-story-2-4-voice-difference-check"
+    epic: 2
+    action: "Run the story 2.4 voice-difference check once against the real claude,
+      plus one session open and one chat-only-decision handoff with the product's
+      real argv (no bypassPermissions); record where stories 2.4 and 2.12 can cite
+      it."
+    owner: "Sherif + dev"
+    status: done
+    ref: "_bmad/implementation-artifacts/epic-2-retro-2026-10-02.md"
+  - id: "epic-2-retro-item-26-move-the-behavior-check-harness-stub-cla"
+    epic: 2
+    action: "Move the behavior-check harness (stub claude plus CDP driver) into the
+      repo as a script with a documented recipe, and add the unsolicited-result case."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-2-retro-2026-10-02.md"
+  - id: "epic-2-retro-item-27-rule-on-story-2-12-in-substance-only-for"
+    epic: 2
+    action: "Rule on story 2.12 (in substance, only for what was written down, or
+      only in appearance, and which scoring reading counts), record it in the spike
+      and set the story status to match; then route the stale planning lines (SPEC.md:62,
+      epics.md 111, 428, 1024, 1299, 1308, ARCHITECTURE-SPINE.md AD-7, EXPERIENCE.md
+      116 and 567) to the owning skills and choose which remedy to trial."
+    owner: "Sherif"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-2-retro-2026-10-02.md"
+  - id: "epic-2-retro-item-28-before-epic-3-finish-epic-1-item-6-fr83"
+    epic: 2
+    action: "Before Epic 3: finish Epic 1 item 6 (FR83 and epics.md:143, 212, 422,
+      440 still say SIGINT); add the orphan card and stop controls to an Epic 3 story
+      AC; reconcile the ACs of 2.5 (result premise), 2.7 (persisted: transcript only),
+      2.9 (sysline conditions) and FR6 status."
+    owner: "PM + architect"
+    status: done
+    ref: "_bmad/implementation-artifacts/epic-2-retro-2026-10-02.md"
+  - id: "epic-2-retro-item-29-tracking-move-the-25-epic-2-frontmatter"
+    epic: 2
+    action: "Tracking: move the ~25 Epic 2 frontmatter deferrals into deferred-work.md,
+      restore story ids to commit subjects, close spec-deferred-cleanup-lint-gate-window-guard-jsx-fonts.md,
+      set epic-2 to done, and do not set a story with followup_review_recommended
+      true to done without a recorded decision."
+    owner: "dev"
+    status: in-progress
+    ref: "_bmad/implementation-artifacts/epic-2-retro-2026-10-02.md"
+  - id: "epic-2-retro-item-30-test-debt-shared-test-support-agent-buil"
+    epic: 2
+    action: "Test debt: shared test support (agent builders, filesUnder, FakeSender),
+      split tests/negative-surface.test.ts by surface, extend the layering test to
+      every fold and shared file, convert source-regex negative-surface sweeps to
+      behavior, add one real-process test for spawnClaude and killGroup."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-2-retro-2026-10-02.md"
+  - id: "epic-2-retro-item-31-decide-whether-the-composer-stays-on-an"
+    epic: 2
+    action: "Decide: whether the composer stays on an orphaned persona and whether
+      switching away writes a sysline; keep the orphan close control mounted when
+      the last agent vanishes or preflight blocks; whether working-with-pulse and
+      'queued' before any turn runs are acceptable while a session opens; decision
+      block requires a question title, shows options once, never sends a leading slash."
+    owner: "Sherif + UX"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-2-retro-2026-10-02.md"
+  - id: "epic-2-retro-item-32-decide-how-persona-sessions-get-permission-to-run-uv-and-write"
+    epic: 2
+    action: "Decide how persona sessions get permission to run uv and write files.
+      Under the product's argv (no permission mode) every activation has its resolver
+      call denied and every Write is denied, so Epic 3 documents cannot be written.
+      Options not yet tried: acceptEdits, allowedTools, a permission prompt tool answered
+      by the harness, a project allow list, bypassPermissions. Changes SESSION_ARGS,
+      tests/session-contract.test.ts and AD-18. Before story 3.1. Decided 10-03-2026
+      (Sherif): --permission-prompt-tool stdio, main answers each can_use_tool request
+      from a fixed in-project policy (allow inside the project root and userData,
+      deny elsewhere); bypassPermissions rejected. Evidence in the spike. Built 10-03-2026
+      (spec-session-permission-policy.md), verified on a real claude in spike Finding
+      5; planning lines to amend are listed in deferred-work.md."
+    owner: "Sherif + architect"
+    status: done
+    ref: "_bmad/spikes/spike-product-argv-check.md"
+  - id: "epic-3-retro-item-33-make-stop-work-with-background-subagents"
+    epic: 3
+    action: "Make stop work with background subagents live (F1): gate the 'turn failed'
+      line and turn:failed on run.stopping, end a stopping run on any ended or failed-while-pending
+      result, give an acknowledged interrupt its own deadline that ends the run stopped,
+      add the missing test through background_tasks_changed, record one live in-band
+      interrupt with a subagent running and one on an idle session. Before the build
+      is used on a real skill."
+    owner: "dev"
+    status: done
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-34-one-live-judgement-of-epic-3-on-a-real-c"
+    epic: 3
+    action: "One live judgement of Epic 3 on a real claude: bmad-prd in a real window;
+      record in judgement-3-1-the-beat.md whether the beat lands, whether the tile
+      reads live after a long run, the pinned card on a short window, a stop with
+      subagents live, the 3.10 banner click after a delay (signed app if needed);
+      confirm the original 3.1 verdict."
+    owner: "Sherif"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-35-make-the-card-honest-for-runs-with-no-st"
+    epic: 3
+    action: "Make the card honest for runs with no streamed Write (F3): seed the buffer
+      at the first Edit via readText or fall back to the latest committed document;
+      never print '0 words on disk' or 'saved · 0 sections' unless true; decide copy
+      for a run that wrote nothing."
+    owner: "dev + UX"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-36-one-ordering-rule-for-the-head-section-n"
+    epic: 3
+    action: "One ordering rule for the head section number live, after reload and
+      at the end (F4): fix seed() and the terminal head; extend run-card-parity to
+      compare head words."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-37-annotation-lifetime-f5-reset-the-annotat"
+    epic: 3
+    action: "Annotation lifetime (F5): reset the annotator on endConversation, release
+      stopped holds when the card is gone or the persona's next run starts, test conversation
+      end with a run in flight."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-38-note-delivery-buffer-rollback-and-small"
+    epic: 3
+    action: "Note delivery, buffer rollback and small defects (F7, F8, F10): advance
+      memlog counts only on delivery, owner-check isMemlog, decide what two concurrent
+      runs show, restore docs[path] on a rejected Write, word-boundary pulledSections,
+      narrow the numbering strip, accept a final heading with no newline, harden memlog-tail,
+      cap the pinned foot height."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-39-fix-the-note-versus-live-gate-f6-base-th"
+    epic: 3
+    action: "Fix the note-versus-live gate (F6): base the grace on the watcher-observed
+      time of the run's last write and gate on who wrote the file; reproduce the single
+      observed 'file changed' after a finished run."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-40-accessibility-floor-f11-roving-tabindex"
+    epic: 3
+    action: "Accessibility floor (F11): roving tabindex on the skill row plus an AC
+      for it, restore focus when a terminal event removes the focused control, name
+      or un-focus finished card bodies, decide whether run notes and doc:committed
+      announce, stop the faint-tier foot being the sole carrier of facts."
+    owner: "dev + UX"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-41-persistence-hardening-f9-validate-each-s"
+    epic: 3
+    action: "Persistence hardening (F9): validate each stored document and note element
+      in isStoredRun, cap stored runs and drop text for terminal cards, record a decision
+      on two windows per project."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-42-spec-reconciliation-s1-s6-s9-proposed-no"
+    epic: 3
+    action: "Spec reconciliation (S1-S6, S9), proposed not applied: correct epic-3-context
+      ordering claim, apply the SCP AD-5 and EXPERIENCE amendments, choose AD-12 trigger
+      vs 3.6 sentence, reword the epic intro cost-on-control line and 3.7 title, stop-notification
+      wording, 3.8 persona-voice AC, write the stopEnded copy."
+    owner: "PM + architect + UX"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-43-test-debt-story-f12-epic-2-item-30-share"
+    epic: 3
+    action: "Test-debt story (F12, Epic 2 item 30): shared run-event builders and
+      replay driver, split negative-surface.test.ts, convert caret/badge/toast/sound/focus/live-region
+      sweeps to behavior, extend the 3.11 audit (jump to card, App-level stopped and
+      contended run, hydrated dead card, session-voice), add rail-annotations and
+      stored-runs to the fold-purity list and a cycle check. Before Epic 4."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-44-consolidate-the-triple-per-path-document"
+    epic: 3
+    action: "Consolidate the triple per-path document fold and repeated helpers (one
+      isTerminal, one nameKey dedupe, delete or use sectionAt, merge SUBTYPE and the
+      run/session-ended literal). Deferred; do with the section-ordering fix."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-45-move-the-behavior-check-harness-stub-cla"
+    epic: 3
+    action: "Move the behavior-check harness (stub claude, CDP drivers, RECIPE) from
+      the scratchpad behavior directory into scripts/ with a documented recipe; add
+      background-tasks-live and no-streamed-Write scenarios."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-46-settle-the-notification-retention-questi"
+    epic: 3
+    action: "Settle the notification-retention question (F13): after the manual banner-click
+      check, if a collected Notification drops its click, amend the negative-surface
+      guard to allow a retained set released on click or close."
+    owner: "dev + Sherif"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-47-process-a-story-with-followup_review_rec"
+    epic: 3
+    action: "Process: a story with followup_review_recommended true or an AC needing
+      a live run or a person does not go to done without a recorded decision; a story
+      that must precede another is blocked in sprint-status, not only ordered in prose;
+      a deferral of a headline control's failure mode goes into deferred-work.md at
+      the time."
+    owner: "Sherif"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-3-retro-item-48-build-story-3-15-the-work-that-carries-o"
+    epic: 3
+    action: "Build story 3.15, the work that carries on after a stop has a card (epics.md,
+      Epic 3): start a run for a turn nobody sent after a user stop, carrying the
+      stopped run code and plan; no automatic second interrupt; replace the replay
+      in session-stop.test.ts that pins the resumed turns as no run; extend the 3.11
+      audit to the continuation card. Evidence: fixtures/runs/interrupt-inband-tasks-live-mid-write.jsonl,
+      deferred-work.md. Before Epic 4."
+    owner: "dev"
+    status: done
+    ref: "_bmad/implementation-artifacts/epic-3-retro-2026-10-06.md"
+  - id: "epic-4-retro-item-49-keep-the-room-across-a-reload-f1-put-the"
+    epic: 4
+    action: "Keep the room across a reload (F1): put the live room (session id, cast,
+      opened-at, first message) in the conversation snapshot so the renderer rehydrates
+      header, strip, composer and stop; Open the room against a live room never replaces
+      the cast or resets counters; add a test that hydrates a snapshot while main
+      holds a live room."
+    owner: "dev"
+    status: done
+    ref: "_bmad/implementation-artifacts/epic-4-retro-2026-10-08.md"
+  - id: "epic-4-retro-item-50-make-a-refused-room-send-honest-f2-on-se"
+    epic: 4
+    action: "Make a refused room send honest (F2): on session/busy show a failure
+      line or drop the entry and offer retry; set the topic only after delivery; stop
+      room during an in-flight send shows no failure; replace the two tests that pin
+      the silent behavior."
+    owner: "dev"
+    status: done
+    ref: "_bmad/implementation-artifacts/epic-4-retro-2026-10-08.md"
+  - id: "epic-4-retro-item-51-decide-and-fix-what-the-room-shows-when"
+    epic: 4
+    action: "Decide and fix what the room shows when text is unmarked (F3): continuation
+      after a tool call keeps the speaker; orchestrator welcome, questions and tails
+      get an explicit rule; marker accept requires icon or cast membership and refuses
+      list and quote prefixes; guest outside the cast; the room's reply to the summary
+      ask is shown; replace route-frame tests that specify the drops."
+    owner: "Sherif + architect + dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-4-retro-2026-10-08.md"
+  - id: "epic-4-retro-item-52-run-the-room-once-through-the-product-ag"
+    epic: 4
+    action: "Run the room once through the product against a real claude and record
+      it (P3): default cast and a subset, greeting, interrupt, summary ask and reply,
+      stop, reload; record with scripts/record-run.mjs into fixtures/runs and add
+      a replay test; note party_mode in effect. Use the private real session in the
+      Claude logs only if Sherif says so. Before the room is used on real work."
+    owner: "Sherif + dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-4-retro-2026-10-08.md"
+  - id: "epic-4-retro-item-53-make-the-room-panel-say-what-the-room-re"
+    epic: 4
+    action: "Make the Room panel say what the room read and keep the destination visible
+      (F6): scope or cap the context list, destination shows without scrolling, decide
+      destination at 1180px and below."
+    owner: "dev + UX"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-4-retro-2026-10-08.md"
+  - id: "epic-4-retro-item-54-room-thread-and-room-lines-f5-f7-a5-boun"
+    epic: 4
+    action: "Room thread and room lines (F5, F7, A5): boundary or per-room scoping
+      for earlier rooms' entries; route quiet, failed and exited lines through room-register
+      lines with no guidance copy; make the 4.6 audit enumerate lines that reach the
+      party thread by rendering and drive sysline assertions from LINES; add route-frame
+      attribution to the persona-entry makers sweep."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-4-retro-2026-10-08.md"
+  - id: "epic-4-retro-item-55-settle-what-stop-room-and-write-summary"
+    epic: 4
+    action: "Settle what stop room and Write summary mean (F4, F8): kill only, or
+      an interrupt-only control plus wrap-up (FR84); guard Write summary against double
+      press and mid-turn; summary ask wording and whether it shows as the user's turn;
+      slug rules for long and non-ASCII topics; feedback that the file landed."
+    owner: "Sherif + architect + UX"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-4-retro-2026-10-08.md"
+  - id: "epic-4-retro-item-56-epic-4-structural-debt-a2-a3-p5-together"
+    epic: 4
+    action: "Epic 4 structural debt (A2, A3, P5), together with Epic 3 items 43 and
+      44 and Epic 2 item 30: split createConversation (366 lines) into persona-open,
+      room-open and send pipelines; one elapsed ticker; one unknown-agent stub; a
+      room entry type or discriminated field instead of eight optional room flags;
+      party-speech in the fold-purity list; src/main root in a layering net; split
+      negative-surface.test.ts."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-4-retro-2026-10-08.md"
+  - id: "epic-4-retro-item-57-spec-reconciliation-s4-f9-f10-proposed-n"
+    epic: 4
+    action: "Spec reconciliation (S4, F9, F10), proposed not applied: AD-14 288px/940px
+      to 240/900, AD-3 session.open union, spine line 226, EXPERIENCE.md 549 and 170,
+      FR69 context/turn counter/who opened it, epics.md 4.1 AC wording, FR84 for a
+      room, DESIGN.md 501 vs epic-4-context on wrap or scroll, UX-DR21 present-listening
+      vs in the room, @name semantics (EXPERIENCE.md 163)."
+    owner: "PM + architect + UX"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-4-retro-2026-10-08.md"
+  - id: "epic-4-retro-item-58-process-p1-p2-a-story-with-followup_revi"
+    epic: 4
+    action: "Process (P1, P2): a story with followup_review_recommended true or an
+      AC needing a live run does not go to done without a recorded decision; put each
+      Epic 4 residual risk (reload, old-room lines, real-skill premise, @name, destination
+      at narrow widths) into deferred-work.md now; set epic-4 to done in sprint status
+      after the verdict decision."
+    owner: "Sherif"
+    status: done
+    ref: "_bmad/implementation-artifacts/epic-4-retro-2026-10-08.md"
+  - id: "epic-4-retro-item-59-low-severity-bundle-f10-f11-f12-capitali"
+    epic: 4
+    action: "Low-severity bundle (F10, F11, F12): capitalised sans harness words and
+      the Placeholder copy line; equaliser bar count; strip cards and user avatars
+      as tab stops and announce room opened and stopped in the one live region; strip
+      newlines and parentheses from roster names in the first turn and remove the
+      activationTurn empty fallback; flush a held fragment as no one after an interrupt;
+      one clock for user-entry order."
+    owner: "dev + UX"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-4-retro-2026-10-08.md"

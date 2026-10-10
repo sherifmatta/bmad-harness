@@ -941,7 +941,7 @@ describe("the handoff says only what is true and parses no skill (Story 2.9)", (
     // Thirteen before Story 2.11, whose one new method is closeSession, Story 3.1's
     // dispatchMenu, Story 3.7's stopRun, Story 3.10's onRunRevealed and Story 5.4's chooseOutputFolder;
     // none is the handoff's. Story 5.5 added the layout's three: getLayout, setPanelWidth and setFolded.
-    expect([...preload.matchAll(/^ {2}([a-zA-Z]+): (?:async )?\(/gm)]).toHaveLength(22);
+    expect([...preload.matchAll(/^ {2}([a-zA-Z]+): (?:async )?\(/gm)]).toHaveLength(24);
     expect(code.get("src/shared/commands.ts") ?? "").not.toMatch(/handoff|sysline/i);
     expect(code.get("src/shared/events.ts") ?? "").not.toMatch(/handoff|sysline/i);
   });
@@ -2124,7 +2124,7 @@ describe("two writers, one file: the rail reports it and nothing arbitrates (Sto
     expect(offenders([OWNER_LABEL], /§|\bof\b|\btotal\b|\bcount\b/)).toEqual([]);
   });
 
-  it("adds no command, event, channel or bridge method: the counts stay eight, sixteen, thirty-four and twenty-two", () => {
+  it("adds no command, event, channel or bridge method: the counts stay eight, seventeen, thirty-six and twenty-four", () => {
     const commands = [...(code.get(COMMANDS) ?? "").matchAll(/^\s+'([a-z]+\.[a-z]+)':\s*CommandSpec/gm)].map(([, name]) => name);
     const events = [...(code.get(EVENTS) ?? "").matchAll(/^\s+'([a-z]+:[a-z-]+)':\s*EventSpec/gm)].map(([, name]) => name);
     const channels = [...(code.get(CHANNELS) ?? "").matchAll(/^export const (\w+) = '/gm)].map(([, name]) => name);
@@ -2140,10 +2140,11 @@ describe("two writers, one file: the rail reports it and nothing arbitrates (Sto
     // output folder's one channel (thirty) and the one method that asks for its chooser (eighteen);
     // Story 5.5 added the layout's three channels (thirty-three) and its three methods (twenty-one);
     // Story 3.19 added `turn.stop` (eight commands), its channel (thirty-four) and `stopTurn` (twenty-two).
+    // Story 6.2 added `board:changed` (seventeen events), the Board's two channels (thirty-six) and its two methods (twenty-four).
     expect(commands).toHaveLength(8);
-    expect(events).toHaveLength(16);
-    expect(channels).toHaveLength(34);
-    expect(methods).toHaveLength(22);
+    expect(events).toHaveLength(17);
+    expect(channels).toHaveLength(36);
+    expect(methods).toHaveLength(24);
     // And none of them is named for it.
     expect(offenders(CONTRACT, /contend|contention|\bowners\b|arbitrat/i)).toEqual([]);
     expect(offenders(MAIN_CODE, /ipcMain\.handle\(\s*["'`][^"'`]*(?:contend|contention|owners|arbitrat)/i)).toEqual([]);
@@ -2377,7 +2378,7 @@ describe("told once, quietly, when you are elsewhere: one silent banner, one scr
     expect(revealing).not.toMatch(/setCurrentId|setComposerFocus|openDoc|activate\(|send\(|runSkill|stopRun|close\(/);
   });
 
-  it("gives the preload and the shared contract no word of it, and no new command or event: eight, sixteen, thirty-four channels, twenty-two methods", () => {
+  it("gives the preload and the shared contract no word of it, and no new command or event: eight, seventeen, thirty-six channels, twenty-four methods", () => {
     expect(
       offenders(
         [...sources("src/preload/"), ...sources("src/shared/")],
@@ -2392,10 +2393,10 @@ describe("told once, quietly, when you are elsewhere: one silent banner, one scr
       ([, name]) => name,
     );
     expect(commands).toHaveLength(8);
-    expect(events).toHaveLength(16);
-    expect(channels).toHaveLength(34);
+    expect(events).toHaveLength(17);
+    expect(channels).toHaveLength(36);
     expect(channels).toContain("RUN_REVEALED_CHANNEL");
-    expect(methods).toHaveLength(22);
+    expect(methods).toHaveLength(24);
     expect(methods).toContain("onRunRevealed");
     // The channel is a push to a window and nothing answers on it: no handler, no invoke.
     expect(offenders(MAIN_CODE, /ipcMain\.handle\(\s*RUN_REVEALED_CHANNEL/)).toEqual([]);
@@ -2545,13 +2546,13 @@ describe("nothing this epic promised not to do: the audit's static half (Story 3
     expect((code.get(ROW) ?? "").match(/<button\b/g)).toHaveLength(1);
   });
 
-  it("holds the contract at eight commands, sixteen events, thirty-four channels and twenty-two bridge methods", () => {
+  it("holds the contract at eight commands, seventeen events, thirty-six channels and twenty-four bridge methods", () => {
     const commands = [...(code.get(COMMANDS) ?? "").matchAll(/^\s+'([a-z]+\.[a-z]+)':\s*CommandSpec/gm)];
     const events = [...(code.get(EVENTS) ?? "").matchAll(/^\s+'([a-z]+:[a-z-]+)':\s*EventSpec/gm)];
     const channels = [...(code.get(CHANNELS) ?? "").matchAll(/^export const (\w+) = '/gm)];
     const preload = code.get(PRELOAD) ?? "";
     const methods = [...preload.slice(preload.indexOf("const harness: HarnessApi = {"), preload.indexOf("contextBridge.exposeInMainWorld")).matchAll(/^ {2}(\w+):/gm)];
-    expect([commands.length, events.length, channels.length, methods.length]).toEqual([8, 16, 34, 22]);
+    expect([commands.length, events.length, channels.length, methods.length]).toEqual([8, 17, 36, 24]);
   });
 
   it("says what carried on after a stop in lower case, `·`-separated, unpunctuated, and offers nothing: no resume, continue, retry or guidance word", () => {
@@ -2777,13 +2778,13 @@ describe("nothing this epic promised not to do: the audit's static half (Story 4
     expect(offenders(PARTY_CSS, /spinner|skeleton|shimmer|loader|badge|@keyframes\s+(?!eq\b)/i)).toEqual([]);
   });
 
-  it("holds the contract at eight commands, sixteen events, thirty-four channels and twenty-two bridge methods", () => {
+  it("holds the contract at eight commands, seventeen events, thirty-six channels and twenty-four bridge methods", () => {
     const commands = [...(code.get(COMMANDS) ?? "").matchAll(/^\s+'([a-z]+\.[a-z]+)':\s*CommandSpec/gm)];
     const events = [...(code.get(EVENTS) ?? "").matchAll(/^\s+'([a-z]+:[a-z-]+)':\s*EventSpec/gm)];
     const channels = [...(code.get(CHANNELS) ?? "").matchAll(/^export const (\w+) = '/gm)];
     const preload = code.get(PRELOAD) ?? "";
     const methods = [...preload.slice(preload.indexOf("const harness: HarnessApi = {"), preload.indexOf("contextBridge.exposeInMainWorld")).matchAll(/^ {2}(\w+):/gm)];
-    expect([commands.length, events.length, channels.length, methods.length]).toEqual([8, 16, 34, 22]);
+    expect([commands.length, events.length, channels.length, methods.length]).toEqual([8, 17, 36, 24]);
   });
 
   it("says a refused message once, as a fact, in the window's own register, and never sends, queues or retries it (Story 4.8)", () => {

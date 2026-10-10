@@ -34,6 +34,11 @@ const registerRailBridge = vi.hoisted(() =>
   vi.fn<(deps: { observeArtifact?: (...args: unknown[]) => void; outputFolder?: unknown }) => void>()
 )
 vi.mock('./rail-bridge', () => ({ registerRailBridge }))
+// The Board's one reading (Story 6.2) is `board-bridge.test.ts`'s; here only what the root hands it and what it forwards.
+const registerBoardBridge = vi.hoisted(() =>
+  vi.fn<(deps: { outputFolder?: unknown }) => { observeArtifact: () => void }>(() => ({ observeArtifact: vi.fn() }))
+)
+vi.mock('./board-bridge', () => ({ registerBoardBridge }))
 // The output folders (Story 5.4): the rail watches what they say, and the menu's File chooses through them.
 const outputFolders = vi.hoisted(() => ({
   handleFor: vi.fn(),
@@ -99,6 +104,8 @@ const notifierCalls = [...createRunNotifier.mock.calls]
 const sessionBridge = registerSessionBridge.mock.results[0]?.value as { observeArtifact: ReturnType<typeof vi.fn> }
 const railDeps = [...registerRailBridge.mock.calls]
 const folderDeps = [...registerOutputFolderBridge.mock.calls]
+const boardDeps = [...registerBoardBridge.mock.calls]
+const boardBridge = registerBoardBridge.mock.results[0]?.value as { observeArtifact: ReturnType<typeof vi.fn> }
 const registrationOrder = {
   folders: registerOutputFolderBridge.mock.invocationCallOrder[0],
   rail: registerRailBridge.mock.invocationCallOrder[0]
@@ -182,6 +189,19 @@ it('hands the rail bridge an observer that forwards what the watcher saw to the 
 
   expect(sessionBridge.observeArtifact).toHaveBeenCalledTimes(1)
   expect(sessionBridge.observeArtifact).toHaveBeenCalledWith(sender, '/project', observation)
+})
+
+it('registers the Board once, over each window’s output folder, and forwards what the rail watcher saw to it (Story 6.2)', () => {
+  const observeArtifact = railDeps[0]?.[0].observeArtifact
+  const sender = { id: 7 }
+  const observation = { type: 'artifact:written', path: '_bmad/implementation-artifacts/sprint-status.yaml', size: 1, mtimeMs: 2 }
+
+  expect(boardDeps).toHaveLength(1)
+  expect(boardDeps[0][0].outputFolder).toBe(outputFolders.handleFor)
+  observeArtifact?.(sender, '/project', observation)
+
+  expect(boardBridge.observeArtifact).toHaveBeenCalledTimes(1)
+  expect(boardBridge.observeArtifact).toHaveBeenCalledWith(sender, '/project', observation)
 })
 
 it('registers the output folders once, over userData, and hands the rail bridge the way to each window’s folder (Story 5.4)', () => {

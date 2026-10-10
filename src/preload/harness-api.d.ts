@@ -1,3 +1,4 @@
+import type { BoardSnapshot } from '../shared/board'
 import type { SessionTarget } from '../shared/commands'
 import type { ConversationSnapshot, OpenedSession } from '../shared/conversation'
 import type { ContractEvent } from '../shared/events'
@@ -8,7 +9,7 @@ import type { ChooseOutcome } from '../shared/output-folder'
 import type { RailSnapshot } from '../shared/rail'
 
 /**
- * The whole bridge surface. Explicitly enumerated: twenty-one named methods, no
+ * The whole bridge surface. Explicitly enumerated: twenty-four named methods, no
  * generic `invoke(channel, …)` passthrough, and no `ipcRenderer` in the
  * renderer's reach.
  */
@@ -27,6 +28,10 @@ export interface HarnessApi {
   getRail(): Promise<RailSnapshot>
   /** Calls back with each pushed rail snapshot; returns the way to stop listening. */
   onRailChanged(listener: (snapshot: RailSnapshot) => void): () => void
+  /** Resolves the current Board snapshot; rejects with the `HarnessError` envelope. */
+  getBoard(): Promise<BoardSnapshot>
+  /** Calls back with each pushed Board snapshot; returns the way to stop listening. */
+  onBoardChanged(listener: (snapshot: BoardSnapshot) => void): () => void
   /**
    * Ask main to open the read-only document window for a rail row's
    * project-relative path (FR55). A command, not a read: it resolves when main

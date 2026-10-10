@@ -88,6 +88,7 @@ const main = await import('../src/main/index')
 const installBridge = await import('../src/main/install-bridge')
 const projectBridge = await import('../src/main/project-bridge')
 const railBridge = await import('../src/main/rail-bridge')
+const boardBridge = await import('../src/main/board-bridge')
 const docBridge = await import('../src/main/doc-bridge')
 const outputFolderBridge = await import('../src/main/output-folder-bridge')
 const layoutBridge = await import('../src/main/layout-bridge')
@@ -122,6 +123,16 @@ it('answers the rail channels on the same literals from both sides', () => {
   expect(preload.RAIL_GET_CHANNEL).toBe('rail:get')
   expect(preload.RAIL_CHANGED_CHANNEL).toBe('rail:changed')
   expect(registeredHandlers.has(railBridge.RAIL_GET_CHANNEL)).toBe(true)
+})
+
+it('answers the Board’s two channels on the same literals from both sides (Story 6.2)', () => {
+  expect(preload.BOARD_GET_CHANNEL).toBe(boardBridge.BOARD_GET_CHANNEL)
+  expect(preload.BOARD_CHANGED_CHANNEL).toBe(boardBridge.BOARD_CHANGED_CHANNEL)
+  expect(preload.BOARD_GET_CHANNEL).toBe('board:get')
+  expect(preload.BOARD_CHANGED_CHANNEL).toBe('board:changed')
+  expect(registeredHandlers.has(boardBridge.BOARD_GET_CHANNEL)).toBe(true)
+  // The change is a push to a window: nothing answers on it.
+  expect(registeredHandlers.has(boardBridge.BOARD_CHANGED_CHANNEL)).toBe(false)
 })
 
 it('answers the output folder’s one channel on the same literal from both sides', () => {
@@ -246,7 +257,7 @@ it('paints each of the three windows from main’s state as its preload loads, a
   }
 })
 
-it('exposes exactly twenty-two named methods, and no channel passthrough', () => {
+it('exposes exactly twenty-four named methods, and no channel passthrough', () => {
   const harness = exposedApis.get('harness')
 
   expect(harness).toBeDefined()
@@ -257,6 +268,8 @@ it('exposes exactly twenty-two named methods, and no channel passthrough', () =>
     'getBranch',
     'getRail',
     'onRailChanged',
+    'getBoard',
+    'onBoardChanged',
     'openDoc',
     'chooseOutputFolder',
     'getLayout',
@@ -320,7 +333,7 @@ it('exposes the Welcome exactly seven named methods, four of them its own and th
     }
   }
   // The counts of the other two are untouched by the Welcome's arrival.
-  expect(Object.keys(exposedApis.get('harness') ?? {})).toHaveLength(22)
+  expect(Object.keys(exposedApis.get('harness') ?? {})).toHaveLength(24)
   expect(Object.keys(exposedApis.get('docWindow') ?? {})).toHaveLength(5)
 })
 
@@ -412,6 +425,38 @@ it('hands a subscriber the snapshot and never the event, and unsubscribes that v
   unsubscribe()
   expect(removed).toEqual([[installBridge.INSTALL_CHANGED_CHANNEL, added[0]]])
   expect(listeners.get(installBridge.INSTALL_CHANGED_CHANNEL)?.size).toBe(0)
+})
+
+it('turns a refused board:get into a rejection carrying the envelope, and resolves the snapshot itself otherwise', async () => {
+  const error = { code: 'board/no-project', message: 'board · no project is open for this window' }
+  const getBoard = exposedApis.get('harness')?.getBoard as () => Promise<unknown>
+
+  invoke.mockResolvedValue({ ok: false, error })
+  await expect(getBoard()).rejects.toEqual(error)
+  expect(invoke).toHaveBeenCalledWith(boardBridge.BOARD_GET_CHANNEL)
+
+  const snapshot = { revision: 1, kind: 'none', code: 'board/absent', message: 'board · no sprint status' }
+  invoke.mockResolvedValue({ ok: true, snapshot })
+  await expect(getBoard()).resolves.toEqual(snapshot)
+})
+
+it('hands a Board subscriber the snapshot and never the event, and unsubscribes that very listener', () => {
+  const onBoardChanged = exposedApis.get('harness')?.onBoardChanged as (
+    listener: (snapshot: unknown) => void
+  ) => () => void
+  const received: unknown[] = []
+
+  const unsubscribe = onBoardChanged((snapshot) => received.push(snapshot))
+  const added = [...(listeners.get(boardBridge.BOARD_CHANGED_CHANNEL) ?? [])]
+  expect(added).toHaveLength(1)
+
+  const snapshot = { revision: 2, kind: 'read', epics: [], others: [] }
+  ;(added[0] as (event: unknown, snapshot: unknown) => void)({ sender: 'raw event' }, snapshot)
+  expect(received).toEqual([snapshot])
+
+  unsubscribe()
+  expect(removed.at(-1)).toEqual([boardBridge.BOARD_CHANGED_CHANNEL, added[0]])
+  expect(listeners.get(boardBridge.BOARD_CHANGED_CHANNEL)?.size).toBe(0)
 })
 
 it('turns a refused rail:get into a rejection carrying the envelope', async () => {

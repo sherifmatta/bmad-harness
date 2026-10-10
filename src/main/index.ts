@@ -1,6 +1,7 @@
 import { BrowserWindow, app, ipcMain } from 'electron'
 import { PROJECT_PATH_CHANNEL } from '../shared/channels'
 import { defaultWriteDiagnostic } from './bridge-kit'
+import { registerBoardBridge } from './board-bridge'
 import { registerDocBridge } from './doc-bridge'
 import { registerInstallBridge } from './install-bridge'
 import { registerLayoutBridge } from './layout-bridge'
@@ -125,12 +126,16 @@ const sessions = registerSessionBridge({
 const outputFolders = registerOutputFolderBridge({ userDataPath: () => app.getPath('userData') })
 // The two panel widths and the folded Outputs directories (Story 5.5): the user's own layout, under `userData`.
 registerLayoutBridge({ userDataPath: () => app.getPath('userData') })
+// The Board's one reading of the project's `sprint-status.yaml` (Story 6.2), under the same output folder.
+const board = registerBoardBridge({ outputFolder: outputFolders.handleFor })
 // The rail's watcher is the one that sees a memlog change; the session side
-// reads it for the notes of the run in flight.
+// reads it for the notes of the run in flight, and the Board learns of a write to its two files.
 registerRailBridge({
   outputFolder: outputFolders.handleFor,
-  observeArtifact: (sender, projectRoot, observation) =>
+  observeArtifact: (sender, projectRoot, observation) => {
     void sessions.observeArtifact(sender, projectRoot, observation)
+    board.observeArtifact(sender, projectRoot, observation)
+  }
 })
 registerDocBridge()
 // The recent list is the app's own bookkeeping under `userData`, read on first use.

@@ -31,15 +31,17 @@ const shipping = filesUnder(SRC).filter(
 describe('the channels', () => {
   const literals = Object.values(channels)
 
-  it('are thirty-four, and distinct', () => {
-    expect(literals).toHaveLength(34)
-    expect(new Set(literals).size).toBe(34)
+  it('are thirty-six, and distinct', () => {
+    expect(literals).toHaveLength(36)
+    expect(new Set(literals).size).toBe(36)
   })
 
   // `rail:changed` is also the name of the event the rail projection raises,
-  // which the persona states fold; that is an event name and not a channel.
+  // which the persona states fold; that is an event name and not a channel. So is
+  // `board:changed`, declared with the events.
   const ALSO_AN_EVENT: Record<string, string[]> = {
-    'rail:changed': ['src/main/fold/persona-state.ts', 'src/main/rail-bridge.ts', 'src/shared/events.ts']
+    'rail:changed': ['src/main/fold/persona-state.ts', 'src/main/rail-bridge.ts', 'src/shared/events.ts'],
+    'board:changed': ['src/shared/events.ts']
   }
 
   it.each(literals)('spell %s once in src outside tests', (literal) => {

@@ -18,6 +18,10 @@ export const INSTALL_CHANGED_CHANNEL = 'install:changed'
 export const RAIL_GET_CHANNEL = 'rail:get'
 export const RAIL_CHANGED_CHANNEL = 'rail:changed'
 
+/** The Board's two (Story 6.2): the read a window makes on connecting, and the snapshot main pushes once per revision. */
+export const BOARD_GET_CHANNEL = 'board:get'
+export const BOARD_CHANGED_CHANNEL = 'board:changed'
+
 /** The shell's two document channels, then the document window's five. */
 export const DOC_OPEN_CHANNEL = 'doc:open'
 export const DOC_CLOSED_CHANNEL = 'doc:closed'

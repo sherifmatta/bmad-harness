@@ -1,3 +1,4 @@
+import type { BoardSnapshot } from './board'
 import type { HarnessError } from './install'
 import type { RailSnapshot } from './rail'
 import type { AgentId, CallId, EpochMs, MessageId, RunId, SessionId } from './ids'
@@ -209,7 +210,7 @@ export type RunFailed = {
   at: EpochMs
 }
 
-/** The sixteen events out, by name. */
+/** The seventeen events out, by name. */
 export type ContractEvents = {
   'session:opened': EventSpec<'main', 'once per session', SessionOpened>
   'session:awaiting-turn': EventSpec<
@@ -239,6 +240,7 @@ export type ContractEvents = {
   'run:stopped': EventSpec<'main', 'exactly one terminal run event per run, one of finished, stopped or failed', RunStopped>
   'run:failed': EventSpec<'main', 'exactly one terminal run event per run, one of finished, stopped or failed', RunFailed>
   'rail:changed': EventSpec<'main', 'once per rail revision', RailSnapshot>
+  'board:changed': EventSpec<'main', 'once per board revision', BoardSnapshot>
 }
 
 /** Any event's name. */
