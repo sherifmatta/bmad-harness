@@ -93,6 +93,12 @@
 
 .welcome-column {
   width: var(--welcome-fill);
+  max-width: var(--welcome-team-max);
+}
+
+/* The head, the action and the recent rows hold the narrow measure, but the column that holds them is as wide as the
+   team band beneath it, so the two share one left edge instead of three (design audit, 2026-10-10). */
+.welcome-column > * {
   max-width: var(--welcome-col);
 }
 
@@ -320,6 +326,16 @@
   gap: var(--space-lg);
 }
 
+.welcome-lane {
+  display: flex;
+  flex-direction: column;
+}
+
+/* The cards fill the lane, so the lanes' cards share one height and one bottom edge. */
+.welcome-lane > .welcome-cards {
+  flex: 1;
+}
+
 .welcome-lane-head {
   display: flex;
   align-items: center;
@@ -403,7 +419,7 @@
   align-items: baseline;
   gap: var(--space-sm);
   font-family: var(--mono);
-  font-size: var(--fs-meta);
+  font-size: var(--fs-ident);
   color: var(--dim);
 }
 
@@ -420,7 +436,7 @@
   background: transparent;
   border: 0;
   font-family: var(--mono);
-  font-size: var(--fs-meta);
+  font-size: var(--fs-ident);
   color: var(--accent);
   cursor: pointer;
 }
@@ -429,11 +445,14 @@
   text-decoration: underline;
 }
 
-/* The current word is the state, not a link: strong text, no pointer, no underline. */
+/* The current word is the state, not a link: strong text, no pointer. It is underlined to say so, where a
+   link's underline waits for hover, so the choice reads at a glance and not by weight alone (audit, 2026-10-10). */
 .welcome-theme-word[aria-pressed='true'] {
   color: var(--text-strong);
+  font-weight: var(--weight-strong);
   cursor: default;
-  text-decoration: none;
+  text-decoration-line: underline;
+  text-underline-offset: var(--space-xxs);
 }
 
 /* The second breakpoint only: the lanes stack to one column and the window scrolls. */

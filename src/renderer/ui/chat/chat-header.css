@@ -82,6 +82,14 @@
   color: var(--status-pill-ink);
 }
 
+/* Amber says a persona is working. The mockup paints the pill amber whatever the state, which
+   made `idle` read as a warning beside a neutral dot; any state but `work` takes the neutral pill. */
+.chat-head-state .state-line:not(.state-line--work) {
+  border-color: var(--line);
+  background: transparent;
+  color: var(--dim);
+}
+
 .chat-close {
   flex: 0 0 auto;
   padding: var(--ghost-padding);

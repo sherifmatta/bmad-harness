@@ -33,10 +33,15 @@ describe('ChatHeader', () => {
   })
 
   it('shows the state as one dot and one word, on the right', () => {
-    expect(count(markup, /class="state-line"/g)).toBe(1)
+    expect(count(markup, /class="state-line state-line--idle"/g)).toBe(1)
     expect(count(markup, /class="status-dot /g)).toBe(1)
     expect(markup).toContain('<span class="state-text">idle</span>')
     expect(markup.indexOf('chat-head-state')).toBeGreaterThan(markup.indexOf('chat-head-title'))
+  })
+
+  it('tags the state line with its state, so the pill can be amber for work alone', () => {
+    expect(markup).toContain('state-line state-line--idle')
+    expect(renderToStaticMarkup(<ChatHeader agent={AGENT} state="work" />)).toContain('state-line state-line--work')
   })
 
   it('follows the state it is given', () => {

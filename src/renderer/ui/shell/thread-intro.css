@@ -1,0 +1,85 @@
+/*
+ * The thread's introduction — what an empty thread says before the first message.
+ * Not a turn and not a control: no `.turn` container, no ground, no motion, no
+ * hover and no focus rule. It sits in the thread column, under the thread's own
+ * padding, left-aligned so it reads as the start of the conversation that follows
+ * it. Every value reaches the design system through `var()`.
+ */
+
+.thread-intro {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  max-width: var(--chat-sub-max);
+  padding: var(--space-xxl) 0;
+}
+
+.thread-intro > .portrait {
+  margin-bottom: var(--space-sm);
+}
+
+.thread-intro-name {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: var(--fs-head);
+  font-weight: var(--weight-strong);
+  color: var(--text-strong);
+}
+
+.thread-intro-title {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: var(--fs-body-ui);
+  color: var(--dim);
+}
+
+.thread-intro-about {
+  margin: var(--space-md) 0 0;
+  font-family: var(--sans);
+  font-size: var(--fs-base);
+  line-height: var(--lh-read);
+  color: var(--text);
+}
+
+.thread-intro-label {
+  margin: var(--space-xxl) 0 0;
+  font-family: var(--mono);
+  font-size: var(--fs-meta);
+  letter-spacing: var(--track-skill-label);
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.thread-intro-skills {
+  margin: var(--space-sm) 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.thread-intro-skill {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-md);
+  font-family: var(--sans);
+  font-size: var(--fs-body-ui);
+  color: var(--text);
+}
+
+.thread-intro-code {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  letter-spacing: var(--track-micro);
+  color: var(--accent);
+}
+
+.thread-intro-hint {
+  margin: var(--space-xxl) 0 0;
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  color: var(--dim);
+}

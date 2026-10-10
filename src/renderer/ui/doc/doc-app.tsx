@@ -101,7 +101,9 @@ export function DocApp(): JSX.Element {
   const previous = useRef<DocState | null>(null)
 
   useEffect(() => {
-    region.current?.focus()
+    // Focus lands here so the arrow keys and Page Down scroll the document, but a ring on a region
+    // nobody tabbed to reads as a stray frame: `focusVisible: false` takes focus without drawing one.
+    region.current?.focus({ focusVisible: false })
   }, [])
 
   useEffect(() => {

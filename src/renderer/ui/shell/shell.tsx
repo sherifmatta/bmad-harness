@@ -20,6 +20,7 @@ import { stateOf } from '../status/persona-state'
 import { Team } from '../team/team'
 import { TeamStrip } from '../team/team-strip'
 import { currentAgent, displayOrder, groupAgents } from '../team/tile-groups'
+import { ThreadIntro } from './thread-intro'
 import { Topbar } from './topbar'
 import { useBoardChord } from './use-board-chord'
 import { useBranch } from './use-branch'
@@ -123,6 +124,7 @@ export function Shell({
   sends = 0,
   pinned,
   party,
+  threadEmpty = false,
   children
 }: {
   projectPath: string
@@ -184,6 +186,8 @@ export function Shell({
   pinned?: (agent: AgentView) => ReactNode
   /** What the Party view holds (Story 4.1): the cast chooser and the party thread. Left out, the view is empty. */
   party?: ReactNode
+  /** The thread holds nothing yet: the current persona is introduced in its place. */
+  threadEmpty?: boolean
   children?: ReactNode
 }): JSX.Element {
   const [view, setView] = useState<ViewId>(initialView)
@@ -285,6 +289,7 @@ export function Shell({
             sends={sends}
             fieldRef={fieldRef}
           >
+            {threadEmpty && current !== null && <ThreadIntro agent={current} items={snapshot.menus[current.id] ?? NO_ITEMS} />}
             {children}
           </FollowScroller>
           {current !== null && composer?.(current, snapshot.menus[current.id] ?? NO_ITEMS, fieldRef)}

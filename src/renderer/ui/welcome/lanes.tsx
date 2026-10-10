@@ -25,7 +25,7 @@ export function Lanes(): JSX.Element {
       </div>
       <div className="welcome-lanes">
         {LANES.map((lane, index) => (
-          <div key={lane} role="group" aria-label={lane}>
+          <div key={lane} className="welcome-lane" role="group" aria-label={lane}>
             <div className="welcome-lane-head">
               <span className="welcome-label">{lane}</span>
               <span className="welcome-lane-number" aria-hidden="true">

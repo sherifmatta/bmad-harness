@@ -239,7 +239,8 @@
 .outputs-change {
   flex: 0 0 auto;
   margin: 0;
-  padding: 0;
+  /* A target of its own: the link was 16px tall, which is hard to hit and below the 24px minimum. */
+  padding: var(--space-xxs) var(--space-sm);
   border: 0;
   background: none;
   font-family: var(--mono);

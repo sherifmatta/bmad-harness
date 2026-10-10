@@ -91,6 +91,8 @@
 }
 
 .tile-title {
+  /* The title gives way first: a long role truncates before a name does ("Ame…" beside "Senior Software Engin…"). */
+  flex-shrink: 100;
   min-width: 0;
   font-size: var(--fs-ident);
   color: var(--dim);
@@ -164,8 +166,12 @@
 }
 
 .team-strip-label {
+  /* Four cells in a 244px sidebar: with tracking the longest words (WORKING, CHANGED) ellipsed at the 11px label
+     size, so the label keeps the micro size and drops the tracking, which fits them whole. */
   font-size: var(--fs-micro);
-  letter-spacing: var(--track-micro);
+  letter-spacing: 0;
+  /* Takes back the cell's side padding: the label is the one thing in the cell that needs the room. */
+  margin: 0 calc(var(--space-xxs) * -1);
   text-transform: uppercase;
   color: var(--faint);
   white-space: nowrap;

@@ -9,7 +9,7 @@
     --text:#dedee0;
     --text-strong:#f1f1f2;
     --dim:#9b9b9f;
-    --faint:#6d6d71;
+    --faint:#8c8c90;
     --accent:#e3e3e5;    --accent-bg:rgba(227,227,229,.12);
     --green:#7aa387;
     --amber:#b9a367;
@@ -76,10 +76,10 @@
   --accent-edge:rgba(227,227,229,.45);
   --halo-live:rgba(122,163,135,.14);
   --halo-work:rgba(185,163,103,.13);
-  --meta:#626262;
+  --meta:#868686;
   --ink-doc:#c2c2c2;
   --ink-doc-strong:#eaeaea;
-  --ink-doc-mute:#767676;
+  --ink-doc-mute:#888888;
   --ink-md:#d4d4d4;
   --code-bg:#202020;
   --code-ink:#cccccc;
@@ -92,15 +92,15 @@
   --legend-badge-bg:rgba(201,167,138,.08);
   --legend-badge-border:rgba(201,167,138,.3);
 
-  /* ── Type scale (UX-DR5). Thirteen distinct sizes, 9px to 20px, over the two
+  /* ── Type scale (UX-DR5). Fourteen roles, 10px to 20px, over the two
      platform stacks above. Fourteen roles: `doc-prose` and `body-ui` are both
      11.5px and are separated by line-height (1.72 vs 1.55), not by size, so
      document prose is spelled var(--fs-body-ui) with var(--lh-read).
      Half-point steps are real — 11px and 11.5px are different roles. */
-  --fs-badge:9px;
-  --fs-micro:9.5px;
-  --fs-meta:10px;
-  --fs-label:10.5px;
+  --fs-badge:10px;
+  --fs-micro:10.5px;
+  --fs-meta:11px;
+  --fs-label:11px;
   --fs-ident:11px;
   --fs-body-ui:11.5px;
   --fs-control:12px;
@@ -515,7 +515,7 @@
   --composer-padding:9px 16px 11px;
   --composer-field-padding:7px 8px 7px 11px;
   --composer-text-padding:2px 0;
-  --composer-placeholder:#636363;
+  --composer-placeholder:#868686;
   --send-padding:4px 12px;
   --send-bg:#393939;
   --send-line:#4b4b4b;
@@ -695,6 +695,16 @@
      the property inline on the panel. The state strip's one dimension is its cell's padding;
      its rules are --rule-width and its type --fs-head and --fs-micro as they are. */
   --team-strip-padding:var(--space-md) var(--space-xxs);
+
+  /* ── The Board's three added dimensions (design audit, 2026-10-10): the epic row's progress bar
+     and the overview figure's minimum width, which stops two cells stretching across the window. */
+  --board-bar-width:96px;
+  --board-bar-height:4px;
+  --board-figure-min:200px;
+  --board-progress-min:22ch;
+
+  /* The cast chooser's checkbox, drawn rather than the platform's (design audit, 2026-10-10). */
+  --check-size:14px;
 }
 
 /*
@@ -726,15 +736,15 @@
   --text:#202020;
   --text-strong:#0e0e0e;
   --dim:#505050;
-  --faint:#696969;
+  --faint:#5c5c5c;
   --accent:#1b1b1b;
   --accent-bg:rgba(27,27,27,.12);
-  --green:#4e7059;
-  --amber:#786737;
-  --red:#915a53;
+  --green:#4a6a54;
+  --amber:#726134;
+  --red:#89554e;
 
   --note:#454545;
-  --disagree:#a25042;
+  --disagree:#994c3e;
   --disagree-border:rgba(145,90,83,.3);
   --disagree-bg:rgba(145,90,83,.09);
 
@@ -743,10 +753,10 @@
   --accent-edge:rgba(27,27,27,.45);
   --halo-live:rgba(78,112,89,.16);
   --halo-work:rgba(120,103,55,.16);
-  --meta:#858585;
+  --meta:#626262;
   --ink-doc:#3d3d3d;
   --ink-doc-strong:#151515;
-  --ink-doc-mute:#858585;
+  --ink-doc-mute:#626262;
   --ink-md:#2b2b2b;
   --code-bg:#dfdfdf;
   --code-ink:#333333;
@@ -770,7 +780,7 @@
   --scrollbar-thumb-hover:#bdbdbd;
   --tile-current:#dadada;
   --code-tag-bg:#dfdfdf;
-  --composer-placeholder:#858585;
+  --composer-placeholder:#626262;
   --send-bg:#c6c6c6;
   --send-line:#b4b4b4;
   --send-ink:#212121;

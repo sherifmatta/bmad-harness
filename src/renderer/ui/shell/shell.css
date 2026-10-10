@@ -266,6 +266,17 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-hair);
+  padding: var(--space-md) var(--space-lg);
+  background: var(--panel-2);
+  border: var(--rule-width) solid var(--line-soft);
+  border-radius: var(--radius-control);
+}
+
+/* An empty column says so, in the dim ink: the rest of the row is cards and a bare column reads as missing. */
+.board-cards-empty {
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  color: var(--dim);
 }
 
 .board-card-number {
@@ -282,7 +293,7 @@
 
 /* ---------- the Board: how far each epic is, in words (Story 6.5) ---------- */
 
-/* Two equal cells on one panel, told apart by their padding alone. Figures and rows are text: no bar, fill, accent or border of their own. */
+/* Two cells on one panel, each as wide as its figure needs and a divider between them. Figures and rows are text; the epic row's bar is the one drawn mark. */
 .board-overview {
   display: flex;
   margin: var(--rail-group-padding);
@@ -292,9 +303,13 @@
 }
 
 .board-figure {
-  flex: 1 1 0;
-  min-width: 0;
+  flex: 0 1 auto;
+  min-width: var(--board-figure-min);
   padding: var(--space-lg) var(--space-xl);
+}
+
+.board-figure + .board-figure {
+  border-left: var(--rule-width) solid var(--line-soft);
 }
 
 .board-figure-label,
@@ -376,9 +391,32 @@
   overflow-wrap: anywhere;
 }
 
+.board-epic-track {
+  flex: 0 0 auto;
+  align-self: center;
+  width: var(--board-bar-width);
+  height: var(--board-bar-height);
+  margin-left: auto;
+  background: var(--line);
+  border-radius: var(--radius-pill);
+}
+
+.board-epic-fill {
+  display: block;
+  height: inherit;
+  background: var(--dim);
+  border-radius: var(--radius-pill);
+}
+
+.board-epic-track + .board-epic-progress {
+  margin-left: 0;
+}
+
 .board-epic-progress {
   flex: 0 0 auto;
+  min-width: var(--board-progress-min);
   margin-left: auto;
+  text-align: right;
   font-family: var(--mono);
   font-size: var(--fs-label);
   font-variant-numeric: tabular-nums;

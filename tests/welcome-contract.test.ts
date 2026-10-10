@@ -118,16 +118,17 @@ describe('the Welcome stylesheet', () => {
     expect(css).toMatch(/\.welcome-open:hover \{\s*background: var\(--send-hover\)/)
   })
 
-  it('draws the theme line along the bottom edge, right-aligned, in meta mono: the current word text-strong, the others accent, and underlined on hover', () => {
+  it('draws the theme line along the bottom edge, right-aligned, in ident mono: the current word text-strong and underlined, the others accent and underlined on hover', () => {
     const rule = (selector: string): string => css.match(new RegExp(`${selector.replace(/[.[\]']/g, '\\$&')} \\{[^}]*\\}`))?.[0] ?? ''
 
     expect(rule('.welcome-foot')).toMatch(/justify-content: flex-end/)
     expect(rule('.welcome-theme')).toMatch(/font-family: var\(--mono\)/)
-    expect(rule('.welcome-theme')).toMatch(/font-size: var\(--fs-meta\)/)
+    expect(rule('.welcome-theme')).toMatch(/font-size: var\(--fs-ident\)/)
     expect(rule('.welcome-theme-word')).toMatch(/color: var\(--accent\)/)
     expect(rule('.welcome-theme-word:hover')).toMatch(/text-decoration: underline/)
     expect(rule(".welcome-theme-word[aria-pressed='true']")).toMatch(/color: var\(--text-strong\)/)
-    expect(rule(".welcome-theme-word[aria-pressed='true']")).toMatch(/text-decoration: none/)
+    // The current word is underlined at rest (audit, 2026-10-10), so the choice reads without relying on weight alone.
+    expect(rule(".welcome-theme-word[aria-pressed='true']")).toMatch(/text-decoration-line: underline/)
     // The line is text and nothing paints it: no ground, border, shadow or radius of its own.
     expect(rule('.welcome-theme-word')).not.toMatch(/box-shadow|border-radius|border: var/)
   })

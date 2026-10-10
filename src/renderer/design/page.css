@@ -68,3 +68,9 @@ button {
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* Where a vertical and a horizontal bar meet. Left alone it paints the platform's own white square into a corner
+   of a dark window (the Outputs rail's bottom-right, found by a design audit). */
+::-webkit-scrollbar-corner {
+  background: transparent;
+}

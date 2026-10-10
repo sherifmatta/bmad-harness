@@ -295,7 +295,7 @@ describe('App, the Board', () => {
     expect(figures()).toEqual(['1', '1'])
     expect(boardSection().querySelector('.board-figure-value')).toBe(first)
     expect(document.activeElement).toBe(focused)
-    expect([...boardSection().querySelectorAll('.board-overview, .board-overview *, .board-epics, .board-epics *')].some((el) => el.getAttributeNames().some((name) => name.startsWith('aria-') || name === 'role' || name === 'tabindex'))).toBe(false)
+    expect([...boardSection().querySelectorAll('.board-overview, .board-overview *, .board-epics, .board-epics *')].filter((el) => el.closest('.board-epic-track') === null).some((el) => el.getAttributeNames().some((name) => name.startsWith('aria-') || name === 'role' || name === 'tabindex'))).toBe(false)
 
     push({ name: 'persona:state', payload: { agentId: mary.id, state: 'live', at: Date.now() } })
     expect(figures()).toEqual(['0', '1'])

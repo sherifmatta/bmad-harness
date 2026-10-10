@@ -186,7 +186,7 @@ describe('the document window’s controls', () => {
 
   it('takes focus into the document region on mount, and not into Close', () => {
     expect(app).toMatch(/<article[^>]*tabIndex=\{-1\}[^>]*aria-label="Document"/)
-    expect(app).toMatch(/region\.current\?\.focus\(\)/)
+    expect(app).toMatch(/region\.current\?\.focus\(/)
     expect(app).not.toMatch(/autoFocus/)
   })
 

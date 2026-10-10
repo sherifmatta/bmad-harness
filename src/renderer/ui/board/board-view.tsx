@@ -16,8 +16,11 @@ import { epicRowsOf, overviewOf } from './board-figures'
  * The time before the first snapshot draws nothing: no spinner and no skeleton.
  *
  * A card, a figure and a row are not controls: no handler, no tab stop, no live
- * region, no bar, meter or percentage. A new snapshot or persona state replaces
- * the text in one render.
+ * region and no percentage. A column with nothing in it says `no stories`, and an
+ * epic row's words are backed by a thin bar that is decoration only (`aria-hidden`, drawn as an empty track and a filled span):
+ * the words are the one place the figure is stated. (A design audit reversed the
+ * first Epic 6 ruling that the Board carry neither.) A new snapshot or persona
+ * state replaces the text in one render.
  *
  * `states` and `installed` are the tiles' own: the figure for agents running
  * counts the roster's personas in `work`.
@@ -60,6 +63,7 @@ export function BoardView({
             <section className="board-column" key={status}>
               <h3 className="board-column-head">{status}</h3>
               <ul className="board-cards">
+                {stories.length === 0 && <li className="board-cards-empty">no stories</li>}
                 {stories.map((story) => (
                   <li className="board-card" key={story.key}>
                     <span className="board-card-number">{story.number}</span>
@@ -77,6 +81,11 @@ export function BoardView({
               <li className="board-epic" key={row.key}>
                 <span className="board-epic-id">{row.id}</span>
                 {row.title !== '' && <span className="board-epic-title">{row.title}</span>}
+                {row.total > 0 && (
+                  <span className="board-epic-track" aria-hidden="true">
+                    <span className="board-epic-fill" style={{ width: `${Math.round((row.done / row.total) * 100)}%` }} />
+                  </span>
+                )}
                 <span className="board-epic-progress">
                   {row.total === 0 ? 'no stories' : `${row.done} of ${row.total} stories done`}
                 </span>

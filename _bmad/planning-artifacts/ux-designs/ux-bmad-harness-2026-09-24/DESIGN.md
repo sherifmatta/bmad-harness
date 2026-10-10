@@ -47,7 +47,7 @@ colors:
   text: '#dedee0'
   text-strong: '#f1f1f2'
   dim: '#9b9b9f'
-  faint: '#6d6d71'
+  faint: '#8c8c90'
   accent: '#e3e3e5'
   accent-bg: 'rgba(227,227,229,.12)'
   green: '#7aa387'
@@ -73,10 +73,10 @@ colors:
   accent-edge: 'rgba(227,227,229,.45)'    # likewise
   halo-live: 'rgba(122,163,135,.14)'
   halo-work: 'rgba(185,163,103,.13)'
-  meta: '#626262'               # 5 uses; the tier below `faint`, timestamps and micro-labels
+  meta: '#868686'               # 5 uses; the tier below `faint`, timestamps and micro-labels
   ink-doc: '#c2c2c2'            # document-card prose body
   ink-doc-strong: '#eaeaea'     # heading inside document-card prose
-  ink-doc-mute: '#767676'       # muted run of document-card prose
+  ink-doc-mute: '#888888'       # muted run of document-card prose
   ink-md: '#d4d4d4'             # rendered markdown body in the document window
   code-bg: '#202020'
   code-ink: '#cccccc'
@@ -102,7 +102,7 @@ colors:
   scrollbar-thumb-hover: '#424242'
   tile-current: '#252525'
   code-tag-bg: '#1f1f1f'
-  composer-placeholder: '#636363'
+  composer-placeholder: '#868686'
   send-bg: '#393939'
   send-line: '#4b4b4b'
   send-ink: '#dedede'
@@ -133,25 +133,25 @@ colors-light:
   text: '#202020'
   text-strong: '#0e0e0e'
   dim: '#505050'
-  faint: '#696969'
+  faint: '#5c5c5c'
   accent: '#1b1b1b'
   accent-bg: 'rgba(27,27,27,.12)'
   accent-wash: 'rgba(27,27,27,.045)'
   accent-edge: 'rgba(27,27,27,.45)'
-  green: '#4e7059'
-  amber: '#786737'
-  red: '#915a53'
+  green: '#4a6a54'
+  amber: '#726134'
+  red: '#89554e'
   note: '#454545'
-  disagree: '#a25042'
+  disagree: '#994c3e'
   disagree-border: 'rgba(145,90,83,.3)'
   disagree-bg: 'rgba(145,90,83,.09)'
   accent-border: '#bcbcbc'
   halo-live: 'rgba(78,112,89,.16)'
   halo-work: 'rgba(120,103,55,.16)'
-  meta: '#858585'
+  meta: '#626262'
   ink-doc: '#3d3d3d'
   ink-doc-strong: '#151515'
-  ink-doc-mute: '#858585'
+  ink-doc-mute: '#626262'
   ink-md: '#2b2b2b'
   code-bg: '#dfdfdf'
   code-ink: '#333333'
@@ -174,7 +174,7 @@ colors-light:
   scrollbar-thumb-hover: '#bdbdbd'
   tile-current: '#dadada'
   code-tag-bg: '#dfdfdf'
-  composer-placeholder: '#858585'
+  composer-placeholder: '#626262'
   send-bg: '#c6c6c6'
   send-line: '#b4b4b4'
   send-ink: '#212121'
@@ -207,18 +207,18 @@ typography:
   # Thirteen sizes. 600 is the only non-default weight in the system.
   badge:
     fontFamily: '{typography.mono.fontFamily}'
-    fontSize: 9px
+    fontSize: 10px
     letterSpacing: 0.08em
   micro:
     fontFamily: '{typography.mono.fontFamily}'
-    fontSize: 9.5px
+    fontSize: 10.5px
     letterSpacing: 0.04em
   meta:
     fontFamily: '{typography.mono.fontFamily}'
-    fontSize: 10px
+    fontSize: 11px
   label:
     fontFamily: '{typography.mono.fontFamily}'
-    fontSize: 10.5px
+    fontSize: 11px
     letterSpacing: 0.09em
   ident:
     fontSize: 11px
@@ -349,7 +349,7 @@ components:
     border: '1px solid {colors.initials-line}'
     color: '{colors.initials-ink}'
     fontFamily: '{typography.mono.fontFamily}'
-    fontSize: 9.5px      # [ASSUMPTION] at 20px
+    fontSize: 10.5px     # [ASSUMPTION] at 20px
     radius: '{rounded.full}'
     stackOverlap: -5px
     stackRing: '0 0 0 1.5px {colors.panel-2}'
@@ -520,7 +520,7 @@ components:
   outputs-head:
     height: '{spacing.rail-head}'
     label: '`outputs` — the head every rail half already has'
-    where: '{typography.meta} mono (10.5px), {colors.dim}, right-aligned: the watched folder, project-relative, trailing slash'
+    where: '{typography.meta} mono (11px), {colors.dim}, right-aligned: the watched folder, project-relative, trailing slash'
     change: '`change…` — {typography.meta} mono, {colors.accent}, no border, underline on hover; sits right of the folder'
     state-line: '{typography.meta} mono, {colors.dim}, on {colors.panel}, padding 5px 11px, a 1px {colors.line-soft} rule below; present only while there is a state to say, one line, never two'
     group-label: 'the first group in the list is the watched folder itself, `{typography.badge}`-tier as every group label'
@@ -559,7 +559,7 @@ components:
     cast: '.25s ease (opacity, border-color, background)'
     reducedMotion: '* { animation: none !important; transition: none !important }'
   sysline:
-    type: 'label (10.5px) mono, faint, centred'
+    type: 'label (11px) mono, faint, centred'
     rule: '1px line, drawn as ::before/::after flex fills either side of the text'
     margin: '14px 2px 10px'
     note: 'Harness-authored transcript entry. Never attributed to a persona.'
@@ -583,7 +583,7 @@ The restraint is not minimalism as taste. It is a budget. Real illustrated faces
 
 **2026-10-09: the chat thread carries no portraits.** By the user's decision the thread and its header show a persona as an initials disc, on flat rows. The faces stay on the Team tiles, the cast cards and the Welcome, and the budget described above is spent there; the shell around the thread is held to it, the thread itself is as plain as the screenshot draws it.
 
-Information density is high and deliberate: the densest type tier is 10.5px and it is the most-used size in the product. This is a tool for an engineer reading state, not a consumer surface. Nothing is padded to feel generous.
+Information density is high and deliberate: the densest type tier was 10.5px in the mockup and is 11px since the 2026-10-10 legibility pass; it is still the most-used size in the product. This is a tool for an engineer reading state, not a consumer surface. Nothing is padded to feel generous.
 
 **Two themes, one design.** Dark is the theme the product was designed in; light (2026-10-08; repainted 2026-10-09 as the dark theme reversed) is its twin and is chosen, not inferred: *System* (the default, following the OS), *Light* or *Dark* (EXPERIENCE.md → *Theme*). No stylesheet and no component reads `prefers-color-scheme`, and there is no high-contrast variant. Every rule in this document holds in both themes, and the restraint budget most of all: the portraits are the only thing with warmth in either one, which is why the light palette is neutral grey.
 
@@ -608,9 +608,9 @@ The `:root` block above is copied from `harness-mockup.html` unchanged, in sourc
 
 **Hairlines** are two: `line` for a visible separation between two things, `line-soft` for a rule inside one thing (a card's head from its body). The distinction is load-bearing at this contrast — using `line` internally makes a card read as three stacked cards.
 
-**Text** steps `text-strong → text → dim → faint`, with a fifth informal tier `{colors.meta}` (`#626262`) below `faint` used for timestamps and micro-labels. The ramp is fixed and **a component may not adjust it**. **Within the text ramp, hierarchy comes from which tier you pick, not from opacity** — this is a rule about text only. Opacity carries *presence* elsewhere in the product, deliberately and by its own rule (see *Elevation & Depth*).
+**Text** steps `text-strong → text → dim → faint`, with a fifth informal tier `{colors.meta}` (`#868686`) below `faint` used for timestamps and micro-labels. The ramp is fixed and **a component may not adjust it**. **Within the text ramp, hierarchy comes from which tier you pick, not from opacity** — this is a rule about text only. Opacity carries *presence* elsewhere in the product, deliberately and by its own rule (see *Elevation & Depth*).
 
-> **Contrast risk, accepted.** `faint` (`#6d6d71`) on `bg` (`#0d0d0e`) is a low-contrast pairing that the locked ramp bakes in, and `{colors.meta}` is lower still. Stakes here are hobby and no WCAG conformance target is set, but the risk is real and named: do not put anything at `faint` or below that is the *only* carrier of a fact. Every `faint` string in the product must be a restatement of something also legible at `dim` or above, or a label whose absence costs nothing.
+> **Contrast, corrected 2026-10-10.** The first ramp put `faint` (`#6d6d71`) at 3.8:1 on `bg` and `{colors.meta}` (`#626262`) at 3.2:1, below the WCAG 1.4.3 floor for the 10–11px text they carry. A design audit measured them and both tiers now clear 4.5:1 on every dark surface (`faint` `#8c8c90`, `meta` `#868686`), at the cost of a narrower step between `dim`, `faint` and `meta`. The tiers still order the text; the older rule still stands as a habit — nothing load-bearing should live only at `faint` or `meta` — but it is no longer what keeps the text legible.
 
 ### Accent
 
@@ -652,8 +652,8 @@ The remaining tokens in the block above are not new colours. Each is a value alr
 **How it is derived.**
 - **Every grey is the dark grey mirrored.** Each dark neutral becomes its complement about the middle (`255 − x` per channel, then pure grey), so there is no blue in the ramp and no pure white or black anywhere: `bg #f2f2f2`, `chrome #eeeeee`, `panel #eaeaea`, `panel-2 #e5e5e5`, `panel-3 #dfdfdf`, hairlines `line #d5d5d5` and `line-soft #e0e0e0`. The ramp is reversed with the theme, so a surface that rises is **a step darker** than the ground, exactly as a dark surface is a step lighter: a card reads as set into the page, not lifted off it. Same five greys, same two hairlines, no new surface tier.
 - **The accent is a near-black.** `accent #1b1b1b` is the dark accent's `#e3e3e5` reversed. It is still a line, an edge, a chip border, almost never a surface, and `accent-bg` is its 12% wash. The send button stays quiet: `send-bg #c6c6c6` with `send-ink #212121`, no blue and no filled accent button.
-- **Text tiers are the dark ones reversed, then corrected where the mirror would fail.** `text #202020` and `text-strong #0e0e0e` are the plain mirrors. The mirrored `dim` and `faint` would be too light on a darker panel, so `dim` is `#505050` and `faint` is `#696969`, the lightest grey that still clears 4.5:1 on `panel`. `meta #858585` is the one tier left below 4.5, as in dark. `note` is `#454545`: a step darker than `dim`, distinct from the idle dot.
-- **The four state colours keep their meaning and stay muted.** Green `#4e7059`, amber `#786737` and red `#915a53` keep each dark hue and saturation and are darkened until each clears 4.5:1 on `panel`. The halos around the live and work dots are strengthened to `.16`, because a glow reads weaker on a light ground. `disagree #a25042` stays a distinct warm tone and is not `red`.
+- **Text tiers are the dark ones reversed, then corrected where the mirror would fail.** `text #202020` and `text-strong #0e0e0e` are the plain mirrors. The mirrored `dim` and `faint` would be too light on a darker panel, so `dim` is `#505050` and `faint` is `#5c5c5c` and `meta` `#626262`, the lightest greys that still clear 4.5:1 on `panel-3`, the darkest surface they sit on. `note` is `#454545`: a step darker than `dim`, distinct from the idle dot.
+- **The four state colours keep their meaning and stay muted.** Green `#4a6a54`, amber `#726134` and red `#89554e` keep each dark hue and saturation and are darkened until each clears 4.5:1 on every surface text sits on, `panel-3` included. The halos around the live and work dots are strengthened to `.16`, because a glow reads weaker on a light ground. `disagree #994c3e` stays a distinct warm tone and is not `red`.
 - **Document ink reverses with the page.** `ink-doc #3d3d3d`, `ink-doc-strong #151515`, `ink-md #2b2b2b`; the document card's mono body and the markdown window read as dark-on-grey.
 - **Shadows and the scrim are neutral and low.** The window shadow is `0 30px 70px -20px rgba(8,8,8,.35)`, the speaking cast card's shadow likewise, the scrim `rgba(8,8,8,.35)`. A dark theme's alpha would read as dirt on a light ground.
 - **Portraits are identical in both themes.** Backdrops stay the dark tones in the parameter table, so on a light page the faces read as dark discs and remain the strongest thing on screen. `ArtParams` gains no theme field and a portrait's markup does not vary with theme.
@@ -665,21 +665,21 @@ The remaining tokens in the block above are not new colours. Each is a value alr
 | `text` on `bg` | 14.5 | 14.6 |
 | `text-strong` on `panel` | 16.2 | 16.0 |
 | `dim` on `panel` | 6.6 | 6.7 |
-| `faint` on `panel` | 3.5 | 4.6 |
-| `meta` on `bg` | 3.2 | 3.3 |
+| `faint` on `panel` | 5.4 | 5.6 |
+| `meta` on `bg` | 5.3 | 5.4 |
 | `accent` on `panel` | 14.2 | 14.3 |
-| `green` on `panel` | 6.4 | 4.6 |
-| `amber` on `panel` | 7.4 | 4.6 |
-| `red` on `panel` | 6.1 | 4.6 |
+| `green` on `panel` | 6.4 | 5.0 |
+| `amber` on `panel` | 7.4 | 5.0 |
+| `red` on `panel` | 6.1 | 5.0 |
 | `note` on `panel` | 5.6 | 8.0 |
 | `ink-doc` on `panel` | 10.2 | 9.0 |
-| `disagree` on `panel` | 7.3 | 4.6 |
+| `disagree` on `panel` | 7.3 | 5.0 |
 | `text-strong` on `initials-bg` (a persona's disc) | 11.4 | 12.1 |
 | `accent` on `accent-bg` over `bg` (your disc) | 11.6 | 12.1 |
 
 The clock time in a turn head sits at `meta` and restates nothing load-bearing: a turn's order is its place in the thread.
 
-Every light pair that carries text clears 4.5 except `meta` (3.3), which holds only timestamps and micro-labels and, as in dark, never an actionable fact. The "no actionable fact at `faint` or `meta`" rule is unchanged and is *easier* to keep in light, where `faint` reaches 4.6. The three status hues sit exactly at the floor because they are muted on purpose: darkening them further would make them heavier than the dark theme's quiet marks.
+Every pair that carries text clears 4.5 in both themes, `meta` included. The three status hues sit a little above the floor because they are muted on purpose: darkening them further would make them heavier than the dark theme's quiet marks.
 
 ### What has no colour
 
@@ -710,10 +710,10 @@ AD-14 states the type scale as "base 13px/1.55". That is the body rule, not the 
 
 | Role | Size | Family | Job |
 |---|---|---|---|
-| `badge` | 9px | mono, uppercase, .08em | The legend footer badge. One use. |
-| `micro` | 9.5px | mono, .04em | Code tags, skill-button code chip, cast status, party tags, run-note kind tags |
-| `meta` | 10px | mono | Timestamps, rail meta, the rail row's directory line (`dirline`), file group, card section, window foot |
-| `label` | 10.5px | mono | **Densest tier.** Chips, rail head/foot, tile state, sysline, run chip, card foot, option key, hint line, cast info, key/value key (`kv`). Uppercase at .09em for rail heads and side-section heads, and at .07em for the skill-row label; sentence case elsewhere |
+| `badge` | 10px | mono, uppercase, .08em | The legend footer badge. One use. |
+| `micro` | 10.5px | mono, .04em | Code tags, skill-button code chip, cast status, party tags, run-note kind tags |
+| `meta` | 11px | mono | Timestamps, rail meta, the rail row's directory line (`dirline`), file group, card section, window foot |
+| `label` | 11px | mono | **Densest tier.** Chips, rail head/foot, tile state, sysline, run chip, card foot, option key, hint line, cast info, key/value key (`kv`). Uppercase at .09em for rail heads and side-section heads, and at .07em for the skill-row label; sentence case elsewhere |
 | `ident` | 11px | mixed | Identifiers. Mono for file paths, window path, initials, handoff chip, status pill; sans for tile name span, turn role, and the rendered-markdown sub-line and table header (`md sub`, `md th`) |
 | `body-ui` | 11.5px | sans | The working text size — breadcrumbs (`crumbs`), buttons, key/value rows (`kv`), option text, run notes. Mono variant at the same size for inline code and document-card prose |
 | `control` | 12px | sans, .01em | Segmented control. One use |
@@ -894,7 +894,7 @@ The palette is **muted and desaturated throughout** — backgrounds are dark sla
 The avatar of the chat, and the small-reference token.
 
 - **26px** circle beside a chat turn and **22px** in the chat header — a persona's and yours alike (2026-10-09: the chat carries no portraits, *Conversation turn*). **20px** for small agent references elsewhere (stacked faces, handoff chip).
-- Persona disc: `initials-bg` fill, 1px `initials-line` border, centred. At 26px and 22px the glyphs are **sans 600** (10.5px, 9.5px) in `text-strong`, as the prototype's `.av` draws them. At 20px they stay `mono` in `initials-ink` at 9.5px `[ASSUMPTION]`.
+- Persona disc: `initials-bg` fill, 1px `initials-line` border, centred. At 26px and 22px the glyphs are **sans 600** (11px, 10.5px) in `text-strong`, as the prototype's `.av` draws them. At 20px they stay `mono` in `initials-ink` at 10.5px `[ASSUMPTION]`.
 - Your disc: the same circle on `accent-bg`, 1px `accent-border`, glyphs in `accent` — the prototype's `.av.u`, the one tint that tells you from a persona at a glance.
 - Stacked: `margin-right: -5px` overlap with a `0 0 0 1.5px panel-2` ring cutting each disc out of the one behind it.
 - Where a disc stands alone, the name-and-role reveal renders **identically on `:hover` and on `:focus-visible`**; the focus treatment is *Focus*, below. In the thread and header the name is beside the disc, which is decorative there. Why the parity is mandatory, and the ARIA that carries it, are EXPERIENCE.md's (→ *Accessibility Floor → The initials token — focus parity*).
@@ -937,7 +937,7 @@ The anatomy of one run note, wherever it appears. What each kind *means* is EXPE
 Three-column grid `58px · 74px · 1fr` at 10px gap, baseline-aligned, 5px vertical padding, consecutive rows separated by `1px line-soft`.
 
 1. **Time** — `mono` `{typography.meta}` in `faint` with `font-variant-numeric: tabular-nums`. Tabular is required; a ragged time column destroys the feed's scannability.
-2. **Kind tag** — `{typography.micro}` (mono 9.5px, .04em), `{rounded.chip}` radius, `0 5px`, left-justified in its column. Four kinds, written `kind:…` throughout because `note` also names a colour token and a status-dot state:
+2. **Kind tag** — `{typography.micro}` (mono 10.5px, .04em), `{rounded.chip}` radius, `0 5px`, left-justified in its column. Four kinds, written `kind:…` throughout because `note` also names a colour token and a status-dot state:
    - `kind:decision` — `accent` on `accent-bg`, border `accent-border`. The accent treatment, because a decision is the product's whole point.
    - `kind:assumption` and `kind:note` — the neutral tag: `dim` on `panel-2`, border `line`. **`kind:note` is the neutral tag and must not use `{colors.note}`**, which belongs to the status dot and to nothing else.
    - `kind:open` — the **`disagree`** treatment: `disagree` on `disagree-bg`, border `disagree-border`. An unresolved question is friction, not failure; it must not use `red`.
@@ -1085,7 +1085,7 @@ The renderer's visual range is **exactly what sanitized markdown-it output can b
 
 **Topbar** 42px `chrome`, 1px `line` bottom, 14px gaps. The brand mark is pure CSS — a 16px bordered square with an `::after` accent square inset 3px, at `.75` opacity. Breadcrumb separator is the literal `│`. **Segmented control** at `{typography.control}` (12px) size, `{rounded.DEFAULT}` radius; pressed is `[aria-pressed="true"]` → `raised` ground, `text-strong`, `inset 0 -2px 0 accent`. **Legend footer** 24px `chrome` with the badge in `legend-badge` on `legend-badge-bg`, uppercase `{typography.badge}` at `.08em`.
 
-**Sysline** is the harness's own voice in the transcript: centred `{typography.label}` (10.5px) mono in `faint`, with a 1px `line` rule filling the space either side via `::before` / `::after`, margin `14px 2px 10px`. It carries session-resumed, handoff and room-opened notices. It is never styled as, or attributed to, a persona — see `EXPERIENCE.md` → *Voice and Tone*.
+**Sysline** is the harness's own voice in the transcript: centred `{typography.label}` (11px) mono in `faint`, with a 1px `line` rule filling the space either side via `::before` / `::after`, margin `14px 2px 10px`. It carries session-resumed, handoff and room-opened notices. It is never styled as, or attributed to, a persona — see `EXPERIENCE.md` → *Voice and Tone*.
 
 **Scrollbars** are custom: 10px wide, `scrollbar-thumb` (`scrollbar-thumb-hover` on hover), `{rounded.scrollbar}` (10px) radius, with a 3px transparent inset border and `background-clip: content-box` so the thumb reads as narrower than its track.
 

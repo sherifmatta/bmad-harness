@@ -46,7 +46,7 @@ export function StateLine({
   since?: number | undefined
 }): JSX.Element {
   return (
-    <span className="state-line">
+    <span className={`state-line state-line--${state}`}>
       <StatusDot state={state} />
       <span className="state-text">
         {STATE_TEXT[state]}

@@ -180,14 +180,19 @@ describe('the Board, read', () => {
     expect(markup).toContain('>1 of 2 stories done<')
   })
 
-  it('has no bar, meter, percentage, tick, spend, budget, cost, token, tool-call or decisions-open figure', () => {
+  // A design audit (2026-10-10) reversed the first ruling: an epic row may carry one decorative track-and-fill
+  // beside its words. Everything else is as it was, so the track is lifted out before the rest is checked.
+  const withoutTrack = (html: string): string => html.replace(/<span class="board-epic-track"[^>]*><span [^>]*><\/span><\/span>/g, '')
+
+  it('has no meter, native progress, percentage figure, tick, spend, budget, cost, token, tool-call or decisions-open figure; its one bar is a decorative track', () => {
     const board = markup.slice(markup.indexOf('view-board'))
 
-    expect(board).not.toMatch(/<progress|<meter|progressbar|%|\bpercent|\bbar\b|\btick\b|spend|budget|\bcost|token|tool[- ]call|decisions? open|\binbox\b/i)
+    expect(board).toContain('class="board-epic-track" aria-hidden="true"')
+    expect(withoutTrack(board)).not.toMatch(/<progress|<meter|progressbar|%|\bpercent|\bbar\b|\btick\b|spend|budget|\bcost|token|tool[- ]call|decisions? open|\binbox\b/i)
   })
 
   it('has no live region, tab stop or control in the overview or the epics', () => {
-    const board = markup.slice(markup.indexOf('board-overview'))
+    const board = withoutTrack(markup.slice(markup.indexOf('board-overview')))
 
     expect(board).not.toMatch(/<button|<input|tabindex|aria-|role=|onclick/i)
   })

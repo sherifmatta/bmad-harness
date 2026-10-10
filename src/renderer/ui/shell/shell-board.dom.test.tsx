@@ -95,7 +95,8 @@ describe('Shell, the Board', () => {
       'review',
       'done'
     ])
-    expect(section('board').querySelectorAll('li')).toHaveLength(0)
+    // An empty column says so (audit, 2026-10-10): five columns, five `no stories`, and nothing else.
+    expect([...section('board').querySelectorAll('li')].map((item) => item.textContent)).toEqual(Array(5).fill('no stories'))
   })
 
   it('draws a card that is not a control: no handler on it or inside it, and a click or key changes nothing', () => {

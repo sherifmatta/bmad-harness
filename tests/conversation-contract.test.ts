@@ -146,7 +146,7 @@ describe('the composer', () => {
     expect(declared.get('--composer-min')).toBe('20px')
     expect(declared.get('--composer-max')).toBe('120px')
     expect(ruleBody(composerCss, '.composer-input::placeholder')).toContain('color: var(--composer-placeholder)')
-    expect(declared.get('--composer-placeholder')).toBe('#636363')
+    expect(declared.get('--composer-placeholder')).toBe('#868686')
   })
 
   it('gives the send button its own ground, border, glyph and hover, at the control radius', () => {

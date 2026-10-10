@@ -341,6 +341,7 @@ export function App(): JSX.Element | null {
           />
         }
         sends={sends}
+        threadEmpty={conversation.entries.length === 0}
         composer={(agent, items, fieldRef) => (
           // Keyed apart from the chat header, which carries the same agent id in the same list.
           <Composer

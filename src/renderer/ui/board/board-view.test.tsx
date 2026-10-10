@@ -91,12 +91,13 @@ describe('BoardView', () => {
   })
 
   describe('a snapshot that was read', () => {
-    it('draws the five headings in order, as the file writes them, with no count and no card', () => {
+    it('draws the five headings in order, as the file writes them, with no count and no card (each empty column says so instead)', () => {
       const html = markup(read)
       const board = html.slice(html.indexOf('board-stories'), html.indexOf('board-epics'))
 
       expect(headings(html)).toEqual(['backlog', 'ready-for-dev', 'in-progress', 'review', 'done'])
-      expect(board).not.toContain('<li')
+      expect(board.match(/<li/g)).toHaveLength(5)
+      expect(board.match(/<li class="board-cards-empty">no stories<\/li>/g)).toHaveLength(5)
       expect(board.replace(/<[^>]*>/g, '')).not.toMatch(/\d/)
       expect(html).not.toContain('no sprint status')
     })
@@ -112,11 +113,13 @@ describe('BoardView', () => {
       expect(html.slice(0, html.indexOf('>review<'))).not.toContain('6.4')
     })
 
-    it('draws a column with no card as its heading and an empty list', () => {
+    it('draws a column with no card as its heading and a `no stories` line', () => {
       const html = markup(withStories(story('6.4', 'T', 'review')))
 
-      expect(html).toContain('<ul class="board-cards"></ul>')
-      expect(html.slice(0, html.indexOf('board-epics')).match(/<li/g)).toHaveLength(1)
+      expect(html).toContain('<ul class="board-cards"><li class="board-cards-empty">no stories</li></ul>')
+      // One card, and four columns that say they are empty.
+      expect(html.slice(0, html.indexOf('board-epics')).match(/<li class="board-card"/g)).toHaveLength(1)
+      expect(html.slice(0, html.indexOf('board-epics')).match(/board-cards-empty/g)).toHaveLength(4)
     })
 
     it('draws an extra column after done for a status outside the five', () => {
@@ -126,7 +129,7 @@ describe('BoardView', () => {
     })
 
     it('draws no control, tab stop, handler, live region, input or text of its own', () => {
-      const html = markup(withStories(story('6.4', 'T', 'review')))
+      const html = markup(withStories(story('6.4', 'T', 'review'))).replace(/<span class="board-epic-track"[^>]*><span [^>]*><\/span><\/span>/g, '')
 
       expect(html).not.toMatch(/<button|<input|<a |tabindex|onclick|role=|aria-|loading|spinner|skeleton/i)
     })
@@ -167,7 +170,7 @@ describe('BoardView', () => {
       expect(text(html, 'board-epic-id')).toEqual(['Epic 1', 'Epic 6', 'Epic 7', 'Epic 8'])
       expect(text(html, 'board-epic-progress')).toEqual(['2 of 2 stories done', '1 of 3 stories done', 'no stories', '0 of 1 stories done'])
       expect(html).toContain(
-        '<li class="board-epic"><span class="board-epic-id">Epic 6</span><span class="board-epic-title">Board</span><span class="board-epic-progress">1 of 3 stories done</span></li>'
+        '<li class="board-epic"><span class="board-epic-id">Epic 6</span><span class="board-epic-title">Board</span><span class="board-epic-track" aria-hidden="true"><span class="board-epic-fill" style="width:33%"></span></span><span class="board-epic-progress">1 of 3 stories done</span></li>'
       )
     })
 
@@ -185,11 +188,16 @@ describe('BoardView', () => {
       }
     })
 
-    it('is not a control, a bar, a meter, a percentage or a live region', () => {
+    it('is not a control, a meter, a native progress or a live region; its one drawn mark is an aria-hidden track', () => {
       const html = render(snapshot)
-      const regions = html.slice(0, html.indexOf('board-stories')) + html.slice(html.indexOf('board-epics'))
+      const regions = (html.slice(0, html.indexOf('board-stories')) + html.slice(html.indexOf('board-epics'))).replace(
+        /<span class="board-epic-track"[^>]*><span [^>]*><\/span><\/span>/g,
+        ''
+      )
 
       expect(regions).not.toMatch(/<button|<input|<a |tabindex|onclick|role=|aria-|<progress|<meter|style=|%|title=/i)
+      // One track for each epic that has stories, filled to the share done: 2 of 2, 1 of 3, none for an empty epic, 0 of 1.
+      expect([...html.matchAll(/board-epic-fill" style="width:(\d+)%"/g)].map((match) => match[1])).toEqual(['100', '33', '0'])
     })
   })
 })

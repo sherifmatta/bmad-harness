@@ -279,17 +279,17 @@ describe('the added colours', () => {
 })
 
 describe('the type scale', () => {
-  it('is thirteen sizes, each at the value its role carries', () => {
+  it('is thirteen roles, each at the value its role carries (eleven distinct sizes since the 2026-10-10 legibility pass)', () => {
     // DESIGN.md's `typography:` map is nested rather than flat, so this is the
     // one family that cannot be derived — an exact name→value map instead of a
     // count, or swapping two sizes would pass.
     expect(
       Object.fromEntries(namesMatching('--fs-').map((name) => [name, tokens.get(name)]))
     ).toEqual({
-      '--fs-badge': '9px',
-      '--fs-micro': '9.5px',
-      '--fs-meta': '10px',
-      '--fs-label': '10.5px',
+      '--fs-badge': '10px',
+      '--fs-micro': '10.5px',
+      '--fs-meta': '11px',
+      '--fs-label': '11px',
       '--fs-ident': '11px',
       '--fs-body-ui': '11.5px',
       '--fs-control': '12px',
@@ -479,7 +479,7 @@ describe('the layout constants', () => {
     // The chat discs' glyphs are `label` at the thread size and `micro` at the header size.
     expect(initials['threadFont']).toContain('{typography.label}')
     expect(initials['threadFont']).toContain('{typography.micro}')
-    expect(tokens.get('--fs-label')).toBe('10.5px')
+    expect(tokens.get('--fs-label')).toBe('11px')
   })
 
   it('does not carry the superseded party-panel width', () => {
@@ -882,7 +882,10 @@ describe('the light theme (Story 5.2, seam A)', () => {
     // (2026-10-09, flat rows and initials discs): `--initials-size-user` replaced by `--initials-size-thread` and `--initials-size-header`,
     // `--chat-head-height` added and `--chat-head-padding` made `0 16px`, `--turn-gap` 11px and `--turn-stack-gap` 16px.
     // Re-pinned for the run step (Story 3.17, 2026-10-09): `--run-step-mark` and `--run-step-pad-y` added after `--rule-width`.
-    expect(createHash('sha256').update(promotedBlock()).digest('hex')).toBe('c116ee8f051f715c6973319389d5c8b930b43c74ba1ab5b1b475b20c1f482418')
+    // Re-pinned for the design audit (2026-10-10): `--meta` and `--ink-doc-mute` and `--composer-placeholder` raised to clear 4.5:1, the four
+    // smallest type sizes raised (`--fs-badge` 10px, `--fs-micro` 10.5px, `--fs-meta` and `--fs-label` 11px), and `--board-bar-width`,
+    // `--board-bar-height`, `--board-figure-min`, `--board-progress-min` and `--check-size` added at the block's end.
+    expect(createHash('sha256').update(promotedBlock()).digest('hex')).toBe('e5fbc8c0ccd4e0a3c0466cb6fe95d0a3f294bfb76f0aae9be5ed99bb953e0291')
   })
 
   it('states color-scheme: light in its own block, and the dark theme still states dark', () => {
@@ -973,7 +976,7 @@ describe('the light theme (Story 5.2, seam A)', () => {
       ['text', 'panel'],
       ['dim', 'panel'],
       ['faint', 'panel'],
-      ['meta', 'bg'],
+      ['meta', 'panel'],
       ['accent', 'panel'],
       ['green', 'panel'],
       ['amber', 'panel'],
@@ -985,31 +988,30 @@ describe('the light theme (Story 5.2, seam A)', () => {
     const ratio = (foreground: string, background: string): number =>
       contrast(light.get(`--${foreground}`)!, light.get(`--${background}`)!)
 
-    it('clears 4.5 for text on bg and for text, text-strong, dim, faint, accent, green, amber, red, note, ink-doc and disagree on panel', () => {
-      for (const [foreground, background] of PAIRS.filter(([name]) => name !== 'meta')) {
+    it('clears 4.5 for text on bg and for text, text-strong, dim, faint, meta, accent, green, amber, red, note, ink-doc and disagree on panel', () => {
+      for (const [foreground, background] of PAIRS) {
         expect(ratio(foreground, background), `${foreground} on ${background}`).toBeGreaterThanOrEqual(4.5)
       }
     })
 
-    it('lets meta alone fall below 4.5: it holds timestamps and micro-labels, never an actionable fact', () => {
-      const below = PAIRS.filter(([foreground, background]) => ratio(foreground, background) < 4.5)
-
-      expect(below).toEqual([['meta', 'bg']])
-      expect(ratio('meta', 'bg')).toBeCloseTo(3.3, 1)
+    it('clears 4.5 for every text tier and state colour on the darkest surface text sits on, panel-3, and for the placeholder and muted document ink too', () => {
+      for (const foreground of ['text', 'dim', 'faint', 'meta', 'green', 'amber', 'red', 'disagree', 'note', 'ink-doc-mute', 'composer-placeholder']) {
+        expect(ratio(foreground, 'panel-3'), `${foreground} on panel-3`).toBeGreaterThanOrEqual(4.5)
+      }
     })
 
     it('reproduces the figures DESIGN.md prints, to one place', () => {
       expect(ratio('text', 'bg')).toBeCloseTo(14.6, 1)
       expect(ratio('text-strong', 'panel')).toBeCloseTo(16.0, 1)
       expect(ratio('dim', 'panel')).toBeCloseTo(6.7, 1)
-      expect(ratio('faint', 'panel')).toBeCloseTo(4.6, 1)
+      expect(ratio('faint', 'panel')).toBeCloseTo(5.6, 1)
       expect(ratio('accent', 'panel')).toBeCloseTo(14.3, 1)
-      expect(ratio('green', 'panel')).toBeCloseTo(4.6, 1)
-      expect(ratio('amber', 'panel')).toBeCloseTo(4.6, 1)
-      expect(ratio('red', 'panel')).toBeCloseTo(4.6, 1)
+      expect(ratio('green', 'panel')).toBeCloseTo(5.0, 1)
+      expect(ratio('amber', 'panel')).toBeCloseTo(5.0, 1)
+      expect(ratio('red', 'panel')).toBeCloseTo(5.0, 1)
       expect(ratio('note', 'panel')).toBeCloseTo(8.0, 1)
       expect(ratio('ink-doc', 'panel')).toBeCloseTo(9.0, 1)
-      expect(ratio('disagree', 'panel')).toBeCloseTo(4.6, 1)
+      expect(ratio('disagree', 'panel')).toBeCloseTo(5.0, 1)
     })
 
     it('measures what it says: a pair below the bar is seen to be below it', () => {
@@ -1529,6 +1531,15 @@ describe('the chat UI as the mockup draws it (2026-10-09)', () => {
     expect(tokens.get('--status-pill-line')).toBe('rgba(185,163,103,.25)')
     expect(tokens.get('--status-pill-ink')).toBe('#d7b96a')
     expect(rule(head, '.chat-head-state')).toContain('gap: var(--space-md)')
+  })
+
+  it('keeps the amber pill for work alone: any other state takes the neutral pill, so idle does not read as a warning', () => {
+    const head = css('src/renderer/ui/chat/chat-header.css')
+    const neutral = rule(head, '.chat-head-state .state-line:not(.state-line--work)')
+
+    expect(neutral).toContain('border-color: var(--line)')
+    expect(neutral).toContain('background: transparent')
+    expect(neutral).toContain('color: var(--dim)')
   })
 
   it('draws a party turn as `.pturn`: 11px 10px, no stack gap, and the speaker’s ground under the accent edge', () => {
