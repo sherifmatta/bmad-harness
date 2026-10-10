@@ -1,0 +1,16 @@
+{"fixture":"coaching-path.jsonl","frames":24862,"distinctWrittenPaths":1,"bashMentionedMd":18,"ruleA_pathNamesStory":[],"ruleB_sprintStatusWrites":0,"ruleC_turnNamesStory":[],"userTurns":10}
+{"fixture":"fast-path-opus.jsonl","frames":46801,"distinctWrittenPaths":8,"bashMentionedMd":29,"ruleA_pathNamesStory":[],"ruleB_sprintStatusWrites":0,"ruleC_turnNamesStory":[],"userTurns":3}
+{"fixture":"fast-path-sonnet.jsonl","frames":13047,"distinctWrittenPaths":2,"bashMentionedMd":8,"ruleA_pathNamesStory":[],"ruleB_sprintStatusWrites":0,"ruleC_turnNamesStory":[],"userTurns":4}
+{"fixture":"interrupt-inband-chat.jsonl","frames":69,"distinctWrittenPaths":0,"bashMentionedMd":0,"ruleA_pathNamesStory":[],"ruleB_sprintStatusWrites":0,"ruleC_turnNamesStory":[],"userTurns":4}
+{"fixture":"interrupt-inband-idle.jsonl","frames":27,"distinctWrittenPaths":0,"bashMentionedMd":0,"ruleA_pathNamesStory":[],"ruleB_sprintStatusWrites":0,"ruleC_turnNamesStory":[],"userTurns":3}
+{"fixture":"interrupt-inband-tasks-live-mid-write.jsonl","frames":1434,"distinctWrittenPaths":1,"bashMentionedMd":0,"ruleA_pathNamesStory":[],"ruleB_sprintStatusWrites":0,"ruleC_turnNamesStory":[],"userTurns":3}
+{"fixture":"interrupt-inband-tasks-live.jsonl","frames":72,"distinctWrittenPaths":0,"bashMentionedMd":0,"ruleA_pathNamesStory":[],"ruleB_sprintStatusWrites":0,"ruleC_turnNamesStory":[],"userTurns":4}
+{"fixture":"interrupt-inband.jsonl","frames":5206,"distinctWrittenPaths":1,"bashMentionedMd":3,"ruleA_pathNamesStory":[],"ruleB_sprintStatusWrites":0,"ruleC_turnNamesStory":[],"userTurns":5}
+{"fixture":"interrupt-sigint.jsonl","frames":2083,"distinctWrittenPaths":0,"bashMentionedMd":1,"ruleA_pathNamesStory":[],"ruleB_sprintStatusWrites":0,"ruleC_turnNamesStory":[],"userTurns":3}
+{"fixture":"multi-file-sonnet.jsonl","frames":1113,"distinctWrittenPaths":3,"bashMentionedMd":0,"ruleA_pathNamesStory":[],"ruleB_sprintStatusWrites":0,"ruleC_turnNamesStory":[],"userTurns":1}
+{"fixture":"reviewer-gate-failure-induced.jsonl","frames":951,"distinctWrittenPaths":2,"bashMentionedMd":1,"ruleA_pathNamesStory":[],"ruleB_sprintStatusWrites":0,"ruleC_turnNamesStory":[],"userTurns":2}
+{"memlog":"_bmad/brainstorming/brainstorm-bmad-visual-harness-2026-09-22/.memlog.md","storyKeyLines":0,"sprintStatusMentions":0}
+{"memlog":"_bmad/party-mode/memories/installed/.memlog.md","storyKeyLines":0,"sprintStatusMentions":1}
+{"memlog":"_bmad/planning-artifacts/architecture/architecture-bmad-harness-2026-09-23/.memlog.md","storyKeyLines":0,"sprintStatusMentions":1}
+{"memlog":"_bmad/planning-artifacts/ux-designs/ux-bmad-harness-2026-09-24/.memlog.md","storyKeyLines":0,"sprintStatusMentions":1}
+{"memlog":"_bmad/specs/spec-bmad-visual-harness/.memlog.md","storyKeyLines":0,"sprintStatusMentions":0}
