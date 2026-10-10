@@ -192,9 +192,30 @@ describe('the Board, read', () => {
   })
 
   it('has no live region, tab stop or control in the overview or the epics', () => {
-    const board = withoutTrack(markup.slice(markup.indexOf('board-overview')))
+    const board = withoutTrack(markup.slice(markup.indexOf('board-overview'), markup.indexOf('board-agents')))
 
     expect(board).not.toMatch(/<button|<input|tabindex|aria-|role=|onclick/i)
+  })
+})
+
+describe('the Board’s Agents panel', () => {
+  const board: BoardSnapshot = { revision: 1, kind: 'read', epics: [], others: [] }
+  const panel = (html: string): string => html.slice(html.indexOf('<section class="board-agents"'), html.indexOf('</section>', html.indexOf('<section class="board-agents"')))
+  const markup = shell({ board, states: new Map<string, PersonaState>([[ROSTER[0].id, 'work'], [ROSTER[1].id, 'live']]) })
+
+  it('draws one row per persona and is not a control: no button, input, tab stop, handler, live region, role or tooltip of its own', () => {
+    const html = panel(markup)
+
+    expect(html.match(/<li class="board-agent /g)).toHaveLength(ROSTER.length)
+    expect(html).not.toMatch(/<button|<input|<a |tabindex|onclick|aria-busy|title=/i)
+    // The only role or aria attribute is the portrait svg's own label, as on the tile, and the dot's aria-hidden.
+    expect(html.replace(/<svg [^>]*>/g, '')).not.toMatch(/role=|aria-(?!hidden)/i)
+  })
+
+  it('draws no count, cost, token, tool-call figure or last-run age', () => {
+    const text = panel(markup).replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<[^>]*>/g, ' ')
+
+    expect(text).not.toMatch(/spend|budget|\bcost|token|tool[- ]call|\bago\b|\blast run\b|\d+ (?:runs?|turns?)/i)
   })
 })
 

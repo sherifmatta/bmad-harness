@@ -301,6 +301,48 @@ describe('App, the Board', () => {
     expect(figures()).toEqual(['0', '1'])
   })
 
+  it('moves a persona’s Agents row with its state: the run line while `work` with a run in flight, `in a turn` without one, and nothing back at idle (Story 6.6)', async () => {
+    boardNow = async () => ({ revision: 1, kind: 'read', epics: [], others: [] })
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    pressBoard()
+
+    const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
+    const row = (): HTMLElement =>
+      [...boardSection().querySelectorAll<HTMLElement>('.board-agent')].find((el) => el.querySelector('.board-agent-name')?.textContent === 'Mary')!
+    const run = (): string | null => row().querySelector('.board-agent-run')?.textContent ?? null
+    const names = (): string[] => [...boardSection().querySelectorAll('.board-agent-name')].map((el) => el.textContent ?? '')
+    const order = names()
+    expect(order).toEqual(snapshot.agents.map((member) => member.name))
+    expect(run()).toBeNull()
+    expect(row().className).toContain('board-agent--idle')
+
+    // In a turn that is not a run: the words and nothing of what.
+    push({ name: 'persona:state', payload: { agentId: mary.id, state: 'work', at: Date.now() } })
+    expect(run()).toBe('in a turn')
+    expect(row().className).not.toContain('board-agent--idle')
+    const node = row()
+
+    // A run starts: the code, the subject path and the run's elapsed.
+    push({ name: 'run:started', payload: { runId: 'r1', sessionId: 's-Mary', agentId: mary.id, code: 'CP', at: Date.now() - 7_000 } })
+    push({ name: 'doc:prose', payload: { runId: 'r1', sessionId: 's-Mary', callId: 'c1', path: 'a/b.md', text: '## A\n', at: Date.now() } })
+    await act(async () => {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    })
+    expect(run()).toMatch(/^CP a\/b\.md \d+s$/)
+    expect(row()).toBe(node)
+    expect([...boardSection().querySelectorAll('.board-agent-run')]).toHaveLength(1)
+    expect(names()).toEqual(order)
+    expect([...boardSection().querySelectorAll('.board-agents, .board-agents *')].filter((el) => el.closest('svg') === null).some((el) => el.getAttributeNames().some((name) => name === 'role' || name === 'tabindex' || name === 'title' || (name.startsWith('aria-') && name !== 'aria-hidden')))).toBe(false)
+
+    // Back from work: the run line is gone in the same render.
+    push({ name: 'run:finished', payload: { runId: 'r1', sessionId: 's-Mary', at: Date.now() } })
+    push({ name: 'persona:state', payload: { agentId: mary.id, state: 'idle', at: Date.now() } })
+    expect(run()).toBeNull()
+    expect(row().className).toContain('board-agent--idle')
+  })
+
   it('reads the same when getBoard rejects', async () => {
     boardNow = async () => {
       throw { code: 'board/unexpected', message: 'board · unexpected failure' }

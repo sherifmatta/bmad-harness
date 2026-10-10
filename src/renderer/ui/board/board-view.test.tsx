@@ -4,6 +4,9 @@ import { describe, expect, it } from 'vitest'
 import type { BoardEpic, BoardSnapshot, BoardStory } from '../../../shared/board'
 import type { AgentView } from '../../../shared/install'
 import type { PersonaState } from '../persona/portrait'
+import { createProseStore } from '../chat/prose-store'
+import type { ProseStore } from '../chat/prose-store'
+import type { RunCardEntry } from '../chat/transcript-entry'
 import { BoardView } from './board-view'
 
 const none: BoardSnapshot = { revision: 1, kind: 'none', code: 'board/absent', message: 'board · no sprint status' }
@@ -48,6 +51,7 @@ const markup = (
       folder={folder.length === 0 ? '_bmad/' : folder[0]}
       states={NO_STATES}
       installed={ROSTER}
+      entries={[]}
     />
   )
 
@@ -129,7 +133,8 @@ describe('BoardView', () => {
     })
 
     it('draws no control, tab stop, handler, live region, input or text of its own', () => {
-      const html = markup(withStories(story('6.4', 'T', 'review'))).replace(/<span class="board-epic-track"[^>]*><span [^>]*><\/span><\/span>/g, '')
+      const whole = markup(withStories(story('6.4', 'T', 'review')))
+      const html = whole.slice(0, whole.indexOf('board-agents')).replace(/<span class="board-epic-track"[^>]*><span [^>]*><\/span><\/span>/g, '')
 
       expect(html).not.toMatch(/<button|<input|<a |tabindex|onclick|role=|aria-|loading|spinner|skeleton/i)
     })
@@ -139,7 +144,7 @@ describe('BoardView', () => {
     const text = (html: string, className: string): string[] =>
       [...html.matchAll(new RegExp(`<[a-z]+ class="${className}">([^<]*)<`, 'g'))].map((match) => match[1])
     const render = (snapshot: BoardSnapshot, states: Map<string, PersonaState> = NO_STATES): string =>
-      renderToStaticMarkup(<BoardView snapshot={snapshot} failure={null} folder="_bmad/" states={states} installed={ROSTER} />)
+      renderToStaticMarkup(<BoardView snapshot={snapshot} failure={null} folder="_bmad/" states={states} installed={ROSTER} entries={[]} />)
     const snapshot: BoardSnapshot = {
       revision: 4,
       kind: 'read',
@@ -161,6 +166,7 @@ describe('BoardView', () => {
       expect(html.match(/class="board-figure"/g)).toHaveLength(2)
       expect(html.indexOf('board-overview')).toBeLessThan(html.indexOf('board-stories'))
       expect(html.indexOf('board-stories')).toBeLessThan(html.indexOf('board-epics'))
+      expect(html.indexOf('board-epics')).toBeLessThan(html.indexOf('board-agents'))
     })
 
     it('draws one row per epic in the file’s order, with the id, the title and the words at the right', () => {
@@ -184,13 +190,13 @@ describe('BoardView', () => {
 
     it('draws neither figures nor rows for none, a failure or no snapshot', () => {
       for (const html of [markup(none), markup(null, failure), markup(null)]) {
-        expect(html).not.toMatch(/board-overview|board-epics|board-figure/)
+        expect(html).not.toMatch(/board-overview|board-epics|board-figure|board-agents/)
       }
     })
 
     it('is not a control, a meter, a native progress or a live region; its one drawn mark is an aria-hidden track', () => {
       const html = render(snapshot)
-      const regions = (html.slice(0, html.indexOf('board-stories')) + html.slice(html.indexOf('board-epics'))).replace(
+      const regions = (html.slice(0, html.indexOf('board-stories')) + html.slice(html.indexOf('board-epics'), html.indexOf('board-agents'))).replace(
         /<span class="board-epic-track"[^>]*><span [^>]*><\/span><\/span>/g,
         ''
       )
@@ -198,6 +204,91 @@ describe('BoardView', () => {
       expect(regions).not.toMatch(/<button|<input|<a |tabindex|onclick|role=|aria-|<progress|<meter|style=|%|title=/i)
       // One track for each epic that has stories, filled to the share done: 2 of 2, 1 of 3, none for an empty epic, 0 of 1.
       expect([...html.matchAll(/board-epic-fill" style="width:(\d+)%"/g)].map((match) => match[1])).toEqual(['100', '33', '0'])
+    })
+  })
+
+  describe('the Agents panel (Story 6.6)', () => {
+    const NOW = 1_700_000_000_000
+    const entry = (id: string, agentId: string, over: Partial<RunCardEntry> = {}): RunCardEntry => ({
+      kind: 'run',
+      id,
+      at: NOW,
+      runId: id,
+      sessionId: `s-${id}`,
+      agentId,
+      code: 'CP',
+      status: 'running',
+      notes: [],
+      steps: [],
+      documents: [],
+      ...over
+    })
+    const render = (
+      states: Map<string, PersonaState>,
+      entries: readonly RunCardEntry[] = [],
+      prose?: ProseStore
+    ): string =>
+      renderToStaticMarkup(
+        <BoardView snapshot={read} failure={null} folder="_bmad/" states={states} installed={ROSTER} entries={entries} prose={prose} />
+      )
+    const rows = (html: string): string[] => html.split('<li class="board-agent ').slice(1)
+
+    it('draws the head `agents` and one row per persona in roster order, each with name, title, dot and word', () => {
+      const html = render(new Map<string, PersonaState>([['c', 'live']]))
+
+      expect([...html.matchAll(/<h3 class="board-agents-head">([^<]*)</g)].map((match) => match[1])).toEqual(['agents'])
+      expect([...html.matchAll(/class="board-agent-name">([^<]*)</g)].map((match) => match[1])).toEqual(['a', 'b', 'c', 'd', 'e'])
+      expect(rows(html)).toHaveLength(5)
+      expect(rows(html)[2]).toContain('board-agent--live')
+      expect(rows(html)[2]).toContain('status-dot--live')
+      expect(rows(html)[2]).toContain('>live<')
+      expect(rows(html)[0]).toContain('board-agent--idle')
+      expect(rows(html)[0]).toContain('>idle<')
+      expect(rows(html)[0]).toContain('board-agent-title">Role<')
+    })
+
+    it('adds the run’s code, its subject path and its elapsed for a working persona with a run in flight', () => {
+      const prose = createProseStore({ raf: () => undefined })
+      prose.append('r1', 'c1', 'a/b.md', 'text')
+      const html = render(new Map<string, PersonaState>([['b', 'work']]), [entry('r1', 'b', { at: Date.now() - 7_000 })], prose)
+
+      expect(rows(html)[1]).toMatch(/board-agent-run">CP a\/b\.md \d+s</)
+      expect(rows(html)[1]).toContain('>working<')
+    })
+
+    it('omits the path while it is empty, and the code when the entry has none', () => {
+      const html = render(new Map<string, PersonaState>([['b', 'work']]), [entry('r1', 'b', { at: Date.now() })])
+      const bare = render(new Map<string, PersonaState>([['b', 'work']]), [entry('r1', 'b', { at: Date.now(), code: undefined })])
+
+      expect(rows(html)[1]).toMatch(/board-agent-run">CP \d+s</)
+      expect(rows(bare)[1]).toMatch(/board-agent-run">\d+s</)
+    })
+
+    it('says `in a turn` and nothing of what for a working persona with no run in flight', () => {
+      const html = render(new Map<string, PersonaState>([['b', 'work']]), [entry('r0', 'b', { status: 'finished', endedAt: NOW })])
+
+      expect(rows(html)[1]).toContain('board-agent-run">in a turn<')
+      expect(rows(html)[1]).not.toMatch(/CP|\d+s</)
+    })
+
+    it('draws the word alone for any other state, and no run line, even under a stale running entry', () => {
+      for (const state of ['live', 'note', 'error', 'idle'] as const) {
+        const html = render(new Map<string, PersonaState>([['b', state]]), [entry('r1', 'b')])
+
+        expect(rows(html)[1]).not.toContain('board-agent-run')
+        expect(rows(html)[1]).not.toMatch(/\d+s</)
+      }
+    })
+
+    it('shows the elapsed for `work` only', () => {
+      const html = render(new Map<string, PersonaState>([['a', 'work'], ['b', 'live']]), [entry('r1', 'a'), entry('r2', 'b')])
+
+      expect(html.match(/board-agent-run/g)).toHaveLength(1)
+    })
+
+    it('draws no panel for none, a failure or no snapshot', () => {
+      expect(markup(none)).not.toContain('board-agents')
+      expect(markup(null, failure)).not.toContain('board-agents')
     })
   })
 })

@@ -8,6 +8,8 @@ import { stateLineOf } from '../../../shared/output-folder'
 import type { BoardSnapshot } from '../../../shared/board'
 import type { RailSnapshot } from '../../../shared/rail'
 import { BoardView } from '../board/board-view'
+import type { ProseStore } from '../chat/prose-store'
+import type { TranscriptEntry } from '../chat/transcript-entry'
 import { ChatHeader } from '../chat/chat-header'
 import { OrphanHeader } from '../chat/orphan-header'
 import { FollowScroller } from '../follow/follow-scroller'
@@ -76,6 +78,9 @@ const NO_ITEMS: readonly MenuEntryView[] = []
 /** Nothing reported yet, so every persona reads `idle` from an empty map. */
 const NO_STATES: ReadonlyMap<string, PersonaState> = new Map()
 
+/** No transcript yet, so no persona is on a run. */
+const NO_RUNS: readonly TranscriptEntry[] = []
+
 /** No state has begun, so no counter has anything to count from. */
 const NO_SINCE: ReadonlyMap<string, number> = new Map()
 
@@ -109,6 +114,8 @@ export function Shell({
   railFailure = null,
   board = null,
   boardFailure = null,
+  runs = NO_RUNS,
+  prose,
   onChooseFolder = ignore,
   currentId: chosenId,
   onCurrentChange,
@@ -146,6 +153,10 @@ export function Shell({
   board?: BoardSnapshot | null
   /** Why there is no Board snapshot, when there is not one. */
   boardFailure?: HarnessError | null
+  /** The window's transcript entries: the Board's Agents panel reads the run each working persona is on (Story 6.6). */
+  runs?: readonly TranscriptEntry[]
+  /** Where each run's document text is held: the Agents panel reads the path of a run's subject. */
+  prose?: ProseStore
   /** Called when `change…` is pressed: the native folder chooser for the output folder (Story 5.4). */
   onChooseFolder?: () => void
   /** The current persona when the window holds it: `App` does, so `@<name>` can move it
@@ -324,6 +335,8 @@ export function Shell({
           folder={rail?.folder}
           states={states}
           installed={snapshot.agents}
+          entries={runs}
+          prose={prose}
         />
       </section>
     </div>

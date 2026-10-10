@@ -294,6 +294,8 @@ export function App(): JSX.Element | null {
         railFailure={railFailure}
         board={board}
         boardFailure={boardFailure}
+        runs={conversation.entries}
+        prose={conversation.prose}
         onChooseFolder={chooseFolder}
         currentId={currentId}
         onCurrentChange={setCurrentId}

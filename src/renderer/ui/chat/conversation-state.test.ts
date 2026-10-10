@@ -999,6 +999,7 @@ describe('a run’s card (Story 3.1)', () => {
       runId: 'r1',
       sessionId: 's1',
       agentId: mary.id,
+      code: 'CP',
       status: 'running',
       notes: [],
       steps: [],
@@ -1075,7 +1076,12 @@ describe('a run’s card (Story 3.1)', () => {
       documents: [{ path: 'p.md', sections: ['A'] }],
       notes: [{ text: '- n' }]
     })
-    expect(runCardOf(state, 'r1')).not.toHaveProperty('code')
+    // Story 6.6: a stored card's code is carried, so the Agents panel can name the run.
+    expect(runCardOf(state, 'r1')?.code).toBe('CP')
+    const bare = { ...snapshot, runs: [{ ...snapshot.runs[0], code: '' }] } as ConversationSnapshot
+    expect(runCardOf(hydrate(initialConversation, bare, agentOf).state, 'r1')).not.toHaveProperty('code')
+    const blank: ContractEvent = { name: 'run:started', payload: { ...R, agentId: mary.id, code: '', at: 50 } }
+    expect(runCardOf(fold([blank]), 'r1')).not.toHaveProperty('code')
   })
 
   it('is born with the plan run:started carried, adds the names a note pulled once each, and has none when the run had none (Story 3.3)', () => {

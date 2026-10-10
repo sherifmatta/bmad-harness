@@ -601,6 +601,7 @@ function runEntryOf(card: RunCardSnapshot): RunCardEntry {
     runId: card.runId,
     sessionId: card.sessionId,
     ...(card.agentId === undefined ? {} : { agentId: card.agentId }),
+    ...(card.code === undefined || card.code === '' ? {} : { code: card.code }),
     ...(card.skill === undefined ? {} : { skill: card.skill }),
     status: card.status,
     ...(card.endedAt === undefined ? {} : { endedAt: card.endedAt }),
@@ -919,7 +920,7 @@ export function foldEvent(
 
     case 'run:started': {
       // The run's card, born in time order; its session has a turn in flight.
-      const { runId, sessionId, agentId, skill, plan, at } = event.payload
+      const { runId, sessionId, agentId, code, skill, plan, at } = event.payload
       if (runCardOf(state, runId) !== undefined) {
         return { state }
       }
@@ -930,6 +931,7 @@ export function foldEvent(
         runId,
         sessionId,
         ...(agentId === undefined ? {} : { agentId }),
+        ...(code === undefined || code === '' ? {} : { code }),
         ...(skill === undefined ? {} : { skill }),
         status: 'running',
         notes: [],

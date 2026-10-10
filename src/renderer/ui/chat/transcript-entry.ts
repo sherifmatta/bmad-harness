@@ -74,6 +74,8 @@ export type RunCardEntry = {
   runId: string
   sessionId: string
   agentId?: string
+  /** `run:started.code`: the code that started the run, kept only to name the run on the Board (Story 6.6). Optional so older entries stay valid. */
+  code?: string
   /** `run:started.skill`: the skill the run invoked, kept only to draw the head (AD-24). Never sent anywhere. */
   skill?: string
   status: RunStatus

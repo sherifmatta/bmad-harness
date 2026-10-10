@@ -676,6 +676,10 @@ describe("the text ramp", () => {
       kind: "label",
       why: "a Board column's status word, as the file writes it; the cards beneath are at --text and carry the stories the word names",
     },
+    "ui/shell/shell.css: .board-agents-head": {
+      kind: "label",
+      why: "the Agents panel's head word; each row beneath names its persona and its state at --text or --dim",
+    },
     "ui/shell/shell.css: .board-epics-head": {
       kind: "label",
       why: "the Epics panel's head word; each row beneath names its epic and its count at --dim or above",
@@ -1142,7 +1146,7 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
   const RECORDED_SKILL_SPELLINGS: Record<string, RegExp> = {
     "src/renderer/ui/chat/transcript-entry.ts": /^  skill\?: string$/gm,
     "src/renderer/ui/chat/conversation-state.ts":
-      /\.\.\.\((?:card\.)?skill === undefined \? \{\} : \{ skill(?:: card\.skill)? \}\),|const \{ runId, sessionId, agentId, skill, plan, at \}/g,
+      /\.\.\.\((?:card\.)?skill === undefined \? \{\} : \{ skill(?:: card\.skill)? \}\),|const \{ runId, sessionId, agentId, (?:code, )?skill, plan, at \}/g,
     "src/renderer/ui/chat/run-card.tsx":
       /<RunHeadName skill=\{entry\.skill\} \/>|function RunHeadName\(\{ skill \}: \{ skill: string \| undefined \}\)|if \(skill === undefined\)|className="run-card-skill">\{skill\}/g
   };

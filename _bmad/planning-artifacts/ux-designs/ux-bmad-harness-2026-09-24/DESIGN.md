@@ -1146,7 +1146,7 @@ A field with no source is not drawn.
 | Board | five columns in one panel, 1px `line-soft` between them, each padded `8px`. Column head: the status as the file writes it, `{typography.micro}` uppercase `faint`, **no count**. Cards stack with a `7px` gap |
 | Story card | `bg` ground, 1px `line`, `{rounded.control}`, padding `7px 8px`. Id in mono `{typography.label}` `faint`; the title at `{typography.control}` `text`; a foot at `{typography.ident}` `faint` with the owner's initials disc (*Initials*) and the run's `working · <elapsed>`. A card with a run on it takes the amber pulse dot and a 1px `accent-border`. **No progress bar** |
 | Epics | rows at `{typography.control}`: id in mono `dim`, title `text`, `n of m stories done` in mono `dim` on the right; 1px `line-soft` between rows. Text only |
-| Agents | the persona tile's anatomy in a panel: the portrait, name and title, the state line, the run's elapsed in mono `faint`. Idle rows dim at `{opacity.idle}` |
+| Agents | the persona tile's anatomy in a panel: the portrait, name and title, the state line, the run line (code, subject path, elapsed) in mono `dim`, not `faint`: it is the only carrier of the fact. Idle rows dim at `{opacity.idle}` |
 | Recent activity | rows at `{typography.control}`: the status dot, the persona's name in `text`, what it did in `dim`, the time right-aligned in mono `faint`; 1px `line-soft` between rows |
 
 **Motion.** Nothing here adds to the closed motion inventory (*Motion*): no shimmer, no fade for the actions toolbar, no transition on a splitter.

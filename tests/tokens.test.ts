@@ -1564,11 +1564,11 @@ describe('the chat UI as the mockup draws it (2026-10-09)', () => {
   })
 })
 
-describe('the Board’s regions (Stories 6.4 and 6.5)', () => {
+describe('the Board’s regions (Stories 6.4 to 6.6)', () => {
   const path = 'src/renderer/ui/shell/shell.css'
   const source = withoutComments(readFileSync(join(ROOT, path), 'utf8'))
   const rules = [...source.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([, selectors]) =>
-    selectors.split(',').some((selector) => /^\.board-(stories|column|cards|card|overview|figure|epics|epic)\b/.test(selector.trim()))
+    selectors.split(',').some((selector) => /^\.board-(stories|column|cards|card|overview|figure|epics|epic|agents|agent)\b/.test(selector.trim()))
   )
 
   it('finds the column rules', () => {
@@ -1580,5 +1580,15 @@ describe('the Board’s regions (Stories 6.4 and 6.5)', () => {
       expect(body, selectors).not.toMatch(/overflow(?!-wrap)|transition|animation|cursor/)
     }
     expect(literalsIn(path, readFileSync(join(ROOT, path), 'utf8'))).toEqual([])
+  })
+  it('sets the Agents panel’s run line and persona title at --dim, never --faint, and dims an idle row at --opacity-idle', () => {
+    const body = (selector: string): string => rules.find(([, selectors]) => selectors.trim() === selector)?.[2] ?? ''
+
+    expect(body('.board-agent-run')).toContain('color: var(--dim)')
+    expect(body('.board-agent-run')).toContain('font-family: var(--mono)')
+    expect(body('.board-agent-title')).toContain('color: var(--dim)')
+    expect(body('.board-agent--idle')).toContain('opacity: var(--opacity-idle)')
+    expect(body('.board-agents')).toContain('border: var(--rule-width) solid var(--line)')
+    expect(body('.board-agent + .board-agent')).toContain('var(--line-soft)')
   })
 })

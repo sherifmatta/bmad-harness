@@ -423,6 +423,95 @@
   color: var(--dim);
 }
 
+.board-agents {
+  margin: var(--rail-group-padding);
+  background: var(--panel);
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+.board-agents-head {
+  margin: 0;
+  padding: var(--space-md) var(--space-xl);
+  background: var(--panel-2);
+  border-top-left-radius: var(--radius-card);
+  border-top-right-radius: var(--radius-card);
+  font-size: var(--fs-micro);
+  font-weight: var(--weight-strong);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.board-agent-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.board-agent {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-lg);
+  padding: var(--space-md) var(--space-xl);
+}
+
+.board-agent + .board-agent {
+  border-top: var(--rule-width) solid var(--line-soft);
+}
+
+.board-agent--idle {
+  opacity: var(--opacity-idle);
+}
+
+.board-agent .portrait {
+  flex: 0 0 auto;
+}
+
+.board-agent-who {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.board-agent-ident {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: var(--space-sm-plus);
+}
+
+.board-agent-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: var(--fs-name);
+  font-weight: var(--weight-strong);
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+
+.board-agent-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--fs-ident);
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+
+.board-agent .state-line {
+  margin-top: var(--tile-state-top);
+}
+
+.board-agent-run {
+  display: block;
+  margin-top: var(--space-xs);
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  font-variant-numeric: tabular-nums;
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+
 /* ---------- 1:1 : the chat column ---------- */
 
 .chat {

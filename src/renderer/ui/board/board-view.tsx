@@ -2,7 +2,11 @@ import type { JSX } from 'react'
 
 import type { BoardSnapshot } from '../../../shared/board'
 import type { AgentView, HarnessError } from '../../../shared/install'
+import type { ProseStore } from '../chat/prose-store'
+import type { TranscriptEntry } from '../chat/transcript-entry'
 import type { PersonaState } from '../persona/portrait'
+import { agentRowsOf } from './board-agents'
+import { AgentsPanel } from './board-agents-panel'
 import { columnsOf } from './board-columns'
 import { epicRowsOf, overviewOf } from './board-figures'
 
@@ -12,7 +16,8 @@ import { epicRowsOf, overviewOf } from './board-figures'
  * error dialog, no code, no stack. A snapshot that was read draws the story
  * board: an overview of two plain figures, one column per status (each story a
  * card with its number and title and nothing else), and one text row per epic
- * reading `n of m stories done`. The other regions are Stories 6.6 and 6.7's.
+ * reading `n of m stories done`, then the Agents panel (Story 6.6): one row per installed
+ * persona with its state, and the run it is on. The recent-activity region is Story 6.7's.
  * The time before the first snapshot draws nothing: no spinner and no skeleton.
  *
  * A card, a figure and a row are not controls: no handler, no tab stop, no live
@@ -23,7 +28,9 @@ import { epicRowsOf, overviewOf } from './board-figures'
  * state replaces the text in one render.
  *
  * `states` and `installed` are the tiles' own: the figure for agents running
- * counts the roster's personas in `work`.
+ * counts the roster's personas in `work`. `entries` and `prose` are the window's:
+ * a persona's run in flight is read from the entries and its subject path from
+ * the prose store, as the run card reads them.
  *
  * `folder` is the rail's output folder, with its trailing `/`; the reader's own
  * path is main's, so it is built the same way here. With no rail snapshot yet
@@ -34,13 +41,17 @@ export function BoardView({
   failure,
   folder,
   states,
-  installed
+  installed,
+  entries,
+  prose
 }: {
   snapshot: BoardSnapshot | null
   failure: HarnessError | null
   folder: string | undefined
   states: ReadonlyMap<string, PersonaState>
   installed: readonly AgentView[]
+  entries: readonly TranscriptEntry[]
+  prose?: ProseStore | undefined
 }): JSX.Element | null {
   if (snapshot !== null && snapshot.kind === 'read') {
     const overview = overviewOf(snapshot, installed, states)
@@ -93,6 +104,7 @@ export function BoardView({
             ))}
           </ul>
         </section>
+        <AgentsPanel rows={agentRowsOf(installed, states, entries)} prose={prose} />
       </>
     )
   }
