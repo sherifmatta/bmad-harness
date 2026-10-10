@@ -1552,3 +1552,22 @@ describe('the chat UI as the mockup draws it (2026-10-09)', () => {
     expect(tokens.get('--card-foot-gap')).toBe('8px')
   })
 })
+
+describe('the Board’s story columns (Story 6.4)', () => {
+  const path = 'src/renderer/ui/shell/shell.css'
+  const source = withoutComments(readFileSync(join(ROOT, path), 'utf8'))
+  const rules = [...source.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([, selectors]) =>
+    selectors.split(',').some((selector) => /^\.board-(stories|column|cards|card)\b/.test(selector.trim()))
+  )
+
+  it('finds the column rules', () => {
+    expect(rules.length).toBeGreaterThanOrEqual(7)
+  })
+
+  it('gives no column or card an overflow, transition, animation or literal of its own', () => {
+    for (const [, selectors, body] of rules) {
+      expect(body, selectors).not.toMatch(/overflow(?!-wrap)|transition|animation|cursor/)
+    }
+    expect(literalsIn(path, readFileSync(join(ROOT, path), 'utf8'))).toEqual([])
+  })
+})

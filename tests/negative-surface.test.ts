@@ -672,6 +672,10 @@ describe("the text ramp", () => {
       kind: "label",
       why: "the persona’s own description; the tile and the header name them, and its absence costs nothing",
     },
+    "ui/shell/shell.css: .board-column-head": {
+      kind: "label",
+      why: "a Board column's status word, as the file writes it; the cards beneath are at --text and carry the stories the word names",
+    },
     "ui/shell/shell.css: .crumbs-sep": {
       kind: "decoration",
       why: "the bar’s separator glyph",

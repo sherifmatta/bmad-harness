@@ -214,6 +214,50 @@ describe('App, the Board', () => {
     expect(boardListeners).toHaveLength(1)
   })
 
+  it('moves a card to its new column in the same render, without moving focus or scroll', async () => {
+    const snapshotOf = (revision: number, status: string): unknown => ({
+      revision,
+      kind: 'read',
+      epics: [
+        {
+          key: 'epic-6',
+          number: 6,
+          title: 'Board',
+          status: 'in-progress',
+          known: true,
+          stories: [{ key: '6-4-every-story-in-its-column', number: '6.4', title: 'Every story, in its column', status, known: true }]
+        }
+      ],
+      others: []
+    })
+    boardNow = async () => snapshotOf(1, 'in-progress')
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    pressBoard()
+
+    const columnOf = (): string | null =>
+      boardSection().querySelector('.board-card')?.closest('.board-column')?.querySelector('.board-column-head')?.textContent ?? null
+    expect(columnOf()).toBe('in-progress')
+
+    const input = field()
+    input.focus()
+    boardSection().scrollTop = 40
+    const focused = document.activeElement
+    const stories = boardSection().querySelector('.board-stories')
+    const heading = boardSection().querySelector('.board-column-head')
+    act(() => boardListeners.forEach((listener) => listener(snapshotOf(2, 'review'))))
+
+    expect(columnOf()).toBe('review')
+    expect(boardSection().querySelectorAll('.board-card')).toHaveLength(1)
+    expect(document.activeElement).toBe(focused)
+    expect(boardSection().scrollTop).toBe(40)
+    // The columns are updated in place, not remounted.
+    expect(boardSection().querySelector('.board-stories')).toBe(stories)
+    expect(boardSection().querySelector('.board-column-head')).toBe(heading)
+    expect([...boardSection().querySelectorAll('.board-stories, .board-stories *')].some((el) => el.getAttributeNames().some((name) => name.startsWith('aria-')))).toBe(false)
+  })
+
   it('reads the same when getBoard rejects', async () => {
     boardNow = async () => {
       throw { code: 'board/unexpected', message: 'board · unexpected failure' }

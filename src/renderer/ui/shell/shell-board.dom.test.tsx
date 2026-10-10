@@ -82,13 +82,52 @@ describe('Shell, the Board', () => {
     expect(section('board').querySelectorAll('button, h1, h2, h3, ul, [role]')).toHaveLength(0)
   })
 
-  it('draws an empty body before the first snapshot and for a snapshot that was read', () => {
+  it('draws an empty body before the first snapshot, and only the five headings for a snapshot that was read', () => {
     show(null)
     expect(section('board').textContent).toBe('')
     view?.unmount()
 
     show({ revision: 2, kind: 'read', epics: [], others: [] })
-    expect(section('board').textContent).toBe('')
+    expect([...section('board').querySelectorAll('h3')].map((heading) => heading.textContent)).toEqual([
+      'backlog',
+      'ready-for-dev',
+      'in-progress',
+      'review',
+      'done'
+    ])
+    expect(section('board').querySelectorAll('li')).toHaveLength(0)
+  })
+
+  it('draws a card that is not a control: no handler on it or inside it, and a click or key changes nothing', () => {
+    show({
+      revision: 2,
+      kind: 'read',
+      epics: [
+        {
+          key: 'epic-6',
+          number: 6,
+          title: 'Board',
+          status: 'in-progress',
+          known: true,
+          stories: [{ key: '6-4-every-story-in-its-column', number: '6.4', title: 'Every story, in its column', status: 'review', known: true }]
+        }
+      ],
+      others: []
+    })
+    const card = section('board').querySelector('.board-card') as HTMLElement
+    const before = section('board').innerHTML
+
+    for (const element of [card, ...card.querySelectorAll('*')]) {
+      const props = Object.keys(element).filter((name) => name.startsWith('__reactProps$'))
+      expect(props.length).toBeGreaterThan(0)
+      const handlers = props.flatMap((name) => Object.keys((element as unknown as Record<string, object>)[name]).filter((key) => /^on[A-Z]/.test(key)))
+      expect(handlers).toEqual([])
+    }
+    expect(card.hasAttribute('tabindex')).toBe(false)
+    act(() => card.click())
+    act(() => void card.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
+    expect(section('board').innerHTML).toBe(before)
+    expect(section('conversation').hidden).toBe(false)
   })
 
   it('shows the Board on `g` then `b`, and nothing for `g` and another key', () => {
