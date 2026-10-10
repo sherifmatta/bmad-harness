@@ -1,19 +1,26 @@
 import type { JSX } from 'react'
 
 import type { BoardSnapshot } from '../../../shared/board'
-import type { HarnessError } from '../../../shared/install'
+import type { AgentView, HarnessError } from '../../../shared/install'
+import type { PersonaState } from '../persona/portrait'
 import { columnsOf } from './board-columns'
+import { epicRowsOf, overviewOf } from './board-figures'
 
 /**
- * The Board's body (Stories 6.3 and 6.4). A snapshot that says there is none, or
+ * The Board's body (Stories 6.3 to 6.5). A snapshot that says there is none, or
  * a failure from main, draws `no sprint status` and the file being watched: no
  * error dialog, no code, no stack. A snapshot that was read draws the story
- * board: one column per status, each story a card with its number and title and
- * nothing else. The other regions are Stories 6.5 to 6.7's. The time before the
- * first snapshot draws nothing: no spinner and no skeleton.
+ * board: an overview of two plain figures, one column per status (each story a
+ * card with its number and title and nothing else), and one text row per epic
+ * reading `n of m stories done`. The other regions are Stories 6.6 and 6.7's.
+ * The time before the first snapshot draws nothing: no spinner and no skeleton.
  *
- * A card is not a control: no handler, no tab stop, no live region. A new
- * snapshot replaces the columns in one render.
+ * A card, a figure and a row are not controls: no handler, no tab stop, no live
+ * region, no bar, meter or percentage. A new snapshot or persona state replaces
+ * the text in one render.
+ *
+ * `states` and `installed` are the tiles' own: the figure for agents running
+ * counts the roster's personas in `work`.
  *
  * `folder` is the rail's output folder, with its trailing `/`; the reader's own
  * path is main's, so it is built the same way here. With no rail snapshot yet
@@ -22,29 +29,62 @@ import { columnsOf } from './board-columns'
 export function BoardView({
   snapshot,
   failure,
-  folder
+  folder,
+  states,
+  installed
 }: {
   snapshot: BoardSnapshot | null
   failure: HarnessError | null
   folder: string | undefined
+  states: ReadonlyMap<string, PersonaState>
+  installed: readonly AgentView[]
 }): JSX.Element | null {
   if (snapshot !== null && snapshot.kind === 'read') {
+    const overview = overviewOf(snapshot, installed, states)
     return (
-      <div className="board-stories">
-        {columnsOf(snapshot).map(({ status, stories }) => (
-          <section className="board-column" key={status}>
-            <h3 className="board-column-head">{status}</h3>
-            <ul className="board-cards">
-              {stories.map((story) => (
-                <li className="board-card" key={story.key}>
-                  <span className="board-card-number">{story.number}</span>
-                  <span className="board-card-title">{story.title}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
-      </div>
+      <>
+        <div className="board-overview">
+          <div className="board-figure">
+            <p className="board-figure-label">agents running</p>
+            <p className="board-figure-value">{overview.running}</p>
+            <p className="board-figure-line">{`of ${overview.installedCount} installed`}</p>
+          </div>
+          <div className="board-figure">
+            <p className="board-figure-label">stories in progress</p>
+            <p className="board-figure-value">{overview.inProgress}</p>
+            <p className="board-figure-line">{`of ${overview.shown} stories`}</p>
+          </div>
+        </div>
+        <div className="board-stories">
+          {columnsOf(snapshot).map(({ status, stories }) => (
+            <section className="board-column" key={status}>
+              <h3 className="board-column-head">{status}</h3>
+              <ul className="board-cards">
+                {stories.map((story) => (
+                  <li className="board-card" key={story.key}>
+                    <span className="board-card-number">{story.number}</span>
+                    <span className="board-card-title">{story.title}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+        <section className="board-epics">
+          <h3 className="board-epics-head">epics</h3>
+          <ul className="board-epic-rows">
+            {epicRowsOf(snapshot).map((row) => (
+              <li className="board-epic" key={row.key}>
+                <span className="board-epic-id">{row.id}</span>
+                {row.title !== '' && <span className="board-epic-title">{row.title}</span>}
+                <span className="board-epic-progress">
+                  {row.total === 0 ? 'no stories' : `${row.done} of ${row.total} stories done`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </>
     )
   }
   const none = snapshot === null ? failure !== null : snapshot.kind === 'none'

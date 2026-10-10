@@ -280,6 +280,111 @@
   overflow-wrap: anywhere;
 }
 
+/* ---------- the Board: how far each epic is, in words (Story 6.5) ---------- */
+
+/* Two equal cells on one panel, told apart by their padding alone. Figures and rows are text: no bar, fill, accent or border of their own. */
+.board-overview {
+  display: flex;
+  margin: var(--rail-group-padding);
+  background: var(--panel);
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+.board-figure {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: var(--space-lg) var(--space-xl);
+}
+
+.board-figure-label,
+.board-figure-value,
+.board-figure-line {
+  margin: 0;
+}
+
+/* The label is the only carrier of what the figure counts, so it sits at --dim. */
+.board-figure-label {
+  font-size: var(--fs-micro);
+  font-weight: var(--weight-strong);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.board-figure-value {
+  font-size: var(--fs-h1);
+  font-weight: var(--weight-strong);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-strong);
+}
+
+.board-figure-line {
+  font-size: var(--fs-body-ui);
+  color: var(--dim);
+}
+
+.board-epics {
+  margin: var(--rail-group-padding);
+  background: var(--panel);
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+.board-epics-head {
+  margin: 0;
+  padding: var(--space-md) var(--space-xl);
+  background: var(--panel-2);
+  border-top-left-radius: var(--radius-card);
+  border-top-right-radius: var(--radius-card);
+  font-size: var(--fs-micro);
+  font-weight: var(--weight-strong);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.board-epic-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.board-epic {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xl);
+  padding: var(--space-md) var(--space-xl);
+  font-size: var(--fs-control);
+}
+
+.board-epic + .board-epic {
+  border-top: var(--rule-width) solid var(--line-soft);
+}
+
+.board-epic-id {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  color: var(--dim);
+}
+
+.board-epic-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.board-epic-progress {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  font-variant-numeric: tabular-nums;
+  color: var(--dim);
+}
+
 /* ---------- 1:1 : the chat column ---------- */
 
 .chat {

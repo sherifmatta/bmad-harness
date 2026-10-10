@@ -1142,10 +1142,10 @@ A field with no source is not drawn.
 
 | Region | Anatomy |
 |---|---|
-| Overview | three equal cells, gap `10px`. Label `{typography.micro}` uppercase `faint`; figure `{typography.h1}` weight 600, tabular, `text-strong`; a line under it at `{typography.body-ui}` `dim`. All three are alike: none takes the accent or a border |
+| Overview | two equal cells in one panel, no divider. Label `{typography.micro}` uppercase `dim` (it is the only carrier of what the figure counts); figure `{typography.h1}` weight 600, tabular, `text-strong`; a line under it at `{typography.body-ui}` `dim`. Both are alike: none takes the accent or a border |
 | Board | five columns in one panel, 1px `line-soft` between them, each padded `8px`. Column head: the status as the file writes it, `{typography.micro}` uppercase `faint`, **no count**. Cards stack with a `7px` gap |
 | Story card | `bg` ground, 1px `line`, `{rounded.control}`, padding `7px 8px`. Id in mono `{typography.label}` `faint`; the title at `{typography.control}` `text`; a foot at `{typography.ident}` `faint` with the owner's initials disc (*Initials*) and the run's `working · <elapsed>`. A card with a run on it takes the amber pulse dot and a 1px `accent-border`. **No progress bar** |
-| Epics | rows at `{typography.control}`: id in mono `faint`, title `text`, `n of m stories done` in mono `faint` on the right; 1px `line-soft` between rows. Text only |
+| Epics | rows at `{typography.control}`: id in mono `dim`, title `text`, `n of m stories done` in mono `dim` on the right; 1px `line-soft` between rows. Text only |
 | Agents | the persona tile's anatomy in a panel: the portrait, name and title, the state line, the run's elapsed in mono `faint`. Idle rows dim at `{opacity.idle}` |
 | Recent activity | rows at `{typography.control}`: the status dot, the persona's name in `text`, what it did in `dim`, the time right-aligned in mono `faint`; 1px `line-soft` between rows |
 

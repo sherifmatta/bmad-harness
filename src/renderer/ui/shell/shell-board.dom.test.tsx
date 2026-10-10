@@ -88,7 +88,7 @@ describe('Shell, the Board', () => {
     view?.unmount()
 
     show({ revision: 2, kind: 'read', epics: [], others: [] })
-    expect([...section('board').querySelectorAll('h3')].map((heading) => heading.textContent)).toEqual([
+    expect([...section('board').querySelectorAll('.board-column-head')].map((heading) => heading.textContent)).toEqual([
       'backlog',
       'ready-for-dev',
       'in-progress',

@@ -1,7 +1,9 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
-import type { BoardSnapshot, BoardStory } from '../../../shared/board'
+import type { BoardEpic, BoardSnapshot, BoardStory } from '../../../shared/board'
+import type { AgentView } from '../../../shared/install'
+import type { PersonaState } from '../persona/portrait'
 import { BoardView } from './board-view'
 
 const none: BoardSnapshot = { revision: 1, kind: 'none', code: 'board/absent', message: 'board · no sprint status' }
@@ -19,7 +21,19 @@ const withStories = (...stories: BoardStory[]): BoardSnapshot => ({
   epics: [{ key: 'epic-6', number: 6, title: 'Board', status: 'in-progress', known: true, stories }],
   others: []
 })
-const headings = (html: string): string[] => [...html.matchAll(/<h3[^>]*>([^<]*)<\/h3>/g)].map((match) => match[1])
+const headings = (html: string): string[] =>
+  [...html.matchAll(/<h3 class="board-column-head">([^<]*)<\/h3>/g)].map((match) => match[1])
+const agent = (id: string): AgentView => ({ id, module: 'bmm', name: id, title: 'Role', icon: 'i', description: 'd' })
+const ROSTER = ['a', 'b', 'c', 'd', 'e'].map(agent)
+const NO_STATES = new Map<string, PersonaState>()
+const epicOf = (number: number, status: string, title: string, stories: BoardStory[]): BoardEpic => ({
+  key: `epic-${number}`,
+  number,
+  title,
+  status,
+  known: true,
+  stories
+})
 const failure = { code: 'board/unexpected', message: 'board · unexpected failure' }
 
 const markup = (
@@ -27,7 +41,15 @@ const markup = (
   error: typeof failure | null = null,
   ...folder: [string | undefined] | []
 ): string =>
-  renderToStaticMarkup(<BoardView snapshot={snapshot} failure={error} folder={folder.length === 0 ? '_bmad/' : folder[0]} />)
+  renderToStaticMarkup(
+    <BoardView
+      snapshot={snapshot}
+      failure={error}
+      folder={folder.length === 0 ? '_bmad/' : folder[0]}
+      states={NO_STATES}
+      installed={ROSTER}
+    />
+  )
 
 describe('BoardView', () => {
   it('reads `no sprint status` with the watched path beneath, for a snapshot that says none', () => {
@@ -71,10 +93,11 @@ describe('BoardView', () => {
   describe('a snapshot that was read', () => {
     it('draws the five headings in order, as the file writes them, with no count and no card', () => {
       const html = markup(read)
+      const board = html.slice(html.indexOf('board-stories'), html.indexOf('board-epics'))
 
       expect(headings(html)).toEqual(['backlog', 'ready-for-dev', 'in-progress', 'review', 'done'])
-      expect(html).not.toContain('<li')
-      expect(html.replace(/<[^>]*>/g, '')).not.toMatch(/\d/)
+      expect(board).not.toContain('<li')
+      expect(board.replace(/<[^>]*>/g, '')).not.toMatch(/\d/)
       expect(html).not.toContain('no sprint status')
     })
 
@@ -93,7 +116,7 @@ describe('BoardView', () => {
       const html = markup(withStories(story('6.4', 'T', 'review')))
 
       expect(html).toContain('<ul class="board-cards"></ul>')
-      expect(html.match(/<li/g)).toHaveLength(1)
+      expect(html.slice(0, html.indexOf('board-epics')).match(/<li/g)).toHaveLength(1)
     })
 
     it('draws an extra column after done for a status outside the five', () => {
@@ -106,6 +129,67 @@ describe('BoardView', () => {
       const html = markup(withStories(story('6.4', 'T', 'review')))
 
       expect(html).not.toMatch(/<button|<input|<a |tabindex|onclick|role=|aria-|loading|spinner|skeleton/i)
+    })
+  })
+
+  describe('the overview and the epics', () => {
+    const text = (html: string, className: string): string[] =>
+      [...html.matchAll(new RegExp(`<[a-z]+ class="${className}">([^<]*)<`, 'g'))].map((match) => match[1])
+    const render = (snapshot: BoardSnapshot, states: Map<string, PersonaState> = NO_STATES): string =>
+      renderToStaticMarkup(<BoardView snapshot={snapshot} failure={null} folder="_bmad/" states={states} installed={ROSTER} />)
+    const snapshot: BoardSnapshot = {
+      revision: 4,
+      kind: 'read',
+      epics: [
+        epicOf(1, 'done', 'Shell', [story('1.1', 'T', 'done'), story('1.2', 'T', 'done')]),
+        epicOf(6, 'in-progress', 'Board', [story('6.1', 'T', 'done'), story('6.2', 'T', 'in-progress'), story('6.3', 'T', 'backlog')]),
+        epicOf(7, 'backlog', '', []),
+        epicOf(8, 'backlog', 'Later', [story('8.1', 'T', 'blocked')])
+      ],
+      others: []
+    }
+
+    it('draws two equal cells, label then figure then line, and no third', () => {
+      const html = render(snapshot, new Map<string, PersonaState>([['a', 'work'], ['b', 'work'], ['c', 'live'], ['ghost', 'work']]))
+
+      expect(text(html, 'board-figure-label')).toEqual(['agents running', 'stories in progress'])
+      expect(text(html, 'board-figure-value')).toEqual(['2', '1'])
+      expect(text(html, 'board-figure-line')).toEqual(['of 5 installed', 'of 4 stories'])
+      expect(html.match(/class="board-figure"/g)).toHaveLength(2)
+      expect(html.indexOf('board-overview')).toBeLessThan(html.indexOf('board-stories'))
+      expect(html.indexOf('board-stories')).toBeLessThan(html.indexOf('board-epics'))
+    })
+
+    it('draws one row per epic in the file’s order, with the id, the title and the words at the right', () => {
+      const html = render(snapshot)
+
+      expect([...html.matchAll(/<h3 class="board-epics-head">([^<]*)</g)].map((match) => match[1])).toEqual(['epics'])
+      expect(text(html, 'board-epic-id')).toEqual(['Epic 1', 'Epic 6', 'Epic 7', 'Epic 8'])
+      expect(text(html, 'board-epic-progress')).toEqual(['2 of 2 stories done', '1 of 3 stories done', 'no stories', '0 of 1 stories done'])
+      expect(html).toContain(
+        '<li class="board-epic"><span class="board-epic-id">Epic 6</span><span class="board-epic-title">Board</span><span class="board-epic-progress">1 of 3 stories done</span></li>'
+      )
+    })
+
+    it('reads the id alone for an empty title', () => {
+      const html = render(snapshot)
+      const row = html.slice(html.indexOf('>Epic 7<'), html.indexOf('>no stories<'))
+
+      expect(row).not.toContain('board-epic-title')
+      expect(text(html, 'board-epic-title')).toEqual(['Shell', 'Board', 'Later'])
+    })
+
+    it('draws neither figures nor rows for none, a failure or no snapshot', () => {
+      for (const html of [markup(none), markup(null, failure), markup(null)]) {
+        expect(html).not.toMatch(/board-overview|board-epics|board-figure/)
+      }
+    })
+
+    it('is not a control, a bar, a meter, a percentage or a live region', () => {
+      const html = render(snapshot)
+      const regions = html.slice(0, html.indexOf('board-stories')) + html.slice(html.indexOf('board-epics'))
+
+      expect(regions).not.toMatch(/<button|<input|<a |tabindex|onclick|role=|aria-|<progress|<meter|style=|%|title=/i)
     })
   })
 })

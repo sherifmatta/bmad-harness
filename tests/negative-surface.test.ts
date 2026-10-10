@@ -676,6 +676,10 @@ describe("the text ramp", () => {
       kind: "label",
       why: "a Board column's status word, as the file writes it; the cards beneath are at --text and carry the stories the word names",
     },
+    "ui/shell/shell.css: .board-epics-head": {
+      kind: "label",
+      why: "the Epics panel's head word; each row beneath names its epic and its count at --dim or above",
+    },
     "ui/shell/shell.css: .crumbs-sep": {
       kind: "decoration",
       why: "the bar’s separator glyph",
@@ -1458,6 +1462,8 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
       // (the menu item and the button, the same words), and Mary's description, whose noun is `thinking`.
       // `working` is the state word of a persona, and the head's status word of a run that writes no document (Story 3.17).
       const WORKING = ["src/renderer/ui/status/persona-state.ts: working", "src/renderer/ui/chat/run-card.tsx: working"];
+      // Story 6.5: the Board's overview label `stories in progress` is the BMad status word the file itself writes, no stand-in.
+      const BOARD = ["src/renderer/ui/board/board-view.tsx: stories in progress"];
       const WELCOME = [
         "src/main/windows/app-menu.ts: Open Project Folder…",
         "src/renderer/ui/welcome/personas.ts: Market and competitive research and requirements — the thinking done before a project is committed to.",
@@ -1468,11 +1474,12 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
       ];
       expect(
         hits.filter(
-          (hit) => !WORKING.includes(hit) && !WELCOME.includes(hit),
+          (hit) => !WORKING.includes(hit) && !WELCOME.includes(hit) && !BOARD.includes(hit),
         ),
       ).toEqual([]);
       expect(hits.filter((hit) => WELCOME.includes(hit)).sort()).toEqual([...WELCOME].sort());
-      expect(hits.filter((hit) => !WELCOME.includes(hit)).sort()).toEqual([...WORKING].sort());
+      expect(hits.filter((hit) => !WELCOME.includes(hit) && !BOARD.includes(hit)).sort()).toEqual([...WORKING].sort());
+      expect(hits.filter((hit) => BOARD.includes(hit))).toEqual(BOARD);
       // The word is rendered through the state text, and by the head of a run that writes no document, and written nowhere else.
       expect(
         offenders(RENDERER_CODE, /\bworking\b/).map((hit) => hit.split(":")[0]).sort(),

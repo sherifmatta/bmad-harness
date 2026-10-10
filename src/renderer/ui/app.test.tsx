@@ -258,6 +258,49 @@ describe('App, the Board', () => {
     expect([...boardSection().querySelectorAll('.board-stories, .board-stories *')].some((el) => el.getAttributeNames().some((name) => name.startsWith('aria-')))).toBe(false)
   })
 
+  it('moves the first figure when a persona goes to work, in the same render and in the same nodes, with no announcement', async () => {
+    boardNow = async () => ({
+      revision: 1,
+      kind: 'read',
+      epics: [
+        {
+          key: 'epic-6',
+          number: 6,
+          title: 'Board',
+          status: 'in-progress',
+          known: true,
+          stories: [{ key: '6-5-x', number: '6.5', title: 'T', status: 'in-progress', known: true }]
+        }
+      ],
+      others: []
+    })
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    pressBoard()
+
+    const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
+    const figures = (): string[] => [...boardSection().querySelectorAll('.board-figure-value')].map((node) => node.textContent ?? '')
+    const lines = (): string[] => [...boardSection().querySelectorAll('.board-figure-line')].map((node) => node.textContent ?? '')
+    expect(figures()).toEqual(['0', '1'])
+    expect(lines()[0]).toBe(`of ${snapshot.agents.length} installed`)
+    expect(boardSection().querySelector('.board-epic-progress')?.textContent).toBe('0 of 1 stories done')
+
+    const first = boardSection().querySelector('.board-figure-value')
+    const input = field()
+    input.focus()
+    const focused = document.activeElement
+    push({ name: 'persona:state', payload: { agentId: mary.id, state: 'work', at: Date.now() } })
+
+    expect(figures()).toEqual(['1', '1'])
+    expect(boardSection().querySelector('.board-figure-value')).toBe(first)
+    expect(document.activeElement).toBe(focused)
+    expect([...boardSection().querySelectorAll('.board-overview, .board-overview *, .board-epics, .board-epics *')].some((el) => el.getAttributeNames().some((name) => name.startsWith('aria-') || name === 'role' || name === 'tabindex'))).toBe(false)
+
+    push({ name: 'persona:state', payload: { agentId: mary.id, state: 'live', at: Date.now() } })
+    expect(figures()).toEqual(['0', '1'])
+  })
+
   it('reads the same when getBoard rejects', async () => {
     boardNow = async () => {
       throw { code: 'board/unexpected', message: 'board · unexpected failure' }

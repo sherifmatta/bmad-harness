@@ -313,7 +313,13 @@ export function Shell({
         {party}
       </section>
       <section className="view view-board" aria-label={labelOf('board')} hidden={view !== 'board'}>
-        <BoardView snapshot={board} failure={boardFailure} folder={rail?.folder} />
+        <BoardView
+          snapshot={board}
+          failure={boardFailure}
+          folder={rail?.folder}
+          states={states}
+          installed={snapshot.agents}
+        />
       </section>
     </div>
   )

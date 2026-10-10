@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 
+import type { BoardSnapshot } from '../../../shared/board'
 import type { AgentView, InstallSnapshot } from '../../../shared/install'
 import type { DocSnapshot } from '../../../shared/document'
 import type { RailRow, RailSnapshot } from '../../../shared/rail'
@@ -149,6 +150,46 @@ describe('the assembled shell, all five persona states', () => {
 
     expect(withToml).toContain('config.toml')
     expect(rest).not.toMatch(/toml/i)
+  })
+})
+
+describe('the Board, read', () => {
+  const board: BoardSnapshot = {
+    revision: 1,
+    kind: 'read',
+    epics: [
+      {
+        key: 'epic-1',
+        number: 1,
+        title: 'Shell',
+        status: 'in-progress',
+        known: true,
+        stories: [
+          { key: '1-1-a', number: '1.1', title: 'A', status: 'done', known: true },
+          { key: '1-2-b', number: '1.2', title: 'B', status: 'in-progress', known: true }
+        ]
+      }
+    ],
+    others: []
+  }
+  const markup = shell({ board })
+
+  it('draws the overview and the epics', () => {
+    expect(markup).toContain('>agents running<')
+    expect(markup).toContain('>stories in progress<')
+    expect(markup).toContain('>1 of 2 stories done<')
+  })
+
+  it('has no bar, meter, percentage, tick, spend, budget, cost, token, tool-call or decisions-open figure', () => {
+    const board = markup.slice(markup.indexOf('view-board'))
+
+    expect(board).not.toMatch(/<progress|<meter|progressbar|%|\bpercent|\bbar\b|\btick\b|spend|budget|\bcost|token|tool[- ]call|decisions? open|\binbox\b/i)
+  })
+
+  it('has no live region, tab stop or control in the overview or the epics', () => {
+    const board = markup.slice(markup.indexOf('board-overview'))
+
+    expect(board).not.toMatch(/<button|<input|tabindex|aria-|role=|onclick/i)
   })
 })
 

@@ -1553,15 +1553,15 @@ describe('the chat UI as the mockup draws it (2026-10-09)', () => {
   })
 })
 
-describe('the Board’s story columns (Story 6.4)', () => {
+describe('the Board’s regions (Stories 6.4 and 6.5)', () => {
   const path = 'src/renderer/ui/shell/shell.css'
   const source = withoutComments(readFileSync(join(ROOT, path), 'utf8'))
   const rules = [...source.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([, selectors]) =>
-    selectors.split(',').some((selector) => /^\.board-(stories|column|cards|card)\b/.test(selector.trim()))
+    selectors.split(',').some((selector) => /^\.board-(stories|column|cards|card|overview|figure|epics|epic)\b/.test(selector.trim()))
   )
 
   it('finds the column rules', () => {
-    expect(rules.length).toBeGreaterThanOrEqual(7)
+    expect(rules.length).toBeGreaterThanOrEqual(20)
   })
 
   it('gives no column or card an overflow, transition, animation or literal of its own', () => {
