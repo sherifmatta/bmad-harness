@@ -86,12 +86,12 @@ describe('Topbar', () => {
     expect(markup).toContain('&lt;img')
   })
 
-  it.each<ViewId>(['conversation', 'party'])('has two buttons and exactly one pressed (%s)', (view) => {
+  it.each<ViewId>(['conversation', 'party', 'board'])('has three buttons and exactly one pressed (%s)', (view) => {
     const markup = topbar({ view })
 
-    expect(count(markup, /<button/g)).toBe(2)
+    expect(count(markup, /<button/g)).toBe(3)
     expect(count(markup, /aria-pressed="true"/g)).toBe(1)
-    expect(count(markup, /aria-pressed="false"/g)).toBe(1)
+    expect(count(markup, /aria-pressed="false"/g)).toBe(2)
     const pressed = markup.match(/<button[^>]*aria-pressed="true"[^>]*>([^<]*)</)
     expect(pressed?.[1]).toBe(VIEWS.find((candidate) => candidate.id === view)?.label)
   })
@@ -111,19 +111,19 @@ describe('Topbar', () => {
 describe('Topbar, the end-session control', () => {
   it('is not rendered without a handler', () => {
     expect(topbar()).not.toContain('End session')
-    expect(count(topbar(), /<button/g)).toBe(2)
+    expect(count(topbar(), /<button/g)).toBe(3)
   })
 
   it('is a native, always-enabled button after the view switch, with no title, accent, badge or state', () => {
     const markup = topbar({ onEndSession: () => {} })
 
-    expect(count(markup, /<button/g)).toBe(3)
+    expect(count(markup, /<button/g)).toBe(4)
     expect(markup).toContain('<button type="button" class="end-session">End session</button>')
-    expect(markup.indexOf('End session')).toBeGreaterThan(markup.indexOf('Party Mode'))
+    expect(markup.indexOf('End session')).toBeGreaterThan(markup.indexOf('>Board<'))
     const control = markup.match(/<button[^>]*end-session[^>]*>/)?.[0] ?? ''
     expect(control).not.toMatch(/title=|disabled|aria-|tabindex|style=/)
     expect(markup).not.toContain('tabindex')
-    expect(count(markup, /aria-pressed/g)).toBe(2)
+    expect(count(markup, /aria-pressed/g)).toBe(3)
   })
 
   it('is rendered by the shell only when it is given an end handler', () => {
@@ -171,18 +171,21 @@ describe('Shell', () => {
     </Shell>
   )
 
-  it('holds exactly two views, the party one hidden on open', () => {
-    expect(count(markup, /<section[^>]*class="view /g)).toBe(2)
+  it('holds exactly three views, the party and board ones hidden on open', () => {
+    expect(count(markup, /<section[^>]*class="view /g)).toBe(3)
     const conversation = markup.match(/<section[^>]*view-conversation[^>]*>/)?.[0] ?? ''
     const party = markup.match(/<section[^>]*view-party[^>]*>/)?.[0] ?? ''
+    const board = markup.match(/<section[^>]*view-board[^>]*>/)?.[0] ?? ''
 
     expect(conversation).not.toContain('hidden')
     expect(party).toContain('hidden=""')
+    expect(board).toContain('hidden=""')
   })
 
   it('opens on 1:1 Conversation pressed', () => {
     expect(markup).toMatch(/aria-pressed="true">1:1 Conversation</)
     expect(markup).toMatch(/aria-pressed="false">Party Mode</)
+    expect(markup).toMatch(/aria-pressed="false">Board</)
   })
 
   it('reads the install chip from the snapshot it was given', () => {
@@ -236,10 +239,10 @@ describe('Shell', () => {
     // Spelled in two halves: accessibility.test.ts counts the bare attribute
     // across src/, and this file is not the live region.
     expect(markup).not.toContain(`aria-${'live'}`)
-    // Two switch buttons in the topbar, one button per tile in the rail.
+    // Three switch buttons in the topbar, one button per tile in the rail.
     const bar = markup.slice(markup.indexOf('<header'), markup.indexOf('</header>'))
-    expect(count(bar, /<button/g)).toBe(2)
-    expect(count(markup, /<button/g)).toBe(2 + 5)
+    expect(count(bar, /<button/g)).toBe(3)
+    expect(count(markup, /<button/g)).toBe(3 + 5)
     expect(count(bar, /tabindex/g)).toBe(0)
   })
 })
@@ -423,7 +426,7 @@ describe('ViewSwitch wiring', () => {
     const tree = ViewSwitch({ view: 'conversation', onChange: (id) => received.push(id) })
     const buttons = elementsOf(tree, 'button')
 
-    expect(buttons).toHaveLength(2)
+    expect(buttons).toHaveLength(3)
     for (const button of buttons) {
       ;(button.props.onClick as () => void)()
     }
@@ -488,8 +491,8 @@ describe('Shell, the project files', () => {
     expect(count(outputs, /<button/g)).toBe(1 + 2 + 2)
     expect(count(outputs, /tabindex="0"/g)).toBe(1)
     expect(outputs.indexOf('change…')).toBeLessThan(outputs.indexOf('<li'))
-    // Three tiles, two switch buttons, `change…`, the two headings and the two rows.
-    expect(count(withRail, /<button/g)).toBe(2 + 3 + 1 + 2 + 2)
+    // Three tiles, three switch buttons, `change…`, the two headings and the two rows.
+    expect(count(withRail, /<button/g)).toBe(3 + 3 + 1 + 2 + 2)
   })
 
   it('shows the empty state for a snapshot with no rows, and the failure for a failed rail', () => {

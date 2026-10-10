@@ -17,6 +17,7 @@ import { useLayout } from './layout/use-layout'
 import { Preflight } from './install/preflight'
 import { announceable, newAnnouncements, roomState } from './install/install-state'
 import { useInstall } from './install/use-install'
+import { useBoard } from './board/use-board'
 import { useRail } from './outputs/use-rail'
 import { PartyView } from './party/party-view'
 import { Shell } from './shell/shell'
@@ -67,6 +68,7 @@ export function App(): JSX.Element | null {
   const [failure, setFailure] = useState<string | null>(null)
   const { snapshot, failure: installFailure } = useInstall()
   const { snapshot: rail, failure: railFailure } = useRail()
+  const { snapshot: board, failure: boardFailure } = useBoard()
   // The panels' widths and the folded directories the window started from (Story 5.5), and how to keep them.
   const layout = useLayout()
   const [announcer] = useState(() => new Announcer())
@@ -290,6 +292,8 @@ export function App(): JSX.Element | null {
         since={since}
         rail={rail}
         railFailure={railFailure}
+        board={board}
+        boardFailure={boardFailure}
         onChooseFolder={chooseFolder}
         currentId={currentId}
         onCurrentChange={setCurrentId}

@@ -18,7 +18,8 @@
  *    to the far end of a list the user may not be able to see, and nothing in
  *    the intent asks for it.
  *  - There is no `Home`/`End`. NFR20 closes the keyboard vocabulary at arrows,
- *    `Enter`/`Space` and `Esc` — "no shortcut layer beyond this".
+ *    `Enter`/`Space` and `Esc` — "no shortcut layer beyond this" and the one
+ *    chord, `g` then `b`, which is the shell's and not a list's (Story 6.3).
  *
  * A key this module does not claim comes back as `ignore`, which means the
  * browser keeps it. `Tab` is the browser's by definition: the whole point of a

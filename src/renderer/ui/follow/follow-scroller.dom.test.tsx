@@ -205,19 +205,57 @@ describe('FollowScroller', () => {
     expect(root.querySelectorAll(`[role], [tabindex], [aria-label], ${LIVE_REGIONS}`)).toHaveLength(0)
   })
 
-  it('goes at once a view is shown: a hidden scroller has no height, and a shown one is at its bottom', () => {
+  it('goes at once a following view is shown: a hidden scroller has no height, and a shown one is at its bottom', () => {
     show()
-    userScrollsTo(100)
 
     fake.metrics.client = 0
     act(() => fake.resize())
-    expect(fake.metrics.top).toBe(100)
-
     fake.metrics.client = 400
     act(() => fake.resize())
 
     expect(fake.metrics.top).toBe(600)
     expect(latest()).toBeNull()
+  })
+
+  it('puts a paused view back at its offset when it is shown, still paused, even if the browser reset it', () => {
+    show()
+    userScrollsTo(100)
+
+    // Hidden: no height, and the browser may drop the position.
+    fake.metrics.client = 0
+    act(() => fake.resize())
+    fake.metrics.top = 0
+    fake.metrics.client = 400
+    act(() => fake.resize())
+
+    expect(fake.metrics.top).toBe(100)
+    expect(latest()).not.toBeNull()
+
+    // Still paused: growth moves nothing, and a scroll to the bottom resumes following.
+    fake.metrics.height = 1500
+    act(() => fake.resize())
+    expect(fake.metrics.top).toBe(100)
+    userScrollsTo(1100)
+    expect(latest()).toBeNull()
+  })
+})
+
+describe('FollowScroller hidden', () => {
+  it('is not resumed by a scroll event while hidden: shown again it is paused at its offset', () => {
+    show()
+    userScrollsTo(100)
+
+    fake.metrics.client = 0
+    act(() => fake.resize())
+    fake.metrics.top = 0
+    act(() => void scroller().dispatchEvent(new Event('scroll')))
+    expect(latest()).not.toBeNull()
+
+    fake.metrics.client = 400
+    act(() => fake.resize())
+
+    expect(fake.metrics.top).toBe(100)
+    expect(latest()).not.toBeNull()
   })
 })
 

@@ -290,7 +290,7 @@ describe('the shell furniture stays within scope', () => {
   const sources = filesUnder('src/renderer/ui/shell').filter((path) => /\.(tsx?)$/.test(path))
   const shipped = sources.filter((path) => !/\.test\./.test(path))
 
-  it('has no third view, Help, inline style, spinner or announcement of its own', () => {
+  it('has no fourth view, Help, inline style, spinner or announcement of its own', () => {
     for (const path of shipped) {
       const text = code(path)
       // The two inline styles are the sidebar's and the rail's own width while the user has chosen one
@@ -350,11 +350,13 @@ describe('the shell furniture stays within scope', () => {
     expect(shell).not.toMatch(/party-side|party-header|cast-strip/)
   })
 
-  it('names the two views once, in view.ts', () => {
+  it('names the three views once, in view.ts', () => {
     const views = read('src/renderer/ui/shell/view.ts')
 
-    expect(views.match(/id: '/g)).toHaveLength(2)
+    expect(views.match(/id: '/g)).toHaveLength(3)
     expect(views).toContain("'1:1 Conversation'")
     expect(views).toContain("'Party Mode'")
+    expect(views).toContain("'Board'")
+    expect(views).toContain("DEFAULT_VIEW: ViewId = 'conversation'")
   })
 })

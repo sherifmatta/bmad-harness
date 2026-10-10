@@ -5,7 +5,9 @@ import './shell.css'
 import type { AgentView, HarnessError, InstallSnapshot, MenuEntryView } from '../../../shared/install'
 import { PANELS } from '../../../shared/layout'
 import { stateLineOf } from '../../../shared/output-folder'
+import type { BoardSnapshot } from '../../../shared/board'
 import type { RailSnapshot } from '../../../shared/rail'
+import { BoardView } from '../board/board-view'
 import { ChatHeader } from '../chat/chat-header'
 import { OrphanHeader } from '../chat/orphan-header'
 import { FollowScroller } from '../follow/follow-scroller'
@@ -19,6 +21,7 @@ import { Team } from '../team/team'
 import { TeamStrip } from '../team/team-strip'
 import { currentAgent, displayOrder, groupAgents } from '../team/tile-groups'
 import { Topbar } from './topbar'
+import { useBoardChord } from './use-board-chord'
 import { useBranch } from './use-branch'
 import { DEFAULT_VIEW, VIEWS } from './view'
 import type { ViewId } from './view'
@@ -76,7 +79,7 @@ const NO_STATES: ReadonlyMap<string, PersonaState> = new Map()
 const NO_SINCE: ReadonlyMap<string, number> = new Map()
 
 /**
- * The furniture the open room lives in (Story 1.9): a topbar, two views behind
+ * The furniture the open room lives in (Story 1.9): a topbar, three views behind
  * one switch, and — in the 1:1 view — the Team sidebar, the chat column and the
  * Outputs rail, in that order.
  *
@@ -85,7 +88,7 @@ const NO_SINCE: ReadonlyMap<string, number> = new Map()
  * the tiles and the chat column its header (Story 1.10); the Outputs half holds the
  * project's files (Story 1.11), and with no `rail` yet it is a head over an
  * empty body. The Team half is the sidebar's, under a strip of four counts; the
- * Outputs half is the rail's alone. The Party view holds what `party` gives it (Story 4.1): its side
+ * Outputs half is the rail's alone. The Board view holds what `board` says (Story 6.3): `no sprint status`, so far. The Party view holds what `party` gives it (Story 4.1): its side
  * panel is a later story's, and no slot is reserved for it. `children` is what
  * the thread holds.
  *
@@ -103,6 +106,8 @@ export function Shell({
   since = NO_SINCE,
   rail = null,
   railFailure = null,
+  board = null,
+  boardFailure = null,
   onChooseFolder = ignore,
   currentId: chosenId,
   onCurrentChange,
@@ -135,6 +140,10 @@ export function Shell({
   rail?: RailSnapshot | null
   /** Why there is no rail snapshot, when there is not one. */
   railFailure?: HarnessError | null
+  /** The sprint status, as main last pushed it (Story 6.3). `null` until the first. */
+  board?: BoardSnapshot | null
+  /** Why there is no Board snapshot, when there is not one. */
+  boardFailure?: HarnessError | null
   /** Called when `change…` is pressed: the native folder chooser for the output folder (Story 5.4). */
   onChooseFolder?: () => void
   /** The current persona when the window holds it: `App` does, so `@<name>` can move it
@@ -180,6 +189,8 @@ export function Shell({
   const [view, setView] = useState<ViewId>(initialView)
   const [ownId, setOwnId] = useState<string | null>(null)
   const branch = useBranch()
+  // `g` then `b` shows the Board: the one chord, and only ever to this view.
+  useBoardChord(useCallback(() => setView('board'), []))
   // The two side panels' widths (Story 5.5): each chosen by its own splitter and shown as the token's own
   // property overridden on the panel. They share one container and each reserves what the other takes: the
   // sidebar the rail's chosen-or-default, the rail the sidebar's width now, so the chat column keeps its minimum.
@@ -300,6 +311,9 @@ export function Shell({
         hidden={view !== 'party'}
       >
         {party}
+      </section>
+      <section className="view view-board" aria-label={labelOf('board')} hidden={view !== 'board'}>
+        <BoardView snapshot={board} failure={boardFailure} folder={rail?.folder} />
       </section>
     </div>
   )

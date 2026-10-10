@@ -4,12 +4,12 @@ import { VIEWS } from './view'
 import type { ViewId } from './view'
 
 /**
- * The view switch: a group of exactly two native buttons, one pressed.
+ * The view switch: a group of exactly three native buttons, one pressed.
  *
  * Native `<button>`s are keyboard-operable by `Enter` and `Space` with nothing
  * added, and the shared focus ring draws on `:focus-visible` without a rule of
- * this component's own. No roving tabindex and no arrow handling: two buttons
- * are two tab stops, and those are the topbar's only ones (EXPERIENCE.md:480).
+ * this component's own. No roving tabindex and no arrow handling: three buttons
+ * are three tab stops, and those are the topbar's only ones (EXPERIENCE.md:480).
  */
 export function ViewSwitch({
   view,

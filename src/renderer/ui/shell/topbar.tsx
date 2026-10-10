@@ -13,7 +13,7 @@ function installChipText(agentCount: number): string {
  * The topbar (FR13, UX-DR28): brand, separator, the project path, the install
  * chip, the branch chip, a spacer and the view switch.
  *
- * Its only tab stops are the switch's two buttons. There is no Help control,
+ * Its only tab stops are the switch's three buttons. There is no Help control,
  * no version string, and no tooltip carrying a fact the text does not. The
  * branch is project content and is rendered as text; when there is no answer
  * the chip is not rendered at all, so its absence is never a claim.

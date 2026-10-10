@@ -66,6 +66,9 @@ let handoffs: (SyslineRecord | undefined)[]
 let railNow: RailSnapshot
 let railListeners: ((next: RailSnapshot) => void)[]
 let chooseCalls: number
+/** What `getBoard` answers with, or a rejection; and who `onBoardChanged` subscribed. */
+let boardNow: () => Promise<unknown>
+let boardListeners: ((next: unknown) => void)[]
 
 function installBridge(): void {
   const bridge = {
@@ -77,6 +80,11 @@ function installBridge(): void {
     },
     getBranch: async () => 'main',
     getRail: async () => railNow,
+    getBoard: () => boardNow(),
+    onBoardChanged: (listener: (next: unknown) => void) => {
+      boardListeners.push(listener)
+      return () => {}
+    },
     onRailChanged: (listener: (next: RailSnapshot) => void) => {
       railListeners.push(listener)
       return () => {}
@@ -153,6 +161,8 @@ beforeEach(() => {
   railNow = { revision: 1, folder: '_bmad/', rows: [] }
   railListeners = []
   chooseCalls = 0
+  boardNow = async () => ({ revision: 1, kind: 'none', code: 'board/absent', message: 'board · no sprint status' })
+  boardListeners = []
   installBridge()
 })
 
@@ -181,6 +191,42 @@ function tile(name: string): HTMLButtonElement {
   if (found === undefined) throw new Error(`no tile for ${name}`)
   return found
 }
+
+describe('App, the Board', () => {
+  const boardSection = (): HTMLElement => mounted!.container.querySelector('.view-board') as HTMLElement
+  const pressBoard = (): void =>
+    act(() =>
+      [...mounted!.container.querySelectorAll<HTMLButtonElement>('.view-switch button')]
+        .find((button) => button.textContent === 'Board')
+        ?.click()
+    )
+
+  it('hands the Board the snapshot getBoard answered, and shows it when Board is pressed', async () => {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+
+    expect(boardSection().hidden).toBe(true)
+    pressBoard()
+
+    expect(boardSection().hidden).toBe(false)
+    expect(boardSection().textContent).toContain('no sprint status')
+    expect(boardListeners).toHaveLength(1)
+  })
+
+  it('reads the same when getBoard rejects', async () => {
+    boardNow = async () => {
+      throw { code: 'board/unexpected', message: 'board · unexpected failure' }
+    }
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    pressBoard()
+
+    expect(boardSection().textContent).toContain('no sprint status')
+    expect(boardSection().textContent).not.toContain('unexpected')
+  })
+})
 
 describe('App, the conversation glue', () => {
   it('opens the selected persona’s session, remounts the composer for them, and sends their text to their session', async () => {
@@ -329,8 +375,8 @@ describe('App, the conversation glue', () => {
     expect(mounted.container.querySelectorAll('.turn')).toHaveLength(1)
 
     const buttons = [...mounted.container.querySelectorAll<HTMLButtonElement>('.topbar button')]
-    expect(buttons.map((button) => button.textContent)).toEqual(['1:1 Conversation', 'Party Mode', 'End session'])
-    const control = buttons[2]
+    expect(buttons.map((button) => button.textContent)).toEqual(['1:1 Conversation', 'Party Mode', 'Board', 'End session'])
+    const control = buttons[3]
     expect(control.type).toBe('button')
     expect(control.disabled).toBe(false)
     expect(control.hasAttribute('title')).toBe(false)
@@ -379,7 +425,7 @@ describe('App, the conversation glue', () => {
       )
     )
 
-    const control = [...mounted.container.querySelectorAll<HTMLButtonElement>('.topbar button')][2]
+    const control = [...mounted.container.querySelectorAll<HTMLButtonElement>('.topbar button')][3]
     act(() => control.click())
     await settle()
     await act(async () => {

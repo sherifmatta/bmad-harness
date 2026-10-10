@@ -155,6 +155,9 @@ describe("no palette, no launcher, no global skills list", () => {
   // (Story 2.3): Enter sends and Shift+Enter is a newline. It is exempt from
   // the key sweep as a file, not as a directory, and nothing else in chat/ is.
   const COMPOSER = "src/renderer/ui/chat/composer.tsx";
+  // The one chord in the product (Story 6.3): `g` then `b`, one `keydown` listener on the document, in
+  // this one file. Exempt as a file, like the composer, and nothing else in shell/ is.
+  const CHORD = "src/renderer/ui/shell/use-board-chord.ts";
   const KEY_PATTERN =
     /\bonKey(?:Down|Up|Press)(?:Capture)?\b|\bonkey(?:down|up|press)\s*=|\baddEventListener\(\s*['"]key|\bkey(?:down|up|press)\b|\.key\s*===?|\b(?:event|evt|ev|e)\.code\b|\bKeyboardEvent\b|\b(?:meta|ctrl)Key\b/;
 
@@ -162,6 +165,7 @@ describe("no palette, no launcher, no global skills list", () => {
     const outside = RENDERER_CODE.filter(
       (path) =>
         path !== COMPOSER &&
+        path !== CHORD &&
         !KEY_SURFACES.some((root) => path.startsWith(root)),
     );
 

@@ -19,6 +19,12 @@ import { atBottom, bottomTop } from './follow-state'
  * delivers the pin's scroll event: measured at delivery the thread is far from
  * the bottom, and would read as paused.
  *
+ * A view that was hidden and is shown again (Story 6.3) puts a following thread
+ * at its bottom, and a paused one back at the offset it was left at, still
+ * paused. A browser may reset `scrollTop` on `display: none`, so that offset is
+ * kept in a ref, from the last time the scroller was visible, and never read
+ * back from the element once it is hidden.
+ *
  * This is the renderer's scroll code, with the reveal's `scrollIntoView`.
  */
 
@@ -48,6 +54,8 @@ export function useFollow(resetKey: unknown, sends: number): Follow {
   /** The `scrollTop` this hook set last, until the user scrolls to another. */
   const placed = useRef<number | null>(null)
   const laid = useRef(false)
+  /** The last `scrollTop` the scroller had while it was visible: what a paused thread returns to when shown. */
+  const left = useRef(0)
   const seen = useRef({ resetKey, sends })
   const [paused, setPaused] = useState(false)
 
@@ -58,6 +66,9 @@ export function useFollow(resetKey: unknown, sends: number): Follow {
     }
     element.scrollTop = bottomTop(element.clientHeight, element.scrollHeight)
     placed.current = element.scrollTop
+    if (element.clientHeight > 0) {
+      left.current = element.scrollTop
+    }
   }, [scroller])
 
   const latest = useCallback(() => {
@@ -71,12 +82,20 @@ export function useFollow(resetKey: unknown, sends: number): Follow {
     following.current = false
     // The reveal's own scroll event carries this position, so it resumes nothing.
     placed.current = element?.scrollTop ?? null
+    if (element !== null && element.clientHeight > 0) {
+      left.current = element.scrollTop
+    }
     setPaused(true)
   }, [scroller])
 
   const onScroll = useCallback(() => {
     const element = scroller.current
-    if (element === null || element.scrollTop === placed.current) {
+    // A hidden scroller has no height, so it would read as at its bottom: its events say nothing about the user.
+    if (element === null || element.clientHeight === 0) {
+      return
+    }
+    left.current = element.scrollTop
+    if (element.scrollTop === placed.current) {
       return
     }
     placed.current = null
@@ -106,12 +125,16 @@ export function useFollow(resetKey: unknown, sends: number): Follow {
     }
     laid.current = element.clientHeight > 0
     const observer = new ResizeObserver(() => {
-      // A hidden view reports no height; the first time it has one it is shown, and shown means the bottom.
+      // A hidden view reports no height; the first time it has one it is shown. Following, that is the
+      // bottom; paused, it is the offset it was left at, and it stays paused.
       const visible = element.clientHeight > 0
       const shown = visible && !laid.current
       laid.current = visible
-      if (shown) {
+      if (shown && following.current) {
         latest()
+      } else if (shown) {
+        element.scrollTop = left.current
+        placed.current = element.scrollTop
       } else if (following.current) {
         pin()
       }

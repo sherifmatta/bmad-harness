@@ -958,7 +958,7 @@ With no command palette (*Banned everywhere*) there is no `⌘K` escape hatch, s
 
 | Surface | Keyboard behaviour |
 |---|---|
-| Topbar | tab-reachable: the view switch. Help is reserved and does not render in v1, so it is not a tab stop |
+| Topbar | tab-reachable: the view switch, three native buttons (`1:1 Conversation`, `Party Mode`, `Board`). Help is reserved and does not render in v1, so it is not a tab stop |
 | Team sidebar | one tab stop for the list; **arrow keys move between tiles** (roving tabindex); `Enter`/`Space` activates |
 | Skill row | one tab stop; arrows move between buttons; `Enter`/`Space` dispatches. `+N more` is a button, not a hover affordance |
 | Composer | tab-reachable and **never disabled**. **[ASSUMPTION]** — `Enter` sends, `Shift+Enter` inserts a newline; no source specifies send keys. `⌘↵` does **not** send, and `DESIGN.md` drops it from the glyph inventory accordingly |
@@ -972,8 +972,9 @@ With no command palette (*Banned everywhere*) there is no `⌘K` escape hatch, s
 | Outputs head | `change…` is one tab stop, before the list's. *File ▸ Output Folder…* is a native menu item, no accelerator |
 | Thread | the scroller is scrolled by the browser's own keys (`PageUp`, `PageDown`, `End`); `↓ latest` is one tab stop between the thread and the composer, present only while the thread is not following. No new tab stop otherwise |
 | Theme | *View ▸ Theme* is a native menu, reachable as every menu is; the radio items carry the current choice. No accelerator |
+| Board chord | `g` then `b` within one second, with no modifier held and focus not in a field (input, textarea, select, contenteditable), shows the Board. Any other key between, a gap over a second, a modifier or a field target does nothing. Added 2026-10-10 by Story 6.3 |
 
-No shortcut layer beyond this.
+No shortcut layer beyond this and the one chord above.
 
 ### 3. Focus management
 
