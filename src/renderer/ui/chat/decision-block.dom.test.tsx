@@ -123,7 +123,7 @@ describe('Turns, decision', () => {
     const body = container.querySelector('.turn--persona .turn-body') as HTMLElement
 
     expect(body.querySelectorAll('.decision')).toHaveLength(1)
-    const words = body.querySelector('.turn-words') as HTMLElement
+    const words = body.querySelector('.turn-md') as HTMLElement
     expect(words.nextElementSibling).toBe(body.querySelector('.decision'))
     // The persona's list is still in its own words.
     expect(words.textContent).toContain('A. Postgres')

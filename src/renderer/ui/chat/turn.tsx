@@ -2,6 +2,7 @@ import type { JSX } from 'react'
 
 import './turn.css'
 import type { AgentView } from '../../../shared/install'
+import { MarkdownBody } from '../doc/markdown-body'
 import { Initials } from '../persona/initials'
 import { Caret } from './caret'
 import { DecisionBlock } from './decision-block'
@@ -14,11 +15,14 @@ import { TurnState } from './turn-state'
  * The conversation turn — UX-DR25, DESIGN.md's *Conversation turn*. A flat row:
  * an initials disc, a head line and the words, for a persona and for the user.
  *
- * **The words are not the harness's to touch.** `text` is rendered exactly as
- * given: split only on blank lines into paragraphs, set with `pre-wrap`, and
- * wrapped in nothing — no prefix, frame, label, summary or classification. The
- * persona's name, role and every word are React text, so anything a project or
- * a persona supplies renders as text and never as markup.
+ * **The words are not the harness's to touch.** `text` is never prefixed, framed,
+ * labelled, summarised or classified. The user's turn, a turn still in flight and a
+ * turn the sanitiser could not draw are `Words`: split only on blank lines into
+ * paragraphs, set with `pre-wrap`. A persona's completed turn is read as markdown
+ * (Story 7.2, FR130) through the document window's one pipeline and `MarkdownBody`,
+ * under the chat's own `turn-md`; nothing a project or a persona supplies reaches
+ * the page except through that pipeline's allow-list. The persona's name, role and
+ * the user's words are React text, so they render as text and never as markup.
  */
 
 /** Blank lines (a line holding only spaces or tabs counts) separate paragraphs. */
@@ -53,6 +57,21 @@ export function Words({ text, caret = false }: { text: string; caret?: boolean }
       )}
     </div>
   )
+}
+
+/**
+ * A persona's words, for the thread and the room alike. While the turn is in
+ * flight (`writing` set) they are plain text with the caret at the tail, and the
+ * markdown pipeline is not touched. Once it is not in flight, including a turn
+ * read back from a stored transcript, they are drawn once through `MarkdownBody`
+ * under the chat's own `turn-md`. Where the pipeline gives nothing back for words
+ * that were not blank, they stay plain text.
+ */
+export function PersonaWords({ text, writing }: { text: string; writing?: Writing }): JSX.Element {
+  if (writing !== undefined) {
+    return <Words text={text} caret />
+  }
+  return <MarkdownBody className="turn-md" text={text} fallback={<Words text={text} />} />
 }
 
 /** A turn in flight: when it began, where that is known. */
@@ -99,7 +118,7 @@ export function PersonaTurn({
       </div>
       <div className="turn-body">
         <Head name={agent.name} ident={agent.title} at={at} />
-        <Words text={text} caret={writing !== undefined} />
+        <PersonaWords text={text} writing={writing} />
         {writing !== undefined && <TurnState since={writing.since} />}
         {decision !== undefined && onChoose !== undefined && (
           <DecisionBlock decision={decision} onChoose={onChoose} />

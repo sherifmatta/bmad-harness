@@ -240,12 +240,13 @@ describe('Turns, a persona’s turn in flight', () => {
 
     expect(container.querySelector('.turn--pending, .caret, .turn-state')).toBeNull()
     expect(container.querySelector('.turn--persona')).toBe(node)
-    // Drawn exactly as a turn never in flight draws the same words.
-    const settled = node.querySelector('.turn-words')?.innerHTML
+    // Drawn exactly as a turn never in flight draws the same words: as markdown, under the chat's own class (Story 7.2).
+    const settled = node.querySelector('.turn-md')?.innerHTML
+    expect(settled).toContain('<p>Same scope.</p>')
     act(() => root.unmount())
     container.remove()
     render([SENT, { kind: 'persona', id: 'entry-1', at: START + 1_000, agent: MARY, text, messageId: 'm1' }])
-    expect(container.querySelector('.turn--persona .turn-words')?.innerHTML).toBe(settled)
+    expect(container.querySelector('.turn--persona .turn-md')?.innerHTML).toBe(settled)
   })
 
   it('draws the pending turn again from a hydrated working persona, with no delta witnessed', () => {

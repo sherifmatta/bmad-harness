@@ -125,7 +125,7 @@ development_status:
 
   epic-7: in-progress
   7-1-open-a-story-or-an-epic-from-the-board: done
-  7-2-read-the-markdown-the-personas-write-in-the-chat: backlog
+  7-2-read-the-markdown-the-personas-write-in-the-chat: done
   7-3-find-a-skill-by-typing: backlog
   7-4-a-seat-for-each-persona-that-stays-until-you-end-it: backlog
   # 7-5 is blocked until a bmad-ux run decides where the user opens an empty chat (owner's suggestion: a Skill Session option under the personas); its spec also settles the run code printed for a skill-first run and the command that starts one. Needs 7-4 done first.

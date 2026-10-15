@@ -349,10 +349,11 @@ describe('the transcript (UX-DR36)', () => {
       expect(turn.querySelectorAll('.turn-av .initials--thread[aria-hidden="true"]')).toHaveLength(1)
       expect(turn.querySelectorAll('svg, .portrait')).toHaveLength(0)
       const body = turn.querySelector('.turn-body') as HTMLElement
-      expect([...body.children].map((child) => child.className)).toEqual(['turn-head', 'turn-words'])
+      // Plain while the turn is in flight, markdown once it is not (Story 7.2).
+      expect([...body.children].map((child) => child.className).filter((name) => name !== 'turn-state')).toEqual(['turn-head', turn.querySelector('.caret') === null ? 'turn-md' : 'turn-words'])
       expect([...(body.querySelector('.turn-head') as HTMLElement).children].map((child) => child.className)).toEqual(['turn-name', 'turn-role', 'turn-time'])
       expect(text(body.querySelector('.turn-time'))).toMatch(/^\d\d:\d\d$/)
-      expect([...(body.querySelector('.turn-words') as HTMLElement).children].every((child) => child.tagName === 'P' && child.children.length === 0)).toBe(true)
+      expect([...(body.querySelector('.turn-md, .turn-words') as HTMLElement).children].every((child) => child.tagName === 'P' && child.children.length === 0)).toBe(true)
       expect(turn.querySelector('button, a, input, blockquote, [role="button"], [tabindex]')).toBeNull()
     }
   })
@@ -361,7 +362,7 @@ describe('the transcript (UX-DR36)', () => {
     mountWith(props)
 
     const spoken = props.entries.filter((entry) => entry.kind === 'persona')
-    expect(all('.turn--persona .turn-words').map((words) => [...words.children].map(text).join('\n\n'))).toEqual(spoken.map((entry) => ('text' in entry ? entry.text : '')))
+    expect(all('.turn--persona .turn-md, .turn--persona .turn-words').map((words) => [...words.children].map(text).join('\n\n'))).toEqual(spoken.map((entry) => ('text' in entry ? entry.text : '')))
   })
 
   it('draws a user turn and an @name turn as the user’s own, in place, with no direction chrome', () => {
@@ -739,14 +740,16 @@ describe('the room’s turn in flight, from the send to the last word', () => {
 
   it('takes the caret and the line away when the room’s turn ends, and leaves the words exactly as they were', () => {
     mountWith(flying(speaking()))
-    const words = all('.party-thread .turn--persona .turn-words')[0]
     const node = all('.party-thread .turn--persona')[0]
 
     render(flying(fold(speaking(), { name: 'session:awaiting-turn', payload: { sessionId: 's1', at: NOW + 10_000 } })))
 
     expect(all('.party-thread .caret, .party-thread .turn-state, .party-thread .turn--pending')).toHaveLength(0)
     expect(all('.party-thread .turn--persona')[0]).toBe(node)
-    expect(words.innerHTML).toBe('<p>The data says yes.</p><p>And the second</p>')
+    // The words are now drawn as markdown, once, in the same turn node; the text is unchanged.
+    expect(all('.party-thread .turn--persona .turn-words')).toHaveLength(0)
+    const md = all('.party-thread .turn--persona .turn-md')[0]
+    expect([...md.children].map(text)).toEqual(['The data says yes.', 'And the second'])
   })
 
   it('draws the row again after a reload, from the hydrated state alone', () => {

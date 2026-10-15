@@ -113,6 +113,50 @@ describe('the turn', () => {
     expect(ruleBody(turnCss, '.turn-words p')).toContain('white-space: pre-wrap')
   })
 
+  it('reads a persona’s finished turn as markdown at the chat’s own type, from tokens, with no heading above the base size (Story 7.2)', () => {
+    const md = ruleBody(turnCss, '.turn-md')
+    expect(md).toContain('font-family: var(--sans)')
+    expect(md).toContain('font-size: var(--fs-base)')
+    expect(md).toContain('line-height: var(--lh-base)')
+    expect(md).toContain('color: var(--text)')
+    expect(md).toContain('overflow-wrap: anywhere')
+
+    const headings = ruleBody(turnCss, '.turn-md h1')
+    expect(headings).toContain('font-size: var(--fs-base)')
+    expect(headings).toContain('font-weight: var(--weight-strong)')
+    // Every heading level is in the one rule, and no other rule sizes a heading.
+    for (const level of [1, 2, 3, 4, 5, 6]) {
+      expect(turnCss).toMatch(new RegExp(`\\.turn-md h${level}\\b`))
+    }
+    for (const [, selectors, body] of turnCss.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      if (/\.turn-md\s+h[1-6]/.test(selectors)) {
+        expect(body.match(/font-size:\s*([^;]+);/)?.[1]).toBe('var(--fs-base)')
+      }
+    }
+
+    // A single line break inside a paragraph is kept, as `.turn-words p` keeps it; only `p`, never `li` or the container.
+    expect(ruleBody(turnCss, '.turn-md p')).toContain('white-space: pre-line')
+    expect(ruleBody(turnCss, '.turn-md li')).not.toContain('white-space')
+    expect(md).not.toContain('white-space')
+
+    expect(ruleBody(turnCss, '.turn-md code')).toContain('font-family: var(--mono)')
+    expect(ruleBody(turnCss, '.turn-md code')).toContain('background: var(--panel-2)')
+    expect(ruleBody(turnCss, '.turn-md pre')).toContain('overflow: auto')
+    const table = ruleBody(turnCss, '.turn-md table')
+    expect(table).toContain('display: block')
+    expect(table).toContain('overflow-x: auto')
+    expect(table).toMatch(/max-width:\s*var\(--/)
+    expect(ruleBody(turnCss, '.turn-md .fr')).toContain('color: var(--accent)')
+    // Links are inert text: the chat styles none, and the document window's class is not used here.
+    expect(turnCss).not.toMatch(/\.turn-md a\b|\.doc-md/)
+    // No literal colour or dimension in any `.turn-md` rule.
+    const rules = [...turnCss.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([, selectors]) => /\.turn-md/.test(selectors))
+    expect(rules.length).toBeGreaterThan(10)
+    for (const [, selectors, body] of rules) {
+      expect(body, selectors).not.toMatch(/#[0-9a-f]{3,8}\b|\brgba?\(|\b\d+(?:\.\d+)?(?:px|rem|em|%)/i)
+    }
+  })
+
   it('takes the gap and the stack gap the chat look names, and the disc sizes', () => {
     expect(declared.get('--turn-gap')).toBe('11px')
     expect(declared.get('--turn-stack-gap')).toBe('16px')

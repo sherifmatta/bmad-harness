@@ -1,14 +1,15 @@
 import type { JSX } from 'react'
 
 import type { AgentView } from '../../../shared/install'
-import { Head, Words } from '../chat/turn'
+import { Head, PersonaWords } from '../chat/turn'
 import { TurnState } from '../chat/turn-state'
 import { Initials } from '../persona/initials'
 
 /**
  * A turn in the room (Story 4.2, FR68): the persona's initials disc, name, role, time and their
  * words, and nothing else. It is a persona's turn drawn with the same head and words, so the words
- * are rendered as untrusted text, whole, and never framed, tagged, quoted or classified.
+ * are drawn as a persona's words are everywhere (plain while in flight, markdown once the turn ends),
+ * whole, and never framed, tagged, quoted or classified.
  *
  * The latest turn of the persona speaking now (`live`) carries an accent edge down its left side; the
  * caller says so, and only while that persona is the room's current speaker. While the room's turn is
@@ -36,7 +37,7 @@ export function PartyTurn({
       </div>
       <div className="turn-body">
         <Head name={agent.name} ident={agent.title} at={at} />
-        <Words text={text} caret={writing !== undefined} />
+        <PersonaWords text={text} writing={writing} />
         {writing !== undefined && <TurnState since={writing.since} />}
       </div>
     </div>

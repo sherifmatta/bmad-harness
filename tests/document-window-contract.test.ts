@@ -218,6 +218,21 @@ describe('the trust boundary', () => {
     expect(code(MARKDOWN_BODY).match(/dangerouslySetInnerHTML/g)).toHaveLength(1)
   })
 
+  it('stays the one place, now for the chat as well: a className and a fallback, the document window’s class by default (Story 7.2)', () => {
+    const body = code(MARKDOWN_BODY)
+
+    expect(body).toMatch(/className\s*=\s*'doc-md'/)
+    expect(body).toMatch(/fallback\?:\s*ReactNode/)
+    expect(body).toMatch(/className=\{className\}/)
+    // A second pipeline would be a second import of the renderer or sanitiser anywhere else.
+    expect(allSources.filter((path) => /from '[^']*\/render-markdown'/.test(code(path)) && !/\/doc\/markdown-body\.tsx$/.test(path))).toEqual([])
+    // The chat draws a persona's words through it under its own class, and never under the document's.
+    for (const path of ['src/renderer/ui/chat/turn.tsx', 'src/renderer/ui/party/party-turn.tsx']) {
+      expect(code(path), path).not.toMatch(/doc-md|dangerouslySetInnerHTML|[iI]nnerHTML/)
+    }
+    expect(code('src/renderer/ui/chat/turn.tsx')).toMatch(/<MarkdownBody className="turn-md"/)
+  })
+
   it('feeds it only the pipeline’s output', () => {
     const body = code(MARKDOWN_BODY)
 

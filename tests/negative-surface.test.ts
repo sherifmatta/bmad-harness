@@ -1053,8 +1053,8 @@ describe("the decision block marks and decides nothing (Story 2.10)", () => {
     const words = turn.slice(turn.indexOf("function Words"), turn.indexOf("function Head"));
 
     expect(words).not.toMatch(/decision/i);
-    // The persona's turn hands `Words` its text whole, with the block drawn after it.
-    expect(turn).toContain("<Words text={text} />");
+    // The persona's turn hands `PersonaWords` its text whole, with the block drawn after it (Story 7.2).
+    expect(turn).toContain("<PersonaWords text={text} writing={writing} />");
   });
 });
 
@@ -2679,11 +2679,11 @@ describe("nothing this epic promised not to do: the audit's static half (Story 4
     }
     // The party turn is the shared head and words around a portrait, and takes no decision, queue or cancel of its own.
     const turn = code.get(TURN) ?? "";
-    expect(turn).toMatch(/import \{ Head, Words \} from '\.\.\/chat\/turn'/);
+    expect(turn).toMatch(/import \{ Head, PersonaWords \} from '\.\.\/chat\/turn'/);
     expect(turn).not.toMatch(/DecisionBlock|PersonaTurn|queuedFor|onCancel|onChoose|<button|<a\b|onClick/);
     expect([...turn.matchAll(/<div className=\{?['"]?[^>]*>/g)].length).toBeGreaterThan(0);
     // No stylesheet gives a turn a tag or a quote: the shared turn and the party's own say none of those words.
-    expect(offenders([TURN_SHARED, "src/renderer/ui/chat/turn.css", ...PARTY_ALL], /disagrees|evidence|unresolved|blockquote|\.turn-(?:tag|quote|reply|chip)\b/i)).toEqual([]);
+    expect(offenders([TURN_SHARED, "src/renderer/ui/chat/turn.css", ...PARTY_ALL], /disagrees|evidence|unresolved|(?<!\.turn-md )blockquote|\.turn-(?:tag|quote|reply|chip)\b/i)).toEqual([]);
     // Neither friction nor failure is spent on party chrome: the party stylesheets read neither colour.
     expect(offenders(PARTY_CSS, /var\(--(?:disagree|red)\b/)).toEqual([]);
   });
