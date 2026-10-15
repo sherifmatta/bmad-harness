@@ -5,7 +5,7 @@ import type { ResolvedMenuEntry } from './sources/install/schema'
  * The install projection of each window, kept where the bridges that read the
  * roster can reach it without reaching into one another. The install bridge
  * makes a window's projection and remembers it here; the session bridge asks for
- * a persona's display name when it writes a handoff, so the name is main's own
+ * a persona's display name when it says a seat ended, so the name is main's own
  * and never one the renderer supplied.
  */
 const projections = new Map<number, InstallProjection>()

@@ -2,7 +2,6 @@
 import { createElement } from 'react'
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import type { SyslineRecord } from '../../shared/conversation'
 import type { ContractEvent } from '../../shared/events'
 import type { AgentView, InstallSnapshot } from '../../shared/install'
 import type { RailSnapshot } from '../../shared/rail'
@@ -61,8 +60,6 @@ let revealListeners: ((runId: string) => void)[]
 /** The documents the window asked main to open, and the menu entries it dispatched. */
 let docsOpened: string[]
 let dispatchedMenus: [string, string][]
-/** The sysline main answers the next open with, one per open, `undefined` for none. */
-let handoffs: (SyslineRecord | undefined)[]
 /** The rail as `getRail` answers it, who `onRailChanged` subscribed, and how often `change…` asked for the chooser. */
 let railNow: RailSnapshot
 let railListeners: ((next: RailSnapshot) => void)[]
@@ -109,10 +106,8 @@ function installBridge(): void {
       }
       const agentId = target
       opened.push(agentId)
-      const handoff = handoffs.shift()
-      return handoff === undefined
-        ? { sessionId: `session-of-${agentId}` }
-        : { sessionId: `session-of-${agentId}`, handoff }
+      // Main answers an open with the session alone: a switch writes no line (Story 7.4).
+      return { sessionId: `session-of-${agentId}` }
     },
     closeSession: async (sessionId: string) => {
       closedSessions.push(sessionId)
@@ -158,7 +153,6 @@ beforeEach(() => {
   revealListeners = []
   docsOpened = []
   dispatchedMenus = []
-  handoffs = []
   railNow = { revision: 1, folder: '_bmad/', rows: [] }
   railListeners = []
   chooseCalls = 0
@@ -626,13 +620,7 @@ describe('App, the conversation glue', () => {
   })
 })
 
-describe('App, handing the work to the next persona', () => {
-  const handoff: SyslineRecord = {
-    kind: 'sysline',
-    id: 'm-1',
-    at: 5,
-    text: 'handed to John'
-  }
+describe('App, turning to the next persona', () => {
   const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
   const maryWords: ContractEvent = {
     name: 'persona:said',
@@ -662,8 +650,7 @@ describe('App, handing the work to the next persona', () => {
     await settle()
   }
 
-  it('a tile handoff puts the sysline in place after what was said, unattributed, and leaves focus on the tile that carries aria-current', async () => {
-    handoffs = [undefined, handoff]
+  it('turning to a tile writes nothing into the thread, and leaves focus on the tile that carries aria-current', async () => {
     await start()
     tile('Mary').focus()
     act(() => tile('Mary').click())
@@ -675,11 +662,8 @@ describe('App, handing the work to the next persona', () => {
     await settle()
 
     expect(opened).toEqual([mary.id, john.id])
-    expect(thread()).toEqual(['turn turn--persona', 'sysline'])
-    const line = mounted!.container.querySelector('.sysline') as HTMLElement
-    expect(line.textContent).toBe(handoff.text)
-    expect(line.closest('.turn')).toBeNull()
-    expect(line.querySelector('img, svg, .turn-name, .turn-time, button')).toBeNull()
+    expect(thread()).toEqual(['turn turn--persona'])
+    expect(mounted!.container.querySelector('.sysline')).toBeNull()
     // Focus stayed where the user put it, and aria-current followed.
     expect(document.activeElement).toBe(tile('John'))
     expect(tile('John').getAttribute('aria-current')).toBe('true')
@@ -690,8 +674,7 @@ describe('App, handing the work to the next persona', () => {
     expect(field().value).toBe('')
   })
 
-  it('announces the handoff once, with the sysline’s text, through the one live region', async () => {
-    handoffs = [undefined, handoff]
+  it('announces nothing for a switch, and keeps the one live region', async () => {
     await start()
     act(() => tile('Mary').click())
     await settle()
@@ -699,7 +682,7 @@ describe('App, handing the work to the next persona', () => {
     act(() => tile('John').click())
     await settle()
 
-    expect(await announced()).toBe(handoff.text)
+    expect(await announced()).toBe('')
     expect(mounted!.container.querySelectorAll('.visually-hidden')).toHaveLength(1)
   })
 
@@ -716,27 +699,7 @@ describe('App, handing the work to the next persona', () => {
     expect(await announced()).toBe('')
   })
 
-  it('shows the line once and in place however the window re-renders, and a later reply adds a second', async () => {
-    const back: SyslineRecord = { kind: 'sysline', id: 'm-3', at: 9, text: 'handed to Mary' }
-    handoffs = [undefined, handoff, back]
-    await start()
-    act(() => tile('Mary').click())
-    await settle()
-    push(maryWords)
-    act(() => tile('John').click())
-    await settle()
-    push({ name: 'persona:state', payload: { agentId: john.id, state: 'work', at: Date.now() } })
-    act(() => tile('Mary').click())
-    await settle()
-
-    expect([...mounted!.container.querySelectorAll('.sysline')].map((node) => node.textContent)).toEqual([
-      handoff.text,
-      back.text
-    ])
-  })
-
-  it('@<name> hands off: the session opens, the sysline lands, nothing of the token is echoed and focus lands in the new persona’s composer', async () => {
-    handoffs = [handoff]
+  it('@<name> turns to the persona: the seat opens, no line is written, nothing of the token is echoed and focus lands in the new persona’s composer', async () => {
     await start()
     await say('@john')
 
@@ -744,7 +707,7 @@ describe('App, handing the work to the next persona', () => {
     expect(sent).toEqual([])
     expect(mounted!.container.querySelector('.turn--user')).toBeNull()
     expect(mounted!.container.textContent).not.toContain('@john')
-    expect(mounted!.container.querySelector('.sysline')?.textContent).toBe(handoff.text)
+    expect(mounted!.container.querySelector('.sysline')).toBeNull()
     expect(field().getAttribute('aria-label')).toBe('Message John')
     expect(document.activeElement).toBe(field())
     // The roving tab stop and aria-current follow the new persona.
@@ -752,18 +715,17 @@ describe('App, handing the work to the next persona', () => {
     expect(tile('John').tabIndex).toBe(0)
     expect(tile('Mary').hasAttribute('aria-current')).toBe(false)
     expect(tile('Mary').tabIndex).toBe(-1)
-    expect(await announced()).toBe(handoff.text)
+    expect(await announced()).toBe('')
   })
 
-  it('@<name> with text sends the stripped text and the typed token to the new persona, after the handoff, and the turn reads the chip then the text', async () => {
-    handoffs = [handoff]
+  it('@<name> with text sends the stripped text and the typed token to the new persona, and the turn reads the chip then the text', async () => {
     await start()
     await say('@John write the brief')
 
     expect(opened).toEqual([john.id])
     // The text without the name is what is sent; the token as typed (case kept) rides beside it (AD-25).
     expect(sent).toEqual([[`session-of-${john.id}`, 'write the brief', '@John']])
-    expect(thread()).toEqual(['sysline', 'turn turn--user'])
+    expect(thread()).toEqual(['turn turn--user'])
     const turn = mounted!.container.querySelector('.turn--user')!
     expect(turn.querySelector('.turn-mention')?.textContent).toBe('@John')
     expect(turn.querySelector('.turn-words')?.textContent).toBe('write the brief')
@@ -797,8 +759,7 @@ describe('App, handing the work to the next persona', () => {
     expect(mounted!.container.querySelector('.composer-hint')?.textContent).toBe('enter sends·shift+enter adds a line')
   })
 
-  it('does not hand focus to the composer for a tile chosen after an @ handoff', async () => {
-    handoffs = [handoff]
+  it('does not hand focus to the composer for a tile chosen after an @name', async () => {
     await start()
     await say('@john')
     expect(document.activeElement).toBe(field())
@@ -1139,6 +1100,36 @@ describe('App, the current persona’s close control', () => {
     // Activating the tile asked main for John's session, whose id the fake bridge answers; Mary's is untouched.
     expect(closedSessions).toHaveLength(1)
     expect(closedSessions).not.toContain('s-mary')
+  })
+
+  it('leaves each seat’s dot as it is: two live tiles both show the dot and the word, and ending one through the header leaves the other’s (Story 7.4)', async () => {
+    await mountAndOpenMary()
+    const stateOf = (name: string): Element => tile(name).querySelector('.tile-state') as Element
+    push({ name: 'session:opened', payload: { sessionId: 's-mary', agentId: mary.id, at: 1 } })
+    push({ name: 'session:opened', payload: { sessionId: 's-john', agentId: john.id, at: 1 } })
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 's-mary', at: 2 } })
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 's-john', at: 2 } })
+    push({ name: 'persona:state', payload: { agentId: mary.id, state: 'live', at: 2 } })
+    push({ name: 'persona:state', payload: { agentId: john.id, state: 'live', at: 2 } })
+
+    for (const name of ['Mary', 'John']) {
+      expect(stateOf(name).querySelector('.status-dot--live')).not.toBeNull()
+      expect(stateOf(name).textContent).toBe('live')
+      expect(stateOf(name).querySelector('.state-elapsed')).toBeNull()
+    }
+    // No count, no second live region, no announcement for either seat: the dot is the whole mark.
+    expect(mounted!.container.querySelectorAll('.visually-hidden')).toHaveLength(1)
+
+    act(() => closeButtons()[0].click())
+    await settle()
+    push({ name: 'session:closed', payload: { sessionId: 's-mary', agentId: mary.id, reason: 'closed', at: 5 } })
+    push({ name: 'persona:state', payload: { agentId: mary.id, state: 'idle', at: 5 } })
+
+    expect(closedSessions).toEqual(['s-mary'])
+    expect(stateOf('Mary').querySelector('.status-dot--live')).toBeNull()
+    expect(stateOf('John').querySelector('.status-dot--live')).not.toBeNull()
+    expect(stateOf('John').textContent).toBe('live')
+    expect(mounted!.container.querySelectorAll('.visually-hidden')).toHaveLength(1)
   })
 
   it('goes when the process exits on its own', async () => {

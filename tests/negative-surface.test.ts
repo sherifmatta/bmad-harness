@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -914,7 +914,6 @@ describe("no configuration path and none of the four cut strings", () => {
 describe("the handoff says only what is true and parses no skill (Story 2.9)", () => {
   const PARSER = "src/renderer/ui/chat/handoff-target.ts";
   const BRIDGE = "src/main/session-bridge.ts";
-  const HANDOFF = "src/main/session-handoff.ts";
 
   it("parses `@<name>` against the roster's display names alone: no skill, menu, code, description or id match", () => {
     const parser = code.get(PARSER) ?? "";
@@ -951,20 +950,15 @@ describe("the handoff says only what is true and parses no skill (Story 2.9)", (
     expect(bridge.slice(bridge.indexOf("function sendTurn"))).not.toMatch(/write\w*\([^)]*mention/);
   });
 
-  it("authors the handoff text with no claim that context continues and no restart or cleared framing", () => {
-    const text = code.get(HANDOFF) ?? "";
-
-    expect(text).toContain("function handoffFor");
-    expect(text).toContain("`handed to ${toName}`");
-    expect(text).not.toContain(" → ");
-    expect(text).not.toContain("picking up from");
-    expect(text).not.toMatch(/context|continu|new thread|cleared|restart|resum/i);
+  it("has no producer of `handed to` in main: a switch writes nothing, and the handoff composer and its memory are gone (Story 7.4)", () => {
+    expect(offenders(MAIN_CODE, /handed to|handoffFor|createHandoffComposer|lastOpened/)).toEqual([]);
+    expect(existsSync(join(ROOT, "src/main/session-handoff.ts"))).toBe(false);
   });
 
   it("orders the written files by when they were written: no sort in the fold or the bridge that keeps them", () => {
     expect(
       offenders(
-        ["src/main/fold/written-paths.ts", BRIDGE, HANDOFF],
+        ["src/main/fold/written-paths.ts", BRIDGE],
         /\.sort\(|\.toSorted\(|localeCompare/,
       ),
     ).toEqual([]);
@@ -1161,7 +1155,6 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
   const CHAT_ALL = sources(CHAT, [".ts", ".tsx", ".css"]);
   const PARSER = "src/renderer/ui/chat/handoff-target.ts";
   const BRIDGE = "src/main/session-bridge.ts";
-  const HANDOFF = "src/main/session-handoff.ts";
   const APP = "src/renderer/ui/app.tsx";
   const TURN = "src/renderer/ui/chat/turn.tsx";
   const TRANSCRIPT = "src/renderer/ui/chat/transcript.tsx";
@@ -1497,17 +1490,13 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
       }
     });
 
-    it("writes a handoff sysline from the open's reply alone: `handoffFor` is defined once and called once", () => {
+    it("writes no sysline when a session opens: the open handler holds no `say` or `recordSysline`, and `recordSysline` is called only by the voice and the transcript (Story 7.4)", () => {
       const bridge = code.get(BRIDGE) ?? "";
       const open = bridge.slice(bridge.indexOf("function openSession"), bridge.indexOf("function sendTurn"));
 
-      // Typed on the handlers' context, built by the composer, and called once, inside the open handler.
-      expect(bridge.match(/\bhandoffFor\b/g)).toHaveLength(3);
-      expect(bridge.match(/\bhandoffFor\(/g)).toHaveLength(1);
-      expect(open.match(/\bhandoffFor\(/g)).toHaveLength(1);
-      expect(code.get(HANDOFF)?.match(/\bfunction handoffFor\b/g)).toHaveLength(1);
+      expect(open).not.toMatch(/\.say\(|recordSysline|handoff/);
       expect(
-        offenders(MAIN_CODE.filter((path) => path !== BRIDGE && path !== HANDOFF), /\bhandoffFor\b|recordSysline/).map((hit) => hit.split(":")[0]),
+        offenders(MAIN_CODE.filter((path) => path !== BRIDGE), /\brecordSysline/).map((hit) => hit.split(":")[0]),
       ).toEqual(["src/main/projections/transcript.ts", "src/main/session-voice.ts"]);
       // The persona's words are never read for a handoff: no fold parses `said` text for a name.
       expect(offenders(MAIN_CODE, /\bpersona:said\b[^\n]*(?:handoff|handed)/)).toEqual([]);
@@ -2837,12 +2826,20 @@ describe("nothing this epic promised not to do: the audit's static half (Story 4
     }
     // Said by the bridge, once each, through the registry's own `say`, and by nothing else in main.
     const bridge = code.get(BRIDGE) ?? "";
-    expect(bridge.match(/registry\.say\(/g)).toHaveLength(2);
+    // Story 7.4 adds a persona seat's own ending, said once beside the room's, from `closeSession` alone.
+    expect(bridge.match(/registry\.say\(/g)).toHaveLength(3);
     expect(bridge).toMatch(/registry\.say\(sender, entry, LINES\.roomOpened\(/);
     expect(bridge).toMatch(/registry\.say\(sender, entry, LINES\.roomStopped\)/);
     expect(offenders(MAIN_CODE, /\bLINES\.room(?:Opened|Stopped)\b/)).toEqual([`${BRIDGE}: LINES.roomOpened`]);
     expect(MAIN_CODE.reduce((count, path) => count + (code.get(path)?.match(/\bLINES\.roomOpened\b/g)?.length ?? 0), 0)).toBe(1);
     expect(MAIN_CODE.reduce((count, path) => count + (code.get(path)?.match(/\bLINES\.roomStopped\b/g)?.length ?? 0), 0)).toBe(1);
+    // The seat's line (Story 7.4): lower case and plain, a fact with no claim that anything continues, said from one place.
+    const seat = voice.match(/seatEnded:[^\n`]*`([^`]*)`/)?.[1] ?? "";
+    expect(seat).toBe("session closed · ${name} starts fresh on the next message");
+    expect(seat.replace("${name}", "")).toBe(seat.replace("${name}", "").toLowerCase());
+    expect(seat).not.toMatch(/[.!?:;,]$|\b(?:continue|resume|remember|context|again)\b/);
+    expect(bridge).toMatch(/registry\.say\(sender, entry, LINES\.seatEnded\(/);
+    expect(MAIN_CODE.reduce((count, path) => count + (code.get(path)?.match(/\bLINES\.seatEnded\b/g)?.length ?? 0), 0)).toBe(1);
   });
 
   it("makes a persona's entry only from the session's own text: three constructors, each given the text the session sent", () => {

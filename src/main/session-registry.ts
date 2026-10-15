@@ -106,12 +106,6 @@ export type Service = {
   /** The window's persona states, shared with the rail bridge. */
   personas: PersonaProjection
   /**
-   * The persona whose session this window last opened successfully. Memory only:
-   * it is reset by `conversation:get` and by ending the conversation, so a window
-   * that reloaded has no `from` rather than a wrong one.
-   */
-  lastOpened: AgentId | undefined
-  /**
    * The project-relative files each persona's chat turns wrote this conversation,
    * in write order, each once. Memory only, cleared when the conversation ends.
    */
@@ -427,7 +421,6 @@ function newService(sender: Sender, projectRoot: string, now: () => number): Ser
     byAgent: new Map(),
     room: undefined,
     personas: personaProjectionFor(sender, now),
-    lastOpened: undefined,
     written: new Map(),
     runs: createRunProjection(),
     annotations: railAnnotatorFor(sender),

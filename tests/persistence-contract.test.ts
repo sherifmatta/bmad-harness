@@ -268,15 +268,15 @@ describe('what is stored, and where', () => {
     expect(file).toMatch(/TRANSCRIPT_VERSION = 1/)
   })
 
-  it('stores the sysline and nothing of what made it: not the last persona, the written files or a name', () => {
+  it('stores the sysline and nothing of what made it: not the written files or a name', () => {
     const projection = code(join(SRC, 'main/projections/transcript.ts'))
     const file = code(join(SRC, 'main/sources/persistence/transcript-file.ts'))
     const bridge = code(join(SRC, 'main/session-bridge.ts'))
 
     expect(file).toMatch(/TRANSCRIPT_VERSION = 1/)
     expect(file + projection).not.toMatch(/lastOpened|written|agentName|handoff/i)
-    // The two memories of the handoff live on the window's service and are never handed to a writer.
-    expect(bridge.match(/lastOpened/g)?.length).toBeGreaterThan(0)
+    // The handoff's memory is retired (Story 7.4): a switch is remembered nowhere, so nothing of it is stored or handed to a writer.
+    expect(bridge).not.toMatch(/lastOpened/)
     expect(bridge).not.toMatch(/writeTranscript|writeFileSync/)
   })
 

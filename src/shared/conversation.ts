@@ -44,8 +44,9 @@ export type UserRecord = {
 }
 
 /**
- * A line the harness wrote into the transcript in its own voice: a handoff
- * notice today. It has no agent, portrait, name or timestamp of its own and is
+ * A line the harness wrote into the transcript in its own voice: the room's
+ * opening and ending, a seat's ending, a turn's failure. (Older transcripts also
+ * hold `handed to <Name>` lines, which main no longer writes.) It has no agent, portrait, name or timestamp of its own and is
  * never joined into what a persona said.
  */
 export type SyslineRecord = {
@@ -64,9 +65,10 @@ export type SyslineRecord = {
 export type TranscriptRecord = PersonaRecord | UserRecord | SyslineRecord
 
 /**
- * What `session.open` answers: the session, and, when the open was a handoff,
- * the sysline main wrote for it. `session.open` keeps its declaration in the
- * contract; the reply only gains this one optional field.
+ * What `session.open` answers: the session. `handoff` stays declared as an
+ * optional field a reply may carry, but main no longer sets it (Story 7.4):
+ * turning to a persona writes nothing. Deferred cleanup: drop the field and the
+ * renderer's fold of it. `session.open` keeps its declaration in the contract.
  */
 export type SessionOpenReply = CommandReply<{
   sessionId: SessionId

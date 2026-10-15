@@ -563,7 +563,10 @@ describe('turn end and turn.send', () => {
     expect(sender.events.filter((event) => event.name === 'persona:state').map((event) => event.payload.state)).toEqual(['work', 'idle'])
     const get = handlers.get(CONVERSATION_GET_CHANNEL) as unknown as (e: { sender: FakeSender }) => ConversationReply
     const snapshot = get({ sender })
-    expect(snapshot.ok && snapshot.snapshot.entries).toEqual([])
+    // Nothing of the turn is recorded; the only line is the seat's own ending (Story 7.4).
+    expect(snapshot.ok && snapshot.snapshot.entries.map((entry) => entry.kind === 'sysline' && entry.text)).toEqual([
+      'session closed · Mary starts fresh on the next message'
+    ])
   })
 })
 
@@ -757,7 +760,7 @@ describe('what the harness says in its own voice', () => {
     expect(states(sender)).toEqual(['work', 'error', 'work'])
   })
 
-  it('says nothing when the user closes the session, or the window goes', async () => {
+  it('says one seat line when the user closes a persona session, and nothing when the window goes', async () => {
     const one = await opened(new FakeSender(1), 'bmad-agent-pm')
     closeSession(one.sender, one.reply.sessionId)
     const two = await opened(new FakeSender(2), 'bmad-agent-pm')
@@ -766,7 +769,7 @@ describe('what the harness says in its own voice', () => {
     two.proc.exit()
     one.proc.exit()
 
-    expect(lines(one.sender)).toEqual([])
+    expect(lines(one.sender)).toMatchObject([{ text: 'session closed · John starts fresh on the next message' }])
     expect(lines(two.sender)).toEqual([])
   })
 
@@ -886,7 +889,8 @@ describe('the silence clock', () => {
     closeSession(one.sender, one.reply.sessionId)
     expect(timer.cancelled).toBe(true)
     timer.run()
-    expect(lines(one.sender)).toEqual([])
+    // Only the seat's own ending; a timer that runs late adds no silence line.
+    expect(lines(one.sender)).toEqual(['session closed · John starts fresh on the next message'])
 
     const two = await opened(new FakeSender(2), 'bmad-agent-pm')
     const second = live()[0]
@@ -1009,7 +1013,9 @@ describe('session.close', () => {
 
     closeSession(sender, first.reply.sessionId)
 
-    expect(registry.forProject('/project-1').entries()).toEqual(turns)
+    // Every turn stays, and the seat's line joins them.
+    expect(registry.forProject('/project-1').entries().slice(0, turns.length)).toEqual(turns)
+    expect(registry.forProject('/project-1').entries()).toHaveLength(2)
     expect(turns).toHaveLength(1)
     second.proc.frame(result())
     expect(await send(sender, second.reply.sessionId, 'still here')).toEqual({ ok: true })
@@ -1047,13 +1053,21 @@ describe('session.close', () => {
     expect(sender.sent).toHaveLength(before)
   })
 
-  it('says nothing new when a persona session is closed', async () => {
+  it('says one seat line when a persona session is closed, and none for one that is not found', async () => {
     const sender = new FakeSender(1)
     const { reply } = await opened(sender, 'bmad-agent-pm')
 
-    expect(closeSession(sender, reply.sessionId)).toEqual({ ok: true })
-
+    expect(closeSession(sender, 'nope')).toMatchObject({ ok: false, error: { code: 'session/not-found' } })
     expect(sender.events.filter((event) => event.name === 'harness:said')).toEqual([])
+    expect(closeSession(sender, reply.sessionId)).toEqual({ ok: true })
+    expect(closeSession(sender, reply.sessionId)).toMatchObject({ ok: false })
+
+    expect(sender.events.filter((event) => event.name === 'harness:said')).toEqual([
+      {
+        name: 'harness:said',
+        payload: { sessionId: reply.sessionId, id: 'm-0', at: expect.any(Number), text: 'session closed · John starts fresh on the next message' }
+      }
+    ])
   })
 
   it('closes a session whose turn is in flight', async () => {
@@ -1682,10 +1696,11 @@ describe('what is written, and where', () => {
   })
 })
 
-describe('handoff', () => {
+describe('seats (Story 7.4)', () => {
   const A = 'bmad-agent-analyst'
   const B = 'bmad-agent-pm'
   type Opened = { ok: true; sessionId: string; handoff?: unknown }
+  const SEAT = (name: string) => `session closed · ${name} starts fresh on the next message`
   const end = (sender: FakeSender, projectId: string) =>
     (handlers.get(CONVERSATION_END_CHANNEL) as unknown as (e: { sender: FakeSender }, id: unknown) => unknown)(
       { sender },
@@ -1694,8 +1709,7 @@ describe('handoff', () => {
   const get = (sender: FakeSender): ConversationReply =>
     (handlers.get(CONVERSATION_GET_CHANNEL) as unknown as (e: { sender: FakeSender }) => ConversationReply)({ sender })
   /**
-   * What the transcript holds, read from the registry: reading it through
-   * `conversation:get` would be a window reloading, which forgets the last persona.
+   * What the transcript holds, read straight from the registry.
    */
   const entriesOf = (sender: FakeSender) => registry.forProject(`/project-${sender.id}`).entries()
   const say = (proc: FakeProcess, id: string, text: string) => {
@@ -1726,91 +1740,73 @@ describe('handoff', () => {
   }
   const syslines = (sender: FakeSender) => entriesOf(sender).filter((entry) => entry.kind === 'sysline')
 
-  it('writes one sysline on opening another persona over a transcript that has turns, names only who it was handed to, and returns it on the open’s reply', async () => {
+  it('turns to a live seat without a record: the same session, no process, no sysline, no handoff, the transcript as it was', async () => {
     const sender = new FakeSender(1)
     const a = await openAs(sender, A)
     say(a.proc, 'msg_1', 'Here is the plan')
-    writes(a.proc, '/project-1/b.md')
-    writes(a.proc, '/project-1/a.md', 'Edit', 4)
-    writes(a.proc, '/project-1/b.md', 'Edit', 5)
+    const b = await openAs(sender, B)
+    say(b.proc, 'msg_2', 'And the brief')
+    const before = structuredClone(entriesOf(sender))
     const eventsBefore = sender.events.length
 
-    const b = await openAs(sender, B)
+    const back = (await open(sender, A)) as Opened
+    const again = (await open(sender, B)) as Opened
 
-    const text = 'handed to John'
-    expect(b.reply).toEqual({ ok: true, sessionId: 's2', handoff: { kind: 'sysline', id: 'm-1', at: expect.any(Number), text } })
-    expect(entriesOf(sender)).toMatchObject([{ kind: 'persona', text: 'Here is the plan' }, { kind: 'sysline', text }])
-    // The line travels on the reply and in the snapshot, never as a new event.
-    expect(sender.events.slice(eventsBefore).map((event) => event.name)).toEqual(['session:opened', 'persona:state'])
-    // The first persona's session is left running.
+    expect(back).toEqual({ ok: true, sessionId: a.reply.sessionId })
+    expect(again).toEqual({ ok: true, sessionId: b.reply.sessionId })
+    expect('handoff' in back).toBe(false)
+    expect(processes).toHaveLength(2)
     expect(a.proc.killed).toBe(false)
-    // And a window that reads the conversation afterwards is given the line like any record.
-    const reply = get(sender)
-    expect(reply.ok && reply.snapshot.entries[1]).toEqual(b.reply.handoff)
+    expect(b.proc.killed).toBe(false)
+    expect(entriesOf(sender)).toEqual(before)
+    expect(syslines(sender)).toEqual([])
+    expect(sender.events.slice(eventsBefore)).toEqual([])
   })
 
-  it('names no files when the first persona wrote nothing', async () => {
+  it('opens a seat that is not live for that persona alone, over a transcript with turns, with no sysline and no handoff', async () => {
     const sender = new FakeSender(1)
     const a = await openAs(sender, A)
-    say(a.proc, 'msg_1', 'Hello')
+    say(a.proc, 'msg_1', 'Plan')
+    const before = structuredClone(entriesOf(sender))
 
-    const b = await openAs(sender, B)
+    const c = await openAs(sender, 'bmad-agent-dev')
 
-    expect(b.reply.handoff).toMatchObject({ text: 'handed to John' })
-  })
-
-  it('writes nothing on a first open, over an empty transcript, or on re-activating the persona it last opened', async () => {
-    const sender = new FakeSender(1)
-    const a = await openAs(sender, A)
-    expect(a.reply.handoff).toBeUndefined()
-    expect('handoff' in a.reply).toBe(false)
-
-    // No turns yet: opening another persona is not a handoff.
-    const b = await openAs(sender, B)
-    expect('handoff' in b.reply).toBe(false)
-    expect(entriesOf(sender)).toEqual([])
-
-    say(b.proc, 'msg_1', 'Hi')
-    await expect(open(sender, B)).resolves.toEqual({ ok: true, sessionId: 's2' })
+    expect(c.reply).toEqual({ ok: true, sessionId: 's2' })
+    expect(processes).toHaveLength(2)
+    expect(a.proc.killed).toBe(false)
+    expect(entriesOf(sender)).toEqual(before)
     expect(syslines(sender)).toEqual([])
   })
 
-  it('hands back to a persona whose session is live: the same session, a sysline naming who it is handed to', async () => {
+  it('writes nothing for a persona the install model does not name, or for one it names with no name', async () => {
     const sender = new FakeSender(1)
     const a = await openAs(sender, A)
-    say(a.proc, 'msg_1', 'Plan')
-    writes(a.proc, '/project-1/plan.md')
+    say(a.proc, 'msg_1', 'Hello')
+    delete names[B]
+
     const b = await openAs(sender, B)
-    writes(b.proc, '/project-1/brief.md')
-    writes(b.proc, '/project-1/.memlog.md', 'Write', 4)
-    writes(b.proc, '/etc/outside.md', 'Write', 5)
+    await open(sender, A)
 
-    const back = await open(sender, A)
-
-    expect(processes).toHaveLength(2)
-    expect(back).toMatchObject({
-      ok: true,
-      sessionId: 's1',
-      handoff: { text: 'handed to Mary' }
-    })
-    expect(syslines(sender).map((entry) => entry.text)).toEqual([
-      'handed to John',
-      'handed to Mary'
-    ])
+    expect(b.reply).toEqual({ ok: true, sessionId: 's2' })
+    expect(syslines(sender)).toEqual([])
   })
 
-  it('names no files, even across a session that closed and opened again', async () => {
+  it('keeps a window reading the conversation, a relaunch and a new conversation from writing a line for a switch', async () => {
     const sender = new FakeSender(1)
     const a = await openAs(sender, A)
-    say(a.proc, 'msg_1', 'Plan')
-    writes(a.proc, '/project-1/one.md')
-    a.proc.exit()
-    const again = await openAs(sender, A)
-    writes(again.proc, '/project-1/two.md')
+    say(a.proc, 'msg_1', 'Hello')
+    get(sender)
+    await openAs(sender, B)
+    await open(sender, A)
+    registry.flushAll()
+    expect(syslines(sender)).toEqual([])
 
-    const b = await openAs(sender, B)
-
-    expect(b.reply.handoff).toMatchObject({ text: 'handed to John' })
+    launch()
+    const again = new FakeSender(1)
+    const reopened = await openAs(again, A)
+    await openAs(again, B)
+    expect('handoff' in reopened.reply).toBe(false)
+    expect(entriesOf(again).map((entry) => entry.kind)).toEqual(['persona'])
   })
 
   it('raises no doc event for a chat turn’s write, and persona states stay as they were', async () => {
@@ -1822,150 +1818,6 @@ describe('handoff', () => {
     expect(sender.events.slice(before)).toEqual([])
   })
 
-  it('writes nothing for an open that fails, and the last persona stays the one before it', async () => {
-    const sender = new FakeSender(1)
-    const a = await openAs(sender, A)
-    say(a.proc, 'msg_1', 'Hello')
-
-    const failing = open(sender, B)
-    processes[processes.length - 1].fail('ENOENT')
-    await expect(failing).resolves.toMatchObject({ ok: false, error: { code: 'session/spawn-failed' } })
-    expect(syslines(sender)).toEqual([])
-
-    // Still with Mary: opening her again is not a handoff, opening John once he starts is.
-    await expect(open(sender, A)).resolves.toEqual({ ok: true, sessionId: 's1' })
-    const b = await openAs(sender, B)
-    expect(b.reply.handoff).toMatchObject({ text: 'handed to John' })
-  })
-
-  it('refuses the handoff, and only that, for a persona the install model does not name', async () => {
-    const sender = new FakeSender(1)
-    const a = await openAs(sender, A)
-    say(a.proc, 'msg_1', 'Hello')
-    delete names[B]
-
-    const b = await openAs(sender, B)
-
-    expect(b.reply).toEqual({ ok: true, sessionId: 's2' })
-    expect(syslines(sender)).toEqual([])
-    // The open stands, and it is the last one: going back to Mary is a handoff only if Mary is named.
-    names[B] = 'John'
-    const back = await open(sender, A)
-    expect(back).toMatchObject({ handoff: { text: 'handed to Mary' } })
-  })
-
-  it('refuses the handoff when the previous persona is no longer named, and only that', async () => {
-    const sender = new FakeSender(1)
-    const a = await openAs(sender, A)
-    say(a.proc, 'msg_1', 'Hello')
-    delete names[A]
-
-    const b = await openAs(sender, B)
-
-    expect(b.reply).toEqual({ ok: true, sessionId: 's2' })
-    expect('handoff' in b.reply).toBe(false)
-    expect(syslines(sender)).toEqual([])
-  })
-
-  it('does not name an empty display name, and takes both names from the model, never from the id', async () => {
-    const sender = new FakeSender(1)
-    const a = await openAs(sender, A)
-    say(a.proc, 'msg_1', 'Hello')
-    names[B] = 'Bob'
-    names[A] = 'Ann'
-
-    const b = await openAs(sender, B)
-
-    expect(b.reply.handoff).toMatchObject({ text: 'handed to Bob' })
-  })
-
-  it('forgets who it was with when the window reads the conversation again: the next open writes none, the one after does', async () => {
-    const sender = new FakeSender(1)
-    const a = await openAs(sender, A)
-    say(a.proc, 'msg_1', 'Hello')
-    get(sender)
-
-    const b = await openAs(sender, B)
-    expect('handoff' in b.reply).toBe(false)
-    expect(syslines(sender)).toEqual([])
-
-    await expect(open(sender, A)).resolves.toMatchObject({ handoff: { text: 'handed to Mary' } })
-  })
-
-  it('keeps the sysline through a relaunch, and writes none on the first open after it', async () => {
-    const sender = new FakeSender(1)
-    const a = await openAs(sender, A)
-    say(a.proc, 'msg_1', 'Hello')
-    await openAs(sender, B)
-    registry.flushAll()
-
-    launch()
-    const again = new FakeSender(1)
-    expect(entriesOf(again).map((entry) => entry.kind)).toEqual(['persona', 'sysline'])
-    const reopened = await openAs(again, A)
-
-    expect('handoff' in reopened.reply).toBe(false)
-    expect(entriesOf(again).map((entry) => entry.kind)).toEqual(['persona', 'sysline'])
-  })
-
-  it('clears the last persona and the written files when the conversation ends', async () => {
-    const sender = new FakeSender(1)
-    const a = await openAs(sender, A)
-    say(a.proc, 'msg_1', 'Hello')
-    writes(a.proc, '/project-1/old.md')
-    await openAs(sender, B)
-
-    expect(end(sender, '/project-1')).toEqual({ ok: true })
-    expect(entriesOf(sender)).toEqual([])
-
-    const fresh = await openAs(sender, A)
-    expect('handoff' in fresh.reply).toBe(false)
-    say(fresh.proc, 'msg_2', 'A new conversation')
-    const next = await openAs(sender, B)
-    expect(next.reply.handoff).toMatchObject({ text: 'handed to John' })
-  })
-
-  it('lands the sysline while the first persona is mid-turn, and her later words open a new record after it', async () => {
-    const sender = new FakeSender(1)
-    const a = await openAs(sender, A)
-    say(a.proc, 'msg_1', 'Thinking')
-
-    await openAs(sender, B)
-    a.proc.frame(delta(' on'))
-
-    expect(entriesOf(sender).map((entry) => [entry.kind, entry.text])).toEqual([
-      ['persona', 'Thinking'],
-      ['sysline', 'handed to John'],
-      ['persona', ' on']
-    ])
-  })
-
-  it('keeps two windows’ last persona and written files apart', async () => {
-    const one = new FakeSender(1)
-    const two = new FakeSender(2)
-    const a1 = await openAs(one, A)
-    say(a1.proc, 'msg_1', 'Hello')
-    writes(a1.proc, '/project-1/one.md')
-    const a2 = await openAs(two, A)
-    say(a2.proc, 'msg_2', 'Hello')
-
-    const b2 = await openAs(two, B)
-
-    expect(b2.reply.handoff).toMatchObject({ text: 'handed to John' })
-    expect(syslines(one)).toEqual([])
-  })
-
-  it('never says context or continuity in the text the harness authors', async () => {
-    const sender = new FakeSender(1)
-    const a = await openAs(sender, A)
-    say(a.proc, 'msg_1', 'Hello')
-    writes(a.proc, '/project-1/a.md')
-
-    const b = await openAs(sender, B)
-
-    expect((b.reply.handoff as { text: string }).text).not.toMatch(/context|continu/i)
-  })
-
   it('does not record the open itself, or anything else, as a turn', async () => {
     const sender = new FakeSender(1)
     const a = await openAs(sender, A)
@@ -1975,28 +1827,170 @@ describe('handoff', () => {
     expect(entriesOf(sender).filter((entry) => entry.kind === 'user')).toEqual([])
   })
 
-  it('takes both names from the install model the install bridge fills when the composition passes no lookup', async () => {
+  it('ends one of two seats: that persona alone is killed and closed, one line says it starts fresh, the other seat lives and every turn stays', async () => {
+    const sender = new FakeSender(1)
+    const a = await openAs(sender, A)
+    say(a.proc, 'msg_1', 'Plan')
+    const b = await openAs(sender, B)
+    say(b.proc, 'msg_2', 'Brief')
+    const turns = structuredClone(entriesOf(sender))
+    const before = sender.events.length
+
+    expect(closeSession(sender, a.reply.sessionId)).toEqual({ ok: true })
+
+    expect(a.proc.killed).toBe(true)
+    expect(b.proc.killed).toBe(false)
+    expect(sender.events.slice(before).filter((event) => event.name === 'session:closed')).toEqual([
+      { name: 'session:closed', payload: { sessionId: a.reply.sessionId, agentId: A, reason: 'closed', at: expect.any(Number) } }
+    ])
+    expect(entriesOf(sender).slice(0, turns.length)).toEqual(turns)
+    expect(syslines(sender)).toEqual([{ kind: 'sysline', id: expect.any(String), at: expect.any(Number), text: SEAT('Mary') }])
+    // No persona's face or authorship, and no room flag: a plain harness line.
+    expect(Object.keys(syslines(sender)[0]).sort()).toEqual(['at', 'id', 'kind', 'text'])
+    const said = sender.events.slice(before).filter((event) => event.name === 'harness:said')
+    expect(said).toHaveLength(1)
+    expect(said[0].payload).not.toHaveProperty('room')
+    // John is still live: opening him is the same session, and he takes a turn.
+    expect(await open(sender, B)).toEqual({ ok: true, sessionId: b.reply.sessionId })
+    b.proc.frame(result())
+    expect(await send(sender, b.reply.sessionId, 'still here')).toEqual({ ok: true })
+    // And the ended seat answers not-found, with no second line.
+    expect(closeSession(sender, a.reply.sessionId)).toMatchObject({ ok: false, error: { code: 'session/not-found' } })
+    expect(syslines(sender)).toHaveLength(1)
+  })
+
+  it('starts a new session with nothing earlier for the next message to an ended seat', async () => {
+    const sender = new FakeSender(1)
+    const a = await openAs(sender, A)
+    say(a.proc, 'msg_1', 'Plan')
+    closeSession(sender, a.reply.sessionId)
+
+    const again = await openAs(sender, A)
+
+    expect(again.reply.sessionId).not.toBe(a.reply.sessionId)
+    expect(processes).toHaveLength(2)
+    expect(again.proc).not.toBe(a.proc)
+    // The new process was started with the persona's own first turn alone, no earlier context.
+    expect(again.proc.writes).toEqual([`/${A}`])
+  })
+
+  it('says the id for an orphan seat, which the roster no longer names, by the same call', async () => {
+    const sender = new FakeSender(1)
+    const a = await openAs(sender, A)
+    delete names[A]
+
+    expect(closeSession(sender, a.reply.sessionId)).toEqual({ ok: true })
+
+    expect(a.proc.killed).toBe(true)
+    expect(syslines(sender).map((entry) => entry.text)).toEqual([SEAT(A)])
+  })
+
+  it('names an empty display name by the id, as the room’s line does', async () => {
+    const sender = new FakeSender(1)
+    names[A] = ''
+    const a = await openAs(sender, A)
+
+    closeSession(sender, a.reply.sessionId)
+
+    expect(syslines(sender).map((entry) => entry.text)).toEqual([SEAT(A)])
+  })
+
+  it('writes no seat line when the conversation ends: the transcript clears, every seat closes', async () => {
+    const sender = new FakeSender(1)
+    const a = await openAs(sender, A)
+    say(a.proc, 'msg_1', 'Plan')
+    const b = await openAs(sender, B)
+    const before = sender.events.length
+
+    expect(end(sender, '/project-1')).toEqual({ ok: true })
+
+    expect(a.proc.killed).toBe(true)
+    expect(b.proc.killed).toBe(true)
+    expect(entriesOf(sender)).toEqual([])
+    const after = sender.events.slice(before)
+    expect(after.filter((event) => event.name === 'session:closed')).toHaveLength(2)
+    expect(after.filter((event) => event.name === 'harness:said')).toEqual([])
+  })
+
+  it('leaves a failed clear alone: no seat ends and no line is written', async () => {
+    const sender = new FakeSender(1)
+    const a = await openAs(sender, A)
+    say(a.proc, 'msg_1', 'Plan')
+    registry.forProject('/project-1').clear = () => ({ ok: false, errno: 'EACCES' })
+
+    expect(end(sender, '/project-1')).toMatchObject({ ok: false, error: { code: 'conversation/end-failed' } })
+
+    expect(a.proc.killed).toBe(false)
+    expect(syslines(sender)).toEqual([])
+  })
+
+  it('lists every live seat with its session when the window reads the conversation, and not an ended one', async () => {
+    const sender = new FakeSender(1)
+    const a = await openAs(sender, A)
+    const b = await openAs(sender, B)
+    say(a.proc, 'msg_1', 'Plan')
+
+    let reply = get(sender)
+    expect(reply.ok && reply.snapshot.sessions).toEqual([
+      { agentId: A, sessionId: a.reply.sessionId },
+      { agentId: B, sessionId: b.reply.sessionId }
+    ])
+
+    closeSession(sender, a.reply.sessionId)
+    reply = get(sender)
+    expect(reply.ok && reply.snapshot.sessions).toEqual([{ agentId: B, sessionId: b.reply.sessionId }])
+    expect(reply.ok && reply.snapshot.entries.at(-1)).toMatchObject({ kind: 'sysline', text: SEAT('Mary') })
+  })
+
+  it('keeps a seat whose persona the roster stops naming, and the renamed one, live, and ends the orphan by the same control (the install side is pinned in session-contract)', async () => {
+    const sender = new FakeSender(1)
+    const a = await openAs(sender, A)
+    say(a.proc, 'msg_1', 'Plan')
+    const b = await openAs(sender, B)
+    const before = sender.events.length
+    const turns = structuredClone(entriesOf(sender))
+
+    // Mary leaves the roster and John is renamed: main's lookup changes and no session is told.
+    delete names[A]
+    names[B] = 'Jon'
+    expect(sender.events.length).toBe(before)
+    expect(a.proc.killed).toBe(false)
+    expect(b.proc.killed).toBe(false)
+    expect(entriesOf(sender)).toEqual(turns)
+    const reply = get(sender)
+    expect(reply.ok && reply.snapshot.sessions).toHaveLength(2)
+
+    expect(closeSession(sender, a.reply.sessionId)).toEqual({ ok: true })
+    expect(b.proc.killed).toBe(false)
+    expect(syslines(sender).map((entry) => entry.text)).toEqual([SEAT(A)])
+  })
+
+  it('takes the name from the install model the install bridge fills when the composition passes no lookup', async () => {
     launch({}, true)
     const sender = new FakeSender(1)
-    const projection = {
-      snapshot: () => ({
-        agents: [
-          { id: A, name: 'Mary' },
-          { id: B, name: 'John' }
-        ]
-      })
-    } as unknown as InstallProjection
+    const projection = { snapshot: () => ({ agents: [{ id: A, name: 'Mary' }] }) } as unknown as InstallProjection
     rememberInstall(sender.id, projection)
     try {
       const a = await openAs(sender, A)
-      say(a.proc, 'msg_1', 'Hello')
 
-      const b = await openAs(sender, B)
+      closeSession(sender, a.reply.sessionId)
 
-      expect((b.reply.handoff as { text: string }).text).toBe('handed to John')
+      expect(syslines(sender).map((entry) => entry.text)).toEqual([SEAT('Mary')])
     } finally {
       forgetInstall(sender.id, projection)
     }
+  })
+
+  it('keeps two windows’ seats apart: ending one window’s seat writes to its own transcript alone', async () => {
+    const one = new FakeSender(1)
+    const two = new FakeSender(2)
+    const a1 = await openAs(one, A)
+    await openAs(two, A)
+
+    closeSession(one, a1.reply.sessionId)
+
+    expect(syslines(one)).toHaveLength(1)
+    expect(syslines(two)).toEqual([])
   })
 })
 

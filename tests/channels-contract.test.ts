@@ -101,7 +101,7 @@ describe('the bridge skeleton (item 23)', () => {
     return found
   }
 
-  it.each(['session-bridge', 'session-registry', 'session-handoff'])(
+  it.each(['session-bridge', 'session-registry'])(
     'leaves no function or handler in %s over 150 lines',
     (name) => {
       const found = spans(join(SRC, 'main', `${name}.ts`))

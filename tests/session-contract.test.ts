@@ -148,10 +148,19 @@ describe('the layers', () => {
     for (const path of [
       join(SRC, 'main/session-bridge.ts'),
       join(SRC, 'main/session-registry.ts'),
-      join(SRC, 'main/session-handoff.ts'),
       ...filesUnder(join(SRC, 'main/fold'))
     ]) {
       expect(code(path), rel(path)).not.toMatch(/child_process/)
+    }
+  })
+
+  it('leaves every live seat alone when the install changes: nothing that reads the install reaches the session registry or ends a session (Story 7.4)', () => {
+    for (const path of [
+      join(SRC, 'main/install-bridge.ts'),
+      join(SRC, 'main/install-model.ts'),
+      join(SRC, 'main/projections/install.ts')
+    ]) {
+      expect(code(path), rel(path)).not.toMatch(/session-registry|session-bridge|closeSessions?\b|\.kill\(/)
     }
   })
 

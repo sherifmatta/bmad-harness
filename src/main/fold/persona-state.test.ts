@@ -575,6 +575,43 @@ describe('live', () => {
   })
 })
 
+describe('live seats (Story 7.4)', () => {
+  it('is each persona’s own: two attached seats are both live, and one detaching or closing leaves the other live', () => {
+    let table = fold([
+      opened('s1', A),
+      opened('s2', B),
+      awaiting('s1'),
+      awaiting('s2'),
+      attached('s1'),
+      attached('s2')
+    ])
+    expect(stateOf(table, A)).toBe('live')
+    expect(stateOf(table, B)).toBe('live')
+
+    table = fold([detached('s1')], table)
+    expect(stateOf(table, A)).toBe('idle')
+    expect(stateOf(table, B)).toBe('live')
+
+    table = fold([closed('s2', B)], table)
+    expect(stateOf(table, B)).toBe('idle')
+  })
+
+  it('lets one seat work while the other stays live, and neither disturbs the other’s instant', () => {
+    let table = fold([opened('s1', A), opened('s2', B), awaiting('s1'), awaiting('s2'), attached('s1'), attached('s2')])
+    const bAt = atOf(table, B)
+
+    table = fold([started('s1', 60)], table)
+    expect(stateOf(table, A)).toBe('work')
+    expect(stateOf(table, B)).toBe('live')
+    expect(atOf(table, B)).toBe(bAt)
+  })
+
+  it('starts empty after a relaunch: no persona is live', () => {
+    expect(stateOf(EMPTY_PERSONA_TABLE, A)).toBe('idle')
+    expect(stateOf(EMPTY_PERSONA_TABLE, B)).toBe('idle')
+  })
+})
+
 describe('precedence', () => {
   it('is work, error, note, live, idle', () => {
     let table = fold([opened('s1', A), awaiting('s1'), attached('s1')])

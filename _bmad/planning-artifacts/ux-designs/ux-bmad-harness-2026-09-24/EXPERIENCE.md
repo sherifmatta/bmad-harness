@@ -138,7 +138,7 @@ This section therefore governs **harness-authored microcopy only**: rail states,
 | `no files under _bmad/ yet` | `Get started by running a skill` |
 | `stop` | a modal asking `Are you sure?` |
 | `queued · sends when John finishes` | `Message will be delivered shortly` |
-| `handed to Amelia · bmad-build` | `conversation and context continue` |
+| `session closed · Amelia starts fresh on the next message` *(Story 7.4; `handed to Amelia · bmad-build` is superseded, a switch writes nothing)* | `conversation and context continue` |
 | `no skill named hello` | a line that suggests what to type instead (rule 1) |
 | `session ended` | an apology, or an offer to start another (rule 1) |
 | Lower case, mono, `·` as the separator, no terminal punctuation | Sentence case with full stops in a state string |
@@ -156,6 +156,8 @@ This section therefore governs **harness-authored microcopy only**: rail states,
 *Added 2026-10-15 (Story 7.5).* Two harness lines join the syslines, `no skill named <word>` and `session ended`, both in the existing sysline style and never attributed to a persona or a skill (*Sessions without a persona*). Rules 1 to 6 hold for both. They state a fact and stop (rules 1 and 3: the first says what was not found, the second says what has ended, and neither says what to do next). They are the harness speaking in its own register and put no words in a persona's mouth (rule 2 and AD-18). Both render in mono (rule 4) and carry no path (rule 6). The lower-case rule is for state strings and syslines; the control labels `Skill Session` and `Skill sessions` (the group heading) are the user's own wording and follow the capitalised controls already here (`Stop`, `Sprint board`).
 
 **The handoff sysline — why the mockup's wording is wrong, and where it stands**
+
+*Superseded 2026-10-15 (Story 7.4, FR133).* Turning to a persona, by tile or `@name`, now writes **no line at all**: each persona keeps its own live session, so a switch ends, replaces and re-briefs nothing, and there is nothing to announce. The `handed to <persona>` line, and the ruling below, stand only as history; older transcripts that hold one still show it as sysline text. What the thread says instead is when a seat **ends**: when the user ends one persona's session with the header's `close session`, one harness line, **`session closed · <Name> starts fresh on the next message`**, joins the thread. It states a fact and stops (rules 1 and 3), is lower case and plain in mono, never attributed to a persona, and claims no continuity; every turn stays above it, since the thread is the project's one conversation. `End conversation` writes no such line (it clears the thread).
 
 The mockup's sysline read *"handed off · John → Amelia · conversation and context continue"*. Under **AD-7 that is false**: a handoff **starts a new session**, and continuity is carried by *the project artifacts the previous persona wrote*, not by transplanting context. It was first corrected to name those files (*picking up from PRD.md, epics.md*). **On 2026-10-09 the user chose the screenshot's wording instead: `handed to <persona> · <skill>`.** It claims nothing that did not happen, so AD-7 holds, but it no longer names the files that CAP-8's *"no handoff presents as a restart"* leaned on; the transcript is still continuous and the files are still in the rail beside it. **[ASSUMPTION — OPEN]** — the skill is named only when main knows one for the handoff (one that came with a skill invocation); with none the line is `handed to <persona>`. AD-3 keeps resolved skill names out of the renderer, and a menu entry may be a prompt with no skill behind it (AD-9); the renderer's `run:started` carries only the menu `code`. The name has a source or it is omitted. **The `· <skill>` half is dormant in v1:** a handoff from a tile click or `@name` names no skill (Flow 3), so today the line reads `handed to <persona>`.
 
@@ -183,7 +185,7 @@ Behavioural only, per the ownership convention. Anatomy and appearance live in `
 | Document window | read-only preview, reloads **from the watcher**, not from a renderer-initiated read. Three escapes: *Reveal in Finder*, *Open in editor*, *Close*. `Esc` closes. **No refresh control. No edit affordance. No save.** | — |
 | Cast card (party) | presence is expressed by **dimming, never removal**. Every chosen persona's card stays permanently visible, its initials disc included; the current speaker's card is lit (`{colors.cast-speaking-border}`). | — |
 | Decision option | the block a persona raises inside its own turn when it stops to ask. Each option is its own control — click, or `Enter`/`Space` when focused. Activating one **sends that option as the user's turn**, in the user's name, and the run resumes from the persona's reply. **The whole option block is then removed** — it was a question and it has been answered; there is no chosen state, no greyed-out losers and no record of the block beyond the two turns either side of it. The harness never authors the options, never reorders them and never marks one recommended; a stated lean is the persona's own words. | absent unless the persona's turn raises one |
-| Sysline | harness-authored transcript entry in mono: session resumed, handoff, room opened; and, from 2026-10-15, `no skill named <word>` and `session ended`. Never attributed to a persona. | — |
+| Sysline | harness-authored transcript entry in mono: session resumed, room opened; and, from 2026-10-15, `no skill named <word>`, `session ended` and (Story 7.4) `session closed · <Name> starts fresh on the next message`. The handoff line is superseded: a switch writes nothing. Never attributed to a persona. | — |
 | Conversation turn | a flat row: initials disc, head (name, title, clock time), words. Behaviour: *Layout, chat and Board → The chat thread*, *State Patterns → A turn in flight*, *Queued composer* | — |
 | Chat header | one line: disc, name, `title · story <id>`, the state pill, the stop slot. Behaviour: *Layout, chat and Board → The chat look*. Skill variant (2026-10-15): a `/` disc, the skill's name in mono, the pill, the stop slot, with no title and no story reference; the New session chat's header is the disc and `New session` alone (*Sessions without a persona*) | the story reference is absent when it has no source |
 | Run step | one row of the run list, in the document card's body: *State Patterns → The run list* | absent until the main-side step event exists |
@@ -223,14 +225,14 @@ Project **content** is untrusted because it is largely model-authored (AD-13). M
 | Primitive | Where | Dispatches |
 |---|---|---|
 | View switch | topbar | 1:1 ↔ Party ↔ Board |
-| Persona tile | Team sidebar | marks current · rebuilds the skill row · expands that persona's card · opens a session, and writes the handoff sysline, when none is open |
+| Persona tile | Team sidebar | marks current · rebuilds the skill row · expands that persona's card · opens a session when none is live, or turns to the one that is, and writes nothing (Story 7.4); a live persona's tile carries the `live` dot and word |
 | Skill Session button | Team sidebar, in the *Sprint board* row | opens the empty chat, or returns to the one already kept, with its half-typed text. **An entry to a chat, not a launcher:** it lists and starts no skill (*Sessions without a persona*) |
 | Skill seat | Team sidebar, Skill sessions group | turns the chat to that skill-first session. It has no end control; the header's `close session` is the only end (Story 7.4) |
 | Skill button | above the composer | `menu.dispatch(sessionId, code)` → births a card |
 | `+N more` | skill row | expands the row in place |
 | Composer | chat column | `turn.send` — queued if a turn is in flight |
 | `/<name> …` as a first message | chat column, New session chat only | **starts a skill-first session** when `<name>` is an installed skill (a persona's skill turns to that persona's seat, the room's to the room). Any other first word starts nothing and says `no skill named <word>`. Typed in a persona's composer, `/<name>` is sent as it was before (Story 7.3) |
-| `@<name>` in the composer | chat column, 1:1 | **hands off to that persona.** The sole keyboard-fast path to a handoff. It addresses a **persona** and never names a skill (*Banned everywhere*). *Amended 2026-10-15 (Story 7.5): it is no longer the product's only text-driven navigation, since a `/<name>` first message in the New session chat also starts or turns to a chat; `@<name>` still addresses only a persona, and `/<name>` is the one way a skill is named in text* |
+| `@<name>` in the composer | chat column, 1:1 | **turns to that persona**: opens or resumes its seat and writes no line (Story 7.4; no ending of any other seat). The sole keyboard-fast path to a switch. It addresses a **persona** and never names a skill (*Banned everywhere*). *Amended 2026-10-15 (Story 7.5): it is no longer the product's only text-driven navigation, since a `/<name>` first message in the New session chat also starts or turns to a chat; `@<name>` still addresses only a persona, and `/<name>` is the one way a skill is named in text* |
 | `@<name>` in the composer | chat column, party | **directs the question at that persona.** Addressing only — it does not gate the room or reorder speakers |
 | Decision option | thread, inside a persona turn | sends the chosen option as the user's turn, then removes the block |
 | Card click | thread | expands a collapsed card |
@@ -746,7 +748,7 @@ No animation of a width or a fold; no snap points or presets; no per-persona, pe
 | **Clock time on every turn**, after the role. Relative times stay rejected | the right-aligned time |
 | **A list of steps in the run card**, with the run notes in the same list; prose mode stays for a run that writes a document | the run-note feed as the whole body |
 | **No shimmer.** The running step carries the existing amber pulse | nothing: it confirms *Not adopted* |
-| **`handed to <persona> · <skill>`** | `handed off · John → Amelia · picking up from PRD.md, epics.md` |
+| **`handed to <persona> · <skill>`** *(superseded 2026-10-15, Story 7.4: a switch writes nothing)* | `handed off · John → Amelia · picking up from PRD.md, epics.md` |
 | **Header: disc, name, `title · story <id>`, the state pill, `Stop`** | an illustrated avatar and a second line of description |
 
 - **The story reference** shows only when a story source exists (*The room: three columns*: `sprint-status.yaml` and the run). With none the header reads the title alone: a field with no source is omitted, never empty.
@@ -764,7 +766,7 @@ The thread is one continuous conversation: the user's turns, the persona's words
 | Element | Behaviour |
 |---|---|
 | Turn head | initials disc, name, title, then the **clock time** (`HH:MM`), on one baseline. Relative times ("4m ago") are **not** adopted: a transcript restored on another day must read as it did live (`formatTurnTime`) |
-| Activity line | the handoff sysline, reworded: `handed to <persona> · <skill>` (*Voice and Tone → The handoff sysline*) |
+| Activity line | the handoff sysline, reworded: `handed to <persona> · <skill>` (*Voice and Tone → The handoff sysline*; superseded by Story 7.4, which writes no line for a switch) |
 | Run card | the existing card, inline in the thread. **Run-list mode** shows the run's steps and run notes in one time-ordered list; **prose mode** is unchanged for a run that writes a document (*State Patterns → The run list*, *Dead Air*). A finished run collapses to its one line, as it does when it is elsewhere |
 | Thinking row | where the stream carries thinking text, **one collapsed row** above the persona's words that expands to it. It is the thinking the stream gave, never a placeholder: it does not appear for a turn with none, and it carries no word of its own before the turn ends (*A turn in flight*: no stand-in `thinking`) |
 | Decision block | the existing block, restyled as a card: options with a key each (`1`–`9`), *Confirm*. It still sends the chosen option as the user's turn and then removes itself |
@@ -1252,8 +1254,8 @@ Topic: *"payouts — extend billing-svc, or stand up the ledger now?"* Sysline: 
 
 1. The PRD is saved. You call epic creation, then sprint planning, from John's skill buttons — moving through skills without leaving the conversation. Each births its own card; each dies with its run.
 2. You click **Amelia's** tile. Her session opens — **a new process**. The skill row is rebuilt to her five entries. Focus stays on the tile you activated.
-3. A sysline lands in the transcript: **`handed to Amelia`**. You chose her from the tile, so no skill has been dispatched and none is named.
-4. The line says who has the conversation now and claims no continuation, because a new session carries none; the files that do carry it are in the rail beside it. (Why the mockup's wording is wrong, and what AD-7 and CAP-8 have to do with it, is *Voice and Tone → The handoff sysline*.)
+3. *Superseded 2026-10-15 (Story 7.4):* no line lands in the transcript. You chose her from the tile, so nothing is announced; John's session is not ended and stays live, and his tile keeps its `live` dot beside hers.
+4. Her seat is hers: it holds only what she was told, and the files that carry the work forward are in the rail beside it. When you end a seat with `close session`, one line, `session closed · Amelia starts fresh on the next message`, says so. (The history of the old `handed to` wording is *Voice and Tone → The handoff sysline*.)
 5. **Climax.** Amelia picks up in her own register — file paths and AC IDs — reading from `PRD.md` and `epics.md`, which are visible in the rail two feet from her words. The span from planning to build happened in one window, in one continuous transcript, with no restart and no re-briefing. *A terminal genuinely cannot do this; that span is the differentiator.*
 
 *Failure:* if Amelia vanishes from the install mid-session, her session stays alive with its transcript, its card and a working stop and close, and no tile. Nothing is silently closed.

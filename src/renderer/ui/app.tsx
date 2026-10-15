@@ -76,7 +76,8 @@ export function App(): JSX.Element | null {
   // The persona whose composer takes focus when it appears, or when `n` moves: after an
   // `@` handoff, and after the user answers a decision with an option (`n` counts those).
   const [composerFocus, setComposerFocus] = useState<{ id: string; n: number } | null>(null)
-  // A handoff is announced once, with the line the transcript shows.
+  // A handoff line is announced once, with the line the transcript shows. Main no longer writes one
+  // (Story 7.4), so this is reachable only through a reply that carries one.
   const announceHandoff = useCallback(
     (record: SyslineRecord) => announcer.announce(record.text, performance.now()),
     [announcer]
@@ -371,8 +372,8 @@ export function App(): JSX.Element | null {
                 conversation.send(agent.id, text)
                 return
               }
-              // The handoff first: the session opens and the sysline lands, and only
-              // then does any text after the name go to the new persona as a turn.
+              // Turning to the persona first: its seat opens (or is found live) and nothing is written
+              // to the thread (Story 7.4), and only then does any text after the name go to it as a turn.
               setCurrentId(target.agent.id)
               setComposerFocus({ id: target.agent.id, n: 0 })
               const handedOff = conversation.activate(target.agent.id)

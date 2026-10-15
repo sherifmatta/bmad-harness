@@ -707,7 +707,8 @@ describe('a stop the CLI did not acknowledge', () => {
     fake.interrupts[0](false)
     await reply
 
-    expect(sender.names).toEqual(['run:stopped', 'session:closed'])
+    // The seat's own line is said first (Story 7.4), then the run ends, then the session closes.
+    expect(sender.names).toEqual(['harness:said', 'run:stopped', 'session:closed'])
   })
 
   it('still ends as failed when the session is closed under a run nobody asked to stop', async () => {
@@ -715,7 +716,7 @@ describe('a stop the CLI did not acknowledge', () => {
 
     expect(call(SESSION_CLOSE_CHANNEL, sender, sessionId)).toEqual({ ok: true })
 
-    expect(sender.names).toEqual(['run:failed', 'session:closed'])
+    expect(sender.names).toEqual(['harness:said', 'run:failed', 'session:closed'])
   })
 
   it('leaves a session whose turn ended first alone: no kill, no line, the session open, and only the run’s own end told', async () => {
@@ -1227,11 +1228,13 @@ describe('a stop is found by run id, never through the roster', () => {
 
     expect(call(SESSION_CLOSE_CHANNEL, sender, sessionId)).toEqual({ ok: true })
 
-    expect(sender.names).toEqual(['run:failed', 'session:closed'])
+    expect(sender.names).toEqual(['harness:said', 'run:failed', 'session:closed'])
     expect(sender.of('run:failed')[0]).toMatchObject({ runId, error: { code: 'run/session-ended', message: 'run · the session ended' } })
     expect(fake.kills).toBe(1)
     expect(snapshot(sender).runs).toMatchObject([{ runId, status: 'failed', error: { code: 'run/session-ended' } }])
-    expect(snapshot(sender).entries).toHaveLength(entries)
+    // Nothing is removed: the one new record is the seat's own ending line (Story 7.4).
+    expect(snapshot(sender).entries).toHaveLength(entries + 1)
+    expect(snapshot(sender).entries.at(-1)).toMatchObject({ kind: 'sysline', text: expect.stringMatching(/^session closed · .+ starts fresh on the next message$/) })
   })
 })
 

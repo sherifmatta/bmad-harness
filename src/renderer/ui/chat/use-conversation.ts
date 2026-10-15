@@ -54,11 +54,11 @@ export type Conversation = {
   /** Subscribe to main's events; returns the way to stop. */
   connect(): () => void
   /**
-   * A persona was chosen, by tile or by `@<name>`: open its session, which main
-   * answers with the sysline when this is a handoff. Always asks main, so a
-   * switch back to a persona that is already live is seen by it. Resolves when
-   * the open has settled and its handoff, if any, is in the transcript; never
-   * rejects.
+   * A persona was chosen, by tile or by `@<name>`: open its session, or find the
+   * one already live. Always asks main, so a switch back to a persona that is
+   * already live is seen by it. Main writes no line for a switch (Story 7.4); a
+   * reply that carried a handoff line would still be folded in. Resolves when
+   * the open has settled; never rejects.
    */
   activate(agentId: string): Promise<void>
   /**
@@ -138,7 +138,7 @@ type ConversationDeps = {
   now: () => number
   publish: (state: ConversationState) => void
   onFailure: (error: HarnessError | null) => void
-  /** A handoff's sysline has just joined the transcript, live: not one the snapshot brought. */
+  /** A handoff's sysline has just joined the transcript, live: not one the snapshot brought. Main no longer sends one (Story 7.4). */
   onHandoff?: (record: SyslineRecord) => void
   /**
    * Where each run's document text is held; pieces of prose go here and never
@@ -164,8 +164,7 @@ type ConversationDeps = {
  * first send: the composer is never disabled, and a window that opened on a
  * default persona nobody activated must still take a message. An activation the
  * session is already live for is still an open, which main answers with the same
- * session and, when another persona was the last, with the handoff sysline that
- * joins the transcript here in the order the replies arrive. A session has one turn in flight at a time, so a
+ * session; a switch writes no line (Story 7.4). A session has one turn in flight at a time, so a
  * message typed meanwhile — or before the session is up — is shown at once as
  * queued and is sent when the turn ends, first in first, one per turn. Nothing
  * is transmitted to be refused as busy.

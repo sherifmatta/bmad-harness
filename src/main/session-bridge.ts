@@ -34,7 +34,6 @@ import type { RosterMember } from './install-model'
 import { personaProjectionFor } from './persona-states'
 import { createTranscriptRegistry } from './projections/transcript'
 import type { TranscriptRegistry } from './projections/transcript'
-import { createHandoffComposer } from './session-handoff'
 import { LINES } from './session-voice'
 import { NOT_FOUND, createSessionRegistry } from './session-registry'
 import type { Entry, OpenReply, Service, SessionRegistry, SessionRegistryDeps } from './session-registry'
@@ -145,7 +144,6 @@ type Context = {
   writeDiagnostic: (line: string) => void
   transcripts: TranscriptRegistry
   registry: SessionRegistry
-  handoffFor: ReturnType<typeof createHandoffComposer>
   nameOf: NonNullable<SessionBridgeDeps['agentName']>
   roster: NonNullable<SessionBridgeDeps['roster']>
   menuEntryFor: NonNullable<SessionBridgeDeps['menuEntryFor']>
@@ -252,14 +250,11 @@ function openSession(ctx: Context) {
     try {
       const service = ctx.registry.serviceFor(sender, projectRoot)
       const existing = service.byAgent.get(agentId)
-      const reply = await (existing !== undefined
+      // Turning to a persona is not a record: a live seat answers as it is, one that is not
+      // live opens, and no other seat or transcript entry is touched (Story 7.4).
+      return await (existing !== undefined
         ? existing.ready
         : ctx.registry.open(sender, service, projectRoot, agentId).ready)
-      if (!reply.ok) {
-        return reply
-      }
-      const handoff = ctx.handoffFor(sender, service, projectRoot, agentId)
-      return handoff === undefined ? reply : { ...reply, handoff }
     } catch (error) {
       return unexpected('session', error, ctx.writeDiagnostic)
     }
@@ -471,8 +466,9 @@ async function readPlanOf(ctx: Context, projectRoot: string, skill: string): Pro
 
 // Ends one session of this window: its process is killed and it is closed
 // through `finish`, so `session:closed` is emitted. A room (no agent) says one
-// harness line first (Story 4.5). The transcript is not otherwise touched, and
-// neither is any other session. Nothing else ends a session short of the
+// harness line first (Story 4.5), and so does a persona's seat (Story 7.4): the
+// thread keeps every turn, so the line is what says the persona starts fresh.
+// The transcript is not otherwise touched, and neither is any other session. Nothing else ends a session short of the
 // conversation ending, the process exiting or the window going.
 function closeSession(ctx: Context) {
   return (event: IpcMainInvokeEvent, sessionId: unknown): CloseReply => {
@@ -484,6 +480,8 @@ function closeSession(ctx: Context) {
     }
     if (entry.agentId === undefined) {
       ctx.registry.say(sender, entry, LINES.roomStopped)
+    } else {
+      ctx.registry.say(sender, entry, LINES.seatEnded(ctx.nameOf(sender.id, entry.agentId) || entry.agentId))
     }
     entry.session?.kill()
     ctx.registry.finish(sender, service, entry, 'closed')
@@ -566,7 +564,6 @@ function endConversation(ctx: Context) {
     const service = ctx.registry.serviceOf(sender.id)
     if (service !== undefined) {
       ctx.registry.closeSessions(sender, service)
-      service.lastOpened = undefined
       service.written.clear()
       service.annotations.roomCleared()
       service.runs.clear()
@@ -586,11 +583,6 @@ function getConversation(ctx: Context) {
       return noProject('conversation')
     }
     const service = ctx.registry.serviceOf(sender.id)
-    // A window that reads the conversation again has reloaded: which persona it
-    // was with is no longer known, and a handoff from a guess would be wrong.
-    if (service !== undefined) {
-      service.lastOpened = undefined
-    }
     // A session still starting has told the window nothing yet, and is not one.
     // The room is no persona's session: the snapshot lists persona sessions only.
     const live = [...(service?.bySession.values() ?? [])].filter(
@@ -661,11 +653,6 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): SessionBrid
       ...(deps.quietMs !== undefined ? { quietMs: deps.quietMs } : {}),
       ...(deps.schedule !== undefined ? { schedule: deps.schedule } : {}),
       ...(deps.told !== undefined ? { told: deps.told } : {})
-    }),
-    handoffFor: createHandoffComposer({
-      transcripts,
-      nameOf: deps.agentName ?? agentNameFor,
-      now
     }),
     nameOf: deps.agentName ?? agentNameFor,
     roster: deps.roster ?? rosterFor,

@@ -69,8 +69,8 @@ export interface HarnessApi {
   onDocClosed(listener: (path: string) => void): () => void
   /**
    * Open the session for a persona, or find the one already open for it, and
-   * resolve with its id, and with the sysline main wrote when this open was a
-   * handoff from another persona. Given `{ room }` it opens the room of that
+   * resolve with its id (a reply that carried a handoff line, which main no
+   * longer writes, would resolve with it too). Given `{ room }` it opens the room of that
    * cast (Story 4.1), or finds the one already open. Rejects with the
    * `HarnessError` envelope when main refused or could not start it.
    */

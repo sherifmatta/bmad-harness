@@ -179,8 +179,8 @@ const harness: HarnessApi = {
   },
 
   // Commands (AD-13): the agent id goes to main, which validates it and starts
-  // or finds the session. What comes back is the session id, and the sysline
-  // when the open was a handoff, or the envelope.
+  // or finds the session. What comes back is the session id (and a handoff
+  // line if a reply carried one; main no longer writes it), or the envelope.
   openSession: async (target) => {
     const reply = (await ipcRenderer.invoke(SESSION_OPEN_CHANNEL, target)) as SessionOpenReply
     if (!reply.ok) {

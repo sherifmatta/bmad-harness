@@ -39,6 +39,12 @@ export const LINES = {
   roomOpened: (names: readonly string[]): string => `room opened by you · present · ${names.join(' · ')}`,
   /** Said once when the user stops a room (Story 4.5): the harness's own fact, never a persona's voice. */
   roomStopped: 'room stopped · session released',
+  /**
+   * Said once when the user ends a persona's seat (Story 7.4): the thread keeps every turn, so
+   * the line says the persona starts fresh. By the roster's display name (the id where there is
+   * none). Placeholder copy until `bmad-ux` writes it.
+   */
+  seatEnded: (name: string): string => `session closed · ${name} starts fresh on the next message`,
   quiet: (ms: number): string =>
     `no output for ${Math.round(ms / 1000)}s · the session may be stuck · close it to start over`
 }
