@@ -27,6 +27,8 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 
 **Amended 2026-10-09 (chat look and the architecture's AD-22 to AD-25).** The Architecture Spine gained four invariants and amended two, and the UX spines took the chat look from `mockups/chat-thread-reference.png`. Five requirements are added (FR124 to FR128, under *Chat look, run steps and turn stop*), three UX design requirements (UX-DR49 to UX-DR51), and six stories: Epic 2 gains 2.14 and 2.15 and Epic 3 gains 3.16 to 3.19. Existing stories and requirements keep their numbers and are amended in place, each with a dated note, in the way earlier amendments were.
 
+**Amended 2026-10-13 (Epic 7, from a party-mode session with the owner).** Five improvements the owner asked for are planned as Epic 7, *Work in the conversation, not around it*: a Board drill-in to a story's or epic's file, markdown in the chat, `/` skill discovery, a persistent live session per persona, and sessions that start from a skill with no persona. Seven requirements are added (FR129 to FR135, under *Working in the conversation*), three UX design requirements (UX-DR52 to UX-DR54) and six stories (7.1 to 7.5, and a closing audit, 7.6). Four earlier decisions are amended by dated note where they are stated: FR30's *no skills list*, the *not a launcher* line of Story 2.9, Story 2.8's *only way to clear*, and Story 6.8's *a card is not a control* (FR123). Existing numbers do not move.
+
 ## Requirements Inventory
 
 ### Functional Requirements
@@ -68,10 +70,10 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **FR24:** A menu entry carries `code` (the key), `description` (the button label) and **exactly one of `skill` or `prompt`**. The button shows `description` with a leading code chip carrying `code`, and dispatches `menu.dispatch(sessionId, code)` — it knows nothing about what it invokes.
 - **FR25:** Menu entries resolve in main, never in the renderer. Main resolves the `code` against the currently resolved configuration and decides `skill` versus `prompt`: `skill` is sent as `/<skill-name>`, `prompt` is sent as its text verbatim. Both dispatch as a turn into the live persona session.
 - **FR26:** A menu entry carrying neither `skill` nor `prompt` is surfaced to the user as a discovery error naming the entry `code` and what is missing, in the harness's own register. It is never a silent no-op and never spoken by a persona.
-- **FR27:** No tooltip or preview derived from a resolved skill name is shown anywhere — it would go stale the instant the install is re-resolved. The user is never shown whether an entry is `skill` or `prompt`. *Amended 2026-10-09 (AD-24, FR126): this holds for the skill buttons. A card of a run already started may name the skill it invoked, as a recorded fact that nothing re-resolves and nothing dispatches by; for a `prompt` entry there is no name, so the card does not tell the two apart either.*
+- **FR27:** No tooltip or preview derived from a resolved skill name is shown anywhere — it would go stale the instant the install is re-resolved. The user is never shown whether an entry is `skill` or `prompt`. *Amended 2026-10-09 (AD-24, FR126): this holds for the skill buttons. A card of a run already started may name the skill it invoked, as a recorded fact that nothing re-resolves and nothing dispatches by; for a `prompt` entry there is no name, so the card does not tell the two apart either.* *(Amended 2026-10-13, Epic 7, Story 7.3: the skill buttons are unchanged. The list `/` opens (FR131) shows each skill's name and its one-line description as the install's own manifest declares them, read in main; that is the list of what is installed, not a preview of what a button resolves to, and a button still shows neither.)*
 - **FR28:** Skill buttons are disabled whenever **any** turn is in flight in that session. The `live` persona state does **not** disable them. The composer is never disabled.
 - **FR29:** `+N more` expands the button row in place; the remaining entries appear as ordinary skill buttons and **no transcript entry is created**. The control toggles back reading `fewer`. The row must look correct at 1 through 10 entries.
-- **FR30:** There is no separate skills list, launcher or command palette anywhere in the product. Skills are reachable only as the current persona's buttons.
+- **FR30:** There is no separate skills list, launcher or command palette anywhere in the product. Skills are reachable only as the current persona's buttons. *(Amended 2026-10-13, Epic 7, Story 7.3: one exception, the list FR131 opens with `/` as the first character of the composer. It is not a launcher: it puts text in the composer and sends nothing, and no button, menu, shortcut or panel anywhere else lists skills.)*
 
 #### CAP-5 — Documents write visibly and live
 
@@ -115,7 +117,7 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 
 - **FR60:** Clicking another persona's tile opens that persona's session, rebuilds the skill row, and expands that persona's card — within one unbroken conversation. No handoff presents as a restart, a new thread or a cleared history.
 - **FR61:** `@<name>` in the composer hands off to that persona in the 1:1 view, and directs the question at that persona in party mode. It addresses a **persona** and never names a skill; it is the product's only text-driven navigation.
-- **FR62:** A handoff writes a sysline naming the artifacts that carry the continuity — `handed off · John -> Amelia · picking up from PRD.md, epics.md` — and never claims that context continues, which under the session model would be false. *Amended 2026-10-09 (built on `chat-look`; user's wording): the line reads `handed to <Name>` and nothing more, with no files and no arrow. A skill name is not part of it: a tile click or `@name` never names one, so `handed to <persona> · <skill>` has no v1 producer and stays unbuilt (AD-24). Story 2.9's file clause is superseded.*
+- **FR62:** A handoff writes a sysline naming the artifacts that carry the continuity — `handed off · John -> Amelia · picking up from PRD.md, epics.md` — and never claims that context continues, which under the session model would be false. *Amended 2026-10-09 (built on `chat-look`; user's wording): the line reads `handed to <Name>` and nothing more, with no files and no arrow. A skill name is not part of it: a tile click or `@name` never names one, so `handed to <persona> · <skill>` has no v1 producer and stays unbuilt (AD-24). Story 2.9's file clause is superseded.* *(Amended 2026-10-13, Epic 7, Story 7.4: the line is no longer written for a tile click or an `@name`, because a persona whose seat is live is turned to and not handed to; FR63's other syslines are unchanged.)*
 - **FR63:** A sysline is a harness-authored transcript entry in the harness's own register. It is never styled as, or attributed to, a persona. Syslines carry session-resumed, handoff and room-opened notices.
 
 #### CAP-9 — Party mode
@@ -207,9 +209,21 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 
 - **FR124:** A run's tool calls are shown as steps. Main folds every main-thread tool call of a run into `run:step`, keyed by `callId`: exactly one `running` carrying a short label when the call's input has finished streaming, then exactly one `done` or `failed` on its `tool_result`. A plain chat turn, a call aimed at `.memlog.md` and any subagent frame raise none; a document `Write` or `Edit` raises one beside its `doc:*` events. The label is verb plus target, built in main from an allow-listed field (never an argument or a raw input), and nothing else about a call's input reaches the renderer. A step left running when its run ends is closed as failed on the card. Steps live in the run's card, interleave with its notes by fold order, number at most 300, and survive a reload and a relaunch with the card. The card body in run-list mode is one time-ordered list of steps and run notes, with no pending step and no `n of m`. (AD-22.)
 - **FR125:** Any turn in flight, a chat turn or a run, can be stopped. `turn.stop(sessionId)` interrupts it by the in-band path of FR83; a run it stops ends `run:stopped`, never `run:failed`, and a stopped plain chat turn is not an error: the session stays, the persona does not read `error`, and one line of the harness's own says so in the transcript. The chat header's slot reads `Stop` while a turn is in flight and `close session` otherwise. Queued messages are untouched. (AD-23.)
-- **FR126:** `run:started` carries an optional `skill`, the name of the skill main invoked, set only for a menu entry that resolved to a skill and kept on the run's card so a stored run reads as it did live. It is a record and never an input: the renderer still sends only `code`. With none, the card head reads `run` alone. The handoff sysline names no skill. (AD-24.)
+- **FR126:** `run:started` carries an optional `skill`, the name of the skill main invoked, set only for a menu entry that resolved to a skill and kept on the run's card so a stored run reads as it did live. It is a record and never an input: the renderer still sends only `code`. With none, the card head reads `run` alone. The handoff sysline names no skill. (AD-24.) *(Amended 2026-10-13, Epic 7, Story 7.5: for a session started from `/<name>` (FR134), main resolves the typed name against the install's skill list and records it as `skill`; the renderer still sends only the text the user typed, and no skill is dispatched by the name main recorded.)*
 - **FR127:** A handoff typed as `@name text` keeps its `@name` in the user's turn. `turn.send` takes an optional `mention`, the literal token typed; the turn records it beside the text sent and displays as the mention in a chip followed by that text, so what is shown is always what was typed plus what was sent. The persona receives only the text. Main drops a mention that does not name the receiving persona. The field survives a queue, a reload and a relaunch. (AD-25.)
 - **FR128:** The chat thread and the chat header carry initials discs and no portrait: a 26px disc beside every turn and a 22px disc in the header, for a persona and for the user (tinted). A turn is a flat row with no container, the clock time inline after the role, and the header is one line. Portraits stay on the Team tiles, cast cards, cast chooser and Welcome. (AD-16 as amended.)
+
+#### Working in the conversation
+
+*Added 2026-10-13 from a party-mode session with the owner (Sherif). Decided there: the skill name, not a persona's face, is the speaker of a skill-first session; live sessions have no cap and the user ends them; `/` lists every installed BMad skill, hiding none; a skill-first run appears in Recent activity only; the drill-in reuses the document window.*
+
+- **FR129:** An epic row or a story card on the Board opens that epic's or story's markdown file in the document window of FR55 to FR59, with the same title bar and its three escapes, *Reveal in Finder*, *Open in editor* and *Close*. A story's file is the one file in `implementation-artifacts/` (beside `sprint-status.yaml`) whose name begins `spec-<epic>-<story>-`; an epic's file is its `epic-<n>-context.md`. The story's key in `sprint-status.yaml` is not its file name (key `5-2-…the-system-s-theme` has file `spec-5-2-…the-systems-theme.md`, and Story 2.14's file is `spec-chat-look-flat-rows-and-initials.md`), so the number is what is matched, and zero or more than one match is no file. When no file exists the row or card is plain text, as it is today, and says nothing about why. A card or row that opens a file is a control; one that does not is not. Nothing else about the Board becomes a control, and the Board still writes nothing.
+- **FR130:** Persona and skill output in the chat renders as markdown through the one pipeline Story 1.12 built (`markdown-it` with HTML disabled, then DOMPurify), at the chat's own type and measure, never the document window's. A fixture with raw HTML, a `<style>`, a `<script>` and an image-by-markup renders none of them. A turn streams as text and is rendered once complete; a turn still streaming is never half-parsed into broken markup. The user's own turn stays plain text.
+- **FR131:** Typing `/` as the first character of the composer opens a list of every skill the install declares: all of them, none hidden, none ranked, none recommended, in the install's own order. It is read in main from the install, never listed from the renderer or hard-coded, and carries each skill's name and its one-line description. Typing narrows it by prefix, `Esc` closes it, and choosing one puts `/<name> ` in the composer and sends nothing.
+- **FR132:** Every persona has its own live session. Activating a persona's tile switches the conversation to that persona's seat and does not end, replace or re-brief any other; a seat that is already live resumes with its context, and one that is not is opened on first use. A live seat stays live in the background while another is shown, with no cap on how many. The thread stays the project's one conversation (FR14, FR60): switching adds nothing to it, and no `handed to <Name>` line is written for a tile click or an `@name`. A seat shows a live dot on its face in the rail, and the dot means only that the seat holds context, so after a relaunch, which ends every process, no seat shows one.
+- **FR133:** The user ends one seat deliberately and nothing ends it otherwise. Ending a seat closes that session and clears that seat's context, so the next message to that persona starts fresh; it touches no other seat and removes nothing from the thread, and the harness writes one line in its own register saying that persona's session ended. `conversation.end(projectId)` stays: it ends every seat and clears the transcript, and is still the only thing that clears it. The control is a lifecycle action: never a suggestion, never highlighted, never badged.
+- **FR134:** A chat can start with no persona. A message that begins with `/<name>` and names an installed skill starts a **skill-first session** and runs that skill. The speaker of every line the session produces is the skill's name, never a persona's initials or face, and the session is never presented as a persona's. Plain messages typed afterward go to the same session, which stays live. After a run the thread suggests nothing about who to talk to next: what to do next is the user's (decided 2026-10-14; the room's idea of a `continue with <persona>?` offer is dropped).
+- **FR135:** A skill-first session sits in the rail under the skill's name, with the live dot of FR132 and the per-seat end of FR133, and survives a reload as a live session; a relaunch ends its process (FR100), so after one its row is listed with its own thread and no live dot, and a message to it starts nothing until the user begins a new session (the CLI is not started with a resume flag, `SESSION_ARGS` in `src/main/sources/session/session-process.ts`). A run in a skill-first session appears in Recent activity and has no story: it is never placed in a Board column, and no story owner is derived for it (FR123 stands). A skill that is itself a persona (`bmad-agent-*`) opens that persona's seat of FR132; `bmad-party-mode` opens the room of Epic 4; nothing else about either changes.
 
 ### NonFunctional Requirements
 
@@ -325,10 +339,13 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **UX-DR49 — Run step** (`DESIGN.md` → Components → *Run step*; `EXPERIENCE.md` → State Patterns → *The run list*): a row on a grid `14px · 1fr · auto` at 9px gap and 3px vertical padding, no rule between rows; mark in mono (`✓` `green` done, the amber `work` dot with the existing pulse while running, `✕` `red` failed), label in mono at `ident` (`dim` once done, `text` while running), elapsed in mono at `meta` with tabular figures (`faint` once done, `now` in `dim` while running, so it carries the liveness under reduced motion). No shimmer, bar, pending row or `n of m`; steps and notes interleave in one list, and prose mode keeps them above it.
 - **UX-DR50 — Chat header** (`DESIGN.md` → *Chat header*): 46px, `chrome`, 1px `line` below, `0 16px`, 10px gaps, one line: the 22px initials disc, the name at `name`, `title · story <id>` in `dim` (the story reference only with a source), the status pill, then a ghost button that reads `Stop` while a turn is in flight and `close session` otherwise; name and line truncate with an ellipsis.
 - **UX-DR51 — Conversation turn** (`DESIGN.md` → *Conversation turn*, *Initials*): a flat row, with a 26px initials disc (the user's tinted) and a head of name, role and clock time on one baseline, 8px apart, the words below at `base`, turns 16px apart, no container, radius, ground or rule; the room's live turn alone keeps its accent edge `[OPEN]`; the user's `@name` of a handoff renders as a chip before the sent text (Story 2.15), its anatomy to be added to `DESIGN.md`.
+- **UX-DR52 — The `/` skill list** (`DESIGN.md` and `EXPERIENCE.md` to be amended by Story 7.3; no component exists yet): a list anchored above the composer on `panel-2` with a 1px `line` border and `control` radius, one row per skill, name in `name` mono and the description in `dim` at `base`, one row focused with the shared focus ring and never an accent fill, `↑`/`↓` move, `Enter` or `Tab` choose, `Esc` closes. It never shows a count, a recommended skill, a group heading that ranks, or an icon; it is silent to the live region. It opens only on `/` as the first character, so it cannot interfere with `@name` (Story 2.9).
+- **UX-DR53 — A seat in the rail** (`DESIGN.md` → *Team tile*, *Initials*; `EXPERIENCE.md` → Layout, chat and Board; amended by Story 7.4): a seat is the persona's existing tile with one more fact, the live dot, which uses the tile's own dot vocabulary (AD-20) and no new colour; a skill-first seat has no portrait and carries the skill's name in `name` mono where a persona has name and title. The dot carries no count and nothing pulses for being live, only for working (AD-20).
+- **UX-DR54 — A Board card that opens a file** (`EXPERIENCE.md` → *Layout, chat and Board* → Accessibility, Banned here; amended by Story 7.1): a card or epic row with a file is a native button in the tab order (the Board has no roving group) with the shared focus ring and a pointer cursor; one without is text as before. It carries no icon, no count, no hover reveal and no colour of its own, and opening returns focus to it on close.
 
 ### FR Coverage Map
 
-Every one of the 123 FRs maps to exactly one epic.
+Every one of the 135 FRs maps to exactly one epic.
 
 | FR | Epic | Covers |
 |---|---|---|
@@ -460,8 +477,15 @@ Every one of the 123 FRs maps to exactly one epic.
 | FR126 | Epic 3 | `run:started.skill`, a recorded fact; the card head reads `<skill> run` |
 | FR127 | Epic 2 | The `@name` of a handoff stays in the user's turn, through `mention` on `turn.send` |
 | FR128 | Epic 2 | The chat look: initials discs, flat rows, clock time, one-line header, `handed to <Name>` |
+| FR129 | Epic 7 | A Board card or epic row with a file opens it in the document window; one without stays text |
+| FR130 | Epic 7 | Chat output renders as markdown through the Story 1.12 pipeline; the user's turn stays plain |
+| FR131 | Epic 7 | `/` lists every installed skill from the install, none hidden, none ranked |
+| FR132 | Epic 7 | One live session per persona; switching never ends or re-briefs another; a live dot |
+| FR133 | Epic 7 | End one seat deliberately; `conversation.end` still ends every seat |
+| FR134 | Epic 7 | A chat with no persona starts from `/<skill>`; the skill's name is the speaker; follow-ups continue it |
+| FR135 | Epic 7 | A skill-first seat in the rail; its runs in Recent activity only, never a column |
 
-**Coverage by epic:** Epic 1 — 42 FRs · Epic 2 — 22 FRs · Epic 3 — 37 FRs · Epic 4 — 9 FRs · Epic 5 — 11 FRs · Epic 6 — 7 FRs · **Total 128.**
+**Coverage by epic:** Epic 1 — 42 FRs · Epic 2 — 22 FRs · Epic 3 — 37 FRs · Epic 4 — 9 FRs · Epic 5 — 11 FRs · Epic 6 — 7 FRs · Epic 7 — 7 FRs · **Total 135.**
 
 ## Standing Constraint on Story Creation
 
@@ -609,6 +633,27 @@ The shell gains a third view, the Board, a read-only picture of where the work s
 - **Sequencing:** 6.1 first, as a spike with no code beside it. 6.2 then 6.3, then 6.4, 6.5, 6.6 and 6.7 in any order, then 6.8 (cut 2026-10-10). 6.9 last. If the Team sidebar (`spec-three-column-room-layout.md`) has landed, the Board's entry is also a *Sprint board* row there; that row is part of that work, not of this epic.
 - **Negative-surface check:** Story 6.9 verifies the UX-DR38 and UX-DR48 prohibitions on every region: no count, badge or highlight on a figure, column or card; no bar; no money; no editing affordance; no recommended story; no relative time; no Inbox.
 
+### Epic 7: Work in the conversation, not around it
+
+The conversation stops being something the user works around. A story or epic on the Board opens its file; the chat renders the markdown the personas write; `/` lists the install's skills; each persona keeps its own live session, so clicking a name turns to someone who was already there; and a chat can start from a skill with no persona at all, the skill's name as its speaker, sitting in the rail until the user ends it.
+
+**Standalone:** the first two stories ship alone and change no session behaviour. Stories 7.4 and 7.5 change how sessions live and are one bet, 7.5 depending on 7.4.
+
+**FRs covered:** FR129, FR130, FR131, FR132, FR133, FR134, FR135 (FR27, FR126, FR123 and Stories 2.8 and 2.9 amended)
+
+**NFRs addressed:** NFR1, NFR3, NFR7, NFR8, NFR12, NFR17, NFR18, NFR19, NFR22, NFR23, NFR25, NFR28
+
+**UX-DRs addressed:** UX-DR52, UX-DR53, UX-DR54 (and UX-DR38, UX-DR48, UX-DR50, UX-DR51 as constraints)
+
+**Implementation notes:**
+- **Decided with the owner, 2026-10-13:** the speaker of a skill-first session is the skill's name (not a persona's face); no cap on live sessions, the user ends them; `/` lists every installed skill and hides none; a skill-first run is in Recent activity only; the drill-in reuses the document window.
+- **This epic retires one line of the plan, on purpose.** Story 2.9 said the composer never names or invokes a skill, "since a composer that parsed skill names would be the launcher the product rejects", and FR126 made a skill name a recorded fact and never an input. Stories 7.3 and 7.5 are that composer. The amendment is stated where the line stood (Story 2.9, FR27, FR126) by Story 7.3, and it is narrow: `@name` still addresses only a persona, `/` is the only skill syntax, and nothing in the shell becomes a launcher button or a skill palette beyond the list of Story 7.3.
+- **Persistent seats supersede one thing in Story 2.9.** Main already keeps one live session per persona and answers a second open for a live persona with the same session (`byAgent` in `src/main/session-registry.ts`), so a handoff never started a new session when the persona was live, and the thread stays the project's one conversation (FR14, FR60, AD-7: decided 2026-10-13, the owner chose to keep it). What changes is that activating a tile is turning to a seat that was already there and not a handoff, so the `handed to <Name>` sysline is no longer written for a tile click or an `@name` (Story 7.4); the `@name` chip of Story 2.15 stays.
+- **FR30 is amended too, narrowly.** FR30 says there is no skills list or command palette anywhere in the product; Story 7.3's list of the install's skills is the one exception, opened only by `/` at the start of the composer, and Story 7.3 states it where FR30 stands.
+- **Story 7.2 adds no sanitization decision.** Story 1.12's pipeline is the one, and its fixture is reused.
+- **The spine records this epic (2026-10-14):** AD-26 (a session has a kind: persona, room or skill-first), AD-27 (the skill list is read once from the manifest in main), AD-28 (the Board's file is resolved in main by number), with AD-3, AD-7, AD-13, AD-16, AD-18, AD-19, AD-21, AD-24 and AD-25 amended in place. Left open there and in Story 7.5's spec: the command that starts a skill-first session, the run code printed for one, and the empty-chat entry.
+- **The skill list is not read by anything yet.** `_bmad/_config/skill-manifest.csv` has the columns `canonicalId,name,description,module,path` and 29 rows in this install, including the five `bmad-agent-*` personas and `bmad-party-mode`; no file under `src/` reads it. Story 7.3 reads it and cites it.
+- **Sequencing:** 7.1 and 7.2 in either order, then 7.3, then 7.4, then 7.5, then 7.6 last.
 
 ---
 
@@ -1484,6 +1529,8 @@ So that ending a conversation is something I choose rather than something that h
 **Given** the product's negative surface
 **Then** the control is presented as a lifecycle action and never as a suggestion about what to do next, and it carries no highlighting, badging or recommendation.
 
+*Amended 2026-10-13 (Epic 7, Story 7.4; FR133).* `conversation.end(projectId)` stays the only thing that clears a transcript. A seat can now also be ended alone, by the header's `close session`, which closes that persona's session and clears its context and removes nothing from the transcript; the harness writes one line saying so. The lifecycle rules above, no suggestion, no highlight, no badge, hold for both.
+
 ### Story 2.9: Hand the work to the next persona
 
 As someone moving through the pipeline,
@@ -1545,6 +1592,8 @@ So that planning and building happen in one window without a restart or a re-bri
 **Then** it hands off as above, and the typed `@name` stays in the user's turn (Story 2.15).
 
 The file list, `service.written` and `fold/written-paths` no longer feed the line and wait for a cleanup story; transcripts stored before the change keep the old wording. The skill half of `handed to <persona> · <skill>` has no producer in v1 (AD-24).
+
+*Amended 2026-10-13 (Epic 7, Stories 7.3 to 7.5).* Two things above no longer hold. A handoff to a persona whose seat is live **resumes that seat** and does not start a new session (Story 7.4); one whose seat is not live is opened as before. **No `handed to <Name>` sysline is written for a tile click or an `@<name>` any more** (Story 7.4: turning to a seat that was already there is not a handoff); the `@name` chip of Story 2.15 stays, and an `@<name>` with no text after it sends no turn and shows nothing, the window turning to that persona's seat. And the line that the composer "never names or invokes a skill" is retired for one narrow case: `/<name>` at the start of the composer lists and starts a skill (Stories 7.3 and 7.5). `@<name>` is unchanged: it addresses only a persona and parses no skill name.
 
 ### Story 2.10: When a persona stops to ask
 
@@ -3527,6 +3576,8 @@ So that I can see what happened without scrolling every thread.
 
 **Consequences:** a story card is its number and title (Story 6.4) and is not a control; no owner is derived, shown or stored. The rule, if ever wanted again, is a new requirement and starts from a scored history (candidate: the story key in the file name of the last document on a run's card named `spec-<epic>-<n>-<slug>.md`, blind to documents written through Bash). Story 6.9's audit already asserts that no card carries an owner, a handler or a tab stop.
 
+*Amended 2026-10-13 (Epic 7, Story 7.1; FR129).* One thing above is superseded: a story card or an epic row **may be a control** when, and only when, its markdown file exists and it opens that file in the document window. A card still shows no owner, no pulse and no elapsed time, derives and stores no owner, and a card with no file is not a control. Story 6.9's assertion that no card carries a handler or a tab stop is narrowed by Story 7.1 to *no card without a file*.
+
 ### Story 6.9: Nothing this epic promised not to do
 
 As a developer on the harness,
@@ -3562,3 +3613,291 @@ So that the first dashboard-shaped feature does not become the last one to ask f
 **Decisions to confirm before build (defaults in brackets):** this story also performs the document amendments above, as Story 1.13 did for the planning contract [yes].
 
 **Boundaries:** no feature work; no change to any region beyond what a failing prohibition requires.
+
+---
+
+## Epic 7: Work in the conversation, not around it
+
+The conversation stops being something the user works around. A story or epic on the Board opens its file; the chat renders the markdown the personas write; `/` lists the install's skills; each persona keeps a seat that stays live until the user ends it; and a chat can start from a skill with no persona at all, the skill's name as its speaker, sitting in the rail until the user ends it.
+
+*Added 2026-10-13 from a party-mode session with the owner (Sherif). Stories 7.1 to 7.3 ship alone and change no session behaviour. Stories 7.4 and 7.5 are one bet, 7.5 depending on 7.4. Story 7.6 closes the epic. Each story that reads a format cites the file it read, in its* Evidence *line.*
+
+### Story 7.1: Open a story or an epic from the Board
+
+As someone looking at the Board,
+I want to open a story's or an epic's file from where I see it,
+So that I read what it says without leaving the app or hunting for the file.
+
+**Implements:** FR129 · UX-DR54 · NFR7, NFR8, NFR22, NFR23, NFR25
+
+**Evidence:** `doc.open` takes one project-relative path and nothing else (`src/shared/commands.ts:55`, `src/main/doc-bridge.ts`); `resolveDocument` accepts it only when it names a file strictly inside the output folder, lexically and then by real path (`src/main/sources/project/resolve-document.ts`), and the window carries the three escapes already. The Board's snapshot holds a story's `key`, `number` and `title` and no file (`BoardStory`, `src/shared/board.ts`), and the one file the Board reads is `sprint-status.yaml` under `implementation-artifacts/` (`src/main/sources/project/read-sprint-status.ts`). **A story's key is not its file's name.** In `_bmad/implementation-artifacts/` (89 entries at the time of writing) a story's file is `spec-<epic>-<story>-<slug>.md`, but key `5-2-choose-light-dark-or-the-system-s-theme` has file `spec-5-2-choose-light-dark-or-the-systems-theme.md`, and key `2-14-the-chat-look-flat-rows-initials-discs-one-line-header` has no `spec-2-14-*` file (its spec is `spec-chat-look-flat-rows-and-initials.md`). A story not yet built has no file. An epic's file is `epic-<n>-context.md` (epics 1 to 6 have one); an epic's retrospective is `epic-<n>-retro-<date>.md`, dated, and its sprint key `epic-<n>-retrospective` names a status row and not a file.
+
+**Acceptance Criteria:**
+
+**Given** a Board snapshot built from the real projection of this repository's own `sprint-status.yaml` and `implementation-artifacts/` listing
+**Then** each story whose number matches exactly one `spec-<epic>-<story>-*.md` carries that file's project-relative path, and a story with none or with more than one carries none
+**And** a test asserts, from the listing, that Story 5.2 resolves although its key differs from its file name, that Story 2.14 does not, and that no row exists for the cut Story 6.8 (it is not a key in the file).
+
+**Given** the resolution
+**Then** it is made in main, when the Board is read and again when the rail's watcher sees a file change under `implementation-artifacts/`, and the renderer never builds, joins or guesses a path: it holds the path main gave and passes it to `doc.open` unchanged
+**And** `BoardStory` and `BoardEpic` gain one optional field, `file`, additive, so `CONTRACT_VERSION` is unchanged and `board.get` and `board:changed` are pinned with it in the contract tests.
+
+**Given** an epic with an `epic-<n>-context.md`
+**Then** its row carries that path, and an epic with none carries none.
+
+**Given** a card or an epic row that carries a path
+**When** it is activated by pointer, `Enter` or `Space`
+**Then** the document window opens on that file, with the title bar and the three escapes of FR55 to FR59, and when it closes focus returns to the card or row that opened it (UX-DR54)
+**And** the card or row is a native `button` reached by `Tab`, with the shared focus ring and a pointer cursor, and no icon, count, hover reveal or colour of its own.
+
+**Given** a card or an epic row that carries no path
+**Then** it is plain text as it is today: no handler, no tab stop, no cursor, and nothing says why (FR129)
+**And** an `others` row (a key that is neither an epic nor a story) is never a control.
+
+**Given** a path whose real file lies outside the output folder, or has gone since the Board was read
+**Then** the window opens in its `refused` or `missing` state as it does from the rail, and the Board changes nothing.
+
+**Given** the Board's negative surface
+**Then** a card still shows no owner, no pulse and no elapsed time, derives and stores no owner, and writes nothing into the project (`sprint-status.yaml` byte-identical after every interaction)
+**And** Story 6.9's assertions that no card carries a handler, a tab stop or an `href` are narrowed, in the same change, to *no card without a file*, and a test fails if a card without a path has any of them.
+
+**Given** `EXPERIENCE.md` → *Layout, chat and Board* (Accessibility and *Banned here*) and `DESIGN.md`
+**Then** they are amended in this story to say a card with a file is a control and one without is not, so the documents say what was built.
+
+**Decisions to confirm before build (defaults in brackets):** an epic's file is its context file only, because a row can open one file and the retrospective's name carries a date [yes]; main lists `implementation-artifacts/` to resolve files, which is the Board's first read beyond `sprint-status.yaml` and is read-only [yes]; a story with no file says nothing [yes, FR129].
+
+**Boundaries:** no preview or expansion inside the Board; no path shown on a card; no file for a column, a figure or an `others` row; no link from the chat to the Board; no write of any kind.
+
+### Story 7.2: Read the markdown the personas write, in the chat
+
+As someone reading a persona's reply,
+I want headings, lists, tables and code to read as they were written,
+So that I am not decoding asterisks and pipes in the middle of a conversation.
+
+**Implements:** FR130 · NFR8, NFR22, NFR23, NFR25
+
+**Evidence:** the pipeline already exists and is the product's one trust boundary: `renderMarkdown` runs `markdown-it` with `html: false` (raw HTML becomes visible text, images become their alt text, links become their text with no `href`) and then DOMPurify with an allow-list that **fails closed**, returning `''` where it cannot run, as under Node (`src/renderer/ui/doc/render-markdown.ts`); `MarkdownBody` is "the one place in the product that sets inner HTML" and draws it at the document window's measure under `.doc-md` (`src/renderer/ui/doc/markdown-body.tsx`); its fixture of raw HTML, `<style>`, `<script>` and image markup is in `render-markdown.dom.test.ts`. A persona's turn in the thread is drawn from `entry.text` as plain text with the live caret (`src/renderer/ui/chat/transcript.tsx`, `caret.tsx`); a run card's prose is a different thing, the document as it is written, kept in a store and never in React state (`prose-store.ts`, `run-card.tsx`).
+
+**Acceptance Criteria:**
+
+**Given** a completed persona turn
+**Then** it is drawn through `renderMarkdown` and `MarkdownBody`'s one `innerHTML`, with no second pipeline, no second allow-list and no new place that sets inner HTML (a test fails on one)
+**And** it is drawn at the chat's own type and measure under its own class, never `.doc-md`: no heading larger than `base`, code in mono on `panel-2`, a table that scrolls inside the turn and never widens the column, and every value from the design tokens (NFR23).
+
+**Given** the document window's fixture (raw HTML, a `<style>`, a `<script>`, an `<img>`, a `javascript:` link and an event-handler attribute)
+**Then** the chat renders none of them as an element, in a jsdom test that runs the real DOMPurify
+**And** a link is its text with no `href`, so nothing in the chat navigates.
+
+**Given** a turn that is still streaming
+**Then** it is drawn as plain text, as today, and is rendered once when its turn ends: it is never half-parsed into broken markup, and the switch is one render with no animation and no change of scroll or focus
+**And** a turn read back from a stored transcript is rendered, because it is complete.
+
+**Given** a turn whose text is not empty and whose rendering comes back `''` (the sanitiser could not run)
+**Then** the turn is drawn as plain text and never as an empty row.
+
+**Given** the user's own turn, a sysline, a decision block, a run card's prose and a step label
+**Then** each stays as it is: plain text. Only a persona's turn is markdown.
+
+**Given** the requirement-id span the pipeline adds (`FR55`, `UX-DR27`)
+**Then** it is drawn in the chat as in the document window, as a span with its class and no link.
+
+**Given** a long turn
+**Then** the cost of rendering a completed turn is measured over the longest recorded turn in `fixtures/`, once per turn and not per keystroke or per frame, and the number is stated in the story's record.
+
+**Given** `DESIGN.md`
+**Then** it gains the chat's markdown anatomy (the sizes, the code block, the table) beside *Conversation turn*, so the documents say what was built.
+
+**Decisions to confirm before build (defaults in brackets):** a run card's prose stays mono text while the run is writing [yes, it is a document in progress and not a reply]; a turn is rendered when it ends and not progressively [yes, FR130]; images stay dropped and links stay inert [yes, the existing rules].
+
+**Boundaries:** no new library; no change to `render-markdown.ts`'s allow-list in this story (if the chat needs a tag the document window does not, that is a decision of its own); no copy button, no syntax highlighting, no link opening.
+
+### Story 7.3: Find a skill by typing `/`
+
+As someone who knows a skill exists but not what it is called,
+I want to type `/` in the composer and see what this install can run,
+So that I can find a skill by name without leaving the conversation.
+
+**Implements:** FR131 · UX-DR52 · NFR1, NFR7, NFR22, NFR23, NFR25 (FR30, FR27 and FR126 amended where they stand; Story 2.9's *never names or invokes a skill*)
+
+**Evidence:** no file under `src/` reads `_bmad/_config/skill-manifest.csv`, and neither the install contract, the architecture spine nor `src/` mentions it, so this story is its first reader and the format is stated here from the file read. It has the header `canonicalId,name,description,module,path` and 29 rows in this install (30 lines with the header). Every field is quoted; a description holds commas and doubled quotes (`bmad-create-epics-and-stories` has `""create the epics and stories list""`), so it is RFC 4180 CSV and not a split on `,`. It includes the five `bmad-agent-*` persona skills, `bmad-party-mode` and `bmad-build-auto`. The roster comes from the resolvers (FR2, FR3), which forbid reading `config.toml` and `customize.toml`; the manifest is neither, and is the install's own declaration of what it provides, so a skill is never found by a name prefix. The composer is `src/renderer/ui/chat/composer.tsx`; `@name` is resolved at send time by `handoffTarget` (`src/renderer/ui/chat/handoff-target.ts`) and revalidated by main (`src/main/mention.ts`). A message that starts `/<skill>` and is sent today goes to the persona's session as an ordinary turn, which the CLI runs as that skill (the menu dispatch writes `/${skill}` the same way, `turnOf` in `src/main/session-bridge.ts`), with no run card.
+
+**Acceptance Criteria:**
+
+**Given** the composer whose first character is `/`
+**Then** a list opens above it with one row for every skill the manifest declares, in the manifest's order, each row its `name` in `name` mono and its `description` in `dim` at `base`
+**And** none is hidden, none is ranked, none is recommended, and the rows for `bmad-build-auto`, `bmad-party-mode` and the five `bmad-agent-*` are there (UX-DR52)
+**And** the list shows no count, no group heading, no icon and no accent fill, and is silent to the live region.
+
+**Given** the list is open
+**When** the user types more
+**Then** it narrows to the names that begin with what follows the `/`, ignoring case, and closes when none does or when a space follows the name
+**And** `↑` and `↓` move one focused row with the shared focus ring, `Enter` or `Tab` put `/<name> ` in the composer with the caret after it and send nothing, and `Esc` closes the list and leaves the text.
+
+**Given** a `/` that is not the first character of the field (`see /bmad-build`, or after `@Mary `)
+**Then** no list opens, and `@name` handoff behaves exactly as before: its tests are unchanged and pass.
+
+**Given** this repository's own manifest as a fixture
+**Then** a test asserts 29 rows, that a description with commas and doubled quotes parses to the text a reader sees, and that a row with no `name` is skipped and the rest are kept
+**And** with the file absent or unreadable the list opens nothing and shows no error, and the composer works as before.
+
+**Given** the skill list
+**Then** it is read in main and never listed, filtered or hard-coded in the renderer, and carried to the window in the install's own snapshot as an additive `skills` field, so it is watched with the install and updates without a reload when the manifest changes (Story 2.11: no live session is touched)
+**And** `CONTRACT_VERSION` is unchanged and the contract tests pin the field.
+
+**Given** a persona's composer
+**When** a chosen `/<name>` is sent
+**Then** it is sent as typed, as it could be before, and starts no session and no run card: that comes with Story 7.5, which owns the empty chat.
+
+**Given** the product's negative surface
+**Then** no button, menu, shortcut, panel or tile anywhere else lists or launches a skill, and a test fails on one (FR30 as amended)
+**And** a skill button still shows neither its skill name nor a description (FR27 as amended).
+
+**Given** the planning documents
+**Then** FR30, FR27, FR126 and Story 2.9 carry their amendment notes (written with this epic), and `DESIGN.md` and `EXPERIENCE.md` gain the list's anatomy and behaviour, so the documents say what was built.
+
+**Decisions to confirm before build (defaults in brackets):** the list rides the install snapshot and not a command of its own [yes]; the manifest's order is the list's order [yes, FR131]; a `/skill` sent from a persona's composer is unchanged until Story 7.5 [yes]; the manifest is read directly, with a small CSV reader in `sources/` and its fold in `fold/` [yes, since no resolver produces it].
+
+**Boundaries:** no fuzzy matching, no recents, no favourites, no description search, no skill argument hints, no execution; nothing in the shell becomes a launcher.
+
+### Story 7.4: A seat for each persona that stays until you end it
+
+As someone working with more than one persona,
+I want each persona's session to stay alive while I talk to another, with a mark that says so, and to end one myself when I want that persona to start fresh,
+So that clicking a name turns to someone who was already there, and ending a seat is how I ask for a fresh start.
+
+**Implements:** FR132, FR133 · UX-DR53 · NFR12, NFR17, NFR18, NFR19, NFR22, NFR28 (Stories 2.8 and 2.9 amended where they stand)
+
+**Evidence:** what is already true, read from the code: main holds one live session per persona (`byAgent` in `Service`) and answers a second `session.open` for a live persona with the same session and spawns nothing (`openSession` in `src/main/session-bridge.ts`, `src/main/session-registry.ts`); `session.close(sessionId)` ends one session and no other (`closeSession`), which the header's `close session` calls for the viewed persona (`closeSession` in `src/renderer/ui/app.tsx`); `conversation.end(projectId)` clears the project's transcript file first and then closes every session (`endConversation`). So *no seat is ended or re-briefed by switching* today. The thread is one list per project, kept under `sha256(projectPath)` (`src/main/sources/persistence/transcript-file.ts`), and every persona's replies, the user's turns and the runs share it (FR14, FR60, AD-7); **this story keeps that**, and a user turn carries no persona (`UserRecord`, `src/shared/conversation.ts`). What is missing is smaller: a handoff writes `handed to <Name>` whenever the last opened persona differs and the thread has turns (`src/main/session-handoff.ts`), so a tile click reads as a handoff when the persona was already there; nothing in `src/` shows in the rail which personas are live; and closing a seat says nothing in the thread, though each seat is its own `claude -p` process started with no resume flag (`SESSION_ARGS`, `src/main/sources/session/session-process.ts`), so the next message opens a session that remembers nothing of the turns above it. A room's `close` does say a line (`LINES.roomStopped`, `src/main/session-voice.ts`); a persona's does not.
+
+**Acceptance Criteria:**
+
+**Given** a persona's tile is activated, or `@<name>` resolves to another persona
+**Then** the conversation switches to that persona's seat: no other seat is ended, replaced or re-briefed, a seat already live resumes with its context and one not live is opened on first use, with no cap on how many are live at once (FR132)
+**And** the thread stays the project's one conversation, unchanged in what it holds and in its order (FR14, FR60), and a test pins that no record is added to, moved in or removed from it by a switch
+**And** `handed to <Name>` is no longer written for a tile activation or for `@<name>` (Story 2.9 amended): the handoff composer in `session-handoff.ts` writes nothing, `lastOpened` is retired with it, and the `@name` chip of Story 2.15 is what shows an `@` handoff.
+
+**Given** a seat with a live session
+**Then** its face in the rail shows a live dot that means only that the seat holds context, drawn with the tile's own dot vocabulary and no new colour, with no count and no pulse for being live, and it pulses only for working (UX-DR53, AD-20)
+**And** a seat after a relaunch shows no dot, because its process went with the app (FR100), and its next message starts a session with no earlier context, which the dot's absence is the truthful signal of.
+
+**Given** the user ends a seat
+**Then** main kills that seat's process and closes its session, touching no other seat, session or record, and the thread keeps every turn it has (FR133)
+**And** the harness writes one line in its own register into the thread saying that persona's session ended (the exact words are in this story's spec; it has no persona's face, name or initials, and is never attributed to one), so the thread does not look as if the persona still remembers it
+**And** the next message to that persona opens a new session with no earlier context, and `conversation.end(projectId)` is unchanged: it still ends every seat and still clears the transcript, and remains the only thing that does (Story 2.8).
+
+**Given** the header's `close session`
+**Then** it is the seat's end of FR133 and keeps its words, its place and its rules: a lifecycle action, never a suggestion, never highlighted, never badged, reachable from the keyboard with the shared focus treatment (Story 2.8)
+**And** an orphaned persona's session (Story 2.11) is ended by the same control, with no tile.
+
+**Given** the project's install changes while several seats are live
+**Then** no live seat is touched, a seat whose persona has gone from the roster stays as an orphan with its end control, and a test runs Story 2.11's cases with two live seats.
+
+**Given** a window reload
+**Then** `conversation.get` lists every live seat with its session (it already does), and the window draws every dot as it was.
+
+**Given** the contract
+**Then** this story adds no command, event or channel: `session.close` and `conversation.end` keep their declarations and the live dot is read from the sessions `conversation.get` and `session:opened` / `session:closed` already tell, so `CONTRACT_VERSION` is unchanged.
+
+**Given** `EXPERIENCE.md` and `DESIGN.md` (*Team tile*, the header, *Sysline*)
+**Then** they gain the seat's dot and the ended line and drop the handoff line for a tile click, and Stories 2.8 and 2.9 and FR60 to FR62 carry their notes, so the documents say what was built.
+
+**Decisions to confirm before build (defaults in brackets):** ending a seat leaves the thread and says so in one harness line [yes: the thread is the project's one conversation, and removing one persona's records from it would need every user turn to name its persona, a change to `UserRecord` and to stored transcripts, and would tear holes in a shared thread; reopen if the owner wants a seat's turns gone]; no handoff line for a tile click or an `@name` [yes]; the header's `close session` is the end, with no second control [yes]; whether a seat should be resumable across a relaunch, by starting the CLI with its session id, is **not decided here**: it changes `SESSION_ARGS`, which a test pins as load-bearing, and wants its own spike.
+
+**Open questions (not argued in the room):** whether a seat idle for a long time should say so; whether the number of live processes should be shown anywhere beyond the dots, and how a seat's cost is made visible, if it is. None is built here.
+
+**Boundaries:** no cap and no automatic ending of any seat; no resume across a relaunch; no per-seat thread, no change to `UserRecord`, `SyslineRecord` or the stored transcript; no change to the room (Epic 4); no message passing between personas; `conversation.end` keeps ending everything and clearing the transcript.
+
+### Story 7.5: Start a chat from a skill, with no persona
+
+As someone who wants to run a skill and not talk to anyone first,
+I want to open a chat with nobody in it, type `/bmad-build`, and have it run,
+So that the skills that are not personas have a place in the conversation, and I can keep talking to whatever they leave behind.
+
+**Implements:** FR134, FR135 · UX-DR53 · NFR12, NFR17, NFR18, NFR22 (FR126 amended where it stands; FR123 stands)
+
+**Evidence:** in main, **an entry with no `agentId` means the room**, in six places: a send records the user's turn with `room` true (`sendTurn`), a close says the room's stopped line (`closeSession`), a menu dispatch is refused (`dispatchMenu`), `conversation.get` leaves it out of `sessions` and looks for a `roomCast` (`getConversation`), a send into a busy one interrupts it (`interruptedRoom`), and `say` flags its harness lines `room: true` (`src/main/session-registry.ts`). A skill-first session must therefore be an entry of its own kind and never an entry with no agent. `spawnSession` already takes either an `agentId`, whose activation turn is `/<agentId>`, or a `firstTurn` for a session with none (`src/main/sources/session/session-process.ts`), so a process can be started on `/<skill> <text>` without a persona. A run starts from a menu code: `startRun(..., code, plan, skill)` and `RunStarted` carries `code` and an optional `skill` (`src/shared/events.ts`, `session-bridge.ts`). Recent activity draws **only run cards that have an `agentId`**, reading one without as a party session and raising no row (`activityRowsOf`, `src/renderer/ui/board/board-activity.ts`), and the Agents panel counts personas. The rail holds persona tiles and the room; it has no row for anything else. The empty-chat entry has no design in `EXPERIENCE.md`.
+
+**Acceptance Criteria:**
+
+**Given** a chat with no persona
+**When** the user sends a message that begins `/<name>` where `<name>` is a skill in the install's list (Story 7.3)
+**Then** main starts a session of a new kind, a skill-first session, whose first turn is the message as typed, and records `<name>`, resolved against the list in main, as the run's `skill` (FR126 as amended)
+**And** the renderer sends the text and nothing else, and a message whose first word is not an installed skill starts nothing and is told so in the harness's own line, in one frame, with no persona answering.
+
+**Given** a skill-first session
+**Then** it is its own kind of entry in `Entry` and never an entry with no agent, so none of the six places that read *no agent* as *the room* treats it as one, and a test constructs one beside a room and a persona's session and asserts each is handled as itself
+**And** it is held by session id, with the skill's name, beside `byAgent` and `room`, and a window may hold any number of them with no cap.
+
+**Given** every line a skill-first session produces
+**Then** its speaker is the skill's name, in `name` mono, and never a persona's initials, face or colour, and the thread never presents the session as a persona's (FR134)
+**And** with no persona's disc to draw, the turn's disc is the skill's own mark in the shared initials style (a neutral disc with the skill's first letter), and `DESIGN.md` states it.
+
+**Given** the skill finishes and the user types a plain message
+**Then** it goes to the same session, which is still live, and the session's replies keep the skill's name as their speaker
+**And** the session sits in the rail under the skill's name, with the live dot and the end of Story 7.4, and its lines are its own thread by the room's precedent: its records carry a flag naming the session, they are drawn only in that session's thread, and no persona's thread, nor the project's shared one, draws them (FR135).
+
+**Given** a skill-first session is ended
+**Then** its process is killed, its own records are removed (they belong to no one else's thread), and its rail row goes, and no persona's seat or the shared thread is touched
+**And** after a relaunch its row is listed with its thread and no dot, and a message to it starts nothing silently: it says plainly that the session has ended and starts nothing until the user begins a new one.
+
+**Given** a run in a skill-first session
+**Then** it has a run card in that session's thread, with the skill's name in its head (`<skill> run`, FR126), and it appears in Recent activity as a row that names the skill in place of a persona, `started` and `finished` with the same dot rules and time as Story 6.7, and a row of a skill-first run is raised from the card's `skill`
+**And** it is never placed in a Board column, no story owner is derived for it, the Agents panel counts no persona for it, and Story 6.9's audit still finds no owner on a card (FR123 stands).
+
+**Given** a skill that is a persona (`bmad-agent-*`) typed into the empty chat
+**Then** it opens that persona's seat of Story 7.4 and no skill-first session, and a skill that is the room (`bmad-party-mode`) opens the room of Epic 4 as it opens today, in each case with nothing else about the seat or the room changed (FR135)
+**And** every other skill, `bmad-build-auto` included, starts a skill-first session, and one that behaves oddly in a chat is a bug the list leaves visible (the owner's rule: list everything, hide nothing).
+
+**Given** a skill-first run ends
+**Then** the thread offers nothing about who to talk to next: no suggestion, no persona named, no handoff line and no button, and the session simply waits for the user's next message
+**And** the user's own next step stays theirs: typing in the session, or turning to any persona's seat by its tile (Story 7.4), and a test fails on any such offer.
+
+**Given** `EXPERIENCE.md` and `DESIGN.md`
+**Then** they gain the empty chat, the skill-first turn, the skill seat in the rail, and Story 2.9's, FR126's and Story 6.8's notes are in place, so the documents say what was built.
+
+**Decisions to confirm before build (defaults in brackets):** the skill-first run's `code`, which Story 6.7 prints after `started`, is the skill's name, so a row reads `<skill> · started` or the like [decide the exact words in Story 7.5's spec; nothing else prints a code for it]; the skill-first disc is the skill's first letter in a neutral disc [yes, it needs no new colour]; a message to an ended skill-first session after a relaunch says so and starts nothing [yes].
+
+**Open question (not decided in the room, and the story cannot start before it is):** **how the user opens an empty chat.** `EXPERIENCE.md` has no such surface, the shell always has a current persona, and FR30 forbids a launcher. The room settled that the chat has no persona and the composer takes `/`; it did not settle where that composer lives. The owner's suggestion (2026-10-14): a **Skill Session** option under the personas, which opens the empty composer; it is an entry to a chat and not a launcher, and lists no skill (FR30 stands, Story 7.3's `/` list is the only place skills are listed). Its exact place, wording and look are left to a later `bmad-ux` run, and Story 7.5's spec adopts that run's answer before any build.
+
+**Boundaries:** no skill picker beyond Story 7.3's list; no inference of a persona from what is typed; no suggestion of a persona to talk to next; no attribution of a skill's work to a persona; no new Board column or card for a skill-first run; no resume across a relaunch; no change to the room's or a persona's seat's behaviour; no cap.
+
+### Story 7.6: Nothing this epic promised not to do
+
+As a developer on the harness,
+I want the prohibitions this epic kept, and the ones it retired, as tests,
+So that a later change cannot add a launcher, an owner or an unsanitised page without a test saying so.
+
+**Implements:** UX-DR38, UX-DR48, UX-DR52 to UX-DR54 · NFR1, NFR8, NFR22, NFR23, NFR25
+
+**Evidence:** every earlier epic closed with this story (1.14, 2.13, 3.11, 4.6, 6.9); the pattern is a mounted-surface audit built from the real projection and not by hand (`src/main/board-audit.test.ts`, `src/renderer/ui/chat/negative-surface.test.tsx`, `src/renderer/ui/chat/epic-3-audit.dom.test.tsx`). This epic changes four of their assertions on purpose: a card with a file is a control (Story 7.1), `/` lists skills (Story 7.3), a persona has a thread of its own and a live dot (Story 7.4), and a chat can have no persona (Story 7.5). The audits must say what is now allowed as exactly as they said what was forbidden.
+
+**Acceptance Criteria:**
+
+**Given** the Board mounted with a snapshot in which some stories have a file and some do not
+**Then** a test finds a native button on exactly the cards and epic rows that carry a path, none on any that does not, no `draggable`, `contenteditable` or `href`, no icon, count, badge or colour of its own on any, and `sprint-status.yaml` byte-identical after every interaction.
+
+**Given** the composer and the whole shell
+**Then** a test finds a skill list in exactly one place, the `/` list, opened by `/` as the first character, and finds no button, menu entry, shortcut, tile or panel that lists or launches a skill, no count, group, recommendation or ranking in the list, and no live-region announcement from it.
+
+**Given** every persona's seat and the skill-first seat in the rail
+**Then** a test finds the live dot only on a seat holding a live session, no count, no pulse for being live, no new colour, and no seat marked recommended, next or needs you
+**And** it finds that ending a seat touches no other seat's session, thread or file, and that `conversation.end(projectId)` still ends every seat.
+
+**Given** the project's shared thread, the room's thread and a skill-first thread
+**Then** a test finds no record of a room or a skill-first session in the shared thread or in each other's, finds that a switch between personas adds no record to the shared one, no skill-first line carrying a persona's initials, face or name, and no persona's work attributed to a skill.
+
+**Given** the chat's markdown
+**Then** a test runs the Story 1.12 fixture through a mounted thread under the real DOMPurify and finds no element, attribute or navigation it forbids, and finds exactly one place in `src/renderer` that sets inner HTML.
+
+**Given** a skill-first run
+**Then** a test finds it in Recent activity, in no Board column, with no owner, and absent from the Agents panel's counts.
+
+**Given** the contract
+**Then** a test pins the additive fields this epic added (`BoardStory.file`, `BoardEpic.file`, the install snapshot's `skills`, the session flag on a skill-first session's records) by name and cardinality, `CONTRACT_VERSION` is unchanged, and `layering.test.ts` passes with the new readers in `sources/` and their folds in `fold/`.
+
+**Given** the epic's record
+**Then** `EXPERIENCE.md` and `DESIGN.md` describe the drill-in, the chat's markdown, the `/` list, the seat and its dot, the empty chat and the skill-first turn as built, and say what the epic did not build (resume across a relaunch, a cap, a persona inferred from what is typed).
+
+**Decisions to confirm before build (defaults in brackets):** this story also performs the document amendments above, as Stories 1.13 and 6.9 did [yes].
+
+**Boundaries:** no feature work; no change to any surface beyond what a failing prohibition requires.
