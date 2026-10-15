@@ -411,6 +411,7 @@ describe('the layout constants', () => {
       'card-body-max',
       'composer-min',
       'composer-max',
+      'skill-list-max',
       'party-side'
     ]
 
@@ -885,7 +886,8 @@ describe('the light theme (Story 5.2, seam A)', () => {
     // Re-pinned for the design audit (2026-10-10): `--meta` and `--ink-doc-mute` and `--composer-placeholder` raised to clear 4.5:1, the four
     // smallest type sizes raised (`--fs-badge` 10px, `--fs-micro` 10.5px, `--fs-meta` and `--fs-label` 11px), and `--board-bar-width`,
     // `--board-bar-height`, `--board-figure-min`, `--board-progress-min` and `--check-size` added at the block's end.
-    expect(createHash('sha256').update(promotedBlock()).digest('hex')).toBe('e5fbc8c0ccd4e0a3c0466cb6fe95d0a3f294bfb76f0aae9be5ed99bb953e0291')
+    // Re-pinned for the `/` list (Story 7.3): `--skill-list-max`, the one height the list scrolls past, added at the block's end.
+    expect(createHash('sha256').update(promotedBlock()).digest('hex')).toBe('b36378560e52bd72025dc91966fd7597b6d28113667578e57f9272839abb0558')
   })
 
   it('states color-scheme: light in its own block, and the dark theme still states dark', () => {

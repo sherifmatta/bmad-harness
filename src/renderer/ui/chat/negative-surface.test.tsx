@@ -52,7 +52,8 @@ const snapshot = (agents: AgentView[] = ROSTER): InstallSnapshot => ({
   agents,
   menus: MENUS,
   errors: [],
-  preflight: []
+  preflight: [],
+  skills: []
 })
 
 const WORDS = [

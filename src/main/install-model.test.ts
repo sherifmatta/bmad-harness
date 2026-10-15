@@ -17,7 +17,8 @@ const projection = (names: Record<string, string>): InstallProjection => ({
       })),
       menus: {},
       errors: [],
-      preflight: []
+      preflight: [],
+      skills: []
     }) satisfies InstallSnapshot,
   refresh: async () => {},
   menuEntry: () => undefined,

@@ -71,7 +71,7 @@ describe('the skill row', () => {
 
   it('sits above the composer’s field, inside the composer, in the chat column', () => {
     const agent: AgentView = { id: 'bmad-agent-pm', module: 'bmm', name: 'John', title: 'PM', icon: 'i', description: 'd' }
-    const snapshot: InstallSnapshot = { revision: 1, agents: [agent], menus: { [agent.id]: ENTRIES }, errors: [], preflight: [] }
+    const snapshot: InstallSnapshot = { revision: 1, agents: [agent], menus: { [agent.id]: ENTRIES }, errors: [], preflight: [], skills: [] }
     const markup = renderToStaticMarkup(
       <Shell
         projectPath="/p"

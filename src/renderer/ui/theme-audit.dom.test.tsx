@@ -79,7 +79,7 @@ function audit(draw: () => ReactElement): void {
 const agent = (id: string, name: string) => ({ id, module: 'bmm', name, title: 'Role', icon: 'i', description: 'd' })
 const MARY = agent('bmad-agent-analyst', 'Mary')
 const JOHN = agent('bmad-agent-pm', 'John')
-const SNAPSHOT: InstallSnapshot = { revision: 1, agents: [MARY, JOHN], menus: {}, errors: [], preflight: [] }
+const SNAPSHOT: InstallSnapshot = { revision: 1, agents: [MARY, JOHN], menus: {}, errors: [], preflight: [], skills: [] }
 
 const RUN: RunCardEntry = {
   kind: 'run',

@@ -120,7 +120,7 @@ Three top-level views behind a single switch — **1:1 Conversation**, **Party M
 - Ownership asymmetry: a party session carries no `agentId`. The **room** owns it, so a party summary's rail row shows the room as owner, in a presentation distinct from any persona (AD-19).
 - The mockup's legend footer is prototype furniture ("Non-functional design prototype…"). It is not product chrome and does not ship.
 
-**There is no command palette and no launcher anywhere in the product** (AD-21). The rejection is argued once, in *Banned everywhere*. *Amended 2026-10-15 (Epic 7, FR30 as amended; Story 7.5): the earlier rule said skills were reachable only as the current persona's buttons and that no skills list existed. Two things now exist. A skill is also reachable by typing `/<name>` as the first words of the New session chat (*Sessions without a persona*), and Story 7.3 adds the one place skills are listed, the `/` list above the composer, whose component is that story's and is not designed here. The Skill Session button is **an entry to a chat, not a launcher**: it lists no skill and starts none.*
+**There is no command palette and no launcher anywhere in the product** (AD-21). The rejection is argued once, in *Banned everywhere*. *Amended 2026-10-15 (Epic 7, FR30 as amended; Story 7.5): the earlier rule said skills were reachable only as the current persona's buttons and that no skills list existed. Two things now exist. A skill is also reachable by typing `/<name>` as the first words of the New session chat (*Sessions without a persona*), and Story 7.3 adds the one place skills are listed, the `/` list above a persona's composer (*Component Patterns → `/` list, in detail*). The Skill Session button is **an entry to a chat, not a launcher**: it lists no skill and starts none.*
 
 ---
 
@@ -175,7 +175,8 @@ Behavioural only, per the ownership convention. Anatomy and appearance live in `
 | Skill Session button | *Added 2026-10-15.* A native button at the right end of the *Sprint board* row; `{components.skill-session-button}`; pressed means the empty chat is open. Unrelated to the skill buttons above, which are a persona's menu entries. Behaviour: *Sessions without a persona → The Skill Session button* | the Team sidebar is not on screen (Party, Board) |
 | Skill seat | *Added 2026-10-15.* One skill-first session in the Skill sessions group; `{components.skill-seat}`, the persona tile's anatomy. Behaviour: *Sessions without a persona → The skill seat* | absent until a skill-first session exists |
 | `+N more` | **expands the button row in place.** The row grows to show the remaining entries. **No transcript entry is created.** | — |
-| Composer | never disabled. A message typed during a run is queued and visible — see *State Patterns → Queued composer*. | never |
+| Composer | never disabled. A message typed during a run is queued and visible — see *State Patterns → Queued composer*. A persona's composer also opens the `/` list when its first character is `/` (*`/` list, in detail*). | never |
+| `/` list | *Added 2026-10-15 (Story 7.3).* A `listbox` above a persona's composer holding every skill the install declares, in the manifest's order, narrowed by the start of the name. Keys and rules: *`/` list, in detail*. `{components.skill-list}` | absent unless the text's first character is `/` and a name matches; absent in the room's composer |
 | Document card | born on `run:started`, dead on the run's terminal event. Full for the active persona's card, collapsed for every other card. Expands on persona switch or click. **A collapsed card is never a spinner; it is the same state, smaller.** | absent for a plain chat turn |
 | Stop control | present on **both** the full card head and the collapsed line. Dispatches `run.stop(runId)`. The chat header's `Stop` is the same stop for the turn in flight (*Layout, chat and Board → The chat look*). | — |
 | Rail row | two independent registers on one line: disk `state` (watcher) and optional run `annotation` (stream). Click opens the document window. | the annotation slot is genuinely optional — a row must read as complete without it |
@@ -198,6 +199,18 @@ Behavioural only, per the ownership convention. Anatomy and appearance live in `
 The mockup prints the full menu into the transcript as a persona turn (*"Full menu for Mary, read from customize.toml"*). **This is rejected.** It is the harness authoring words attributed to a persona, which AD-18 forbids outright. The replacement is in-place expansion: the row grows, the remaining entries appear as ordinary skill buttons, nothing is written to the transcript.
 
 The row must look right at both extremes of the real data: **Sally has 1 entry, Mary has 10** (John 4, Winston 2, Amelia 5). **[ASSUMPTION]** — the control toggles back; expanded, it reads `fewer`. No source specifies a collapse affordance.
+
+### `/` list, in detail
+
+*Added 2026-10-15 (Story 7.3; FR131, UX-DR52).* A person who knows a skill exists but not its name has nowhere else in the conversation to find it. The list is the one place the product lists skills, and it is read from the install's own manifest in main; the renderer only narrows the rows it was given.
+
+- **Opens** only when the composer's **first character is `/`**. A `/` later in the text, or after an `@name`, opens nothing, so it cannot interfere with the handoff. Shows **every** skill the install declares, in the manifest's order, none hidden, none ranked, none recommended. A manifest that is absent or unreadable gives no list and no error line: the composer works as it did.
+- **Narrows** by **case-insensitive prefix of the name** against what follows the `/`. No fuzzy match, no match on the description, no recents or favourites, no argument hints. It **closes** when nothing matches and when a space follows the name, so the text after a chosen name is the message.
+- **Keys**, with focus staying in the textarea: `↑`/`↓` move the one current row, one at a time, **clamped** at both ends (the shared roving code); `Enter` or `Tab` put `/<name> ` (the name and one space) in the field, **caret after it, nothing sent**; `Esc` closes the list and leaves the text, and it stays closed until the text changes again. Any other key is the field's. With the list closed `Enter` sends as it always did. A key that commits an input-method composition, and a chord with `Shift`, `Ctrl`, `⌘` or `Alt`, are not the list's.
+- **Sends nothing and starts nothing.** A chosen `/<name>` is only text. Sent from a persona's composer it goes as typed, unchanged: no session starts, no run card is born, and `@name` still addresses only a persona. What a typed `/<name>` means in the New session chat is *Sessions without a persona → The first message*, and is Story 7.5's.
+- **Where.** A persona's composer only. The room's composer is **not given the list**: the room is a cast, and Story 7.5 owns what `/<skill>` does outside a persona's chat.
+- **Silent.** The list adds nothing to the live region (*Accessibility Floor → Live-region policy*): opening, narrowing, moving and choosing are not announced. It shows no count, no heading, no icon and no tooltip. It is a `listbox` of `option` rows; the textarea carries `aria-controls`, `aria-expanded` and `aria-activedescendant` (the current row) **only while the list is open**, and none while it is closed. The composer's hint line is unchanged.
+- **Never.** A button, menu, shortcut, panel or tile anywhere else that lists or launches a skill, and a skill name or description on a skill button (*Banned everywhere*).
 
 ### Document window ceiling
 
@@ -253,7 +266,7 @@ Grouped by the agent's **`module`**, and by **`team`** where present — AD-10 n
 
 ## Banned everywhere
 
-- **Command palette / `⌘K`, any launcher, any global skills list.** AD-21 rejected all three outright, with no v2 hook. *Amended 2026-10-15 (Epic 7, FR30 as amended; Story 7.5), and only for the two things Epic 7 adds:* a `/<name>` first message in the New session chat starts a session, and Story 7.3's `/` list in the composer is the one place skills are listed (its component is that story's, not designed here). **Still banned:** a command palette and `⌘K`; any list of skills anywhere else; any button, menu, tile, row or shortcut that lists, names or starts a given skill. The Skill Session button is an entry to a chat, not a launcher, and carries no skill. A shortcut vocabulary that enumerated skills would still be a launcher under another name.
+- **Command palette / `⌘K`, any launcher, any global skills list.** AD-21 rejected all three outright, with no v2 hook. *Amended 2026-10-15 (Epic 7, FR30 as amended; Story 7.5), and only for the two things Epic 7 adds:* a `/<name>` first message in the New session chat starts a session, and Story 7.3's `/` list in a persona's composer is the one place skills are listed (*Component Patterns → `/` list, in detail*). **Still banned:** a command palette and `⌘K`; any list of skills anywhere else; any button, menu, tile, row or shortcut that lists, names or starts a given skill. The Skill Session button is an entry to a chat, not a launcher, and carries no skill. A shortcut vocabulary that enumerated skills would still be a launcher under another name.
 - **Badges of any kind**, unread counts, quest markers, relevance sorting, next-step highlighting, recommended actions.
 - **Spinners, anywhere, at any point** — including a sentence doing a spinner's job.
 - **Per-section tick-through**, progress bars implying steady incremental advance, staggered reveals of an atomic commit, per-character typewriter effects.
@@ -783,7 +796,7 @@ Each is something Paperclip does or the prototypes drew that this product refuse
 
 | Not adopted | Because |
 |---|---|
-| `/` in the composer listing skills | AD-21: no launcher under another name; skills are the current persona's buttons only. **Reversed 2026-10-15 by Epic 7 (FR30 as amended):** the list is Story 7.3's, and a `/<name>` first message in the New session chat starts a session (*Sessions without a persona*). The reason above stands for everything else: no other `/` surface, no button, menu, tile or shortcut that lists or starts a skill |
+| `/` in the composer listing skills | AD-21: no launcher under another name; skills are the current persona's buttons only. **Reversed 2026-10-15 by Epic 7 (FR30 as amended):** the list is Story 7.3's and is built (*Component Patterns → `/` list, in detail*), and a `/<name>` first message in the New session chat starts a session (*Sessions without a persona*). The reason above stands for everything else: no other `/` surface, no button, menu, tile or shortcut that lists or starts a skill |
 | *Review gate* card with *Approve* / *Request changes*, and a *Suggested follow-ups* card | the harness has no approval state, and both are recommended next actions (*Banned everywhere*) |
 | A count on the Inbox row, a *needs you* group of tiles, a *Needs you* figure | badges, unread counts and relevance sorting are banned |
 | A shimmer on the running step | the motion inventory is closed at five declarations (UX-DR12); the running step carries the existing amber pulse dot |
@@ -971,7 +984,7 @@ AD-14 binds a `288px` party side panel as a literal. **That constant is supersed
 
 Until now every chat had a persona in it, and the shell always had one current. Epic 7 adds a chat with **nobody** in it, in which a skill that is not a persona can be run by name, and which the shell now rests on whenever no persona is current. Three pieces carry it: a button that opens that chat, the chat itself, and the seat a session started from it takes in the Team sidebar.
 
-**What this section does not design.** Story 7.3's `/` list (a list above the composer that opens on a `/` first character, anatomy and keys that story's) and Story 7.4's live dot and `close session` end. Both are referenced where they meet this section and nowhere specified here.
+**What this section does not design.** Story 7.4's live dot and `close session` end, which is referenced where it meets this section and nowhere specified here. Story 7.3's `/` list, which this section once left open, is designed under *Component Patterns → `/` list, in detail*; it is given to a persona's composer only, and whether this chat's composer has it is Story 7.5's to decide.
 
 ### The Skill Session button
 
@@ -1025,7 +1038,7 @@ The first message is read in main against the install's list (Story 7.3); the re
 
 - **The words.** `<word>` is the first word as typed, up to the first space, **without a leading slash and in the case typed**; a skill matches only when the name is exact: `hello there` gives `no skill named hello`. Lower case, mono, no full stop, in the existing sysline style (`{components.sysline}`), never attributed to a persona or a skill. **No suggestion follows it**: it does not list skills, name one, or say what to type (*Voice and Tone*, rule 1). It is announced once, politely (*Accessibility*).
 - **What stays.** The chat is still the New session chat after a refusal: the button stays pressed, the header still reads `New session`, focus stays in the composer. A second refusal adds a second line, in order, as syslines do **[ASSUMPTION]**.
-- **`/` as the first character** opens Story 7.3's list above the composer; this section does not design it.
+- **`/` as the first character** of a persona's composer opens Story 7.3's list above it (*Component Patterns → `/` list, in detail*). Whether this chat's own composer is given that list is Story 7.5's decision; Story 7.3 does not give it to it.
 - **Typed in a persona's composer**, a `/<name>` is sent as it was before: it starts no session and draws no run card (Story 7.3). Only this chat starts a session from a name.
 - **`@<name>`.** As a first word, or anywhere in a skill-first session's composer, it is not read as an address here: nothing is handed off from this chat, and no persona is inferred from what is typed. As a first word it reads as any other word that names no skill, `no skill named @<name>`. *(Decided 2026-10-15; the epic's boundary stands.)*
 
@@ -1139,7 +1152,7 @@ With no command palette (*Banned everywhere*) there is no `⌘K` escape hatch, s
 | Team sidebar | one tab stop for the list; **arrow keys move between tiles** (roving tabindex); `Enter`/`Space` activates. *Amended 2026-10-15:* the skill seats join the same list, after the last persona **[ASSUMPTION]**: they are the same anatomy and no source gives them a second stop |
 | Skill Session button | *Added 2026-10-15.* a native `<button>` with `aria-pressed`, in the tab order **after the *Sprint board* row** and before the persona list; `Enter`/`Space` presses it. It takes the shared focus treatment and has no chord (*Sessions without a persona → Accessibility*) |
 | Skill row | one tab stop; arrows move between buttons; `Enter`/`Space` dispatches. `+N more` is a button, not a hover affordance |
-| Composer | tab-reachable and **never disabled**. **[ASSUMPTION]** — `Enter` sends, `Shift+Enter` inserts a newline; no source specifies send keys. `⌘↵` does **not** send, and `DESIGN.md` drops it from the glyph inventory accordingly |
+| Composer | tab-reachable and **never disabled**. **[ASSUMPTION]** — `Enter` sends, `Shift+Enter` inserts a newline; no source specifies send keys. `⌘↵` does **not** send, and `DESIGN.md` drops it from the glyph inventory accordingly. *Added 2026-10-15 (Story 7.3):* while a persona's `/` list is open, `↑`/`↓` move its current row, `Enter` or `Tab` put `/<name> ` in the field and send nothing, and `Esc` closes the list; the list is not a tab stop and focus never leaves the field |
 | Decision option | each option is its own tab stop; `Enter`/`Space` chooses it, which sends the turn and removes the block |
 | Document card | the card is focusable; `Enter`/`Space` expands a collapsed card; the stop control is its own tab stop |
 | Rail — Outputs half | one tab stop for the list; arrows move between **folder headings and the rows that are showing**; `Enter` opens the document window on a row, and `Enter`/`Space` folds or unfolds on a heading; on a heading `←` folds and `→` unfolds |
@@ -1162,6 +1175,7 @@ No shortcut layer beyond this and the one chord above.
 | persona switch | **stays on the activated tile** (now `aria-current`) | the skill row is *rebuilt* on every persona change; moving focus into a row that is about to be replaced loses it. The rebuilt row must not steal focus |
 | card expand | the card container (`tabindex="-1"`) | **never the stop control.** Focus must not land on a control that interrupts a running turn |
 | document window open | the window's document region (`tabindex="-1"`) | not *Close*. On `Esc`, focus returns to the rail row that opened it, or, *amended 2026-10-15 (Story 7.1)*, to the Board card or epic row that opened it; only the surface that opened the document takes the focus back |
+| a row of the `/` list is chosen, or `Esc` closes the list | unchanged — the composer keeps focus, caret after the placed `/<name> ` | *Added 2026-10-15 (Story 7.3).* the list is read from the field; the current row is named by `aria-activedescendant` and drawn with the ring, and focus never moves into it |
 | queued message send | unchanged — the composer keeps focus | the composer is never disabled; focus loss would read as the send failing |
 | run terminal event | unchanged | a completion must never move the user's focus out from under them |
 | the New session chat opens: a window opens on it, the Skill Session button opens it (or is pressed again), or the skill session in view is ended | **the composer** | *Added 2026-10-15.* the chat has nothing else to read or act on; there is no thread, control or header button to land on. The composer's hidden accessible name is `message` |
@@ -1181,6 +1195,7 @@ A single card streams **69,031 characters across 5,795 deltas** in one write. Ne
 | preflight failures, resolver errors, malformed entries | **announced politely**, once |
 | an output-folder choice refused (`not changed · …`) | **announced politely**, once |
 | `no skill named <word>`, and `session ended` (*Sessions without a persona*) | **announced politely, once each**, through this same region: one line, no new region. *Added 2026-10-15.* A new skill seat's row appearing, and a seat's dot or state line changing, are **not announced** |
+| the `/` list opening, narrowing, moving or being chosen from | **not announced.** *Added 2026-10-15 (Story 7.3).* The list is silent: no live-region text, no count. The field names the current row through `aria-activedescendant` only while the list is open |
 | anything | **`aria-live="assertive"` is used nowhere in the product.** Nothing here is urgent enough to interrupt what the user is reading |
 
 Exactly one polite live region per window. Announcements are throttled to **at most one every 2 s** — **[ASSUMPTION]**, no source specifies an interval; 2 s is longer than a screen reader takes to finish any string announced here and far shorter than the run-note feed's minutes-apart cadence, so nothing in the policy above is actually delayed by it. Announcements that arrive inside one interval are queued and read in event order, never merged into a count.

@@ -328,7 +328,8 @@ describe('Shell, the chain from a click to the header', () => {
     agents: [agent('bmad-agent-0'), agent('bmad-agent-1'), agent('bmad-agent-2')],
     menus: {},
     errors: [],
-    preflight: []
+    preflight: [],
+    skills: []
   }
 
   function renderShell(): {

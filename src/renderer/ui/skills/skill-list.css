@@ -1,0 +1,42 @@
+/*
+ * The `/` list above the composer (Story 7.3, DESIGN.md `skill-list`): a
+ * `panel-2` ground, a 1px `line` border at the control radius, rows of a name
+ * in mono and its words in `dim`. The current row is drawn by the ring rule in
+ * `design/focus.css` and never by a fill. No hover treatment, no divider, no
+ * accent: the list is read, and the keys move through it.
+ *
+ * Every value reaches the design system through `var()`.
+ */
+
+.skill-list {
+  box-sizing: border-box;
+  max-height: var(--skill-list-max);
+  margin-bottom: var(--space-md);
+  overflow-y: auto;
+  background: var(--panel-2);
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--radius-control);
+}
+
+.skill-list-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xl);
+  padding: var(--space-sm) var(--space-lg);
+}
+
+.skill-list-name {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: var(--fs-name);
+  color: var(--text);
+}
+
+.skill-list-description {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--sans);
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+  color: var(--dim);
+}

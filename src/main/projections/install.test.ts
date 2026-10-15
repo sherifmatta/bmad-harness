@@ -43,7 +43,9 @@ function scripted() {
     roster: RosterResult | (() => Promise<RosterResult>)
     menus: Record<string, MenuResult | (() => Promise<MenuResult>)>
     rosterCalls: number
-  } = { roster: { ok: true, agents: [] }, menus: {}, rosterCalls: 0 }
+    skills: string[][] | (() => Promise<string[][]>)
+    skillCalls: number
+  } = { roster: { ok: true, agents: [] }, menus: {}, rosterCalls: 0, skills: [], skillCalls: 0 }
   const source: InstallSource = {
     async resolveRoster() {
       state.rosterCalls += 1
@@ -56,6 +58,11 @@ function scripted() {
     },
     async resolveOutputFolder() {
       return { ok: true, folder: null }
+    },
+    async resolveSkills() {
+      state.skillCalls += 1
+      const answer = state.skills
+      return typeof answer === 'function' ? answer() : answer
     }
   }
   return { state, source }
@@ -122,7 +129,8 @@ describe('a first success', () => {
         [john.id]: []
       },
       errors: [],
-      preflight: []
+      preflight: [],
+      skills: []
     })
     expect(emitted[0]).toEqual(projection.snapshot())
   })
@@ -160,7 +168,8 @@ describe('a first success', () => {
       agents: [],
       menus: {},
       errors: [],
-      preflight: [NO_AGENTS]
+      preflight: [NO_AGENTS],
+      skills: []
     })
     expect(emitted).toHaveLength(1)
   })
@@ -679,5 +688,94 @@ describe('preflight recovery', () => {
 
     expect(tools.claudeCalls).toBe(1)
     expect(tools.uvCalls).toBe(1)
+  })
+})
+
+describe('the skills the install declares', () => {
+  const MANIFEST = [
+    ['canonicalId', 'name', 'description'],
+    ['a', 'bmad-a', 'First'],
+    ['', '', 'no name'],
+    ['b', 'bmad-b', 'Second']
+  ]
+  const ABC = [
+    { name: 'bmad-a', description: 'First' },
+    { name: 'bmad-b', description: 'Second' }
+  ]
+
+  it('carries them in the snapshot in the manifest’s order, with no error and the install’s other fields as they were', async () => {
+    const { state, projection, emitted } = build()
+    state.roster = { ok: true, agents: [mary] }
+    state.skills = MANIFEST
+
+    await projection.refresh()
+
+    expect(projection.snapshot()).toEqual({
+      revision: 1,
+      agents: [mary],
+      menus: { [mary.id]: [] },
+      errors: [],
+      preflight: [],
+      skills: ABC
+    })
+    expect(emitted).toHaveLength(1)
+  })
+
+  it('reads them once for a refresh, and again for the next', async () => {
+    const { state, projection } = build()
+    await projection.refresh()
+    await projection.refresh()
+
+    expect(state.skillCalls).toBe(2)
+  })
+
+  it('has none, and no error, when the manifest is absent or cannot be read', async () => {
+    const { state, projection } = build()
+    state.roster = { ok: true, agents: [mary] }
+    state.skills = []
+    await projection.refresh()
+    expect(projection.snapshot().skills).toEqual([])
+    expect(projection.snapshot().errors).toEqual([])
+    expect(projection.snapshot().preflight).toEqual([])
+
+    state.skills = MANIFEST
+    await projection.refresh()
+    expect(projection.snapshot().skills).toEqual(ABC)
+
+    state.skills = async () => {
+      throw new Error('EIO')
+    }
+    await projection.refresh()
+    expect(projection.snapshot().skills).toEqual([])
+    expect(projection.snapshot().errors).toEqual([])
+  })
+
+  it('reads them when uv is missing, before the resolvers that need it', async () => {
+    const { state, tools, projection } = build(true)
+    tools.uv = { ok: false, kind: 'uv-missing', diagnostic: 'ENOENT' }
+    state.skills = MANIFEST
+
+    await projection.refresh()
+
+    expect(state.rosterCalls).toBe(0)
+    expect(projection.snapshot().skills).toEqual(ABC)
+    expect(projection.snapshot().preflight.map((error) => error.code)).toEqual(['preflight/uv-missing'])
+  })
+
+  it('emits a new revision for a skills-only change, and not for an identical manifest', async () => {
+    const { state, projection, emitted } = build()
+    state.roster = { ok: true, agents: [mary] }
+    state.skills = MANIFEST
+    await projection.refresh()
+    await projection.refresh()
+    expect(emitted.map((snapshot) => snapshot.revision)).toEqual([1])
+
+    state.skills = [...MANIFEST, ['c', 'bmad-c', 'Third']]
+    await projection.refresh()
+
+    expect(emitted.map((snapshot) => snapshot.revision)).toEqual([1, 2])
+    expect(emitted[1].skills.map((skill) => skill.name)).toEqual(['bmad-a', 'bmad-b', 'bmad-c'])
+    expect(emitted[1].agents).toEqual(emitted[0].agents)
+    expect(emitted[1].menus).toEqual(emitted[0].menus)
   })
 })

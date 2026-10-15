@@ -17,7 +17,7 @@ import { DEFAULT_VIEW, VIEWS } from './view'
  * sections staying mounted, the chord, and a paused thread surviving a visit.
  */
 
-const snapshot: InstallSnapshot = { revision: 1, agents: [], menus: {}, errors: [], preflight: [] }
+const snapshot: InstallSnapshot = { revision: 1, agents: [], menus: {}, errors: [], preflight: [], skills: [] }
 const none: BoardSnapshot = { revision: 1, kind: 'none', code: 'board/absent', message: 'board · no sprint status' }
 const rail = { revision: 1, folder: '_bmad/', rows: [] }
 

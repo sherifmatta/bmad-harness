@@ -13,6 +13,8 @@ const CONFIG = toml('_bmad/config')
 const CONFIG_USER = toml('_bmad/config.user')
 const OVERRIDE = toml('_bmad/custom/x')
 const CUSTOMIZE = toml('.claude/skills/x/customize')
+const MANIFEST = `_bmad/_config/skill-${'manifest'}.csv`
+const OTHER_CONFIG = '_bmad/_config/manifest.yaml'
 
 let root: string
 let watcher: InstallWatcher | null = null
@@ -22,13 +24,15 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'watch-install-'))
-  for (const dir of ['_bmad/custom', '_bmad/planning-artifacts', '.claude/skills/x']) {
+  for (const dir of ['_bmad/custom', '_bmad/_config', '_bmad/planning-artifacts', '.claude/skills/x']) {
     mkdirSync(join(root, dir), { recursive: true })
   }
   writeFileSync(join(root, CONFIG), 'a = 1\n')
   writeFileSync(join(root, OVERRIDE), 'a = 1\n')
   writeFileSync(join(root, '_bmad/config.md'), 'a\n')
   writeFileSync(join(root, CUSTOMIZE), 'a = 1\n')
+  writeFileSync(join(root, MANIFEST), 'name\n')
+  writeFileSync(join(root, OTHER_CONFIG), 'a: 1\n')
   calls = 0
 })
 
@@ -62,7 +66,7 @@ describe('watchInstall', () => {
     expect(calls).toBe(1)
   })
 
-  it.each([OVERRIDE, CONFIG, CONFIG_USER, CUSTOMIZE])(
+  it.each([OVERRIDE, CONFIG, CONFIG_USER, CUSTOMIZE, MANIFEST])(
     'fires for %s',
     async (file) => {
       await start()
@@ -74,10 +78,12 @@ describe('watchInstall', () => {
     }
   )
 
-  it('ignores artifacts and other files under _bmad', async () => {
+  it('ignores artifacts and other files under _bmad, other files of _config included', async () => {
     await start()
 
     writeFileSync(join(root, '_bmad/planning-artifacts/prd.md'), 'x\n')
+    writeFileSync(join(root, OTHER_CONFIG), 'changed: true\n')
+    writeFileSync(join(root, '_bmad/_config/files-manifest.csv'), 'x\n')
     writeFileSync(join(root, '_bmad/config.md'), 'changed\n')
     await sleep(DEBOUNCE * 6)
 

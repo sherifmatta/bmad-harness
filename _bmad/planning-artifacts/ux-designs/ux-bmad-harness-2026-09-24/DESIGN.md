@@ -316,6 +316,7 @@ spacing:
   card-body-max: 230px
   composer-min: 20px
   composer-max: 120px
+  skill-list-max: 240px   # Story 7.3 (2026-10-15): the `/` list above the composer scrolls past this height
   # 288px is superseded for v1 — see Layout & Spacing.
   party-side: 240px   # DECIDED, and now the DEFAULT width: resizable, see party-side-min / -max
   party-side-min: 200px
@@ -517,6 +518,17 @@ components:
     min: '{spacing.composer-min}'
     max: '{spacing.composer-max}'
     inner: '{spacing.thread-max}'
+  skill-list:
+    form: 'the list a leading `/` opens above the composer of a persona (Story 7.3, 2026-10-15): a `listbox` of `option` rows, one for each skill the manifest of the install declares, in the order of the manifest. Read, not operated: no control, hover or fill inside it'
+    ground: '{colors.panel-2}'
+    border: '1px {colors.line}'
+    radius: '{rounded.control}'
+    maxHeight: '{spacing.skill-list-max}, scrolling past it'
+    row: 'padding {spacing.sm} {spacing.lg}, the name and the words on one baseline with {spacing.xl} between'
+    name: '{typography.name} mono, {colors.text}'
+    description: '{typography.base} sans, {colors.dim}'
+    current: 'one row, drawn with the shared focus ring ({components.focus}) at the inset offset, never a fill; the textarea keeps focus and names the row'
+    margin: '{spacing.md} above the field, inside the inner width of the composer'
   mention:
     form: 'the `@name` the user typed to hand off, in your turn, before the words it came with (AD-25); a chip, not a control: no tab stop, no hover, no action'
     type: '{typography.ident} mono'
@@ -1069,7 +1081,13 @@ No hover lift, no entrance animation, no typewriter reveal. The thread caps at `
 
 ### Composer
 
-`panel` ground, 1px `line`, `{rounded.card}` (6px) radius. Focus changes nothing about the field: no border shift and no ring on the textarea (a decision; the mockup's `#484848` focus-within border is not carried, and the field is the one exemption from the shared ring). Placeholder `composer-placeholder`. Textarea autogrows 20px→120px, clamped in CSS and sized from its content. It is never disabled; the send button keeps the shared focus ring. `Enter` sends, `Shift+Enter` is a newline, and no other chord sends. Send button: `send-bg` ground, `send-line` border, `send-ink` glyph, `{rounded.control}` radius, `send-hover` on hover. Hint lines below at `{typography.label}` in `{colors.meta}`.
+`panel` ground, 1px `line`, `{rounded.card}` (6px) radius. Focus changes nothing about the field: no border shift and no ring on the textarea (a decision; the mockup's `#484848` focus-within border is not carried, and the field is the one exemption from the shared ring). Placeholder `composer-placeholder`. Textarea autogrows 20px→120px, clamped in CSS and sized from its content. It is never disabled; the send button keeps the shared focus ring. `Enter` sends, `Shift+Enter` is a newline, and no other chord sends. Send button: `send-bg` ground, `send-line` border, `send-ink` glyph, `{rounded.control}` radius, `send-hover` on hover. Hint lines below at `{typography.label}` in `{colors.meta}`. A persona's composer, and only a persona's, opens the `/` list above its field (next section); with the list closed the composer's markup, hint and keys are as they were.
+
+### `/` list
+
+*Added 2026-10-15 (Story 7.3).* `{components.skill-list}`. Above a persona's composer, inside its inner width, `{spacing.md}` over the field: a `{colors.panel-2}` ground, a 1px `{colors.line}` border and a `{rounded.control}` (4px) radius, scrolling past `{spacing.skill-list-max}` (240px). Each row is the skill's **name** in `{typography.name}` mono at `{colors.text}` and, beside it on the same baseline, its **description** in `{typography.base}` sans at `{colors.dim}`; rows are padded `{spacing.sm}` by `{spacing.lg}` with `{spacing.xl}` between the two and wrap rather than truncate. **There is no divider, hover treatment, icon, count, group heading, recommended or ranked row, and no accent fill.**
+
+**One row is current**, and it is drawn with the shared focus ring (`{components.focus}`): the same 2px `{colors.accent}` ring from the same tokens, at the **inset offset** (−2px) the rail's tiles use, because the list scrolls and would clip a ring drawn outside the row. Focus itself stays in the textarea, so this is the one place the ring marks a row the user is not focused on; it is a fifth rule in `design/focus.css` and nothing else in the product draws it. Never a fill, never an accent ground.
 
 ### Cast card
 

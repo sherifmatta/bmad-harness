@@ -48,7 +48,8 @@ const snapshot = (agents: AgentView[], menus: InstallSnapshot['menus'] = {}): In
   agents,
   menus,
   errors: [],
-  preflight: []
+  preflight: [],
+  skills: []
 })
 
 /** One persona in each of the five states, so every word is on screen together. */

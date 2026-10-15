@@ -95,7 +95,8 @@ describe('the strip in the Shell’s sidebar', () => {
     agents: Array.from({ length: count }, (_, index) => agent(`bmad-agent-${index}`)),
     menus: {},
     errors: [],
-    preflight: []
+    preflight: [],
+    skills: []
   })
   const markup = (map: ReadonlyMap<string, PersonaState>, count = 4): string =>
     renderToStaticMarkup(<Shell projectPath="/work/falcon" snapshot={snapshot(count)} states={map} />)

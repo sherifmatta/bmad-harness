@@ -23,7 +23,7 @@ const ROOT = resolve(import.meta.dirname, '..')
 const read = (path: string): string => readFileSync(join(ROOT, path), 'utf8')
 
 const MARY: AgentView = { id: 'bmad-agent-analyst', module: 'bmm', name: 'Mary', title: 'Analyst', icon: 'i', description: 'd' }
-const SNAPSHOT: InstallSnapshot = { revision: 1, agents: [MARY], menus: {}, errors: [], preflight: [] }
+const SNAPSHOT: InstallSnapshot = { revision: 1, agents: [MARY], menus: {}, errors: [], preflight: [], skills: [] }
 
 const disk =
   (states: Record<string, DiskState>) =>

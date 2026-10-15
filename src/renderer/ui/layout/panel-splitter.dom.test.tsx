@@ -21,7 +21,7 @@ import type { LayoutContextValue } from './layout-context'
  * that a resize changes nothing but the width.
  */
 
-const SNAPSHOT: InstallSnapshot = { revision: 1, agents: [], menus: {}, errors: [], preflight: [] }
+const SNAPSHOT: InstallSnapshot = { revision: 1, agents: [], menus: {}, errors: [], preflight: [], skills: [] }
 
 let panels: FakePanels
 let view: Mounted | null

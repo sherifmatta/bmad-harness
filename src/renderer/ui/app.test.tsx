@@ -36,7 +36,8 @@ const snapshot: InstallSnapshot = {
   agents: [mary, john],
   menus: {},
   errors: [],
-  preflight: []
+  preflight: [],
+  skills: []
 }
 
 let mounted: Mounted | null
@@ -2822,5 +2823,63 @@ describe('App, the layout (Story 5.5)', () => {
 
     expect(setFolded).toEqual([['_bmad/', '_bmad/ux/']])
     expect(setPanelWidth).toEqual([])
+  })
+})
+
+describe('App, the `/` list (Story 7.3)', () => {
+  const SKILLS = [
+    { name: 'bmad-agent-analyst', description: 'Business analyst' },
+    { name: 'bmad-party-mode', description: 'Group discussions' }
+  ]
+  const enter = (): void =>
+    act(() => void field().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })))
+  const rows = (): (string | null | undefined)[] =>
+    [...mounted!.container.querySelectorAll('[role="option"]')].map((row) => row.querySelector('.skill-list-name')?.textContent)
+
+  async function start(): Promise<void> {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    act(() => installListeners.forEach((listener) => listener({ ...snapshot, revision: 2, skills: SKILLS })))
+    await settle()
+  }
+
+  it('lists the skills of the install snapshot above a persona’s composer when the text begins with a slash', async () => {
+    await start()
+    expect(mounted!.container.querySelector('[role="listbox"]')).toBeNull()
+
+    type(field(), '/')
+
+    expect(rows()).toEqual(['bmad-agent-analyst', 'bmad-party-mode'])
+    type(field(), '/bmad-pa')
+    expect(rows()).toEqual(['bmad-party-mode'])
+  })
+
+  it('follows a new snapshot’s skills with no reload', async () => {
+    await start()
+    type(field(), '/')
+    act(() => installListeners.forEach((listener) => listener({ ...snapshot, revision: 3, skills: [SKILLS[1]] })))
+
+    expect(rows()).toEqual(['bmad-party-mode'])
+  })
+
+  it('sends a chosen name with its text as typed, opens no session of its own, and leaves an `@name` handoff as it was', async () => {
+    await start()
+    act(() => tile('Mary').click())
+    await settle()
+    type(field(), '/bmad-pa')
+    act(() => void field().dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })))
+
+    expect(field().value).toBe('/bmad-party-mode ')
+    expect(sent).toEqual([])
+    expect(mounted!.container.querySelector('[role="listbox"]')).toBeNull()
+
+    type(field(), '@John hello')
+    enter()
+    await settle()
+
+    expect(mounted!.container.querySelector('[role="listbox"]')).toBeNull()
+    expect(opened).toEqual([mary.id, john.id])
+    expect(sent).toEqual([['session-of-bmad-agent-pm', 'hello', '@John']])
   })
 })

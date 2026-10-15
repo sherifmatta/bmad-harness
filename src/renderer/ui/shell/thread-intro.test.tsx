@@ -47,7 +47,7 @@ describe('ThreadIntro', () => {
 })
 
 describe('Shell, the thread before the first message', () => {
-  const snapshot = { revision: 1, agents: [MARY], menus: { [MARY.id]: ITEMS }, errors: [], preflight: [] }
+  const snapshot = { revision: 1, agents: [MARY], menus: { [MARY.id]: ITEMS }, errors: [], preflight: [], skills: [] }
   const render = (threadEmpty: boolean): string =>
     renderToStaticMarkup(<Shell projectPath="/p" snapshot={snapshot} threadEmpty={threadEmpty} />)
 

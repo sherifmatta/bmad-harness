@@ -1,5 +1,6 @@
 import { relative, sep } from 'node:path'
 import { watch } from 'chokidar'
+import { MANIFEST_DIR, MANIFEST_FILE } from './skill-manifest'
 
 /**
  * The install watcher: a trigger, not a reader. It says "something that could
@@ -8,8 +9,10 @@ import { watch } from 'chokidar'
  *
  * The watched set is the layering the resolvers apply — the central
  * configuration, the overrides beside it, and each skill's own customization
- * file. This is the one place in `src/` that names those files, and it names
- * them to watch, never to read.
+ * file — and the skill manifest the install declares what it provides in.
+ * This is the one place in `src/` that names the toml files, and it names
+ * them to watch, never to read. The manifest's two names (directory and file)
+ * are taken from its reader, which is the one place that spells them.
  *
  * The `ignored` test is stat-independent and path-shaped: it decides from the
  * path alone, so everything else under `_bmad/` (the artifacts the rail
@@ -32,16 +35,24 @@ const CUSTOMIZE = 'customize.toml'
 /**
  * Whether a path relative to `<root>/_bmad` is in the watched set. The empty
  * path and the override directory are admitted so the watcher can descend to
- * the files it wants.
+ * the files it wants. The install's skill manifest is the one file of its
+ * `_config` directory that is watched, and nothing else in that directory is;
+ * its two names come from the reader, the one place that spells them.
  */
 function inBmadSet(parts: string[]): boolean {
   if (parts.length === 0) {
     return true
   }
   if (parts.length === 1) {
-    return CENTRAL.has(parts[0]) || parts[0] === 'custom'
+    return CENTRAL.has(parts[0]) || parts[0] === 'custom' || parts[0] === MANIFEST_DIR
   }
-  return parts.length === 2 && parts[0] === 'custom' && parts[1].endsWith('.toml')
+  if (parts.length !== 2) {
+    return false
+  }
+  return (
+    (parts[0] === 'custom' && parts[1].endsWith('.toml')) ||
+    (parts[0] === MANIFEST_DIR && parts[1] === MANIFEST_FILE)
+  )
 }
 
 /** Likewise for a path relative to `<root>/.claude/skills`. */

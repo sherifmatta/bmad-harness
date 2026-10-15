@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { JSX, KeyboardEvent, ReactNode, RefObject } from 'react'
 
+import { useSlashList } from '../skills/use-slash-list'
+import type { SlashEntry } from '../skills/slash-query'
 import './composer.css'
 
 /**
@@ -23,6 +25,12 @@ import './composer.css'
  * user typed, and a whitespace-only draft is kept, not discarded. The text
  * handed on is trimmed of surrounding whitespace and otherwise untouched.
  *
+ * **The `/` list.** A composer handed `slashEntries` opens a list above the field when
+ * its text begins with `/` (Story 7.3). It is the list's hook that reads the
+ * text, takes the keys it answers to and draws the rows; this file only offers
+ * it the key first, spreads the attributes it returns on the field, and sends
+ * what is typed unchanged. A composer handed none is exactly as it was.
+ *
  * There is no focus rule in the stylesheet: the field and the button are tab
  * stops and take the shared `:focus-visible` ring. After a send the field
  * keeps or regains focus, so a message never costs the user their place.
@@ -34,7 +42,8 @@ export function Composer({
   refocus = 0,
   head,
   returned,
-  fieldRef
+  fieldRef,
+  slashEntries
 }: {
   agentName: string
   onSend?: (text: string) => void
@@ -64,10 +73,13 @@ export function Composer({
    * `↓ latest` (Story 5.3). Nothing is read from it here.
    */
   fieldRef?: RefObject<HTMLTextAreaElement | null>
+  /** The rows a leading `/` lists, as main gave them. Absent, the composer has no such list. */
+  slashEntries?: readonly SlashEntry[]
 }): JSX.Element {
   const [text, setText] = useState('')
   const field = useRef<HTMLTextAreaElement>(null)
   const returnedKey = useRef(returned?.key)
+  const slash = useSlashList({ entries: slashEntries, text, setText, field })
   const holdField = useCallback(
     (element: HTMLTextAreaElement | null) => {
       field.current = element
@@ -120,6 +132,9 @@ export function Composer({
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
+    if (slash.onKeyDown(event)) {
+      return
+    }
     if (event.key !== 'Enter') {
       return
     }
@@ -137,6 +152,7 @@ export function Composer({
     <div className="composer">
       <div className="composer-inner">
         {head}
+        {slash.list}
         <div className="composer-field">
           <textarea
             ref={holdField}
@@ -147,6 +163,7 @@ export function Composer({
             aria-label={`Message ${agentName}`}
             onChange={(event) => setText(event.target.value)}
             onKeyDown={onKeyDown}
+            {...slash.fieldProps}
           />
           <button type="button" className="composer-send" onClick={send}>
             Send

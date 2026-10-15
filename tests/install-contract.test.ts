@@ -115,7 +115,11 @@ describe('the live install', () => {
     })
     await projection.refresh()
 
-    const text = JSON.stringify([projection.snapshot(), ...emitted])
+    // Story 7.3: the manifest's own `skills` field names every skill the install provides, a menu's among
+    // them, on purpose. What this still holds is that no *menu* skill name reaches anything else in the snapshot.
+    const withoutSkills = (snapshot: InstallSnapshot): InstallSnapshot => ({ ...snapshot, skills: [] })
+    expect(projection.snapshot().skills.length).toBeGreaterThan(0)
+    const text = JSON.stringify([projection.snapshot(), ...emitted].map(withoutSkills))
     expect(projection.snapshot().agents.map((a) => a.id)).toEqual(Object.keys(rawRoster))
     expect(text).not.toContain('.toml')
     expect(text).not.toMatch(/"skill"|"prompt"/)

@@ -88,7 +88,8 @@ function register(extra: Partial<InstallBridgeDeps> = {}): void {
           return roster()
         },
         resolveMenu: async () => ({ ok: true, entries: [], problems: [] }),
-        resolveOutputFolder: async () => ({ ok: true, folder: null })
+        resolveOutputFolder: async () => ({ ok: true, folder: null }),
+        resolveSkills: async () => []
       }
     },
     createChecks: () => {

@@ -705,6 +705,9 @@
 
   /* The cast chooser's checkbox, drawn rather than the platform's (design audit, 2026-10-10). */
   --check-size:14px;
+
+  /* The `/` list above the composer (Story 7.3) scrolls past this height. */
+  --skill-list-max:240px;
 }
 
 /*

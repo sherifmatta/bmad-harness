@@ -19,7 +19,8 @@ const snapshot: InstallSnapshot = {
       detail: 'python 3.9.6'
     },
     { code: 'preflight/no-agents', message: NO_AGENTS }
-  ]
+  ],
+  skills: []
 }
 
 const failure = { code: 'install/unexpected', message: 'install · unexpected failure', detail: 'TypeError' }

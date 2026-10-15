@@ -14,7 +14,8 @@ const snapshot = (revision: number): InstallSnapshot => ({
   agents: [],
   menus: {},
   errors: [],
-  preflight: []
+  preflight: [],
+  skills: []
 })
 
 describe('acceptSnapshot', () => {

@@ -248,7 +248,7 @@ describe('the focus ring', () => {
   const structural = withoutAnyComments(focusCss)
   const rules = rulesIn(focusCss)
 
-  it('is four rules: one global :focus-visible, the composer field’s exemption, the stacked offset and the inset offset', () => {
+  it('is five rules: one global :focus-visible, the composer field’s exemption, the stacked offset, the inset offset and the `/` list’s current row', () => {
     // Pinned as a list rather than probed for a substring. Narrowing the base
     // selector to `button:focus-visible` still matches /:focus-visible/ while
     // leaving twelve of UX-DR23's thirteen surfaces with no ring at all, and
@@ -257,7 +257,8 @@ describe('the focus ring', () => {
       ':focus-visible',
       '.composer-input:focus-visible',
       '.focus-stacked:focus-visible',
-      '.focus-inset:focus-visible'
+      '.focus-inset:focus-visible',
+      '.skill-list-current'
     ])
   })
 
@@ -265,7 +266,7 @@ describe('the focus ring', () => {
     // Both declarations by name: deleting the offset draws the ring on the
     // element's own edge instead of 2px outside it, which is the geometry
     // DESIGN.md states twice and the one thing a substring check misses.
-    expect(rules, 'focus.css must hold exactly the four rules above').toHaveLength(4)
+    expect(rules, 'focus.css must hold exactly the five rules above').toHaveLength(5)
     expect(rules[0].declarations).toEqual([
       'outline: var(--focus-ring-width) solid var(--accent)',
       'outline-offset: var(--focus-ring-offset)'
@@ -280,12 +281,22 @@ describe('the focus ring', () => {
   })
 
   it('offsets the stacked case and changes nothing else about the ring', () => {
-    expect(rules, 'focus.css must hold exactly the four rules above').toHaveLength(4)
+    expect(rules, 'focus.css must hold exactly the five rules above').toHaveLength(5)
     expect(rules[2].declarations).toEqual(['outline-offset: var(--focus-ring-offset-stacked)'])
   })
 
   it('offsets the inset case just inside the edge and changes nothing else about the ring', () => {
     expect(rules[3].declarations).toEqual(['outline-offset: var(--focus-ring-offset-inset)'])
+  })
+
+  it('draws the `/` list’s current row with the same ring from the same tokens, just inside its edge (Story 7.3)', () => {
+    // Focus stays in the composer's textarea while the arrows move through the list, so the row the
+    // textarea names takes the ring by class. The inset offset is the stacked and inset cases' own,
+    // for the same reason: the list scrolls and clips. Never a fill.
+    expect(rules[4].declarations).toEqual([
+      'outline: var(--focus-ring-width) solid var(--accent)',
+      'outline-offset: var(--focus-ring-offset-inset)'
+    ])
   })
 
   it('is clean under the NFR23 literal guard, which governs it', () => {

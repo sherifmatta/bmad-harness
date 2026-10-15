@@ -17,7 +17,8 @@ const snapshot = (revision: number, errors: InstallSnapshot['errors'] = []): Ins
   agents: [],
   menus: {},
   errors,
-  preflight: []
+  preflight: [],
+  skills: []
 })
 
 type Bridge = {

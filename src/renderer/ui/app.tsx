@@ -362,6 +362,7 @@ export function App(): JSX.Element | null {
               )
             }
             fieldRef={fieldRef}
+            slashEntries={snapshot.skills}
             focusOnMount={composerFocus?.id === agent.id}
             refocus={composerFocus?.id === agent.id ? composerFocus.n : 0}
             onSend={(text) => {

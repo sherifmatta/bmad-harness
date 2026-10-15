@@ -5,6 +5,8 @@ import type { AgentView } from '../../../shared/install'
 import { errnoName } from '../errno'
 import { runCommand } from './run-command'
 import type { CommandResult, CommandRunner } from './run-command'
+import { readSkillManifest } from './skill-manifest'
+import type { ReadText } from './skill-manifest'
 import { isSafeAgentId, parseMenu, parseOutputFolder, parseRoster } from './schema'
 import type { MenuProblem, ResolvedMenuEntry } from './schema'
 
@@ -51,6 +53,12 @@ export type InstallSource = {
    */
   resolveOutputFolder(): Promise<OutputFolderResult>
   resolveMenu(agentId: string, agentName?: string): Promise<MenuResult>
+  /**
+   * The rows of the install's skill manifest, header first. Read from the file
+   * itself, not from a resolver and not through `uv`; an absent or unreadable
+   * file answers `[]` and never rejects.
+   */
+  resolveSkills(): Promise<string[][]>
 }
 
 export type InstallSourceOptions = {
@@ -60,6 +68,8 @@ export type InstallSourceOptions = {
   cwd?: string
   /** Whether a path exists. Injectable so tests need no filesystem. */
   exists?: (path: string) => Promise<boolean>
+  /** Reads the skill manifest. Injectable so tests need no filesystem. */
+  read?: ReadText
 }
 
 const pathExists = (path: string): Promise<boolean> =>
@@ -97,7 +107,8 @@ export function createInstallSource({
   run = runCommand,
   timeoutMs = RESOLVER_TIMEOUT_MS,
   cwd = tmpdir(),
-  exists = pathExists
+  exists = pathExists,
+  read
 }: InstallSourceOptions): InstallSource {
   const scripts = join(projectRoot, '_bmad', 'scripts')
 
@@ -191,6 +202,8 @@ export function createInstallSource({
       }
       const menu = parseMenu(answer.json, agentName)
       return menu.ok ? menu : unexpectedShape(script, menu.detail)
-    }
+    },
+
+    resolveSkills: () => readSkillManifest(projectRoot, read)
   }
 }

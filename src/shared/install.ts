@@ -31,6 +31,13 @@ export type AgentView = {
 export type MenuEntryView = { code: string; description: string }
 
 /**
+ * One skill the install declares, by name and description, in the manifest's
+ * own order. The renderer prefix-filters these rows and nothing more: none are
+ * hidden, ranked or grouped, and the name is all a chosen row ever puts back.
+ */
+export type SkillView = { name: string; description: string }
+
+/**
  * One refresh, one snapshot. Every agent id has a `menus` key, possibly empty.
  * `revision` only ever increases, so a late push can be told from a fresh one.
  */
@@ -46,6 +53,12 @@ export type InstallSnapshot = {
    * two facts about tools, and one frame keeps them from disagreeing.
    */
   preflight: HarnessError[]
+  /**
+   * Every skill the install's manifest declares (Story 7.3), read in main with
+   * the install and watched with it. Empty when the manifest is absent or
+   * cannot be read, and never an error.
+   */
+  skills: SkillView[]
 }
 
 /** The reply to `install:get`: a snapshot, or the envelope saying why not. */

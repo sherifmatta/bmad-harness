@@ -150,6 +150,10 @@ describe("no palette, no launcher, no global skills list", () => {
     "src/renderer/ui/welcome/",
     // A side panel's splitter takes the keys that move its edge (Story 5.5): its own surface, not a list's.
     "src/renderer/ui/layout/",
+    // The composer's `/` list takes the keys it answers to (Story 7.3): the arrows through the shared roving
+    // code, `Enter` and `Tab` to choose a row, `Esc` to close. Its own directory, and no other file of the
+    // composer's is given a key by it.
+    "src/renderer/ui/skills/",
   ];
   // The composer is the one component that takes a keystroke of its own
   // (Story 2.3): Enter sends and Shift+Enter is a newline. It is exempt from
@@ -185,13 +189,24 @@ describe("no palette, no launcher, no global skills list", () => {
   // checkbox: a roster agent ticked or not. Nothing else in the renderer takes one.
   const CAST_CHOOSER = "src/renderer/ui/party/cast-chooser.tsx";
 
-  it("has no input, select, editable region, dialog, combobox or search role", () => {
+  // The `/` list (Story 7.3) is the one `listbox` in the product: a list of the install's skills above a persona's
+  // composer, in this one file. It is never a combobox, a dialog, a menu or a search.
+  const SKILL_LIST = "src/renderer/ui/skills/skill-list.tsx";
+
+  it("has no input, select, editable region, dialog, combobox or search role, and the `/` list's listbox in one file", () => {
     expect(
       offenders(
-        RENDERER_CODE.filter((path) => path !== CAST_CHOOSER),
+        RENDERER_CODE.filter((path) => path !== CAST_CHOOSER && path !== SKILL_LIST),
         /<(?:input|select|dialog)\b|contentEditable|role=["'](?:dialog|combobox|search|searchbox|menu|listbox)|role:\s*["'](?:dialog|combobox|search|searchbox)|aria-modal|type=["']search/,
       ),
     ).toEqual([]);
+    expect(
+      offenders(
+        [SKILL_LIST],
+        /<(?:input|select|dialog)\b|contentEditable|role=["'](?:dialog|combobox|search|searchbox|menu)|aria-modal|type=["']search/,
+      ),
+    ).toEqual([]);
+    expect(offenders(RENDERER_CODE, /role=["']listbox/).map((hit) => hit.split(":")[0])).toEqual([SKILL_LIST]);
   });
 
   it("has an input in the cast chooser, a checkbox, and nowhere else", () => {
@@ -638,7 +653,8 @@ describe("motion", () => {
   it("scrolls, frames and animates by no script and no smooth-scroll rule", () => {
     // Story 3.1: the prose store paints a run's text at most once a frame, and
     // the frame is injected in one place. It animates and scrolls nothing. Story
-    // 3.10's reveal hook is the renderer's one scrollIntoView, instant, never smooth;
+    // 3.10's reveal hook is the renderer's one scrollIntoView, instant, never smooth, and
+    // Story 7.3's `/` list is the other: it keeps the current row in view, `block: 'nearest'`, instant too;
     // Story 5.3's follow hook is the one place a scroll position is set.
     expect(
       offenders(
@@ -648,6 +664,7 @@ describe("motion", () => {
     ).toEqual([
       "src/renderer/ui/chat/use-conversation.ts: requestAnimationFrame",
       "src/renderer/ui/chat/use-reveal.ts: scrollIntoView",
+      "src/renderer/ui/skills/skill-list.tsx: scrollIntoView",
     ]);
     expect(
       (code.get("src/renderer/ui/chat/use-conversation.ts") ?? "").match(/\brequestAnimationFrame\b/g),
@@ -1253,9 +1270,21 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
       // swept whole.
       const RECORDED = Object.keys(RECORDED_SKILL_SPELLINGS);
       const rest = CHAT_CODE.filter((path) => path !== ROW && !RECORDED.includes(path));
+      // Story 7.3: the composer is handed the `/` list's rows and imports its hook from `../skills/`, so the
+      // directory's name is in its two import lines. Those two lines are taken out and the rest of the file is
+      // swept whole, as is every other file: the composer still reads no skill, menu, code or description itself.
+      const COMPOSER_PATH = "src/renderer/ui/chat/composer.tsx";
+      const SLASH_IMPORTS = /^import [^\n]* from '\.\.\/skills\/(?:use-slash-list|slash-query)'\n/gm;
+      expect((code.get(COMPOSER_PATH) ?? "").match(SLASH_IMPORTS)).toHaveLength(2);
       expect(
-        offenders(rest, /\bmenus?\b|\bskills?\b|\bMenuEntry\b|\bcodes\b/i),
+        offenders(
+          rest.filter((path) => path !== COMPOSER_PATH),
+          /\bmenus?\b|\bskills?\b|\bMenuEntry\b|\bcodes\b/i,
+        ),
       ).toEqual([]);
+      expect((code.get(COMPOSER_PATH) ?? "").replace(SLASH_IMPORTS, "")).not.toMatch(
+        /\bmenus?\b|\bskills?\b|\bMenuEntry\b|\bcodes\b/i,
+      );
       for (const path of RECORDED) {
         expect(CHAT_CODE, path).toContain(path);
         const left = (code.get(path) ?? "").replace(RECORDED_SKILL_SPELLINGS[path], "");
@@ -1306,6 +1335,20 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
       // The composer hands the trimmed draft on and looks at no character of it.
       expect(composer).toContain("onSend(text.trim())");
       expect(composer).not.toMatch(/\.(?:startsWith|charAt|match|test|split|replace|slice|indexOf)\(/);
+      // Story 7.3: the one reader of a leading `/` is the `/` list's pure query, which only prefix-filters the rows
+      // main gave it; nothing in `skills/` reaches the session, and the composer's text is sent as typed.
+      expect(
+        offenders(
+          RENDERER_CODE.filter((path) => path.startsWith("src/renderer/ui/skills/")),
+          SLASH,
+        ).map((hit) => hit.split(":")[0]),
+      ).toEqual(["src/renderer/ui/skills/slash-query.ts"]);
+      expect(
+        offenders(
+          RENDERER_CODE.filter((path) => path.startsWith("src/renderer/ui/skills/")),
+          /\bipcRenderer\b|\bwindow\.api\b|\bsendTurn\b|\bonSend\b|\bdispatchMenu\b|\brunSkill\b|\bopenSession\b/,
+        ),
+      ).toEqual([]);
     });
 
     it("writes the user's text into the session as given: `turn.send` hands `text` to `write` untouched", () => {
@@ -1337,9 +1380,14 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
     it("draws no completion surface: no listbox, datalist, autocomplete, active descendant or popup", () => {
       // A folder heading (Story 5.5) names the rows it folds with `aria-controls`: the one place, and not a completion.
       const FOLDER_HEADING = "src/renderer/ui/outputs/folder-heading.tsx";
+      // Story 7.3's `/` list is the one completion surface, by design, and is exempt by directory: its listbox, the
+      // `aria-controls` and `aria-activedescendant` the textarea carries while it is open. It is still no datalist,
+      // autocomplete attribute, popup or suggestion, and the two attributes are spelled in its hook alone.
+      const SLASH_LIST = RENDERER_CODE.filter((path) => path.startsWith("src/renderer/ui/skills/"));
+      expect(SLASH_LIST.length).toBeGreaterThan(2);
       expect(
         offenders(
-          RENDERER_CODE.filter((path) => path !== FOLDER_HEADING),
+          RENDERER_CODE.filter((path) => path !== FOLDER_HEADING && !SLASH_LIST.includes(path)),
           /\blistbox\b|<datalist\b|\blist=["{]|aria-autocomplete|aria-activedescendant|aria-haspopup|aria-controls|aria-owns|autoComplete|\bcompletions?\b|\bsuggest/i,
         ),
       ).toEqual([]);
@@ -1349,6 +1397,12 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
           /\blistbox\b|<datalist\b|\blist=["{]|aria-autocomplete|aria-activedescendant|aria-haspopup|aria-owns|autoComplete|\bcompletions?\b|\bsuggest/i,
         ),
       ).toEqual([]);
+      expect(
+        offenders(SLASH_LIST, /<datalist\b|\blist=["{]|aria-autocomplete|aria-haspopup|aria-owns|autoComplete|\bcompletions?\b|\bsuggest/i),
+      ).toEqual([]);
+      expect(
+        offenders(RENDERER_CODE, /aria-activedescendant/).map((hit) => hit.split(":")[0]),
+      ).toEqual(["src/renderer/ui/skills/use-slash-list.ts"]);
     });
   });
 
@@ -1734,10 +1788,12 @@ describe("the pinned running card is a place, not a control (Story 3.14)", () =>
     const start = css.indexOf(".pinned {");
     const rule = css.slice(start, css.indexOf("}", start));
     expect(rule).not.toMatch(/z-index|position|animation|transition|scroll|overflow/);
-    // The renderer's scroll code is the reveal hook's (Story 3.10) and the follow hook's (Story 5.3), and is no other.
+    // The renderer's scroll code is the reveal hook's (Story 3.10), the follow hook's (Story 5.3) and the `/` list's
+    // keeping of its current row in view (Story 7.3), and is no other.
     expect(offenders(RENDERER_CODE, /\.scroll(?:Top|To|By)\b|\bscrollIntoView\b|\.animate\(/)).toEqual([
       "src/renderer/ui/chat/use-reveal.ts: scrollIntoView",
       "src/renderer/ui/follow/use-follow.ts: .scrollTop",
+      "src/renderer/ui/skills/skill-list.tsx: scrollIntoView",
     ]);
     expect(offenders(RENDERER_ALL.filter((path) => path.endsWith(".css")), /z-index/)).not.toContain(
       `${SHELL_CSS}: z-index`,
@@ -2395,8 +2451,8 @@ describe("told once, quietly, when you are elsewhere: one silent banner, one scr
     expect(notifier()).not.toMatch(/\bsetAlwaysOnTop\b|\bmoveTop\b|\bopenDocWindow\b|\bcreateProjectWindow\b|\bnew BrowserWindow\b|\bloadURL\b|\bloadFile\b/);
   });
 
-  it("scrolls in the reveal hook and the follow hook alone, instantly, and moves no focus, switches no persona, opens nothing and sends no command there", () => {
-    expect(offenders(RENDERER_CODE, /\bscrollIntoView\b|\.scroll(?:Top|To|By)\b/).map((hit) => hit.split(":")[0])).toEqual([REVEAL, "src/renderer/ui/follow/use-follow.ts"]);
+  it("scrolls in the reveal hook, the follow hook and the `/` list's current row alone, instantly, and moves no focus, switches no persona, opens nothing and sends no command there", () => {
+    expect(offenders(RENDERER_CODE, /\bscrollIntoView\b|\.scroll(?:Top|To|By)\b/).map((hit) => hit.split(":")[0])).toEqual([REVEAL, "src/renderer/ui/follow/use-follow.ts", "src/renderer/ui/skills/skill-list.tsx"]);
     expect(reveal()).toMatch(/scrollIntoView\(\{ block: 'start' \}\)/);
     expect(reveal()).not.toMatch(/smooth|behavior|\.focus\(|\bfocus\(|setCurrentId|openDoc|dispatchMenu|sendTurn|openSession|stopRun|closeSession|ipcRenderer/);
     // The target is the card's own ref: no attribute, no query.
@@ -2970,5 +3026,72 @@ describe("stopping a turn that is not a run (Story 3.19, FR125, AD-23)", () => {
     const stopTurn = hook.slice(hook.indexOf("async stopTurn(agentId)"), hook.indexOf("async close(agentId)"));
     expect(stopTurn.length).toBeGreaterThan(0);
     expect(stopTurn).not.toMatch(/commit\(|cancelQueued|dropQueued|setState|publish/);
+  });
+});
+
+describe("the `/` list is the only skill list in the product, and it launches nothing (Story 7.3)", () => {
+  const LIST_DIR = "src/renderer/ui/skills/";
+  const APP = "src/renderer/ui/app.tsx";
+  const COMPOSER = "src/renderer/ui/chat/composer.tsx";
+  const READER = "src/main/sources/install/skill-manifest.ts";
+  const skillsDir = sources(LIST_DIR, [".ts", ".tsx", ".css"]);
+
+  it("reads the sources it claims to sweep", () => {
+    expect(skillsDir.sort()).toEqual([
+      `${LIST_DIR}skill-list.css`,
+      `${LIST_DIR}skill-list.tsx`,
+      `${LIST_DIR}slash-query.ts`,
+      `${LIST_DIR}use-slash-list.ts`,
+    ]);
+    expect(code.get(READER)).toBeDefined();
+  });
+
+  it("hands the install's skills to a persona's composer from one place, and the room's composer none", () => {
+    // The only reader of the snapshot's `skills` is the shell's owner, and it hands them to the persona composer alone.
+    expect(offenders(RENDERER_CODE, /\.skills\b/).map((hit) => hit.split(":")[0])).toEqual([APP]);
+    expect(offenders(RENDERER_CODE, /\bslashEntries\b/).map((hit) => hit.split(":")[0]).sort()).toEqual([APP, COMPOSER]);
+    expect(code.get(APP)?.match(/slashEntries=\{snapshot\.skills\}/g)).toHaveLength(1);
+    expect(offenders(sources("src/renderer/ui/party/"), /\bslashEntries\b|\bskills\b|SkillList|useSlashList/)).toEqual([]);
+    // The list is drawn by the hook and by nothing else.
+    expect(offenders(RENDERER_CODE, /<SkillList\b|\bcreateElement\(SkillList\b/).map((hit) => hit.split(":")[0])).toEqual([`${LIST_DIR}use-slash-list.ts`]);
+    expect(offenders(RENDERER_CODE, /\buseSlashList\b/).map((hit) => hit.split(":")[0]).sort()).toEqual([COMPOSER, `${LIST_DIR}use-slash-list.ts`]);
+  });
+
+  it("has no button, menu, shortcut, panel or tile in it: a list of rows and the keys of the field it sits above", () => {
+    expect(offenders(skillsDir, /<button\b|onClick|onMouse|onPointer|href|role=["'](?:button|menu|menuitem|dialog|tab)|<dialog\b|aria-pressed|\btabIndex\b|\btabindex=/)).toEqual([]);
+    expect(offenders(skillsDir, /\bipcRenderer\b|\bwindow\.api\b|\bbridge\b|\bcommand\b|\bsendTurn\b|\brunSkill\b|\bdispatchMenu\b|\bopenSession\b|\bonSend\b|\bfetch\(/)).toEqual([]);
+    // Not a place for recents, favourites, a group or a ranking (a count is pinned in the rendered list's own test).
+    expect(offenders(skillsDir, /\brecents?\b|\bfavou?rites?\b|\bsort\(|\bgroup|\brecommend|\brank|\bfuzzy|\.icon\b|\btooltip\b|\btitle\b/i)).toEqual([]);
+    // The list holds no live-region text.
+    expect(offenders(skillsDir, /aria-live|role=["'](?:status|alert|log)|\bannounce/)).toEqual([]);
+  });
+
+  it("filters the rows main gave it by the start of the name and reads no description, module or path", () => {
+    const query = code.get(`${LIST_DIR}slash-query.ts`) ?? "";
+    expect(query).toMatch(/\.name\.toLowerCase\(\)\.startsWith\(wanted\)/);
+    expect(query.match(/\.description\b/g)).toBeNull();
+    expect(offenders(skillsDir, /\bmodule\b|\bpath\b|canonicalId|\.csv\b|_bmad/)).toEqual([]);
+  });
+
+  it("shows a skill button neither a skill's name nor its description from the manifest", () => {
+    const row = code.get("src/renderer/ui/chat/skill-row.tsx") ?? "";
+    expect(row).not.toMatch(/SkillView|slashEntries|\.skills\b|\.canonicalId\b/);
+    // The button draws a menu entry's code and its words, from the persona's menu, and nothing from the manifest.
+    expect(row).toContain('<span className="skill-code">{item.code}</span>');
+    expect(row).toMatch(/items: readonly MenuEntryView\[\]/);
+  });
+
+  it("reads the manifest in one file of main, by its path, with no directory listing, glob, configuration or persona", () => {
+    // The one file that names it.
+    expect(
+      offenders(ALL_CODE.filter((path) => path.startsWith("src/main/") || path.startsWith("src/shared/")), /skill-manifest\.csv/).map((hit) => hit.split(":")[0]),
+    ).toEqual([READER]);
+    expect(offenders(RENDERER_CODE, /skill-manifest|\.csv\b/)).toEqual([]);
+    expect(code.get(READER) ?? "").not.toMatch(/\bglob\b|\breaddir\b|\bconfig\.toml\b|\bcustomize\.toml\b|\bsession\b|\bpersona\b|\bagents?\b/i);
+    // The fold is pure: it reads nothing and imports nothing but the type.
+    const fold = code.get("src/main/fold/skills.ts") ?? "";
+    expect(fold).not.toMatch(/node:|\bfs\b|\bawait\b|\bprocess\b/);
+    // And no other file of main or the renderer reads the manifest's columns by name.
+    expect(offenders(MAIN_CODE.filter((path) => path !== "src/main/fold/skills.ts"), /canonicalId/)).toEqual([]);
   });
 });

@@ -373,7 +373,7 @@ describe('a state change lands in one render, with nothing moved or focused', ()
 })
 
 describe('the view switch and the chord, in the real shell', () => {
-  const installed: InstallSnapshot = { revision: 1, agents: ROSTER, menus: {}, errors: [], preflight: [] }
+  const installed: InstallSnapshot = { revision: 1, agents: ROSTER, menus: {}, errors: [], preflight: [], skills: [] }
   let fake: FakeScroll
   let shellContainer: HTMLElement
   let shellRoot: Root

@@ -2,8 +2,10 @@ import type {
   AgentView,
   HarnessError,
   InstallSnapshot,
-  MenuEntryView
+  MenuEntryView,
+  SkillView
 } from '../../shared/install'
+import { foldSkills } from '../fold/skills'
 import type { InstallSource, ResolverFailure } from '../sources/install/resolvers'
 import type { ResolvedMenuEntry } from '../sources/install/schema'
 import type { PrerequisiteChecks, ToolCheck } from '../sources/preflight/tools'
@@ -114,6 +116,7 @@ export function createInstallProjection({
   const menus = new Map<string, ResolvedMenuEntry[]>()
   let errors: HarnessError[] = []
   let preflight: HarnessError[] = []
+  let skills: SkillView[] = []
   let disposed = false
 
   type ToolVerdict = { uvPassed: boolean; errors: HarnessError[] }
@@ -188,7 +191,8 @@ export function createInstallProjection({
       agents: agents.map((agent) => ({ ...agent })),
       menus: menuViews,
       errors: errors.map((error) => ({ ...error })),
-      preflight: preflight.map((error) => ({ ...error }))
+      preflight: preflight.map((error) => ({ ...error })),
+      skills: skills.map((skill) => ({ ...skill }))
     }
   }
 
@@ -201,6 +205,21 @@ export function createInstallProjection({
   }
 
   async function resolveAll(): Promise<void> {
+    // The manifest is a file, not a resolver: its read starts before anything
+    // that could return early, so it does not wait on `uv` and is not lost to
+    // it, and it lands whichever way the rest of the refresh ends.
+    const reading = source.resolveSkills().catch((): string[][] => [])
+    try {
+      await resolveInstall()
+    } finally {
+      const rows = await reading
+      if (!disposed) {
+        skills = foldSkills(rows)
+      }
+    }
+  }
+
+  async function resolveInstall(): Promise<void> {
     // With no checks supplied both tools count as passing, and nothing is awaited.
     const tools: ToolVerdict =
       checks === undefined ? { uvPassed: true, errors: [] } : await toolVerdict(checks)

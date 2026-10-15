@@ -58,3 +58,15 @@
 .focus-inset:focus-visible {
   outline-offset: var(--focus-ring-offset-inset);
 }
+
+/*
+ * The current row of the `/` list (Story 7.3): focus stays in the composer's
+ * textarea while the arrows move through the rows, so the row the textarea
+ * names is drawn with the same ring, from the same tokens, just inside its edge
+ * for the reason the inset case above gives (the list scrolls and clips).
+ * Never a fill, never an accent ground.
+ */
+.skill-list-current {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset-inset);
+}

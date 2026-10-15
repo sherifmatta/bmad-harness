@@ -58,7 +58,8 @@ const source = (): InstallSource => ({
   resolveOutputFolder: async () => {
     resolverCalls += 1
     return typeof resolved === 'function' ? resolved() : resolved
-  }
+  },
+  resolveSkills: async () => []
 })
 
 function register(extra: Parameters<typeof registerOutputFolderBridge>[0] extends infer D ? Partial<D> : never = {}) {

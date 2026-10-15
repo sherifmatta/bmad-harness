@@ -142,6 +142,27 @@ describe('the Board’s files (Story 7.1)', () => {
   })
 })
 
+describe('the install’s skills (Story 7.3)', () => {
+  const install = withoutComments(read('src/shared/install.ts'))
+
+  it('are one required `skills` field of the install snapshot, of name and description, and carried nowhere else', () => {
+    expect(install).toMatch(/export type SkillView = \{ name: string; description: string \}/)
+    expect(install.match(/\bskills: SkillView\[\]/g)).toHaveLength(1)
+    expect(install.slice(install.indexOf('export type InstallSnapshot'))).toMatch(/preflight: HarnessError\[\]\n\s*(?:\/\*\*[\s\S]*?\*\/\s*)?skills: SkillView\[\]\n\}/)
+    for (const file of ['channels', 'commands', 'events']) {
+      expect(withoutComments(read(`src/shared/${file}.ts`)), file).not.toMatch(/\bSkillView\b|\bskills\b/)
+    }
+  })
+
+  it('add no channel, command or bridge method, and leave the contract version as it was', () => {
+    expect(read('src/shared/events.ts')).toMatch(/export const CONTRACT_VERSION = 1\n/)
+    expect(COMMANDS).toHaveLength(8)
+    expect(withoutComments(read('src/shared/channels.ts')).match(/export const \w+_CHANNEL\b/g)).toHaveLength(36)
+    // The bridge's own method count is pinned in `bridge-contract.test.ts` (twenty-four), and no preload file gained one for this.
+    expect(withoutComments(read('src/preload/harness-api.d.ts'))).not.toMatch(/\bskills?\b/i)
+  })
+})
+
 describe('the commands in', () => {
   const body = mapBody(withoutComments(read('src/shared/commands.ts')), 'ContractCommands')
   const declared = entries(body)

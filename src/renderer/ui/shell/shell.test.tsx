@@ -24,7 +24,8 @@ const snapshot = (count: number): InstallSnapshot => ({
   agents: Array.from({ length: count }, (_, index) => agent(`bmad-agent-${index}`)),
   menus: {},
   errors: [],
-  preflight: []
+  preflight: [],
+  skills: []
 })
 
 const snapshotOf = (agents: InstallSnapshot['agents']): InstallSnapshot => ({
@@ -32,7 +33,8 @@ const snapshotOf = (agents: InstallSnapshot['agents']): InstallSnapshot => ({
   agents,
   menus: {},
   errors: [],
-  preflight: []
+  preflight: [],
+  skills: []
 })
 
 const count = (text: string, pattern: RegExp): number => (text.match(pattern) ?? []).length
