@@ -1,6 +1,6 @@
 import type { BoardSnapshot } from '../../../shared/board'
 import type { AgentView } from '../../../shared/install'
-import type { PersonaState } from '../persona/portrait'
+import type { PersonaState } from '../status/persona-state'
 import { stateOf } from '../status/persona-state'
 import { columnsOf } from './board-columns'
 

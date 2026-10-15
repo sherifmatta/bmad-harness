@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { PersonaState } from '../persona/portrait'
+import type { PersonaState } from './persona-state'
 import { PERSONA_STATES, STATE_TEXT, skillsDisabled, stateOf } from './persona-state'
 
 describe('the persona state vocabulary', () => {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { BoardEpic, BoardOther, BoardSnapshot, BoardStory } from '../../../shared/board'
 import type { AgentView } from '../../../shared/install'
-import type { PersonaState } from '../persona/portrait'
+import type { PersonaState } from '../status/persona-state'
 import { epicRowsOf, overviewOf } from './board-figures'
 
 const story = (number: string, status: string): BoardStory => ({

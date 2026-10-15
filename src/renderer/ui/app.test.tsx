@@ -2237,7 +2237,7 @@ describe('the party view (Story 4.1)', () => {
     // No one has spoken: the room's greeting turn is in flight, so its foot holds the state line alone.
     expect(party().querySelector('.turn:not(.turn--pending), .persona-tile')).toBeNull()
     expect(party().querySelectorAll('.turn--pending')).toHaveLength(1)
-    expect(party().querySelector('.turn--pending .caret, .turn--pending .portrait')).toBeNull()
+    expect(party().querySelector('.turn--pending .caret')).toBeNull()
     // The cast the user chose is in the strip, one card each, nobody lit while the room awaits.
     expect([...party().querySelectorAll('.cast-card .cast-name')].map((name) => name.textContent)).toEqual(['Mary', 'John'])
     expect(party().querySelector('.cast-card--speaking')).toBeNull()

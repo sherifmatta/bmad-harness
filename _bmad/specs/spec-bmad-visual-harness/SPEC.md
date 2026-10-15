@@ -40,6 +40,7 @@ pushing back on you, and a face attached to him.
 - **CAP-3** — personas have faces and identities
   - **intent:** Each persona is present as a specific colleague rather than a label, wherever they speak or wait.
   - **success:** Portrait, name, title and current state render in the chat header, the persona tiles and the party cast. The persona talks like the persona because its own agent skill is what is running — identity and communication style are never assembled by the harness, and the roster comes from BMad's resolved configuration rather than raw `customize.toml` (`ARCHITECTURE-SPINE.md` AD-8, AD-10).
+  - **note (2026-10-15):** superseded in part by the owner's decision to remove illustrated portraits from the whole product (FR136, UX-DR55). A persona is present as a neutral initials disc beside its name, title and state, in the chat header, the persona tiles and the party cast; no portrait, illustration or other identity device is drawn. The persona-is-the-running-skill half of this capability stands. Detail in `DESIGN.md` → *Portrait (removed)* and *Initials*.
 
 - **CAP-4** — skills invoked in-conversation, scoped to the persona
   - **intent:** The user runs a skill by pressing a button belonging to whoever they are talking to, without leaving the conversation.
@@ -68,6 +69,7 @@ pushing back on you, and a face attached to him.
 - **CAP-10** — every persona has a real portrait
   - **intent:** Each persona is represented by an illustrated headshot of a plausible colleague, including agents installed after v1.
   - **success:** The five core personas render from curated art parameters; any other installed agent renders from parameters derived deterministically from its agent id, so it is stable across sessions. Portraits render at every size the UI uses. The `icon` field is never used as a portrait.
+  - **note (2026-10-15):** **withdrawn**, by the owner's decision to remove illustrated portraits from the whole product (FR136, UX-DR55). No portrait is drawn, curated or derived, at any size; every person is an initials disc and a name, and the portrait module, its parameter module, stylesheet, tokens and tests are removed (Story 7.7). The `icon` field is still never drawn (FR80). `mockups/portrait.html` is kept as history only.
 
 - **CAP-11** — a running skill can be stopped
   - **intent:** The user halts a run in progress rather than waiting it out.

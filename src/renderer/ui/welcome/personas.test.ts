@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { CURATED_AGENT_IDS } from '../persona/art-params'
-import { LANES, PERSONAS, TEAM_META, personasIn } from './personas'
+import { CORE_AGENT_IDS, LANES, PERSONAS, TEAM_META, personasIn } from './personas'
 
 describe('the five core personas', () => {
   it('are Mary, John, Sally, Winston and Amelia, with the titles DESIGN.md gives them', () => {
@@ -14,8 +13,15 @@ describe('the five core personas', () => {
     ])
   })
 
-  it('are exactly the five agents the app has curated faces for, so no portrait is derived', () => {
-    expect(PERSONAS.map(({ id }) => id).sort()).toEqual([...CURATED_AGENT_IDS].sort())
+  it('are the five core agents, whose ids the cast chooser ticks by default', () => {
+    expect(CORE_AGENT_IDS).toEqual([
+      'bmad-agent-analyst',
+      'bmad-agent-pm',
+      'bmad-agent-ux-designer',
+      'bmad-agent-architect',
+      'bmad-agent-dev'
+    ])
+    expect(PERSONAS.map(({ id }) => id)).toEqual([...CORE_AGENT_IDS])
   })
 
   it('carry the descriptions of DESIGN.md’s table, verbatim', () => {

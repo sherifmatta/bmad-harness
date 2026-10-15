@@ -111,14 +111,13 @@
   --fs-h2:14.5px;
   --fs-h1:20px;
 
-  /* Four line-heights. --lh-base everywhere by default, --lh-read for both
+  /* Three line-heights. --lh-base everywhere by default, --lh-read for both
      reading measures, --lh-tight for the open-question block (the decision
-     option reads at --lh-base, as the mockup's does), --lh-none on the portrait
-     wrapper to kill descender space. */
+     option reads at --lh-base, as the mockup's does) and for the Team tile's two
+     lines, which is what lets the tile be a 44px row. */
   --lh-base:1.55;
   --lh-read:1.72;
   --lh-tight:1.45;
-  --lh-none:0;
 
   /* Tracking makes small type readable and marks a label as a label, never
      style. Uppercase appears only on rail heads, side-section heads, the legend
@@ -174,7 +173,7 @@
 
   /* ── Binding layout constants (UX-DR7), equal in force to the colours. Each
      keeps its surface's own name. Component dimensions — the 6px status dot,
-     the 56px tile, portrait sizes, card paddings — are not here; they belong to
+     the 44px tile, disc sizes, card paddings — are not here; they belong to
      the stories that build those components. */
   --sidebar:244px;
   --rail:300px;
@@ -252,13 +251,11 @@
      note's are: NFR23 allows no literal in a component stylesheet. The equaliser's three bars
      are the mockup's four reduced to the three the story draws, each one real element. */
   --cast-card-min:148px;
-  --cast-portrait:44px;
   --cast-strip-padding:12px 16px;
   --cast-card-padding:9px 11px;
   --cast-status-top:3px;
   --cast-speaking-border:#565656;
   --cast-speaking-ground:#212121;
-  --cast-ring:2px;
   --eq-height:8px;
   --eq-bar-width:2px;
   --eq-bar-rest:3px;
@@ -426,11 +423,13 @@
 
   /* The persona tile: DESIGN.md `components.persona-tile` (`height`,
      `currentBackground`, `currentEdge`) and `.ptile` (:108-130) in the mockup.
-     The tile is padded 9px 11px (:109), its current ground is `#252525` (:114),
+     The tile is a 44px row (2026-10-15): padded 3px 11px, since two lines at the tight
+     leading and a 26px disc fill it, where the mockup's 9px 11px (:109) held a 36px face.
+     Its current ground is `#252525` (:114),
      its accent bar is 2px (:115), and the state line sits 2px under the name
      (`.state`, :121). */
-  --tile-height:56px;
-  --tile-padding:9px 11px;
+  --tile-height:44px;
+  --tile-padding:3px 11px;
   --tile-current:#252525;
   --tile-edge-width:2px;
   --tile-state-top:2px;
@@ -492,8 +491,8 @@
   --sysline-margin:14px 2px 10px;
 
   /* The decision options, as the mockup draws them (`.options` and `.opt`,
-     :228-238): a column of cards, each padded `9px 11px` (the same pair the tile
-     uses, --tile-padding, but named for its own component so neither moves the
+     :228-238): a column of cards, each padded `9px 11px` (a pair the tile once
+     shared, --tile-padding, but named for its own component so neither moves the
      other) on --panel with a 1px --line at --r, the column 8px under the words and
      4px over what follows, the key badge padded `1px 5px` and dropped 1px, and a
      hover border of #465264 on a --panel-2 ground. The gap between cards is
@@ -720,8 +719,8 @@
  * type size or motion changes with the theme, so a component that takes every
  * colour from a token is correct in both and names neither. The four colour
  * tokens the map leaves out (the two hover lines and the two shadows) take the
- * mockup's values. The surfaces mirror the dark ramp, so they step down from `bg` as they rise; the portraits
- * are not here, and are the same in both themes.
+ * mockup's values. The surfaces mirror the dark ramp, so they step down from `bg` as they rise; a disc takes its colours
+ * from the initials tokens, which have twins here.
  *
  * `color-scheme: light` is said to the user agent in this block, so form
  * controls, scrollbars and the caret agree with the palette.

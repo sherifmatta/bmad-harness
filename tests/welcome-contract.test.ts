@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
+import { CORE_AGENT_IDS } from '../src/renderer/ui/welcome/personas'
 import { allStylesheets, guardedStylesheets, literalsIn, mediaConditionsIn, withoutComments } from './literal-guard'
 
 /**
@@ -429,11 +430,23 @@ describe('the negative surface, in source', () => {
     expect(withoutComments(read(CSS))).not.toMatch(/badge|spinner|skeleton|shimmer|@keyframes/i)
   })
 
-  it('renders no portrait above 44px and none dimmed: portraits are called at 44 only', () => {
-    const calls = [...code(`${DIR}/lanes.tsx`).matchAll(/portrait\(artParamsFor\(persona\.id\), \d+, 'idle', persona\)/g)]
+  it('keys the five core personas by agent ids that `_bmad/config.toml` actually installs, so the chooser default cannot silently untick', () => {
+    // By id and never by display name: a name is a label the roster can change, an id is what the install is.
+    const config = read('_bmad/config.toml')
 
-    expect(calls).toHaveLength(1)
-    expect(calls[0][0]).toMatch(/portrait\(artParamsFor\(persona\.id\), 44, 'idle', persona\)/)
+    expect(CORE_AGENT_IDS).toHaveLength(5)
+    for (const agentId of CORE_AGENT_IDS) {
+      expect(config, agentId).toContain(`[agents.${agentId}]`)
+    }
+  })
+
+  it('draws one 26px initials disc per card and none dimmed, and no portrait', () => {
+    const lanes = code(`${DIR}/lanes.tsx`)
+    const discs = [...lanes.matchAll(/<Initials\b[^>]*>/g)]
+
+    expect(discs).toHaveLength(1)
+    expect(discs[0][0]).toBe('<Initials {...persona} size={26} />')
+    expect(lanes).not.toMatch(/portrait\(|artParamsFor/)
     expect(withoutComments(read(CSS))).not.toMatch(/opacity: var\(--opacity-(?:idle|hover)\)/)
   })
 

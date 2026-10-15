@@ -334,16 +334,6 @@ components:
     live-halo: '0 0 0 3px {colors.halo-live}'
     note: '{colors.note}'
     error: '{colors.red}'
-  # ── portrait: REMOVED 2026-10-15, kept until the portrait-removal story. No portrait is drawn anywhere in the product
-  #    (Team tiles, cast cards, Welcome and the thread are all initials discs). The tokens stay because the code and its pinned
-  #    tests (portrait.test, tokens.test) still carry them; no prose specifies them any more.
-  portrait:
-    viewBox: '0 0 100 100'
-    radius: '{rounded.full}'
-    sizes: '36 persona tile · 44 cast card · none in the chat thread or its header (initials, 26 and 22)'   # removed 2026-10-15
-    minLegibleSize: 32px
-    faceRatio: '0.76'
-    speakingRing: '0 0 0 2px {colors.accent}'
   initials:
     size: 20px           # small references: stacked faces, handoff chip
     sizeThread: 26px     # a persona's and your avatar in a chat turn, 1:1 and party
@@ -372,8 +362,9 @@ components:
     hoverBackground: '{colors.panel-2}'
     currentBackground: '{colors.tile-current}'
     currentEdge: '2px {colors.accent}'
-    discSize: '{components.initials.sizeThread}'   # 26px initials disc; replaces portraitSize (36px, removed 2026-10-15)
-    height: 44px                                   # was 56px
+    discSize: '{components.initials.sizeThread}'   # 26px initials disc
+    height: 44px                                   # was 56px; measured 44px in the running app, with 36.1px of text
+    padding: '3px 11px'                            # vertical padding is what the 44px row spends; the name and state lines take the tight leading (1.45)
   skill-seat:
     # One anatomy with persona-tile (Story 7.5): a 44px row, a 26px initials disc, no portrait. The disc is the skill variant of {components.initials}.
     height: '{components.persona-tile.height}'
@@ -548,7 +539,6 @@ components:
     speakingBackground: '{colors.cast-speaking-ground}'
     speakingShadow: '{colors.shadow-speaking}'
     discSize: '{components.initials.sizeThread}'   # 26px initials disc (2026-10-15)
-    portraitSize: 44px                             # removed 2026-10-15, kept until the portrait-removal story
   welcome:
     window: '{spacing.welcome-window}, opened by main, no project'
     ground: '{colors.bg}'
@@ -568,7 +558,6 @@ components:
     lane-columns: '1fr 2fr 1fr 1fr, gap 10px (planning holds two cards)'
     persona-card: '{colors.panel} ground, 1px {colors.line}, {rounded.card}, padding 12px 12px 11px, gap 8px'
     discSize: '{components.initials.sizeThread}'   # 26px initials disc (2026-10-15)
-    portraitSize: 44px                             # removed 2026-10-15, kept until the portrait-removal story
     opacity: '1 — these are not a room, so nothing is dimmed'
     theme-line: '{typography.meta} mono along the bottom edge, right-aligned: `theme · system · light · dark`; the current word {colors.text-strong}, the others {colors.accent}, hover underlines'
   follow-control:
@@ -852,7 +841,7 @@ Everything else in the product is dense on purpose: *whitespace here costs visib
 
 Gaps in use are `1.5 · 4 · 5 · 6 · 7 · 8 · 9 · 10 · 12 · 14`, with 8, 6 and 10 doing most of the work. Padding is genuinely not on a scale — the mockup uses 34 distinct padding combinations, tuned per component to a dense optical rhythm rather than derived from a step. Do not regularise them. The named paddings that matter are specified per component below; elsewhere, match the neighbouring component rather than reaching for a step.
 
-Vertical rhythm is tight everywhere. Rows are 5–7px of vertical padding, chips are 0–1px. The product is meant to be read at a glance across many simultaneous states, and whitespace here costs visible state.
+Vertical rhythm is tight everywhere. Rows are 5–7px of vertical padding (the Team tile's is 3px, since its two lines take the tight leading), chips are 0–1px. The product is meant to be read at a glance across many simultaneous states, and whitespace here costs visible state.
 
 ### Responsive
 
@@ -908,7 +897,7 @@ Anatomy and appearance only, per the ownership convention. Triggers, transitions
 
 ### Portrait (removed)
 
-*Removed 2026-10-15.* The illustrated portrait, its procedural generator, its sizes (36 on a tile, 44 on a cast card and a Welcome row), its 32px legibility floor and its art direction are removed from the product completely, by the user's decision. A person is an initials disc and a name on every surface (*Initials*), and a skill session is the same disc holding a `/`. Nothing replaces the portrait as an identity device (*Brand & Style*). This supersedes SPEC CAP-3 and CAP-10 and AD-16 in whole; the architecture amendment of AD-16, and the code and tests that still carry the portrait (`portrait.test`, `tokens.test`, the `portrait` and `portraitSize` tokens in the frontmatter, marked there), wait for the portrait-removal story. [`mockups/portrait.html`](mockups/portrait.html) is kept as history only.
+*Removed 2026-10-15.* The illustrated portrait, its procedural generator, its sizes (36 on a tile, 44 on a cast card and a Welcome row), its 32px legibility floor and its art direction are removed from the product completely, by the user's decision. A person is an initials disc and a name on every surface (*Initials*), and a skill session is the same disc holding a `/`. Nothing replaces the portrait as an identity device (*Brand & Style*). This supersedes SPEC CAP-3 and CAP-10 and AD-16 in whole. The code, the tokens (`--portrait` sizes, `--cast-portrait`, `--cast-ring`, `--lh-none`), the stylesheet and the pinned tests went with it in Story 7.7 (2026-10-15), together with the `portrait` and `portraitSize` keys of this frontmatter; the architecture amendment of AD-16 is `bmad-architecture`'s. [`mockups/portrait.html`](mockups/portrait.html) is kept as history only.
 
 ### Initials
 
@@ -938,6 +927,8 @@ The avatar of the chat, and the small-reference token.
 ### Persona tile
 
 44px row (it was 56px until 2026-10-15): a **26px initials disc** (`{components.persona-tile.discSize}`; the persona's letters by the `initialsOf` rule, one letter for a one-word name, as in the thread), then name at `name` (12.5px/600) with the title beside it at `ident` in `dim`, and a state line below at `label` with its dot. Default ground is transparent; hover is `panel-2` and reveals the menu hint; **current** is `[aria-current="true"]` → `tile-current` ground with a 2px `accent` left bar via `::before`. The menu hint expands `max-height: 0 → 60px` over `.16s`. An idle tile dims at `{opacity.idle}`. Nothing on a tile is drawn but the disc, the two lines and the dot.
+
+*Measured 2026-10-15 (Story 7.7).* The row is 44px because the tile is padded `3px 11px` and its two lines take the tight leading (`1.45`): the name line is 18.1px, the state line 15.9px and the 2px between them, so the text is 36.1px and `min-height: 44px` (border box, including the 1px rule below the row) is what holds the row at exactly 44px, with 0.9px to spare. At the default leading and the earlier `9px 11px` padding the same tile measured **62.4px** in the running app, and was never 56px: `min-height` is a floor that the content overrides, so the number was only ever true of a tile with a 36px face. The closed menu hint takes no room (its 5px gap opens with it), so a hovered or focused tile still grows to hold the codes and returns to 44px. Measured with the five core personas (Mary, John, Sally, Winston, Amelia), all five at 44px, in both themes.
 
 ### Skill seat
 

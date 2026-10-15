@@ -2,8 +2,7 @@ import { useCallback, useSyncExternalStore } from 'react'
 import type { JSX } from 'react'
 
 import type { ProseStore } from '../chat/prose-store'
-import { artParamsFor } from '../persona/art-params'
-import { portrait } from '../persona/portrait'
+import { Initials } from '../persona/initials'
 import { useNow } from '../outputs/use-now'
 import { formatElapsed } from '../status/format-elapsed'
 import { COUNTER_TICK_MS, StateLine } from '../status/status-dot'
@@ -11,7 +10,7 @@ import type { AgentRow, AgentRun } from './board-agents'
 
 /**
  * The Agents panel (Story 6.6): one row per installed persona, in roster order,
- * with the tile's portrait, name, title, dot and word. A persona on a run reads
+ * with the tile's disc, name, title, dot and word. A persona on a run reads
  * the run's menu code, the path of the document its card shows and the run's
  * elapsed, which ticks each second; one in a turn that is not a run reads
  * `in a turn`; any other state adds nothing beyond its word. A row is text,
@@ -25,7 +24,7 @@ export function AgentsPanel({ rows, prose }: { rows: readonly AgentRow[]; prose?
       <ul className="board-agent-rows">
         {rows.map(({ agent, state, run }) => (
           <li className={`board-agent board-agent--${state}`} key={agent.id}>
-            {portrait(artParamsFor(agent.id), 36, state, agent)}
+            <Initials {...agent} size={26} />
             <span className="board-agent-who">
               <span className="board-agent-ident">
                 <span className="board-agent-name">{agent.name}</span>

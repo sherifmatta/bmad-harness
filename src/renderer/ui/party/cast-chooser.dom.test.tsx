@@ -5,7 +5,7 @@ import type { Root } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import type { AgentView } from '../../../shared/install'
-import { CURATED_AGENT_IDS } from '../persona/art-params'
+import { CORE_AGENT_IDS } from '../welcome/personas'
 import '../testing/render-hook'
 import { CastChooser } from './cast-chooser'
 
@@ -32,7 +32,7 @@ const agent = (id: string, name: string, title = 'Role'): AgentView => ({
   icon: 'i',
   description: 'must not be shown'
 })
-const CORE = CURATED_AGENT_IDS.map((id, at) => agent(id, `Core ${at}`, `Title ${at}`))
+const CORE = CORE_AGENT_IDS.map((id, at) => agent(id, `Core ${at}`, `Title ${at}`))
 const EXTRA = [agent('bmad-agent-tech-writer', 'Paige', 'Technical Writer'), agent('custom-agent', 'Zed')]
 const ROSTER = [...CORE.slice(0, 2), EXTRA[0], ...CORE.slice(2), EXTRA[1]]
 
@@ -41,16 +41,17 @@ const open = (): HTMLButtonElement => container.querySelector('button.cast-choos
 const toggle = (box: HTMLInputElement): void => act(() => box.click())
 
 describe('CastChooser', () => {
-  it('lists every roster agent as a labelled native checkbox, with portrait, name and title', () => {
+  it('lists every roster agent as a labelled native checkbox, with a disc, name and title', () => {
     render(ROSTER, () => {})
 
     expect(boxes()).toHaveLength(ROSTER.length)
     const labels = [...container.querySelectorAll('label')]
     expect(labels).toHaveLength(ROSTER.length)
-    expect(labels[2].textContent).toBe('PaigeTechnical Writer')
+    expect(labels[2].textContent).toBe('PPaigeTechnical Writer')
     expect(labels[0].querySelector('input')).toBe(boxes()[0])
-    // The face is decoration to assistive technology: the label's own words name the checkbox.
-    expect(labels[0].querySelector('[aria-hidden="true"] svg')).not.toBeNull()
+    // The disc is decoration to assistive technology: the label's own words name the checkbox.
+    expect(labels[0].querySelector('[aria-hidden="true"] .initials.initials--thread')).not.toBeNull()
+    expect(labels[0].querySelector('svg, img')).toBeNull()
     expect(container.textContent).not.toContain('must not be shown')
   })
 

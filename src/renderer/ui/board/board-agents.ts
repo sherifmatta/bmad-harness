@@ -1,5 +1,5 @@
 import type { AgentView } from '../../../shared/install'
-import type { PersonaState } from '../persona/portrait'
+import type { PersonaState } from '../status/persona-state'
 import { pinnedRun } from '../chat/transcript'
 import type { TranscriptEntry } from '../chat/transcript-entry'
 import { stateOf } from '../status/persona-state'

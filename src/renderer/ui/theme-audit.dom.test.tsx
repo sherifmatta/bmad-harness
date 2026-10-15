@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { createElement } from 'react'
 import type { ReactElement } from 'react'
-import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import type { DocSnapshot } from '../../shared/document'
@@ -11,9 +10,6 @@ import { createProseStore } from './chat/prose-store'
 import type { RunCardEntry, TranscriptEntry } from './chat/transcript-entry'
 import { DocWindowView } from './doc/doc-app'
 import { PartyView } from './party/party-view'
-import { artParamsFor } from './persona/art-params'
-import { portrait } from './persona/portrait'
-import type { PortraitSize } from './persona/portrait'
 import { Shell } from './shell/shell'
 import { mount } from './testing/render-hook'
 import type { Mounted } from './testing/render-hook'
@@ -167,34 +163,5 @@ describe('what the theme changes in what is drawn', () => {
     expect(functional.styles.filter((style) => COLOUR_LITERAL.test(style))).toHaveLength(1)
     const tokened = under('dark', createElement('div', { style: { background: 'var(--panel)' } }, 'x'))
     expect(tokened.styles.filter((style) => COLOUR_LITERAL.test(style))).toEqual([])
-  })
-})
-
-describe('the portraits', () => {
-  const SIZES: PortraitSize[] = [36, 44]
-  const IDS = ['bmad-agent-analyst', 'bmad-agent-pm', 'bmad-agent-ux-designer', 'bmad-agent-architect', 'bmad-agent-dev']
-
-  it('are byte-identical under both themes at each of their two sizes: the face is on its own dark backdrop in either', () => {
-    for (const id of IDS) {
-      for (const size of SIZES) {
-        const markupUnder = (theme: Theme): string => {
-          document.documentElement.setAttribute('data-theme', theme)
-          return renderToStaticMarkup(portrait(artParamsFor(id), size, 'idle', { name: 'Mary', title: 'Analyst' }))
-        }
-
-        const dark = markupUnder('dark')
-        const light = markupUnder('light')
-
-        expect(light, `${id} at ${size}`).toBe(dark)
-        expect(dark).toContain(`width="${size}"`)
-      }
-    }
-  })
-
-  it('take no theme: the parameters hold no theme field and the component reads no document', () => {
-    const params = artParamsFor('bmad-agent-analyst')
-
-    expect(Object.keys(params).filter((key) => /theme|scheme|dark|light/i.test(key))).toEqual([])
-    expect(portrait.length).toBe(4)
   })
 })

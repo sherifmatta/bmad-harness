@@ -8,7 +8,7 @@ import type { DocSnapshot } from '../../../shared/document'
 import type { RailRow, RailSnapshot } from '../../../shared/rail'
 import { DocWindowView } from '../doc/doc-app'
 import { Outputs } from '../outputs/outputs'
-import type { PersonaState } from '../persona/portrait'
+import type { PersonaState } from '../status/persona-state'
 import { PERSONA_STATES, STATE_TEXT } from '../status/persona-state'
 import { Shell } from './shell'
 
@@ -247,12 +247,14 @@ describe('the Board’s Agents panel', () => {
 
     expect(html.match(/<li class="board-agent /g)).toHaveLength(ROSTER.length)
     expect(html).not.toMatch(/<button|<input|<a |tabindex|onclick|aria-busy|title=/i)
-    // The only role or aria attribute is the portrait svg's own label, as on the tile, and the dot's aria-hidden.
-    expect(html.replace(/<svg [^>]*>/g, '')).not.toMatch(/role=|aria-(?!hidden)/i)
+    // The only aria attribute is aria-hidden: the disc's and the dot's. Nothing here has a role or a label.
+    expect(html).not.toMatch(/role=|aria-(?!hidden)/i)
+    // The Board draws no image at all.
+    expect(html).not.toMatch(/<svg|<img/i)
   })
 
   it('draws no count, cost, token, tool-call figure or last-run age', () => {
-    const text = panel(markup).replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<[^>]*>/g, ' ')
+    const text = panel(markup).replace(/<[^>]*>/g, ' ')
 
     expect(text).not.toMatch(/spend|budget|\bcost|token|tool[- ]call|\bago\b|\blast run\b|\d+ (?:runs?|turns?)/i)
   })

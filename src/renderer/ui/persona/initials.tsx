@@ -3,31 +3,32 @@ import type { JSX } from 'react'
 import './initials.css'
 
 /**
- * The initials token — FR82, UX-DR15, DESIGN.md's *Initials* and EXPERIENCE.md's
- * *The initials token — focus parity*.
+ * The initials token — FR82, FR136, UX-DR15, UX-DR55, DESIGN.md's *Initials* and
+ * EXPERIENCE.md's *The initials token — focus parity*.
  *
- * Two jobs, split by size.
+ * It is the one way the product draws a person: no portrait, illustration or
+ * other identity device exists, and nothing replaces them (Story 7.7). Two jobs,
+ * split by size.
  *
- * The 20px form is the small reference. At 20px a generated face degrades to a
- * colour blob with a hair silhouette, and the derivation has no collision check
- * to save it, so stacked faces and the handoff chip take a disc of letters
- * instead. That disc stands alone, so it is focusable (`tabindex`), labelled
- * `{name}, {title}`, and reveals name and role on hover and on keyboard focus
- * through one selector list, which makes the parity structural rather than a
- * thing two rules have to agree about. A hover-only tooltip is the one
- * affordance that fails completely without a mouse.
+ * The 20px form is the small reference: stacked faces and the handoff chip. That
+ * disc stands alone, so it is focusable (`tabindex`), labelled `{name}, {title}`,
+ * and reveals name and role on hover and on keyboard focus through one selector
+ * list, which makes the parity structural rather than a thing two rules have to
+ * agree about. A hover-only tooltip is the one affordance that fails completely
+ * without a mouse.
  *
- * The 26px and 22px forms are the chat's avatar (2026-10-09): a persona's and
- * the user's own beside a turn and in the chat header, where the thread carries
- * no portraits. The name is beside them, so they are decorative: `aria-hidden`,
- * no tab stop, no label, no reveal.
+ * The 26px and 22px forms stand beside a name, on a Team tile, a cast card, a
+ * Welcome row, the cast chooser, an Agents-panel row, the thread's introduction,
+ * a chat turn and (22px only) the chat header: a persona's and the user's own.
+ * The name is beside them, so they are decorative: `aria-hidden`, no tab stop,
+ * no label, no reveal.
  */
 
 /**
  * The three sizes DESIGN.md fixes: the small reference (20), the chat header's
- * disc (22) and the avatar beside a chat turn (26). The 22 and 26 discs are the
- * chat's own avatar, a persona's and yours alike, and stand beside the name, so
- * they are decorative: `aria-hidden`, no tab stop and no reveal.
+ * disc (22) and the disc beside a name everywhere else (26). The 22 and 26 discs
+ * are a persona's and yours alike and stand beside the name, so they are
+ * decorative: `aria-hidden`, no tab stop and no reveal.
  */
 export type InitialsSize = 20 | 22 | 26
 
@@ -36,8 +37,7 @@ export type InitialsSize = 20 | 22 | 26
  *
  * Two, never three. A third letter does not fit the disc at either size, and
  * the rule has to be stated rather than assumed because a roster read from a
- * project's own install can hold any number of words — `portrait.html:344`
- * slices for the same reason.
+ * project's own install can hold any number of words.
  *
  * A one-word name yields one letter, which is correct rather than a gap to
  * fill: the label carries the full name, and inventing a second glyph from a
@@ -56,9 +56,8 @@ export function initialsOf(name: string): string {
 /**
  * One disc.
  *
- * `role="img"` with an `aria-label` of `{name}, {title}` is the same treatment
- * every portrait `<svg>` carries, and it is what makes the glyphs an image of
- * a person rather than two letters read aloud. The reveal's text is inside the
+ * At 20px, `role="img"` with an `aria-label` of `{name}, {title}` is what makes
+ * the glyphs an image of a person rather than two letters read aloud. The reveal's text is inside the
  * labelled element on purpose: with `role="img"` the children are not exposed,
  * so the name and role are announced once, from the label, rather than twice.
  *

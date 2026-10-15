@@ -1,8 +1,8 @@
 /*
  * The cast strip (Story 4.2): DESIGN.md's `cast-card`, from harness-mockup.html's `.cast`,
  * `.castcard` and `.eq` rules. A horizontally scrolling strip of cards that stay for the room's
- * whole life: presence is opacity, never removal. The speaker is lit by border, ground, glow, a
- * ring on the portrait, an accent status and the equaliser. The single global reduced-motion
+ * whole life: presence is opacity, never removal. The speaker is lit by border, ground, glow, an
+ * accent status and the equaliser. The single global reduced-motion
  * block in design/tokens.css switches the transitions and the equaliser off; there is none here.
  * Every value reaches the design system through `var()`.
  */
@@ -46,16 +46,9 @@
   box-shadow: var(--shadow-speaking);
 }
 
-.cast-portrait {
+.cast-face {
   flex: 0 0 auto;
-  display: block;
-  width: var(--cast-portrait);
-  height: var(--cast-portrait);
-  border-radius: var(--radius-full);
-}
-
-.cast-card--speaking .cast-portrait {
-  box-shadow: 0 0 0 var(--cast-ring) var(--accent);
+  display: flex;
 }
 
 .cast-info {

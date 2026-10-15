@@ -39,6 +39,9 @@
   border-bottom: var(--rule-width) solid var(--line-soft);
   background: transparent;
   font-family: var(--sans);
+  /* The tight leading is what lets two lines and a 26px disc sit in a 44px row:
+     at the default leading the name line and the state line alone are 38px tall. */
+  line-height: var(--lh-tight);
   text-align: left;
   color: var(--text);
   cursor: pointer;
@@ -60,10 +63,6 @@
   left: 0;
   width: var(--tile-edge-width);
   background: var(--accent);
-}
-
-.persona-tile .portrait {
-  flex: 0 0 auto;
 }
 
 .tile-who {
@@ -111,15 +110,16 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-xxs);
-  margin-top: var(--space-xs);
   max-height: 0;
   opacity: 0;
   overflow: hidden;
-  transition: max-height var(--motion-reveal), opacity var(--motion-reveal);
+  transition: max-height var(--motion-reveal), opacity var(--motion-reveal), margin-top var(--motion-reveal);
 }
 
 .persona-tile:hover .menu-hint,
 .persona-tile:focus-visible .menu-hint {
+  /* The gap above the codes opens with them, so a closed hint takes no room in the row. */
+  margin-top: var(--space-xs);
   max-height: var(--tile-hint-max);
   opacity: 1;
 }

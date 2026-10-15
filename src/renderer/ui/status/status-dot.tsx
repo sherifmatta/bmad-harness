@@ -2,7 +2,7 @@ import type { JSX } from 'react'
 
 import './status-dot.css'
 import { useNow } from '../outputs/use-now'
-import type { PersonaState } from '../persona/portrait'
+import type { PersonaState } from './persona-state'
 import { formatElapsed } from './format-elapsed'
 import { STATE_TEXT } from './persona-state'
 

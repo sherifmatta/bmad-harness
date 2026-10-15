@@ -10,8 +10,8 @@
  * which is the focus fill that paragraph forbids. `outline` + `outline-offset`
  * does both natively and follows `border-radius` in Chromium 152, which is
  * what lets one rule serve a radius ladder from 0 to 50%. It also keeps focus
- * off `box-shadow`, which already carries two non-focus jobs: the speaking
- * cast card's portrait ring and the stacked-initials cut-out.
+ * off `box-shadow`, which already carries non-focus jobs, such as the speaking
+ * cast card's glow and the stacked-initials cut-out.
  *
  * `:focus-visible` only, and global: a mouse press never draws the ring, and
  * no surface can forget to opt in or be tempted to restate it. Hover and focus

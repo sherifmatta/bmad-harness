@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { AgentView } from '../../../shared/install'
 import type { RunCardEntry } from '../chat/transcript-entry'
-import type { PersonaState } from '../persona/portrait'
+import type { PersonaState } from '../status/persona-state'
 import { agentRowsOf } from './board-agents'
 
 const agent = (id: string): AgentView => ({ id, module: 'bmm', name: id, title: 'Role', icon: 'i', description: 'd' })

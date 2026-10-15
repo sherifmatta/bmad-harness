@@ -40,8 +40,7 @@ describe('CastStrip', () => {
   })
 
   it('does not announce: no live region, no role', () => {
-    // The portrait's own svg is the portrait's (it is hidden here by its wrapper); the strip adds none.
-    const markup = render([mary.id], mary.id).replace(/<svg[^]*?<\/svg>/g, '')
+    const markup = render([mary.id], mary.id)
 
     expect(markup).not.toMatch(/aria-l[i]ve|role=/)
   })

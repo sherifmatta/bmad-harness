@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import type { JSX, KeyboardEvent } from 'react'
 
 import type { AgentView, MenuEntryView } from '../../../shared/install'
-import type { PersonaState } from '../persona/portrait'
+import type { PersonaState } from '../status/persona-state'
 import { stateOf } from '../status/persona-state'
 import { PersonaTile } from './persona-tile'
 import { displayOrder, groupAgents, showsHeadings } from './tile-groups'

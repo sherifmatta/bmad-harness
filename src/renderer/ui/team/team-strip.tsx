@@ -1,7 +1,7 @@
 import type { JSX } from 'react'
 
 import type { AgentView } from '../../../shared/install'
-import type { PersonaState } from '../persona/portrait'
+import type { PersonaState } from '../status/persona-state'
 import { STATE_TEXT, stateOf } from '../status/persona-state'
 import './team.css'
 

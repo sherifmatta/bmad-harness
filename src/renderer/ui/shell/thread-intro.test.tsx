@@ -21,11 +21,12 @@ const ITEMS: MenuEntryView[] = [
 describe('ThreadIntro', () => {
   const markup = renderToStaticMarkup(<ThreadIntro agent={MARY} items={ITEMS} />)
 
-  it('introduces the persona: face, name, title and what the roster says they do', () => {
+  it('introduces the persona: disc, name, title and what the roster says they do', () => {
     expect(markup).toContain('<h3 class="thread-intro-name">Mary</h3>')
     expect(markup).toContain('<p class="thread-intro-title">Business Analyst</p>')
     expect(markup).toContain('<p class="thread-intro-about">Channels Porter and Minto.</p>')
-    expect(markup).toContain('<svg')
+    expect(markup).toContain('<span class="initials initials--thread" aria-hidden="true">M</span>')
+    expect(markup).not.toMatch(/<svg|<img/)
   })
 
   it('lists the menu as codes and descriptions, read-only', () => {

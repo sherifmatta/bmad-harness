@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 
 import type { AgentView } from '../../../shared/install'
-import type { PersonaState } from '../persona/portrait'
+import type { PersonaState } from '../status/persona-state'
 import { PersonaTile } from './persona-tile'
 
 const AGENT: AgentView = {
@@ -37,12 +37,13 @@ const render = (overrides: Partial<Props> = {}): string =>
 const count = (text: string, pattern: RegExp): number => (text.match(pattern) ?? []).length
 
 describe('PersonaTile', () => {
-  it('is one native button holding a 36px labelled portrait, name, title, dot and state text', () => {
+  it('is one native button holding a 26px aria-hidden initials disc, name, title, dot and state text', () => {
     const markup = render()
 
     expect(markup.startsWith('<button type="button" class="persona-tile focus-inset"')).toBe(true)
     expect(count(markup, /<button/g)).toBe(1)
-    expect(markup).toMatch(/<svg[^>]*width="36"[^>]*height="36"[^>]*aria-label="Mary, Business Analyst"/)
+    expect(markup).toContain('<span class="initials initials--thread" aria-hidden="true">M</span>')
+    expect(markup).not.toMatch(/<svg|<img/)
     expect(markup).toContain('<span class="tile-name">Mary</span>')
     expect(markup).toContain('<span class="tile-title">Business Analyst</span>')
     expect(markup).toContain('status-dot--idle')

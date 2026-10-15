@@ -2,8 +2,7 @@ import type { JSX } from 'react'
 
 import './cast-strip.css'
 import type { AgentView } from '../../../shared/install'
-import { artParamsFor } from '../persona/art-params'
-import { portrait } from '../persona/portrait'
+import { Initials } from '../persona/initials'
 
 /** A persona the roster no longer names is still in the room, under its id. */
 function unnamed(id: string): AgentView {
@@ -37,8 +36,8 @@ export function CastStrip({
         const speaking = id === speaker
         return (
           <div key={id} className={speaking ? 'cast-card cast-card--speaking' : 'cast-card'}>
-            <span className="cast-portrait" aria-hidden="true">
-              {portrait(artParamsFor(id), 44, 'idle', agent)}
+            <span className="cast-face" aria-hidden="true">
+              <Initials {...agent} size={26} />
             </span>
             <span className="cast-info">
               <span className="cast-name">{agent.name}</span>

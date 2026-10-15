@@ -2,8 +2,7 @@ import type { JSX } from 'react'
 
 import './thread-intro.css'
 import type { AgentView, MenuEntryView } from '../../../shared/install'
-import { artParamsFor } from '../persona/art-params'
-import { portrait } from '../persona/portrait'
+import { Initials } from '../persona/initials'
 
 /**
  * What a thread holds before the first message: who the current persona is, what
@@ -18,7 +17,7 @@ import { portrait } from '../persona/portrait'
 export function ThreadIntro({ agent, items }: { agent: AgentView; items: readonly MenuEntryView[] }): JSX.Element {
   return (
     <section className="thread-intro" aria-label={`About ${agent.name}`}>
-      {portrait(artParamsFor(agent.id), 44, 'idle', agent)}
+      <Initials {...agent} size={26} />
       <h3 className="thread-intro-name">{agent.name}</h3>
       <p className="thread-intro-title">{agent.title}</p>
       {agent.description !== '' && <p className="thread-intro-about">{agent.description}</p>}

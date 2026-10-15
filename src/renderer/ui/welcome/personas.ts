@@ -6,8 +6,8 @@
  * agent's role and shortened (DESIGN.md → Welcome). They are said, not stated,
  * so they are the one prose on the page: no first person, no quotation, no
  * suggestion of where to start. They are not read from any project and are
- * attributed to no persona. `id` is the agent id the app already draws a
- * curated face for, so the portrait is the same as everywhere else.
+ * attributed to no persona. `id` is the agent id the install gives the persona,
+ * so the disc and the name are the same as everywhere else.
  */
 
 /** The method's phases, in order. Each is a lane. */
@@ -65,6 +65,9 @@ export const PERSONAS: readonly WelcomePersona[] = [
       'Implements approved stories test-first and ships code that has been run and verified.'
   }
 ]
+
+/** The agent ids of the five core personas, in the order of the method: the cast the chooser ticks by default. */
+export const CORE_AGENT_IDS: readonly string[] = PERSONAS.map(({ id }) => id)
 
 /** The personas of one lane, in the table's order. */
 export function personasIn(lane: Lane): WelcomePersona[] {

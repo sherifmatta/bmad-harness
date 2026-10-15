@@ -509,10 +509,6 @@
   opacity: var(--opacity-idle);
 }
 
-.board-agent .portrait {
-  flex: 0 0 auto;
-}
-
 .board-agent-who {
   display: block;
   flex: 1 1 auto;

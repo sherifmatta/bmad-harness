@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 
 import type { AgentView, InstallSnapshot } from '../../../shared/install'
-import type { PersonaState } from '../persona/portrait'
+import type { PersonaState } from '../status/persona-state'
 import { Shell } from '../shell/shell'
 import { stripCounts, TeamStrip } from './team-strip'
 

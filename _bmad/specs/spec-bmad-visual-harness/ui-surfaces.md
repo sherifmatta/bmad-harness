@@ -118,6 +118,8 @@ against the childish risk.
 
 ## Portraits
 
+> **Removed 2026-10-15.** The owner removed illustrated portraits from the whole product (FR136, UX-DR55); Story 7.7 removed the code. Everything below describes what was built and is kept as history. Every person is now a neutral initials disc (26px on a tile, a cast card, a Welcome row, the cast chooser, an Agents-panel row, the thread introduction and a chat turn; 22px in the chat header; 20px for small references) beside a name, and the Team tile is a 44px row. The `icon` field is still never drawn. See `DESIGN.md` → *Portrait (removed)* and *Initials*.
+
 Procedural inline SVG, parameterized per persona — skin and shade, hair colour with a style
 (`short`, `long`, `curly`, `bun`, `receding`) and fringe, optional beard, glasses, earrings,
 shirt and collar colour, background. Rendered at the closed size set 32 (transcript), 36 (persona

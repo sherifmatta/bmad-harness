@@ -3,8 +3,8 @@ import type { FormEvent, JSX } from 'react'
 
 import './cast-chooser.css'
 import type { AgentView } from '../../../shared/install'
-import { CURATED_AGENT_IDS, artParamsFor } from '../persona/art-params'
-import { portrait } from '../persona/portrait'
+import { Initials } from '../persona/initials'
+import { CORE_AGENT_IDS } from '../welcome/personas'
 
 /**
  * The cast chooser (Story 4.1, FR64): every agent of the roster as a labelled native
@@ -14,8 +14,8 @@ import { portrait } from '../persona/portrait'
  * What the user changed is held as overrides of the defaults, never as a copy of the
  * roster, so a roster that changes under the chooser lands in one frame: an agent the
  * user never touched is ticked while it is one of the five. The cast sent is the
- * ticked agents in roster order. Name, title and portrait are the roster's; the whole
- * label names the checkbox, so the face is hidden from assistive technology.
+ * ticked agents in roster order. Name, title and the initials disc are the roster's; the whole
+ * label names the checkbox, so the disc is hidden from assistive technology.
  */
 export function CastChooser({
   agents,
@@ -26,7 +26,7 @@ export function CastChooser({
   onOpen: (cast: readonly string[]) => void
 }): JSX.Element {
   const [overrides, setOverrides] = useState<ReadonlyMap<string, boolean>>(new Map())
-  const ticked = (id: string): boolean => overrides.get(id) ?? CURATED_AGENT_IDS.includes(id)
+  const ticked = (id: string): boolean => overrides.get(id) ?? CORE_AGENT_IDS.includes(id)
   const cast = agents.filter((agent) => ticked(agent.id)).map((agent) => agent.id)
 
   function submit(event: FormEvent<HTMLFormElement>): void {
@@ -53,7 +53,7 @@ export function CastChooser({
                   }
                 />
                 <span className="cast-chooser-face" aria-hidden="true">
-                  {portrait(artParamsFor(agent.id), 36, 'idle', agent)}
+                  <Initials {...agent} size={26} />
                 </span>
                 <span className="cast-chooser-who">
                   <span className="cast-chooser-name">{agent.name}</span>

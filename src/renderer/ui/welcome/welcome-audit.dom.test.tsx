@@ -434,7 +434,8 @@ describe('the negative surface, on what is drawn', () => {
       'implementation'
     ])
     expect(all(container, '.welcome-card')).toHaveLength(5)
-    expect(all(container, '.welcome-card svg').map((svg) => svg.getAttribute('width'))).toEqual(['44', '44', '44', '44', '44'])
+    expect(all(container, '.welcome-card .initials.initials--thread').map((disc) => disc.textContent)).toEqual(['M', 'J', 'S', 'W', 'A'])
+    expect(all(container, '.welcome-card svg, .welcome-card img')).toHaveLength(0)
     for (const element of all(container, '.welcome-card, .welcome-card *')) {
       expect(element.hasAttribute('aria-current')).toBe(false)
       expect(element.hasAttribute('aria-selected')).toBe(false)

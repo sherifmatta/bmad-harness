@@ -84,7 +84,7 @@ describe('the new stylesheets', () => {
     expect(css.get(HEAD_CSS)).not.toMatch(/transition/)
     expect(css.get(TEAM_CSS)?.match(/transition/g)).toHaveLength(1)
     expect(ruleBody(TEAM_CSS, ['.menu-hint'])).toContain(
-      'transition: max-height var(--motion-reveal), opacity var(--motion-reveal)'
+      'transition: max-height var(--motion-reveal), opacity var(--motion-reveal), margin-top var(--motion-reveal)'
     )
 
     expect(css.get(TEAM_CSS)).not.toMatch(/animation/)
@@ -132,12 +132,18 @@ describe('the status dot rules', () => {
 })
 
 describe('the persona tile rules', () => {
-  it('is 56px tall at least, transparent, and native-button reset', () => {
+  it('is 44px tall at least, transparent, and native-button reset', () => {
     const body = ruleBody(TEAM_CSS, ['.persona-tile']) ?? ''
 
     expect(body).toContain('min-height: var(--tile-height)')
     expect(body).toContain('background: transparent')
     expect(body).toContain('padding: var(--tile-padding)')
+    // What holds the row to 44px: the two lines at the tight leading, and a closed hint that takes no room.
+    expect(body).toContain('line-height: var(--lh-tight)')
+    expect(ruleBody(TEAM_CSS, ['.menu-hint']) ?? '').not.toMatch(/margin-top\s*:/)
+    expect(
+      ruleBody(TEAM_CSS, ['.persona-tile:hover .menu-hint', '.persona-tile:focus-visible .menu-hint']) ?? ''
+    ).toContain('margin-top: var(--space-xs)')
   })
 
   it('takes --panel-2 on hover and --tile-current with an accent bar when current, hover first', () => {
@@ -406,8 +412,9 @@ describe('the new sources stay within scope', () => {
     }
   })
 
-  it('keeps every tile portraited and keyed by agent id, and the chat header a disc with no portrait', () => {
-    expect(code('src/renderer/ui/team/persona-tile.tsx')).toContain('artParamsFor(agent.id)')
+  it('draws every tile as a 26px initials disc keyed by agent id, and the chat header a disc with no portrait', () => {
+    expect(code('src/renderer/ui/team/persona-tile.tsx')).toContain('<Initials {...agent} size={26} />')
+    expect(code('src/renderer/ui/team/persona-tile.tsx')).not.toMatch(/artParamsFor|portrait\(/)
     expect(code('src/renderer/ui/chat/chat-header.tsx')).not.toMatch(/artParamsFor|portrait\(/)
     expect(code('src/renderer/ui/chat/chat-header.tsx')).toContain('size={22}')
     expect(code('src/renderer/ui/team/team.tsx')).toContain('key={agent.id}')

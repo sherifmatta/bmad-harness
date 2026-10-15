@@ -3,7 +3,7 @@ import { isValidElement } from 'react'
 import type { KeyboardEvent, ReactElement, ReactNode } from 'react'
 
 import type { AgentView, InstallSnapshot } from '../../../shared/install'
-import type { PersonaState } from '../persona/portrait'
+import type { PersonaState } from '../status/persona-state'
 import { ChatHeader } from '../chat/chat-header'
 import { Shell } from '../shell/shell'
 import { PersonaTile } from './persona-tile'

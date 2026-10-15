@@ -2,10 +2,9 @@ import type { JSX, KeyboardEvent } from 'react'
 
 import './team.css'
 import type { AgentView } from '../../../shared/install'
-import { artParamsFor } from '../persona/art-params'
-import { portrait } from '../persona/portrait'
-import type { PersonaState } from '../persona/portrait'
+import { Initials } from '../persona/initials'
 import { STATE_TEXT } from '../status/persona-state'
+import type { PersonaState } from '../status/persona-state'
 import { StateLine } from '../status/status-dot'
 
 /** How many menu codes the hint shows before the rest collapse into `+N`. */
@@ -17,7 +16,7 @@ const HINT_CODES = 6
  * A native button, so `Enter` and `Space` are the browser's own click and no
  * key handler here needs to name them. `name` and `title` come from the
  * resolved agent, never a table of this harness's. The `aria-label` is the
- * whole announcement — name, title, state — so the portrait, the text and the
+ * whole announcement — name, title, state — so the disc, the text and the
  * dot are read once rather than three times.
  *
  * The hint carries menu *codes* only (AD-3): skill names and descriptions go
@@ -59,7 +58,7 @@ export function PersonaTile({
       onClick={() => onSelect(agent.id)}
       onKeyDown={onKeyDown}
     >
-      {portrait(artParamsFor(agent.id), 36, state, agent)}
+      <Initials {...agent} size={26} />
       <span className="tile-who">
         <span className="tile-ident">
           <span className="tile-name">{agent.name}</span>

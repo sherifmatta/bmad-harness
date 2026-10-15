@@ -1,5 +1,5 @@
 import type { AgentView } from '../../../shared/install'
-import type { PersonaState } from '../persona/portrait'
+import type { PersonaState } from '../status/persona-state'
 import type { RunCardEntry, TranscriptEntry } from '../chat/transcript-entry'
 
 /** How many rows the feed draws. Nothing says more exist. */

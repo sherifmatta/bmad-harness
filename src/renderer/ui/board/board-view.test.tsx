@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { BoardEpic, BoardSnapshot, BoardStory } from '../../../shared/board'
 import type { AgentView } from '../../../shared/install'
-import type { PersonaState } from '../persona/portrait'
+import type { PersonaState } from '../status/persona-state'
 import { createProseStore } from '../chat/prose-store'
 import type { ProseStore } from '../chat/prose-store'
 import type { RunCardEntry } from '../chat/transcript-entry'

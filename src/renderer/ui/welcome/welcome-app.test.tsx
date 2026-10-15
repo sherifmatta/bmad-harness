@@ -148,7 +148,7 @@ describe('the team', () => {
     expect(lanes).toEqual(['analysis', 'planning', 'solutioning', 'implementation'])
   })
 
-  it('names each persona with portrait, name, title and the table’s sentence', () => {
+  it('names each persona with a disc, name, title and the table’s sentence', () => {
     for (const [name, title] of [
       ['Mary', 'Business Analyst'],
       ['John', 'Product Manager'],
@@ -157,15 +157,14 @@ describe('the team', () => {
       ['Amelia', 'Senior Software Engineer']
     ]) {
       expect(markup).toContain(`<div class="welcome-card-name">${name}</div><div class="welcome-card-title">${title}</div>`)
-      expect(markup).toContain(`aria-label="${name}, ${title}"`)
     }
   })
 
-  it('draws every portrait at 44 and none at any other size', () => {
-    const sizes = [...markup.matchAll(/<svg class="portrait-face" width="(\d+)" height="(\d+)"/g)]
+  it('draws one 26px initials disc in each card, with no image', () => {
+    const discs = [...markup.matchAll(/<span class="initials initials--thread" aria-hidden="true">([A-Z]+)<\/span>/g)]
 
-    expect(sizes).toHaveLength(5)
-    expect(sizes.every(([, width, height]) => width === '44' && height === '44')).toBe(true)
+    expect(discs.map(([, letters]) => letters)).toEqual(['M', 'J', 'S', 'W', 'A'])
+    expect(markup.slice(markup.indexOf('welcome-lanes'))).not.toMatch(/<svg|<img/)
   })
 
   it('carries the meta line, and no card is focusable, interactive or highlighted', () => {

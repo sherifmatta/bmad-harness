@@ -1,7 +1,6 @@
 import type { JSX } from 'react'
 
-import { artParamsFor } from '../persona/art-params'
-import { portrait } from '../persona/portrait'
+import { Initials } from '../persona/initials'
 import { LANES, TEAM_META, personasIn } from './personas'
 
 /**
@@ -11,7 +10,7 @@ import { LANES, TEAM_META, personasIn } from './personas'
  * is current, highlighted, ordered by relevance or recommended.
  *
  * A card is content, not a control: no tab stop, no hover state, no handler. Its
- * portrait is the face the app already draws for that persona, at 44px and full
+ * disc is the initials the app already draws for that persona, at 26px and full
  * opacity, since nobody is in a room here.
  */
 export function Lanes(): JSX.Element {
@@ -36,7 +35,7 @@ export function Lanes(): JSX.Element {
               {personasIn(lane).map((persona) => (
                 <li key={persona.id} className="welcome-card">
                   <div className="welcome-card-who">
-                    {portrait(artParamsFor(persona.id), 44, 'idle', persona)}
+                    <Initials {...persona} size={26} />
                     <div>
                       <div className="welcome-card-name">{persona.name}</div>
                       <div className="welcome-card-title">{persona.title}</div>

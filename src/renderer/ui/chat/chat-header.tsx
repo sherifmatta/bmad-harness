@@ -3,7 +3,7 @@ import type { JSX } from 'react'
 import './chat-header.css'
 import type { AgentView } from '../../../shared/install'
 import { Initials } from '../persona/initials'
-import type { PersonaState } from '../persona/portrait'
+import type { PersonaState } from '../status/persona-state'
 import { StateLine } from '../status/status-dot'
 
 /**

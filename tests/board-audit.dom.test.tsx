@@ -9,7 +9,7 @@ import { BoardView } from '../src/renderer/ui/board/board-view'
 import { createProseStore } from '../src/renderer/ui/chat/prose-store'
 import type { ProseStore } from '../src/renderer/ui/chat/prose-store'
 import type { RunCardEntry, TranscriptEntry } from '../src/renderer/ui/chat/transcript-entry'
-import type { PersonaState } from '../src/renderer/ui/persona/portrait'
+import type { PersonaState } from '../src/renderer/ui/status/persona-state'
 import { Shell } from '../src/renderer/ui/shell/shell'
 import { VIEWS } from '../src/renderer/ui/shell/view'
 import { PERSONA_STATES } from '../src/renderer/ui/status/persona-state'
@@ -255,9 +255,9 @@ describe.each(CASES)('Epic 6 promised nothing it did not keep: $name', (props) =
       expect(fill.tagName).toBe('SPAN')
       expect(fill.children).toHaveLength(0)
     }
-    // Nothing but the fill carries a style; a portrait is the only drawing.
+    // Nothing but the fill carries a style, and the Board draws no image at all.
     expect(all('[style]').every((node) => node.classList.contains('board-epic-fill'))).toBe(true)
-    expect(all('svg').every((node) => node.closest('.board-agent') !== null)).toBe(true)
+    expect(all('svg, img')).toHaveLength(0)
     // Words of absence: the Board says `no stories` and, with no file, `no sprint status`, and nothing else of the kind.
     const absent = all('*')
       .filter((node) => node.children.length === 0 && /^no\b|\bnothing\b|\bempty\b|\bnone\b|\byet\b/i.test(text(node)))
@@ -318,7 +318,7 @@ describe('the Board, read from the real fold, holds to its two figures, its colu
     expect(text(container)).not.toMatch(/the first story|the second story|retrospective/i)
     for (const card of all('.board-card')) {
       expect([...card.children].map((child) => child.className)).toEqual(['board-card-number', 'board-card-title'])
-      expect(card.querySelector('.initials, .portrait, svg, [class*=owner], [class*=assign]')).toBeNull()
+      expect(card.querySelector('.initials, svg, img, [class*=owner], [class*=assign]')).toBeNull()
       expect(card.hasAttribute('tabindex')).toBe(false)
     }
   })

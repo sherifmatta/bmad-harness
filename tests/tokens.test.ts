@@ -111,6 +111,16 @@ function resolveRefs(value: string): string {
 }
 
 /**
+ * The size a component's `discSize` points at, resolved to the pixels the initials token states:
+ * every surface that draws a person draws the one 26px disc (Story 7.7), so each says so by naming
+ * `{components.initials.sizeThread}` and none carries a size of its own.
+ */
+function discSize(block: Record<string, string>): string {
+  expect(block['discSize']).toBe('{components.initials.sizeThread}')
+  return componentBlock('initials')['sizeThread']
+}
+
+/**
  * A nested `components:` sub-map out of DESIGN.md's frontmatter, read at run
  * time like everything else here. `designValue()` above reads the flat,
  * two-space maps; a component block is one level deeper, so its own keys sit at
@@ -308,11 +318,11 @@ describe('the type scale', () => {
     expect(tokensCss).not.toMatch(/@import|@font-face|fonts\.googleapis/)
   })
 
-  it('is four line-heights: 1.55 / 1.72 / 1.45 / 0', () => {
+  it('is three line-heights: 1.55 / 1.72 / 1.45 (the zero one was the portrait wrapper\'s, removed in Story 7.7)', () => {
     const lineHeights = namesMatching('--lh-').map((name) => tokens.get(name))
 
-    expect(lineHeights).toHaveLength(4)
-    expect(lineHeights.sort()).toEqual(['0', '1.45', '1.55', '1.72'])
+    expect(lineHeights).toHaveLength(3)
+    expect(lineHeights.sort()).toEqual(['1.45', '1.55', '1.72'])
     // Story 1.5 spells document prose var(--fs-body-ui) with var(--lh-read):
     // one size, two registers separated by line-height alone.
     expect(tokens.get('--fs-body-ui')).toBe('11.5px')
@@ -494,9 +504,10 @@ describe('the layout constants', () => {
 
   it('carries no component dimension', () => {
     // Story 1.10 built the status dot and the persona tile, so their prefixes
-    // left this list and gained the positive assertions below; the portrait's
-    // size stays a render argument and never becomes a token.
-    for (const name of ['--portrait']) {
+    // left this list and gained the positive assertions below. The portrait's
+    // sizes, its cast-card size and ring and its zero line height left with the
+    // portrait (Story 7.7, 2026-10-15) and must not come back under another name.
+    for (const name of ['--portrait', '--cast-portrait', '--cast-ring', '--lh-none']) {
       expect(namesMatching(name)).toEqual([])
     }
   })
@@ -514,6 +525,10 @@ describe('the layout constants', () => {
     expect(dot['size'], 'DESIGN.md components.status-dot.size').toBeTypeOf('string')
 
     expect(tokens.get('--tile-height')).toBe(tile['height'])
+    expect(tile['height']).toBe('44px')
+    expect(tokens.get('--tile-padding')).toBe(tile['padding'])
+    expect(discSize(tile)).toBe(tokens.get('--initials-size-thread'))
+    expect(tile['portraitSize']).toBeUndefined()
     expect(tokens.get('--tile-current')).toBe(resolveRefs(tile['currentBackground']))
     // `2px {colors.accent}`: the width is the first word, the colour is --accent.
     expect(tokens.get('--tile-edge-width')).toBe(tile['currentEdge'].split(/\s+/)[0])
@@ -525,13 +540,18 @@ describe('the layout constants', () => {
     const card = componentBlock('cast-card')
 
     expect(tokens.get('--cast-card-min')).toBe(card['minWidth'])
-    expect(tokens.get('--cast-portrait')).toBe(card['portraitSize'])
+    // A disc is the one size on every surface that draws one (2026-10-15), and not a size of the card's own.
+    expect(discSize(card)).toBe(tokens.get('--initials-size-thread'))
+    expect(card['portraitSize']).toBeUndefined()
+    expect(discSize(componentBlock('welcome'))).toBe(tokens.get('--initials-size-thread'))
+    expect(componentBlock('welcome')['portraitSize']).toBeUndefined()
+    // The portrait block left the frontmatter with the portrait (2026-10-15).
+    expect(readFileSync(DESIGN, 'utf8')).not.toMatch(/^ {2}portrait:/m)
     expect(tokens.get('--cast-speaking-border')).toBe(resolveRefs(card['speakingBorder']))
     expect(tokens.get('--cast-speaking-ground')).toBe(resolveRefs(card['speakingBackground']))
     expect(tokens.get('--shadow-speaking')).toBe(resolveRefs(card['speakingShadow']))
-    // The ring on the portrait is 2px in the accent (DESIGN.md: `0 0 0 2px accent`); the equaliser
-    // is the motion block's `3px→8px` with the three delays it names.
-    expect(tokens.get('--cast-ring')).toBe('2px')
+    // The speaking card has no ring (2026-10-15); the equaliser is the motion block's `3px→8px`
+    // with the three delays it names.
     expect(tokens.get('--eq-bar-rest')).toBe('3px')
     expect(tokens.get('--eq-height')).toBe('8px')
     expect([1, 2, 3].map((n) => tokens.get(`--eq-delay-${n}`))).toEqual(['.15s', '.3s', '.45s'])
@@ -887,7 +907,9 @@ describe('the light theme (Story 5.2, seam A)', () => {
     // smallest type sizes raised (`--fs-badge` 10px, `--fs-micro` 10.5px, `--fs-meta` and `--fs-label` 11px), and `--board-bar-width`,
     // `--board-bar-height`, `--board-figure-min`, `--board-progress-min` and `--check-size` added at the block's end.
     // Re-pinned for the `/` list (Story 7.3): `--skill-list-max`, the one height the list scrolls past, added at the block's end.
-    expect(createHash('sha256').update(promotedBlock()).digest('hex')).toBe('b36378560e52bd72025dc91966fd7597b6d28113667578e57f9272839abb0558')
+    // Re-pinned for the removal of the portrait (Story 7.7, 2026-10-15): `--cast-portrait`, `--cast-ring` and `--lh-none` deleted,
+    // `--tile-height` 56px to 44px, `--tile-padding` `9px 11px` to `3px 11px`, and the comments that named the portrait and the 56px tile reworded.
+    expect(createHash('sha256').update(promotedBlock()).digest('hex')).toBe('dd3c5dc85fdb9f794aefe7c66ff16db871c200d08cc68e7f755657f15688d305')
   })
 
   it('states color-scheme: light in its own block, and the dark theme still states dark', () => {
