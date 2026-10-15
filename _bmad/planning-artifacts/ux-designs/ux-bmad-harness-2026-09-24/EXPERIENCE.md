@@ -3,7 +3,7 @@ name: 'bmad-visual-harness'
 type: experience-spine
 status: final
 created: '2026-09-24'
-updated: '2026-10-09'
+updated: '2026-10-15'
 sources:
   - ../../../specs/spec-bmad-visual-harness/SPEC.md
   - ../../../specs/spec-bmad-visual-harness/ui-surfaces.md
@@ -21,6 +21,9 @@ sources:
   - mockups/paperclip-board.html
   - mockups/chat-thread-reference.png
   - mockups/document-card-dead-air.html
+  - mockups/skill-session-entry.html
+  - mockups/new-session-landing.html
+  - mockups/skill-session-entry-options.html
   - ../../epics.md
 companions:
   - DESIGN.md
@@ -28,11 +31,11 @@ companions:
 
 # BMad Visual Harness — Experience Spine
 
-The product test that outranks every rule in this document: *"if it reads as a chat box with a portrait glued on, it has failed regardless of feature completeness."* Restraint in the shell is not minimalism for its own sake — it is the budget the portraits spend. Nothing in this document may buy shell decoration with that budget.
+The product test that outranks every rule in this document: *"if it reads as a chat box with decoration glued on, it has failed regardless of feature completeness."* Restraint in the shell is not minimalism for its own sake. Nothing in this document may buy shell decoration, and the restraint is now spent on nothing: the product has no identity device and no replacement for one.
 
-*Amended 2026-10-09 by the user's decision: the chat thread and its header no longer carry portraits; a persona there is an initials disc (*Layout, chat and Board → The chat look*). The faces stay on the Team tiles, the cast cards and the Welcome, so the test now binds the shell around the thread, and the budget the portraits spend is spent there.* **Mockups illustrate; this spine wins** (stated once here). Four still draw what the chat look replaced (container turns, a tinted user turn, portraits in the thread): `follow-the-thread.html`, `rail-resize-collapse.html`, `light-a-shell.html` and the transcript box of `portrait.html`. Their turn rendering is superseded by *Layout, chat and Board → The chat look* in EXPERIENCE.md; the rest of each stands.
+*Amended 2026-10-15 by the user's decision (the Story 7.5 update). The test's first wording named the identity device the product has dropped (the removal note under *Component Patterns*); "decoration" stands in for it **[ASSUMPTION]**, since the user removed the device, asked for nothing in its place, and did not restate the test. Before that, 2026-10-09: the chat thread and its header carry an initials disc for a persona (*Layout, chat and Board → The chat look*); since 2026-10-15 every seat does.* **Mockups illustrate; this spine wins** (stated once here, and it covers the three Story 7.5 mocks: [`mockups/skill-session-entry.html`](mockups/skill-session-entry.html), [`mockups/new-session-landing.html`](mockups/new-session-landing.html) and [`mockups/skill-session-entry-options.html`](mockups/skill-session-entry-options.html), the record of the rejected option A). Three mocks still draw what the chat look replaced (container turns, a tinted user turn): `follow-the-thread.html`, `rail-resize-collapse.html` and `light-a-shell.html`, as does the transcript box of the mock named in the removal note. Their turn rendering is superseded by *Layout, chat and Board → The chat look* in EXPERIENCE.md; the rest of each stands.
 
-**Open items** (after the 2026-10-09 chat-look update; each is also tagged `[OPEN]` where it appears; the rest of `review-rubric.md` is in `validation-report.md`):
+**Open items** (after the 2026-10-09 chat-look update, with no item added by the 2026-10-15 Story 7.5 update (its three were settled the same day); each is also tagged `[OPEN]` where it appears; the rest of `review-rubric.md` is in `validation-report.md`):
 1. `[OPEN]` **Stop vs `close session`.** Does the header's `Stop` replace `close session`, or take its slot only while a turn is in flight? The contract has `run.stop(runId)` and `session.close` only, so a plain chat turn has nothing to stop with.
 2. `[OPEN]` **The room's live turn.** It keeps its accent edge and `party-live-ground` by assumption, the one turn row with either.
 3. `[OPEN]` **The skill-name source.** `handed to <persona> · <skill>` and the run card head show a name the renderer's events do not carry.
@@ -64,6 +67,7 @@ Every rule below traces to a memlog decision, an architecture decision (AD-n), a
 | Failure, Stopping and Contention | the stop cost, terminal states, and the no-arbitration posture |
 | Run Completion When Unattended | the notification contract for the terminal events |
 | Party Mode | the room, its v1 cuts, and ownership without an `agentId` |
+| Sessions without a persona | the Skill Session button, the New session chat (the entry and the landing), the first message, the skill-first session and its seat, ending, Recent activity |
 | Accessibility Floor | reduced motion, keyboard reach, focus, live regions |
 | Key Flows | the three narrated sessions the first rules came from; later sections (Welcome, Theme, Output folder, Resizing, the Board, the chat look) carry their own behaviour without a flow |
 
@@ -76,6 +80,8 @@ Desktop Electron shell. **macOS only in v1** — Windows and Linux are deferred,
 **The harness opens to a Welcome window, not to a native dialog.** It is where a project is chosen (*Welcome*, below). A project passed on the command line skips it for the first window.
 
 Three top-level views behind a single switch — **1:1 Conversation**, **Party Mode** and **Board** (2026-10-09; *Layout, chat and Board*). A **Help** entry point is reserved in the topbar layout but **does not render in v1**, because the Help *section* behind it is Should-tier and a control that opens nothing is a control that lies; *Accessibility Floor → Keyboard reach* therefore lists the view switch alone. An explicit **end-session** control exists and is the only way to clear a persisted conversation; it is a lifecycle control, not a next-step suggestion (AD-21).
+
+*Amended 2026-10-15 (Story 7.5).* **The shell no longer always has a current persona.** A window opens on the New session chat, a chat with nobody in it, and no tile is current until the user turns to one; the same chat is where the window lands after the user ends the skill session they are viewing. Every rule below that says "the current persona" holds whenever one is current and is silent otherwise. *Sessions without a persona* settles the surface.
 
 **This document designs for the user who is elsewhere.** The author works both at the window and in another app during a multi-minute run (memlog). The elsewhere case is strictly harder, and **a design that holds for it also holds for the attended case** — so every waiting state is specified for the unattended reading first and the attended reading second.
 
@@ -90,10 +96,14 @@ Three top-level views behind a single switch — **1:1 Conversation**, **Party M
 | Welcome | launch with no project path · closing the last project window · macOS reactivation with no window | brand, `no project open`, the one open action and drop zone, recent projects, the five core personas by phase | its own window, no project; see *Welcome*. Not a view of the shell and not a step |
 | Topbar | always present | brand, project path, install chip, branch chip, view switch | `{spacing.topbar}`. The Help entry point is reserved but not rendered in v1 |
 | 1:1 Conversation | view switch | Team sidebar + chat column + rail | default view; three columns, see *Layout, chat and Board* |
-| Chat column | 1:1 | conversation entries in time order — persona turns, user turns, syslines, document cards; skill button row; composer | thread `{spacing.thread-max}` max-width |
-| Team sidebar | 1:1, left | the **Team half**: a state strip over the persona tiles | `{spacing.sidebar}` by default; resizable (*Resizing and folding*) |
+| Chat column | 1:1 | conversation entries in time order — persona turns, user turns, syslines, document cards; skill button row (a persona's chat only); composer | thread `{spacing.thread-max}` max-width |
+| New session chat | window open · the Skill Session button · ending the skill session in view | a header reading `New session`, an empty thread, an empty focused composer | *Added 2026-10-15.* The empty chat and the landing are one surface; no persona, no session, nothing recorded. See *Sessions without a persona* |
+| Skill-first session | a first message `/<name>` in the New session chat · a skill seat | the skill's name as speaker, its run card, its own thread, the composer | *Added 2026-10-15.* Its own kind of chat, never a persona's and never the room. See *Sessions without a persona* |
+| Team sidebar | 1:1, left | the **Team half**: a state strip, the *Sprint board* row carrying the Skill Session button, the persona tiles, then the Skill sessions group while one exists | `{spacing.sidebar}` by default; resizable (*Resizing and folding*) |
+| Skill Session button | Team sidebar, right end of the *Sprint board* row | the label `Skill Session` and nothing else | *Added 2026-10-15.* An entry to a chat, not a launcher: it lists no skill |
 | Rail | 1:1, right | the **Outputs half** alone | `{spacing.rail}` by default; resizable (*Resizing and folding*) |
-| Persona tiles | Team sidebar | one per installed agent: portrait, name, title, state line; current marked with an accent edge | grouped, see *Interaction Primitives* |
+| Persona tiles | Team sidebar | one per installed agent: initials disc, name, title, state line; current marked with an accent edge | grouped, see *Interaction Primitives*. Amended 2026-10-15: no illustrated avatar on any tile; no tile is current while the New session chat or a skill session is in view |
+| Skill seats | Team sidebar, in a **Skill sessions** group below the personas | one per skill-first session: a `/` disc, the skill's name in mono, a state line | *Added 2026-10-15.* Shown only while one exists. See *Sessions without a persona* |
 | Rail rows | rail, Outputs half | one row per file under `_bmad/` — path, owner, state, optional run annotation — under a heading per directory that can be folded | disk truth only (AD-1) |
 | Document card | **inline in the conversation, in time order** | head / body / foot | run-scoped; never a panel |
 | Party Mode | view switch | cast, header, transcript, *Room* section | see *Party Mode* below |
@@ -106,11 +116,11 @@ Three top-level views behind a single switch — **1:1 Conversation**, **Party M
 - 1:1, Party and Board are mutually exclusive; one switch. *(2026-10-09: Board is the third view, which lifts the earlier "no third view".)*
 - The rail shows **project artifacts only**. Harness bookkeeping — transcripts, logs, window state — lives in `userData` and never appears (AD-1). No affordance may imply the harness authored or can author a file.
 - Document cards are **conversation entries**, not a region. A card is born with a skill invocation (`run:started`) and dies with it. A plain chat turn raises no card (AD-11).
-- Skill buttons are nested under the active persona and rebuilt whenever the active persona changes.
+- Skill buttons are nested under the active persona and rebuilt whenever the active persona changes. *(2026-10-15: the New session chat and a skill-first session have no active persona and no skill buttons **[ASSUMPTION]** — a skill row is built from a persona's menu and these have none.)*
 - Ownership asymmetry: a party session carries no `agentId`. The **room** owns it, so a party summary's rail row shows the room as owner, in a presentation distinct from any persona (AD-19).
 - The mockup's legend footer is prototype furniture ("Non-functional design prototype…"). It is not product chrome and does not ship.
 
-**There is no separate skills list, launcher or command palette anywhere in the product** (AD-21). Skills are reachable only as the current persona's buttons. The rejection is argued once, in *Banned everywhere*.
+**There is no command palette and no launcher anywhere in the product** (AD-21). The rejection is argued once, in *Banned everywhere*. *Amended 2026-10-15 (Epic 7, FR30 as amended; Story 7.5): the earlier rule said skills were reachable only as the current persona's buttons and that no skills list existed. Two things now exist. A skill is also reachable by typing `/<name>` as the first words of the New session chat (*Sessions without a persona*), and Story 7.3 adds the one place skills are listed, the `/` list above the composer, whose component is that story's and is not designed here. The Skill Session button is **an entry to a chat, not a launcher**: it lists no skill and starts none.*
 
 ---
 
@@ -129,6 +139,8 @@ This section therefore governs **harness-authored microcopy only**: rail states,
 | `stop` | a modal asking `Are you sure?` |
 | `queued · sends when John finishes` | `Message will be delivered shortly` |
 | `handed to Amelia · bmad-build` | `conversation and context continue` |
+| `no skill named hello` | a line that suggests what to type instead (rule 1) |
+| `session ended` | an apology, or an offer to start another (rule 1) |
 | Lower case, mono, `·` as the separator, no terminal punctuation | Sentence case with full stops in a state string |
 | Name the thing and stop | Name the thing and recommend a move |
 
@@ -140,6 +152,8 @@ This section therefore governs **harness-authored microcopy only**: rail states,
 4. **Mono is the harness's register; sans is the register of things said.** Every harness-authored string — paths, states, metadata, syslines — renders in the mono role tokens (`{typography.label}`, `{typography.meta}`, `{typography.micro}`). **Persona voice renders in the sans role token `{typography.body-ui}`. Document prose renders in the document register, `{typography.doc-prose}`, which is mono.** The split is load-bearing: it is what keeps harness copy from reading as somebody's words, and what keeps the two feeds in one card body distinct. Stated in full in `DESIGN.md` → *Typography → The register split*.
 5. **Disagreement must carry evidence — a file, a line count, a percentage, a cost — or it must not ship.** Theatre-grade disagreement is a trust liability a plain prompt box does not carry; fake personhood is the failure mode named in the source. The harness does not author disagreement, so this rule binds the two things **the harness** *does* control: any persona or party configuration shipped with the product, and the chrome around a turn. v1 ships **no** `disagrees` / `evidence` tag, because a tag would let contentless disagreement read as substantive (see *Party Mode*).
 6. **Config file paths never appear in copy.** The mockup's rail footer (*"Read from each agent's `customize.toml`…"*) and composer hint (*"skills read from `.claude/skills/…/customize.toml`"*) are factually stale: AD-10 makes `_bmad/config.toml` `[agents.*]` authoritative and AD-8 says config files are never read directly. **The spec wins over the mockup here.** Both strings are cut; nothing replaces them. **[ASSUMPTION]** — no source specifies replacement copy; dropping the provenance sentence is the minimal honest fix.
+
+*Added 2026-10-15 (Story 7.5).* Two harness lines join the syslines, `no skill named <word>` and `session ended`, both in the existing sysline style and never attributed to a persona or a skill (*Sessions without a persona*). Rules 1 to 6 hold for both. They state a fact and stop (rules 1 and 3: the first says what was not found, the second says what has ended, and neither says what to do next). They are the harness speaking in its own register and put no words in a persona's mouth (rule 2 and AD-18). Both render in mono (rule 4) and carry no path (rule 6). The lower-case rule is for state strings and syslines; the control labels `Skill Session` and `Skill sessions` (the group heading) are the user's own wording and follow the capitalised controls already here (`Stop`, `Sprint board`).
 
 **The handoff sysline — why the mockup's wording is wrong, and where it stands**
 
@@ -154,21 +168,23 @@ Behavioural only, per the ownership convention. Anatomy and appearance live in `
 | Component | Behaviour | Disabled / absent when |
 |---|---|---|
 | View switch | toggles 1:1 ↔ Party; a third segment, Board, is proposed (*Layout, chat and Board*). Sessions in the other view keep running. | never |
-| Persona tile | click marks current (accent edge), rebuilds the skill row, and expands that persona's card. Aggregates every session carrying its `agentId` — a tile may stand for more than one session. | never; a party session has no tile |
-| Portrait | `{components.portrait}`. Deterministic from curated params (the five) or derived from `agentId` (everyone else). **One neutral expression at every state** — the face never reacts; the state dot carries state. `portrait(artParams, size, state)` keeps accepting `state` so reactive faces need no signature change later. | below 32px — see next row. **Not used in the chat thread or the chat header** (*Layout, chat and Board → The chat look*): there a persona is an initials disc |
-| Initials token | `{components.initials}` is **the avatar in the chat**: a persona's and yours, beside every turn (`{components.initials.sizeThread}`) and in the chat header (`{components.initials.sizeHeader}`), in the 1:1 and the party thread. It also replaces the portrait at 20px (stacked faces, small references). **Where it stands alone, it reveals name and role on both hover and keyboard focus; in the thread and header the name is beside it, so it is decorative: no tab stop, no reveal** (*Accessibility Floor → The initials token*). | — |
+| Persona tile | click marks current (accent edge), rebuilds the skill row, and expands that persona's card. Aggregates every session carrying its `agentId` — a tile may stand for more than one session. Anatomy (amended 2026-10-15): `{components.persona-tile}`, one row of `{components.persona-tile.height}` with an initials disc of `{components.persona-tile.discSize}`, the same anatomy as a skill seat. A click leaves the New session chat as it is, kept in the background (*Sessions without a persona*) | never; a party session has no tile |
+| Portrait | **Removed 2026-10-15** (the user's decision, Story 7.5 update; it extends the 2026-10-09 override that took the faces out of the chat). The illustrated portrait, its generator and every size and rule for it are gone from the product; **nothing replaces it, and the product has no identity device**. Every seat is an initials disc (`{components.initials}`): the Team tiles, the cast cards and the Welcome team at `{components.initials.sizeThread}`, the chat header at `{components.initials.sizeHeader}`, small references at 20px. Upstream, `SPEC.md` CAP-3 and CAP-10 and `AD-16` no longer hold, nor does `ui-surfaces.md`'s portrait section; `AD-16` needs an amendment from `bmad-architecture`, and the code, its tests and the prompts folder need a story. Mocks drawn before this date that show a face (`portrait.html` and the welcome, light-theme and shell mocks among them) are superseded on that point. Tokens the code still carries are marked in `DESIGN.md` until that story | — |
+| Initials token | `{components.initials}` is **the avatar everywhere a persona or you is drawn** (amended 2026-10-15: it is no longer only the chat's): beside every turn (`{components.initials.sizeThread}`), on a Team tile, a cast card and a Welcome card (the same size), in the chat header (`{components.initials.sizeHeader}`), and at 20px for small references. A persona's disc is its letters by the `initialsOf` rule (one letter for a one-word name). Its **skill variant** is a neutral disc holding `{components.initials.skillGlyph}` in mono in `{colors.initials-ink}`, for a skill-first session's turn, header and seat. **Where it stands alone, it reveals name and role on both hover and keyboard focus; beside a name (the thread, the header, a tile, a card, a seat) it is decorative: no tab stop, no reveal** (*Accessibility Floor → The initials token*). | — |
 | Skill button | label is the menu entry's `description`; a code badge carries the `code`. Click dispatches `menu.dispatch(sessionId, code)` — the button knows nothing about what it invokes. **No tooltip or preview derived from a resolved skill name** (AD-3: it would go stale). The user is never shown whether an entry is `skill` or `prompt`, and should not care (AD-9). | disabled whenever **any** turn is in flight in that session. `live` does **not** disable them |
+| Skill Session button | *Added 2026-10-15.* A native button at the right end of the *Sprint board* row; `{components.skill-session-button}`; pressed means the empty chat is open. Unrelated to the skill buttons above, which are a persona's menu entries. Behaviour: *Sessions without a persona → The Skill Session button* | the Team sidebar is not on screen (Party, Board) |
+| Skill seat | *Added 2026-10-15.* One skill-first session in the Skill sessions group; `{components.skill-seat}`, the persona tile's anatomy. Behaviour: *Sessions without a persona → The skill seat* | absent until a skill-first session exists |
 | `+N more` | **expands the button row in place.** The row grows to show the remaining entries. **No transcript entry is created.** | — |
 | Composer | never disabled. A message typed during a run is queued and visible — see *State Patterns → Queued composer*. | never |
 | Document card | born on `run:started`, dead on the run's terminal event. Full for the active persona's card, collapsed for every other card. Expands on persona switch or click. **A collapsed card is never a spinner; it is the same state, smaller.** | absent for a plain chat turn |
 | Stop control | present on **both** the full card head and the collapsed line. Dispatches `run.stop(runId)`. The chat header's `Stop` is the same stop for the turn in flight (*Layout, chat and Board → The chat look*). | — |
 | Rail row | two independent registers on one line: disk `state` (watcher) and optional run `annotation` (stream). Click opens the document window. | the annotation slot is genuinely optional — a row must read as complete without it |
 | Document window | read-only preview, reloads **from the watcher**, not from a renderer-initiated read. Three escapes: *Reveal in Finder*, *Open in editor*, *Close*. `Esc` closes. **No refresh control. No edit affordance. No save.** | — |
-| Cast card (party) | presence is expressed by **dimming, never removal**. Every chosen portrait stays permanently visible; the current speaker is lit. | — |
+| Cast card (party) | presence is expressed by **dimming, never removal**. Every chosen persona's card stays permanently visible, its initials disc included; the current speaker's card is lit (`{colors.cast-speaking-border}`). | — |
 | Decision option | the block a persona raises inside its own turn when it stops to ask. Each option is its own control — click, or `Enter`/`Space` when focused. Activating one **sends that option as the user's turn**, in the user's name, and the run resumes from the persona's reply. **The whole option block is then removed** — it was a question and it has been answered; there is no chosen state, no greyed-out losers and no record of the block beyond the two turns either side of it. The harness never authors the options, never reorders them and never marks one recommended; a stated lean is the persona's own words. | absent unless the persona's turn raises one |
-| Sysline | harness-authored transcript entry in mono: session resumed, handoff, room opened. Never attributed to a persona. | — |
+| Sysline | harness-authored transcript entry in mono: session resumed, handoff, room opened; and, from 2026-10-15, `no skill named <word>` and `session ended`. Never attributed to a persona. | — |
 | Conversation turn | a flat row: initials disc, head (name, title, clock time), words. Behaviour: *Layout, chat and Board → The chat thread*, *State Patterns → A turn in flight*, *Queued composer* | — |
-| Chat header | one line: disc, name, `title · story <id>`, the state pill, the stop slot. Behaviour: *Layout, chat and Board → The chat look* | the story reference is absent when it has no source |
+| Chat header | one line: disc, name, `title · story <id>`, the state pill, the stop slot. Behaviour: *Layout, chat and Board → The chat look*. Skill variant (2026-10-15): a `/` disc, the skill's name in mono, the pill, the stop slot, with no title and no story reference; the New session chat's header is the disc and `New session` alone (*Sessions without a persona*) | the story reference is absent when it has no source |
 | Run step | one row of the run list, in the document card's body: *State Patterns → The run list* | absent until the main-side step event exists |
 | Run note | one row of the run list, from `.memlog.md`: *Dead Air → Run-note anatomy* | — |
 | Status dot | five states, one source each: *State Patterns → Persona tile* | — |
@@ -195,10 +211,13 @@ Project **content** is untrusted because it is largely model-authored (AD-13). M
 |---|---|---|
 | View switch | topbar | 1:1 ↔ Party ↔ Board |
 | Persona tile | Team sidebar | marks current · rebuilds the skill row · expands that persona's card · opens a session, and writes the handoff sysline, when none is open |
+| Skill Session button | Team sidebar, in the *Sprint board* row | opens the empty chat, or returns to the one already kept, with its half-typed text. **An entry to a chat, not a launcher:** it lists and starts no skill (*Sessions without a persona*) |
+| Skill seat | Team sidebar, Skill sessions group | turns the chat to that skill-first session. It has no end control; the header's `close session` is the only end (Story 7.4) |
 | Skill button | above the composer | `menu.dispatch(sessionId, code)` → births a card |
 | `+N more` | skill row | expands the row in place |
 | Composer | chat column | `turn.send` — queued if a turn is in flight |
-| `@<name>` in the composer | chat column, 1:1 | **hands off to that persona.** The product's only text-driven navigation, and the sole keyboard-fast path to a handoff. It addresses a **persona** and never names a skill (*Banned everywhere*) |
+| `/<name> …` as a first message | chat column, New session chat only | **starts a skill-first session** when `<name>` is an installed skill (a persona's skill turns to that persona's seat, the room's to the room). Any other first word starts nothing and says `no skill named <word>`. Typed in a persona's composer, `/<name>` is sent as it was before (Story 7.3) |
+| `@<name>` in the composer | chat column, 1:1 | **hands off to that persona.** The sole keyboard-fast path to a handoff. It addresses a **persona** and never names a skill (*Banned everywhere*). *Amended 2026-10-15 (Story 7.5): it is no longer the product's only text-driven navigation, since a `/<name>` first message in the New session chat also starts or turns to a chat; `@<name>` still addresses only a persona, and `/<name>` is the one way a skill is named in text* |
 | `@<name>` in the composer | chat column, party | **directs the question at that persona.** Addressing only — it does not gate the room or reorder speakers |
 | Decision option | thread, inside a persona turn | sends the chosen option as the user's turn, then removes the block |
 | Card click | thread | expands a collapsed card |
@@ -234,7 +253,7 @@ Grouped by the agent's **`module`**, and by **`team`** where present — AD-10 n
 
 ## Banned everywhere
 
-- **Command palette / `⌘K`, any launcher, any global skills list.** AD-21 rejects all three outright — rejections, not deferrals, with no v2 hook. Skills are reachable only as the current persona's buttons; a composer that parsed skill names, or a shortcut vocabulary that enumerated skills, would be the same launcher under another name.
+- **Command palette / `⌘K`, any launcher, any global skills list.** AD-21 rejected all three outright, with no v2 hook. *Amended 2026-10-15 (Epic 7, FR30 as amended; Story 7.5), and only for the two things Epic 7 adds:* a `/<name>` first message in the New session chat starts a session, and Story 7.3's `/` list in the composer is the one place skills are listed (its component is that story's, not designed here). **Still banned:** a command palette and `⌘K`; any list of skills anywhere else; any button, menu, tile, row or shortcut that lists, names or starts a given skill. The Skill Session button is an entry to a chat, not a launcher, and carries no skill. A shortcut vocabulary that enumerated skills would still be a launcher under another name.
 - **Badges of any kind**, unread counts, quest markers, relevance sorting, next-step highlighting, recommended actions.
 - **Spinners, anywhere, at any point** — including a sentence doing a spinner's job.
 - **Per-section tick-through**, progress bars implying steady incremental advance, staggered reveals of an atomic commit, per-character typewriter effects.
@@ -259,6 +278,16 @@ Grouped by the agent's **`module`**, and by **`team`** where present — AD-10 n
 | `error` | `{colors.red}` dot | this persona's last run failed **or** was stopped | the tile conflates the two on purpose. **Alert only — no error text on the tile** (AD-20) |
 
 Every indicator is driven by real system state; no state exists for decoration. Five states, **four colours** — `idle` is the absence of one (`DESIGN.md` → *Colors*). **Every dot is paired with a text state string in the same row** — this is the colour-blindness mitigation and the reduced-motion mitigation at once, and it is cheap enough to be non-negotiable.
+
+*Added 2026-10-15 (Story 7.5).* **The five tile states stay as they are.** A persona's tile did not gain or lose a state from the removal of its illustrated avatar or from the skill seat. The skill seat (*Sessions without a persona → The skill seat*) uses the same dot vocabulary and adds no sixth tile state:
+
+| Skill seat | Indicator | Text | Driven by |
+|---|---|---|---|
+| working | `{colors.amber}` dot, pulsing | `working · <elapsed>` | a turn in flight in that skill-first session, as main reports it |
+| live | `{colors.green}` dot | `live` | the session is open, idle and holds its context. The same fact Story 7.4 gives a persona seat's live dot: it means only that the seat holds context |
+| ended | no dot | `ended` | the app was relaunched: the thread was kept and the process went with it |
+
+Same rules as the tile: every dot is paired with its text, nothing pulses for being `live`, no count, no new colour. A skill seat has no `note` or `error` dot **[ASSUMPTION]**: the memlog names three states and no more, so a failed or stopped run reads in its thread and in Recent activity, and an idle seat that holds context reads `live`.
 
 ### Rail row (Outputs half) — two registers, never merged
 
@@ -379,6 +408,8 @@ CAP-1 promises zero *configuration*, not zero *prerequisites*. Any failure is re
 | Surface | Copy | Rule |
 |---|---|---|
 | Outputs half, fresh project | `no files under <folder> yet` with the watched path beneath it (`_bmad/` unless the output folder is another) | **states the situation and stops.** It reads as watching, not as broken. It must **not** suggest a next step, name a skill, or point at a persona (AD-21) |
+| New session chat | an empty thread; a header reading `New session`; an empty composer with focus | *Added 2026-10-15.* **It states nothing: no line, hint, placeholder, greeting or suggestion** (AD-21). It is the one empty state that is a whole chat, and it is also where a window opens (*Sessions without a persona*) |
+| Skill sessions group | — | *Added 2026-10-15.* **No empty state:** with no skill-first session the group and its heading are not rendered, as the recent list and the deferred party sections are not |
 | Document card | — | **there is no empty card body.** See *Dead Air* |
 | Subagent region (`system/task_progress`) | — | optional, not primary. It may be permanently empty on a given run; nothing may depend on it |
 | Party side panel | — | the two deferred sections are **not rendered at all**, not even as empty states |
@@ -429,9 +460,9 @@ A list of the projects opened before, newest first, **at most eight**. **[ASSUMP
 
 ### The team
 
-Five cards under four lanes, in the order of the method: **analysis** (Mary), **planning** (John, Sally), **solutioning** (Winston), **implementation** (Amelia). Each shows the persona's portrait, name, title and one description (`DESIGN.md` has the table).
+Five cards under four lanes, in the order of the method: **analysis** (Mary), **planning** (John, Sally), **solutioning** (Winston), **implementation** (Amelia). Each shows the persona's initials disc (`{components.initials.sizeThread}`; amended 2026-10-15), name, title and one description (`DESIGN.md` has the table).
 
-- **They are the five core personas** the harness has curated faces for (FR78). They are read from no project, so the Welcome says nothing about what any project has installed — its meta line says only that *a project's own install can add more*.
+- **They are the five core personas** (FR78). They are read from no project, so the Welcome says nothing about what any project has installed — its meta line says only that *a project's own install can add more*.
 - **The lanes say where a persona works in the method, not where the project is.** Nothing here reads the project's artifacts, marks a lane current, or orders by relevance. Pipeline position is derived, never asked and never shown (AD-19, FR10).
 - **No lane, card or persona is highlighted, preselected or recommended** (AD-21). The order is the method's, and every card is the same.
 - **The descriptions are the harness's words about a role**, in the harness's register, not persona speech (FR21): no first person, no quotation, no invitation. They describe; they never suggest a persona to start with.
@@ -459,7 +490,7 @@ Lower case, mono for harness strings, `·` as the separator, no terminal punctua
 - **Live region:** the Welcome has its own one polite region (*Accessibility Floor → 4*). It announces `not a folder · <name>` once.
 - **Focus:** on open, the button. After a cancelled dialog, the button again. Nothing moves focus when a recent row's folder turns out to be missing.
 - **Motion:** none, so there is nothing for `prefers-reduced-motion` to disable.
-- **Portraits** carry `aria-label="{name}, {title}"` at 44px, as at every size (§5).
+- **The initials discs** stand beside each persona's name and title, so they are decorative: `aria-hidden`, no tab stop, no reveal (§5). *Amended 2026-10-15 **[ASSUMPTION]**: the cards are content and take no focus, so there is nothing for a disc to reveal on.*
 
 ### Banned on the Welcome
 
@@ -498,7 +529,7 @@ The topbar carries no theme control: it is the densest strip in the product, it 
 - **No transition.** The colours change in one frame. No fade, no cross-dissolve, no animation of any kind (*Motion*, `DESIGN.md`).
 - **No first-paint flash.** A window opens in the theme in force and is never painted in the other first. Windows are created hidden and shown when ready, so the theme is set before the first frame.
 - **Native chrome agrees.** Menus, the folder chooser, scrollbars and form controls follow the same value, so no light dialog opens over a dark window.
-- **The portraits do not change.** The same faces on the same dark backdrops in both themes.
+- **The initials discs follow the theme.** Their ground, line and ink each have a dark and a light value (`{colors.initials-bg}`, `{colors.initials-line}`, `{colors.initials-ink}`); no image is drawn in either theme. *Amended 2026-10-15.*
 - **Nothing is said.** No toast, no sysline, no announcement: the change is the whole feedback, and it is visible. The one live region stays for the things it already carries.
 - **Not a next step.** No place says *try light mode* or marks a theme as recommended (AD-21).
 
@@ -681,12 +712,12 @@ No animation of a width or a fold; no snap points or presets; no per-persona, pe
 
 | Column | Holds | Replaces |
 |---|---|---|
-| **Team sidebar**, left | a state strip, the *Sprint board* row (the *Inbox* row is deferred and has no reserved slot), the persona tiles | the Team half of the rail |
+| **Team sidebar**, left | a state strip, the *Sprint board* row carrying the Skill Session button at its right end (the *Inbox* row is deferred and has no reserved slot), the persona tiles, and, only while one exists, the Skill sessions group (*Sessions without a persona*) | the Team half of the rail |
 | **Chat column**, centre | the thread and the composer, as now | nothing |
 | **Context panel**, right | *Properties*, *Goal trace*, *Outputs*, *Run* for the open conversation | the Outputs half of the rail |
 
 - **Persona order is unchanged.** Tiles stay grouped by `module` and `team` and in config order (*Persona tile order*). They are **not** regrouped by state, and nothing is sorted by who needs attention: AD-21's no relevance sort and no highlighting hold. State is the dot each tile already has; an idle persona dims (`{opacity.idle}`), as it does now.
-- **The state strip** is four plain counts of the tiles' own dot states, read from the same `states` map as the dots (AD-20), is never a badge and never counts anything unread. *Settled:* the cells are **working** (`work`), **idle** (`idle` and `live`, a persona with a session open and no turn in flight being idle), **error** (`error`) and **changed** (`note`, a file changed on disk). It takes no accent, fill or badge and is not announced; a persona the map holds nothing for counts as idle, and an empty roster reads four zeros.
+- **The state strip** is four plain counts of the tiles' own dot states, read from the same `states` map as the dots (AD-20), is never a badge and never counts anything unread. *Settled; amended 2026-10-15: **it counts personas only**, so it equals the head's `5 agents` and a skill seat is in no cell, as the Board's Agents panel counts personas only (a working skill session shows in its own row).* The cells are **working** (`work`), **idle** (`idle` and `live`, a persona with a session open and no turn in flight being idle), **error** (`error`) and **changed** (`note`, a file changed on disk). It takes no accent, fill or badge and is not announced; a persona the map holds nothing for counts as idle, and an empty roster reads four zeros.
 - **The Inbox (deferred, not built; no row, no figure, no slot)** lists the open decision blocks across personas, newest first, so a question from one persona is not lost while the user talks to another. It shows **no count** on its row. A row opens that persona's thread at the decision. It lists nothing the harness invented: an empty list says `nothing open`. **[ASSUMPTION]** — needs a read across sessions' unanswered decision blocks; check the session model has one before building.
 - **The context panel** shows facts about the open story and run, and nothing prescriptive. *Properties*: status, owner persona, current skill, branch. *Goal trace*: product, epic, story, read from `sprint-status.yaml`. *Outputs*: exactly the Outputs half as it is (*Output folder*, *Resizing and folding*), moved. *Run*: duration, tool calls, model. A field with no source is omitted, never shown empty.
 - **Widths.** *Settled:* each side panel has its own splitter and range (*Resizing and folding*). Defaults: Team sidebar 244px (range 200–400px), right panel 300px (260–480px), the chat column kept at 420px between them; a stored rail width is read against the new range (kept inside 260–480px, the default outside it) and nothing is migrated. At ≤1000px the layout stacks, chat then sidebar then right panel, with no splitter; no breakpoint is added.
@@ -697,20 +728,20 @@ No animation of a width or a fold; no snap points or presets; no per-persona, pe
 
 | Decision | Replaces |
 |---|---|
-| **Initials, not portraits, in the chat.** A persona and you are each a round initials disc beside every turn and in the header. The Team tiles, the cast cards and the Welcome keep their portraits | the 32px portrait in a turn, the 38px portrait in the header |
+| **Initials in the chat.** A persona and you are each a round initials disc beside every turn and in the header. *(Widened 2026-10-15: the Team tiles, the cast cards and the Welcome are initials discs too.)* | the illustrated avatars of the chat, at their two retired sizes |
 | **Flat rows.** A turn has no container, radius or padding box, and yours has no tinted ground or left rule. You and a persona are told apart by name and by a disc tinted for you alone | the turn container; `accent-wash` and `accent-edge` on a user turn |
 | **Clock time on every turn**, after the role. Relative times stay rejected | the right-aligned time |
 | **A list of steps in the run card**, with the run notes in the same list; prose mode stays for a run that writes a document | the run-note feed as the whole body |
 | **No shimmer.** The running step carries the existing amber pulse | nothing: it confirms *Not adopted* |
 | **`handed to <persona> · <skill>`** | `handed off · John → Amelia · picking up from PRD.md, epics.md` |
-| **Header: disc, name, `title · story <id>`, the state pill, `Stop`** | a portrait and a second line of description |
+| **Header: disc, name, `title · story <id>`, the state pill, `Stop`** | an illustrated avatar and a second line of description |
 
 - **The story reference** shows only when a story source exists (*The room: three columns*: `sprint-status.yaml` and the run). With none the header reads the title alone: a field with no source is omitted, never empty.
 - **`Stop`** stops the turn in flight and the session stays (*Failure, Stopping and Contention → Stopping costs the turn, not the conversation*). It is plain: no cost on the control, no confirmation. **[ASSUMPTION — OPEN]** — the header's one control today is `close session`, which a turn that never ends needs. Taken here: while a turn is in flight the slot reads `Stop`, and otherwise `close session`, as built. The screenshot draws only the running state and does not settle it. The full card head keeps its own stop control (CAP-11, `run.stop`); both dispatch the same stop. **Also open:** a plain chat turn has no `runId`, and the contract has only `run.stop(runId)` and `session.close`, so a header `Stop` outside a run needs a new command or a narrower rule (handed to `bmad-architecture`).
 - **A mention.** Built by Story 2.15 (AD-25). A handoff's typed `@name` is kept as `mention` on `turn.send` and on the stored record, and drawn as a chip (`{components.mention}`) before the sent text in your turn. The persona still receives only the text, and a handoff with no text after the name shows no turn, only the sysline. The chip is not a control.
 - **The room's live turn.** **[ASSUMPTION — OPEN]** — the screenshot has no party thread, so the speaker's live turn keeps its accent edge and its live ground (`{colors.party-live-ground}`): the only turn row with either.
-- **Still not adopted**, though the same prototype draws them: `4m ago`, the shimmer, and on Screen B the review gate, the follow-ups card, the `/` skill list and the per-message *Retry* (*Not adopted*).
-- **Supersedes, upstream (2026-10-09).** `SPEC.md` CAP-3 (portrait in the chat header) and CAP-10 (portraits at every size the UI uses) no longer hold **in the chat thread and header**; `ui-surfaces.md` (*Portraits*: 32 transcript and 38 chat header; the party transcript's `portrait + name + role + timestamp`) likewise. They hold on the Team tiles, the cast cards and the Welcome. `SPEC.md`'s dark-theme-only assumption and `scope-tiers.md`'s deferred light theme were superseded earlier by *Theme*.
+- **Still not adopted**, though the same prototype draws them: `4m ago`, the shimmer, and on Screen B the review gate, the follow-ups card and the per-message *Retry* (*Not adopted*). *(Amended 2026-10-15: the `/` skill list was struck from this line; Epic 7 reverses that refusal, and the list is Story 7.3's.)*
+- **Supersedes, upstream (2026-10-09, widened 2026-10-15).** The `SPEC.md` capabilities and `ui-surfaces.md` lines about avatars in the chat no longer hold in the thread and header (2026-10-09), and no longer hold anywhere since 2026-10-15; the removal note under *Component Patterns* lists them. `SPEC.md`'s dark-theme-only assumption and `scope-tiers.md`'s deferred light theme were superseded earlier by *Theme*.
 
 
 ### The chat thread
@@ -719,7 +750,7 @@ The thread is one continuous conversation: the user's turns, the persona's words
 
 | Element | Behaviour |
 |---|---|
-| Turn head | initials disc (no portrait), name, title, then the **clock time** (`HH:MM`), on one baseline. Relative times ("4m ago") are **not** adopted: a transcript restored on another day must read as it did live (`formatTurnTime`) |
+| Turn head | initials disc, name, title, then the **clock time** (`HH:MM`), on one baseline. Relative times ("4m ago") are **not** adopted: a transcript restored on another day must read as it did live (`formatTurnTime`) |
 | Activity line | the handoff sysline, reworded: `handed to <persona> · <skill>` (*Voice and Tone → The handoff sysline*) |
 | Run card | the existing card, inline in the thread. **Run-list mode** shows the run's steps and run notes in one time-ordered list; **prose mode** is unchanged for a run that writes a document (*State Patterns → The run list*, *Dead Air*). A finished run collapses to its one line, as it does when it is elsewhere |
 | Thinking row | where the stream carries thinking text, **one collapsed row** above the persona's words that expands to it. It is the thinking the stream gave, never a placeholder: it does not appear for a turn with none, and it carries no word of its own before the turn ends (*A turn in flight*: no stand-in `thinking`) |
@@ -738,7 +769,7 @@ A read-only view of where the work stands, reached from the view switch or `g b`
 | Board | one column per BMad status in the file's own words: `backlog`, `ready-for-dev`, `in-progress`, `review`, `done`. An empty column says `no stories`. A card is the story id and its title and nothing else: the owner and the run's elapsed on a card were Story 6.8, **cut 2026-10-10** (no run-to-story rule exists), so no card carries an owner, a handler or a tab stop; a persona's run is on its Agents row |
 | Epics | one row per epic: its title and `n of m stories done` in words, with one thin decorative track (`aria-hidden`, a filled span over an empty one) beside them; an epic with no stories says `no stories` and draws no track |
 | Agents | one row per persona: its state, what it is on and the run's elapsed time; an idle persona dims |
-| Recent activity | what the personas did (run started, finished, stopped or failed), newest first, with each event's absolute time; built from the window's run entries. A question asked is not an event here |
+| Recent activity | what the personas did (run started, finished, stopped or failed), newest first, with each event's absolute time; built from the window's run entries. A question asked is not an event here. *Amended 2026-10-15:* a skill-first run is a row too, with the skill's name in the persona's place (*Sessions without a persona → Recent activity*) |
 
 - **A story's owner (cut 2026-10-10 with Story 6.8; FR123 amended).** It is the persona of the run that is or was last on it; a story with no run has none and shows none. **[ASSUMPTION]** — `sprint-status.yaml` carries no owner, so this is derived from run history and must be confirmed against what the session store keeps.
 - **No money.** A *spend* card, per-persona cost and a budget are **not adopted**: nothing in the harness's data source carries cost, and a figure with no source is the one thing AD-20 forbids. Revisit if the runs begin to report it.
@@ -751,7 +782,7 @@ Each is something Paperclip does or the prototypes drew that this product refuse
 
 | Not adopted | Because |
 |---|---|
-| `/` in the composer listing skills | AD-21: no launcher under another name; skills are the current persona's buttons only |
+| `/` in the composer listing skills | AD-21: no launcher under another name; skills are the current persona's buttons only. **Reversed 2026-10-15 by Epic 7 (FR30 as amended):** the list is Story 7.3's, and a `/<name>` first message in the New session chat starts a session (*Sessions without a persona*). The reason above stands for everything else: no other `/` surface, no button, menu, tile or shortcut that lists or starts a skill |
 | *Review gate* card with *Approve* / *Request changes*, and a *Suggested follow-ups* card | the harness has no approval state, and both are recommended next actions (*Banned everywhere*) |
 | A count on the Inbox row, a *needs you* group of tiles, a *Needs you* figure | badges, unread counts and relevance sorting are banned |
 | A shimmer on the running step | the motion inventory is closed at five declarations (UX-DR12); the running step carries the existing amber pulse dot |
@@ -767,7 +798,7 @@ The view switch gains a third segment and stays one control in the roving order.
 
 ### Banned here
 
-No count, badge or highlight on the Inbox, a tile or a Board figure; no regrouping of tiles by state; no progress bar; no spend or budget until a source exists; no editing affordance on the Board and no control on a card; no Inbox figure or slot; no recommended next story; no skill list in the composer; no `/` command.
+No count, badge or highlight on the Inbox, a tile or a Board figure; no regrouping of tiles by state; no progress bar; no spend or budget until a source exists; no editing affordance on the Board and no control on a card; no Inbox figure or slot; no recommended next story; no skill list in the composer and no `/` command *beyond Story 7.3's list and the first-message rule of the New session chat (amended 2026-10-15)*.
 
 ---
 
@@ -923,13 +954,158 @@ AD-14 binds a `288px` party side panel as a literal. **That constant is supersed
 | Element | Behaviour |
 |---|---|
 | Cast chooser | on opening, the user chooses the room; defaults to the five core personas |
-| Cast | every chosen portrait stays **permanently visible**. Presence is expressed by **dimming, never removal**. The current speaker is lit |
+| Cast | every chosen persona's card, with its initials disc (`{components.initials.sizeThread}`; amended 2026-10-15), stays **permanently visible**. Presence is expressed by **dimming, never removal**. The current speaker's card is lit with `{colors.cast-speaking-border}` |
 | Header | topic · participant count · turn counter · elapsed · *Write summary to `_bmad/`* |
 | Transcript | initials disc + name + role + clock time per turn. No tags, no quote-back chrome |
 | *Room* section | topic, who opened it and when, context documents in scope, destination `_bmad/party/<date>-<topic>.md` |
 | Turn gate | **none.** The user types at any point; a message interrupts the current speaker |
 | Session identity | a party session has a `sessionId` and **no `agentId`**. It gets no persona tile, and its rail row shows **the room** as owner |
 | Lifecycle | party has **stop**, not pause. *Pause room* is a lifecycle state neither CAP-11 nor the session model models |
+
+---
+
+## Sessions without a persona
+
+*Added 2026-10-15, from the Story 7.5 update (memlog: "UPDATE 2026-10-15 for Story 7.5"; epic: Story 7.5, with Stories 7.3 and 7.4 as dependencies and UX-DR53). Appearance: `DESIGN.md` → Components → `{components.skill-session-button}`, `{components.skill-seat}`, `{components.persona-tile}`, `{components.initials}` (the skill variant) and `{components.chat-header}` (the skill variant). Mocks: [`mockups/skill-session-entry.html`](mockups/skill-session-entry.html) (the button, the seats, the pressed state), [`mockups/new-session-landing.html`](mockups/new-session-landing.html) (the New session chat, at the two moments it appears) and [`mockups/skill-session-entry-options.html`](mockups/skill-session-entry-options.html) (the record of the comparison; option A, the entry as a row among the tiles, was rejected).*
+
+Until now every chat had a persona in it, and the shell always had one current. Epic 7 adds a chat with **nobody** in it, in which a skill that is not a persona can be run by name, and which the shell now rests on whenever no persona is current. Three pieces carry it: a button that opens that chat, the chat itself, and the seat a session started from it takes in the Team sidebar.
+
+**What this section does not design.** Story 7.3's `/` list (a list above the composer that opens on a `/` first character, anatomy and keys that story's) and Story 7.4's live dot and `close session` end. Both are referenced where they meet this section and nowhere specified here.
+
+### The Skill Session button
+
+| | Rule |
+|---|---|
+| Where | at the right end of the same row as *Sprint board* in the Team sidebar. It is in the Team sidebar only, so it is not on screen in Party or the Board |
+| Label | `Skill Session`. No icon, no count, no accent fill, no tooltip |
+| Control | a native `<button>` with `aria-pressed`; the same ghost control as the header's `Stop`. Appearance and the pressed look: `{components.skill-session-button}` |
+| Not pressed | the empty chat is not the chat in view: a persona's thread, a skill session, or any state before the first opening |
+| **Pressed** | **the empty chat is open.** Nothing else presses it: a skill session in view leaves it unpressed, and it does not light for a working skill session |
+| Click, not pressed | brings the chat in view: **the kept empty chat, with whatever text was half-typed in it, when there is one**; a fresh empty chat when there is none (it was sent, or the window has just opened). Presses the button and puts focus in the composer. No persona tile is current while it is open |
+| Click, pressed | **reuses** the open empty chat. Nothing new opens; focus goes to the composer **[ASSUMPTION]** |
+| Never | disabled, badged or counted. There is no cap on skill sessions, so there is no state in which it could not open a chat |
+
+**It is an entry to a chat, not a launcher.** It lists no skill, names no skill and starts none; what is typed in the chat it opens decides what happens, and Story 7.3's list is the one place skills are listed (*Banned everywhere*, amended).
+
+### The New session chat
+
+One surface, which is both the **empty chat** (what the button opens) and the **landing** (what the window rests on when no persona is current). There is no separate empty design and no state line.
+
+| Part | Rule |
+|---|---|
+| Header | `New session`, with a slash disc at `{components.initials.sizeHeader}` (`{components.chat-header}`, skill variant). **No status pill, no `Stop`, no `close session`, no close control of any kind**, no title, no story reference |
+| Thread | **shows nothing.** No line, greeting, hint, example or empty-state copy |
+| Composer | empty, with focus, **no placeholder**, and a hidden accessible name `message`. Enter, Shift+Enter and queueing behave as everywhere. No skill row is built **[ASSUMPTION]**: a skill row comes from a persona's menu and this chat has none |
+| The sidebar | no tile is current and none carries `aria-current`; the pressed button and the header are the only marks of where you are. Idle tiles still dim |
+| What it holds | nothing is recorded or stored for it: it exists in the open window only, and its half-typed text goes with it. It is **not** a session and has no process; it is not listed in the sidebar, and is reached by the button alone |
+
+**When it appears**
+
+| Moment | Behaviour |
+|---|---|
+| A window opens | the window rests on this chat, **in place of the earlier fallback to the first persona** (the order of the resolved roster no longer picks a tile). The button is pressed. The Skill sessions group is there only for skill sessions kept from an earlier launch, which read `ended` (below); with none, there is no group (`new-session-landing.html`, first frame) |
+| After the user ends the skill session they are viewing | the window lands here, not on a persona's thread. The other seats and every other skill session are untouched. Focus goes to the composer. Where the window lands after a *persona's* seat is ended is Story 7.4's |
+| The Skill Session button is pressed | the chat comes into view: the kept one, or a fresh one when none is kept (above) |
+
+**Leaving it, and keeping it (decided 2026-10-15).** Nothing distracts the chat. Clicking a persona tile or a skill seat, or switching to Party or the Board, **leaves it as it is**: it is kept in the background with any half-typed text, the button un-presses while another chat is in view, and pressing the button returns to the same chat. There is **one** kept empty chat per window. It ends when its text is sent (a valid first message makes it a skill session, or turns the window to a persona's seat or the room, and the next press opens a fresh one) or when the window closes; there is **no close control on it**. It is never ended by the harness for being left alone, and a reload of the window opens a fresh one like any other launch.
+
+A reload of the window opens it afresh like any other launch.
+
+### The first message
+
+The first message is read in main against the install's list (Story 7.3); the renderer sends the text and nothing else, and decides nothing about what a name means.
+
+| The user sends | What happens |
+|---|---|
+| `/<name> …` where `<name>` is an installed skill, and not a persona's or the room's | **a skill-first session starts.** The message is drawn as the user's turn, as typed; the header changes from `New session` to the skill's name; the slash disc stays; the seat appears in the Skill sessions group; the button un-presses, because the chat in view is now that session and the next press opens a fresh empty chat |
+| `/bmad-agent-*` | the window **turns to that persona's seat** (Story 7.4: a live seat resumes, one not live opens on first use) and no skill-first session starts. The text after the name, if any, is sent as the turn in that seat. The empty chat is spent: no seat, no line, no header of its own |
+| `/bmad-party-mode` | the window turns to **the room**, as the room opens today, and no skill-first session starts. The text after the name, if any, is sent as the turn in the room. The empty chat is spent |
+| anything else, including text with no `/`, and `@<name>` as a first word (nothing is handed off from here) | **nothing starts.** One harness line in the thread, `no skill named <word>`, in one frame; no persona answers; **no user turn is drawn**; the unsent text **stays in the composer** |
+
+- **The words.** `<word>` is the first word as typed, up to the first space, **without a leading slash and in the case typed**; a skill matches only when the name is exact: `hello there` gives `no skill named hello`. Lower case, mono, no full stop, in the existing sysline style (`{components.sysline}`), never attributed to a persona or a skill. **No suggestion follows it**: it does not list skills, name one, or say what to type (*Voice and Tone*, rule 1). It is announced once, politely (*Accessibility*).
+- **What stays.** The chat is still the New session chat after a refusal: the button stays pressed, the header still reads `New session`, focus stays in the composer. A second refusal adds a second line, in order, as syslines do **[ASSUMPTION]**.
+- **`/` as the first character** opens Story 7.3's list above the composer; this section does not design it.
+- **Typed in a persona's composer**, a `/<name>` is sent as it was before: it starts no session and draws no run card (Story 7.3). Only this chat starts a session from a name.
+- **`@<name>`.** As a first word, or anywhere in a skill-first session's composer, it is not read as an address here: nothing is handed off from this chat, and no persona is inferred from what is typed. As a first word it reads as any other word that names no skill, `no skill named @<name>`. *(Decided 2026-10-15; the epic's boundary stands.)*
+
+### A skill-first session
+
+The skill's own kind of chat. It is never a persona's and never the room, and the thread never presents it as either.
+
+| Part | Rule |
+|---|---|
+| Header | a slash disc at `{components.initials.sizeHeader}`, the **skill's name in `name` mono**, the status pill, then **`Stop` while a turn is in flight and `close session` otherwise** (Open item 1 holds here as everywhere; the end is Story 7.4's). **No title and no story reference**: the skill has no role and no story source |
+| Speaker | the skill's name in `name` mono, on every line the session produces. **Never a persona's initials, name or colour** |
+| Disc | the neutral skill variant of `{components.initials}`: a disc holding `{components.initials.skillGlyph}` in mono in `{colors.initials-ink}`, at `{components.initials.sizeThread}` beside a turn and `{components.initials.sizeHeader}` in the header. The skill's first letter is **not** used (every `bmad-*` skill would read `B`). No new colour |
+| Turn head | the disc, the skill's name, then the clock time (`HH:MM`); there is no title slot. Your turns are as in any chat. The skill's words render as any turn's words do, in `{typography.body-ui}` **[ASSUMPTION]** |
+| Run card | the first message starts a run and draws a run card in this session's thread, its head reading **`<skill> run`**. Everything in *State Patterns → Document card*, *The run list* and *Dead Air* holds, and the collapsed card's first field is the skill's name in the persona's place. Unlike the persona case (Open item 3), the name has a source here: main resolved it against Story 7.3's list when the session started |
+| A turn in flight | the pending turn, caret and state line of *State Patterns → A turn in flight*, with the skill's disc and name in the persona's place |
+| Later messages | a plain message goes to the **same session, which stays live**, and its replies keep the skill's name as speaker. A plain turn raises no card (AD-11). A message typed while a turn is in flight is queued as ever, marked `queued · sends when <skill> finishes` **[ASSUMPTION]** |
+| Its own thread | its lines are drawn **only in this session's thread**, by the room's precedent: no persona's thread and not the project's shared one draws them (FR135) |
+| Skill row | none **[ASSUMPTION]** (above) |
+
+**When the run ends the thread offers nothing about who to talk to next.** No suggestion, no persona named, no handoff line, no button, and no sysline of any kind at the foot (AD-21). The session simply waits for the next message. The next step stays the user's: type in the session, or turn to any persona's seat by its tile (Story 7.4).
+
+### The skill seat and the Skill sessions group
+
+A persona tile and a skill seat are **one anatomy**: a row of `{components.persona-tile.height}`, an initials disc at `{components.persona-tile.discSize}` and no illustrated avatar. The seat's own spec is `{components.skill-seat}`.
+
+| Part | Rule |
+|---|---|
+| Line one | the skill's name in `name` mono, where a persona has name and title. A name wider than the row is cut at its edge, and the header carries it whole **[ASSUMPTION]** |
+| Line two | one of three, with the dots of *State Patterns*: `working · <elapsed>` (amber, pulsing), `live` (green dot: idle and holding context), or, after a relaunch, `ended` (no dot) |
+| Disc | the slash disc (*A skill-first session*), decorative: the name is beside it |
+| Group | a group headed **`Skill sessions`**, below every persona group, in the existing group-heading treatment (the one the persona groups and the Outputs directories use: no new token). **Rendered only while at least one seat exists; no empty state** |
+| Order | **start order.** No recency sort, no sort by state, no pinning (AD-21); a seat does not move when it works or finishes |
+| Duplicates | the same skill may be started twice, with **no cap**. Only while two seats carry the same name does each show its start time, `HH:MM`, in `{colors.dim}` after the name (decided 2026-10-15: `dim`, because `faint` may not be the only carrier of a fact, *Accessibility Floor*) |
+| Click | turns the chat to that session and marks the seat current as a tile is (accent edge, `aria-current`) **[ASSUMPTION]**. A seat that is current un-presses the button |
+| The row has no control | **no close, no menu, no hover action.** The only end control is the header's `close session` (Story 7.4), so a session out of view is ended by turning to it first |
+| The state strip | **counts personas only**, equal to the head's `5 agents`, as the Board's Agents panel does. A working skill session shows in its own row and is in no cell |
+| Appearing | a new seat arrives in one frame, with no animation, and is **not announced** (*Roster and install states*: no arrival or removal animation) |
+
+### Ending, and a message to an ended session
+
+**Ending** is the header's `close session` while the skill session is in view, which is Story 7.4's control and keeps its rules. What the user sees: the session's process is killed, **its own records are removed** (they belong to no other thread), its seat leaves the group (and the `Skill sessions` heading goes with the last one), and the window **lands on the New session chat**, with focus in the composer. No persona's seat and not the shared thread is touched. Nothing is written in any thread: the session's thread goes with it.
+
+**After a relaunch** a skill session's process went with the app (FR100). Its seat is listed, with its thread as it was and `ended` in place of a dot. Its header has no `Stop`, but keeps `close session` so the row can go **[ASSUMPTION]**: nothing else removes a listed row.
+
+**A message to an ended session** says one harness line, `session ended`, in the thread, in the sysline style. **Nothing starts**; the text **stays in the composer**; no user turn is drawn. It says nothing about what to do next. It is announced once, politely. A new session begins only when the user opens a fresh New session chat and sends a first message.
+
+*A persona's seat after a relaunch* (its next message opens a session with no earlier context) is Story 7.4's and is not restated here.
+
+### Recent activity
+
+*Amended 2026-10-15; the Board's Recent activity (Story 6.7) is otherwise as built.* A skill-first run is a row. **The skill's name takes the persona's place**, and the word after it is `started`, `finished`, `stopped` or `failed` **with no code**, because a code would repeat the name. The dot rules and the absolute `MM-DD HH:MM` are Story 6.7's. The row is raised from the run card's `skill`.
+
+It is **never a Board column or card**, it derives **no story owner** (FR123 stands), and the Agents panel and the Overview's **agents running** count no persona for it.
+
+### Copy
+
+| Place | String |
+|---|---|
+| the button | `Skill Session` |
+| the empty chat's header | `New session` |
+| the group heading | `Skill sessions` |
+| a first word that is not an installed skill | `no skill named <word>` |
+| a message to an ended session | `session ended` |
+| a seat's second line | `working · <elapsed>` · `live` · `ended` |
+| a skill's run card head | `<skill> run` |
+| Recent activity | `<skill>` then `started` · `finished` · `stopped` · `failed` |
+
+### Accessibility
+
+- **The button** is a native `<button>` with `aria-pressed`, in the tab order after *Sprint board*, with the shared focus treatment `{components.focus}`; `Enter` and `Space` press it. **No new chord**: there is no shortcut for it and none is added.
+- **Focus** goes to the composer when the landing opens (a window opens, the button is pressed, a skill session is ended). The composer's accessible name is `message`, hidden. The thread is empty, so there is nothing to read first.
+- **Announcements.** `no skill named <word>` and `session ended` are announced **once, politely, through the existing live region**: one line, no new region, the 2-second throttle unchanged. A new seat's row is not announced, and neither is its dot (*Accessibility Floor → 4*).
+- **Seats** are in the sidebar's roving list (*Accessibility Floor → 2*); the disc is decorative, so a seat's name is its text, and its state is a text string beside its dot, which stops pulsing under reduced motion as every pulse does. `ended` has no dot and is text alone.
+
+### Boundaries
+
+No skill picker beyond Story 7.3's list; no inference of a persona from what is typed; no suggestion of a persona to talk to next, in any line, button or handoff; no attribution of a skill's work to a persona, in a name, a disc, a colour or a Board row; no Board column, card or owner for a skill-first run; no resume of a skill session across a relaunch; no cap on how many may be live; no change to a persona's seat or to the room by this section (a persona's skill and the room's turn to their own seat and room as before).
+
+### Banned here
+
+No icon, count, badge, tooltip or accent fill on the button; no recommended or highlighted skill anywhere in it, no list in it; no placeholder, hint, greeting, example or suggestion in the New session chat; no close control, pill or `Stop` on it; no control on a seat row; no recency, state or pinned order for seats; no count of skill sessions beyond the rows themselves; no skill's first letter as its disc; no persona's initials or colour on a skill's line; no sound; no animation of a seat arriving or leaving.
 
 ---
 
@@ -959,7 +1135,8 @@ With no command palette (*Banned everywhere*) there is no `⌘K` escape hatch, s
 | Surface | Keyboard behaviour |
 |---|---|
 | Topbar | tab-reachable: the view switch, three native buttons (`1:1 Conversation`, `Party Mode`, `Board`). Help is reserved and does not render in v1, so it is not a tab stop |
-| Team sidebar | one tab stop for the list; **arrow keys move between tiles** (roving tabindex); `Enter`/`Space` activates |
+| Team sidebar | one tab stop for the list; **arrow keys move between tiles** (roving tabindex); `Enter`/`Space` activates. *Amended 2026-10-15:* the skill seats join the same list, after the last persona **[ASSUMPTION]**: they are the same anatomy and no source gives them a second stop |
+| Skill Session button | *Added 2026-10-15.* a native `<button>` with `aria-pressed`, in the tab order **after the *Sprint board* row** and before the persona list; `Enter`/`Space` presses it. It takes the shared focus treatment and has no chord (*Sessions without a persona → Accessibility*) |
 | Skill row | one tab stop; arrows move between buttons; `Enter`/`Space` dispatches. `+N more` is a button, not a hover affordance |
 | Composer | tab-reachable and **never disabled**. **[ASSUMPTION]** — `Enter` sends, `Shift+Enter` inserts a newline; no source specifies send keys. `⌘↵` does **not** send, and `DESIGN.md` drops it from the glyph inventory accordingly |
 | Decision option | each option is its own tab stop; `Enter`/`Space` chooses it, which sends the turn and removes the block |
@@ -985,6 +1162,8 @@ No shortcut layer beyond this and the one chord above.
 | document window open | the window's document region (`tabindex="-1"`) | not *Close*. On `Esc`, focus returns to the rail row that opened it |
 | queued message send | unchanged — the composer keeps focus | the composer is never disabled; focus loss would read as the send failing |
 | run terminal event | unchanged | a completion must never move the user's focus out from under them |
+| the New session chat opens: a window opens on it, the Skill Session button opens it (or is pressed again), or the skill session in view is ended | **the composer** | *Added 2026-10-15.* the chat has nothing else to read or act on; there is no thread, control or header button to land on. The composer's hidden accessible name is `message` |
+| a first message starts a session, or turns to a persona's seat or the room | unchanged — the composer keeps focus **[ASSUMPTION]** | the user was typing, and moving focus would read as the send failing |
 
 ### 4. Live-region policy
 
@@ -999,17 +1178,20 @@ A single card streams **69,031 characters across 5,795 deltas** in one write. Ne
 | rail changes (`rail:changed`) | **not announced.** Filesystem churn is asynchronous and constant; the rail is a status region read on demand |
 | preflight failures, resolver errors, malformed entries | **announced politely**, once |
 | an output-folder choice refused (`not changed · …`) | **announced politely**, once |
+| `no skill named <word>`, and `session ended` (*Sessions without a persona*) | **announced politely, once each**, through this same region: one line, no new region. *Added 2026-10-15.* A new skill seat's row appearing, and a seat's dot or state line changing, are **not announced** |
 | anything | **`aria-live="assertive"` is used nowhere in the product.** Nothing here is urgent enough to interrupt what the user is reading |
 
 Exactly one polite live region per window. Announcements are throttled to **at most one every 2 s** — **[ASSUMPTION]**, no source specifies an interval; 2 s is longer than a screen reader takes to finish any string announced here and far shorter than the run-note feed's minutes-apart cadence, so nothing in the policy above is actually delayed by it. Announcements that arrive inside one interval are queued and read in event order, never merged into a count.
 
 ### 5. The initials token — focus parity
 
-At 20px the portrait is dropped for the initials token, and its hover reveal of name and role gets **focus parity**: `tabindex="0"`, `role="img"`, `aria-label="{name}, {title}"`, and the reveal fires on **both** `:hover` and `:focus-visible`. It takes the shared focus treatment `{components.focus}` at its stacked offset, which is what clears the negative-margin overlap of a stacked row.
+*Amended 2026-10-15: the focus parity below now covers initials discs only; there is no other avatar in the product.*
 
-This is deliberate rather than incidental: **a hover-only tooltip is the one affordance that fails completely without a mouse**, and it is cheap to avoid even at hobby stakes. Every portrait `<svg>` carries `role="img"` and the same `aria-label`, at every size.
+At 20px the initials token stands for a small reference (a stack, a story card), and its hover reveal of name and role gets **focus parity**: `tabindex="0"`, `role="img"`, `aria-label="{name}, {title}"`, and the reveal fires on **both** `:hover` and `:focus-visible`. It takes the shared focus treatment `{components.focus}` at its stacked offset, which is what clears the negative-margin overlap of a stacked row.
 
-**In the chat thread and the chat header** the disc (`sizeThread`, `sizeHeader`) stands beside the persona's name, so it is decorative: `aria-hidden`, no tab stop, no reveal. **[ASSUMPTION]** — the focus parity above applies wherever a disc stands alone, as in a stack or on a story card.
+This is deliberate rather than incidental: **a hover-only tooltip is the one affordance that fails completely without a mouse**, and it is cheap to avoid even at hobby stakes. Wherever a disc stands alone it carries `role="img"` and the same `aria-label`.
+
+**Beside a name** (the chat thread, the chat header, a Team tile, a cast card, a Welcome card, a skill seat) the disc, at `sizeThread` or `sizeHeader`, is decorative: `aria-hidden`, no tab stop, no reveal. **[ASSUMPTION]** — the focus parity above applies wherever a disc stands alone, as in a stack or on a story card. A skill's `/` disc is decorative for the same reason, since the skill's name is beside it.
 
 ---
 
@@ -1021,7 +1203,7 @@ The protagonists are the narrated sessions in the sources. Names, quotes and fig
 
 **You** (initials `SM`, role `sherif`), `~/work/falcon`, branch `feat/payouts-prd`. Subject: merchant payouts, EU only for v1.
 
-1. The window opens on the 1:1 view. A sysline: `session resumed · 3 earlier turns hidden · context: product-brief.md, research/market-2026-09-14.md`. John's tile is current; his state line reads `idle`.
+1. The window opens on the 1:1 view, on the New session chat (*Sessions without a persona*; *amended 2026-10-15: it used to open on a persona's thread, and no tile is current now*). You click John's tile. His thread opens with a sysline: `session resumed · 3 earlier turns hidden · context: product-brief.md, research/market-2026-09-14.md`. His tile is current; his state line reads `idle`.
 2. **14:02** You type: *"Same scope we agreed Tuesday… Start the PRD off the brief, don't re-interview me."*
 3. **14:02** John replies — *"Two silences already… Writing now — I'll flag the second one when I get to it."* — and dispatches. `run:started`. A document card is born inline in the thread. John's dot goes `work`. The `PRD.md` rail row reads `not yet written`, because it is.
 4. **Dead air.** For minutes the main thread is quiet. The card body is **not** empty and **not** a spinner: it is the run-note feed, sans against the head's mono, timestamps in tabular figures (once the step event exists, the persona's tool steps join the same list: *State Patterns → The run list*). `kind:decision` — scope fixed to EU-only for v1. `kind:assumption` — payout failure handling is in scope; 61% of last quarter's 214 tickets are "where is my money". `kind:open` (warm, not red) — manual payout trigger unresolved; the brief and the tickets cannot both be true in v1. The foot reads `0 words on disk · researching · autosave on`.
@@ -1039,7 +1221,7 @@ The protagonists are the narrated sessions in the sources. Names, quotes and fig
 
 Topic: *"payouts — extend billing-svc, or stand up the ledger now?"* Sysline: **`room opened by you · all five agents present · no turn order enforced`**.
 
-1. You open Party Mode and choose the room; it defaults to the five. Five cast cards, all portraits permanently visible, dimmed except the speaker.
+1. You open Party Mode and choose the room; it defaults to the five. Five cast cards, each with its initials disc, all permanently visible, dimmed except the speaker.
 2. **John frames and time-boxes himself:** *"Ten minutes on this, then it goes into the PRD's constraints section as written and I stop reopening it."*
 3. **Winston:** *"I'll say the unpopular thing first… Boring technology buys us the ability to be wrong cheaply."* And: *"That's a trade-off, not a verdict."*
 4. **Amelia disagrees — and the disagreement is evidence:** *"Disagree. `billing-svc/src/ledger/reconcile.ts` is 1,412 lines, no idempotency key, and the retry path is a `setTimeout`."* **No `disagrees · Winston` tag is rendered in v1** — there is no data source for one, and the substance is in her words, where it belongs. The harness classifies nothing.

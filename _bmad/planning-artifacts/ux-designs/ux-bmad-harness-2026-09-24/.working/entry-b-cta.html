@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Story 7.5: Skill Session as a CTA in the Sprint board row</title>
+<style>
+  /* Governs: DESIGN.md Team sidebar (state strip, nav row, persona tile), Initials, Chat header.
+     Exploration for Story 7.5 only. Dark theme, tokens copied from DESIGN.md colors.
+     Decided by the user 2026-10-15: entry is a CTA right-aligned in the Sprint board row;
+     every seat (persona and skill) is 44px with an initials disc, no portrait.
+     Open and shown as stand-ins: the CTA's exact look, the 26px disc on a tile, the wording. */
+  :root{
+    --bg:#0d0d0e; --chrome:#111112; --panel:#151516; --panel-2:#1a1a1b; --panel-3:#202021;
+    --line:#29292b; --line-soft:#1e1e20; --text:#dedee0; --text-strong:#f1f1f2; --dim:#9b9b9f; --faint:#8c8c90;
+    --accent:#e3e3e5; --accent-bg:rgba(227,227,229,.12); --accent-border:#434343;
+    --green:#7aa387; --amber:#b9a367; --red:#b88a84;
+    --tile-current:#252525; --initials-bg:#323232; --initials-line:#414141; --initials-ink:#b2b2b2;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --r:5px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#0b0b0c;color:var(--text);font-family:var(--sans);font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .page{max-width:1180px;margin:0 auto;padding:20px 24px 60px}
+  h1{margin:0 0 4px;font-size:16px;font-weight:600;color:var(--text-strong)}
+  .sub{margin:0 0 6px;color:var(--faint);font-size:12px;max-width:880px}
+  h2{margin:30px 0 4px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+  .frame{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column;height:560px}
+  .topbar{display:flex;align-items:center;gap:14px;height:42px;flex:0 0 42px;padding:0 12px;background:var(--chrome);border-bottom:1px solid var(--line)}
+  .topbar b{font-size:12.5px;color:var(--text-strong)}
+  .crumbs{font-family:var(--mono);font-size:11.5px;color:var(--dim)}
+  .spacer{flex:1}
+  .chip{display:inline-flex;align-items:center;height:20px;padding:0 7px;border:1px solid var(--line);border-radius:3px;background:var(--panel-2);font-family:var(--mono);font-size:10.5px;color:var(--dim)}
+  .seg{display:flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--panel-2)}
+  .seg span{padding:4px 13px;font-size:12px;color:var(--dim);border-right:1px solid var(--line-soft)}
+  .seg span:last-child{border-right:0}
+  .seg span.on{background:#252527;color:var(--text-strong);box-shadow:inset 0 -2px 0 var(--accent)}
+  .body{display:flex;flex:1;min-height:0}
+  .side{flex:0 0 244px;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;overflow:hidden}
+  .props{flex:0 0 300px;background:var(--panel);border-left:1px solid var(--line)}
+  .head{display:flex;align-items:center;gap:8px;height:30px;flex:0 0 30px;padding:0 11px;border-bottom:1px solid var(--line-soft);background:var(--panel-2)}
+  .head h3{margin:0;font-size:10.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--dim)}
+  .head .meta{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--faint)}
+  .strip{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--line-soft)}
+  .strip div{padding:8px 4px 7px;text-align:center;border-right:1px solid var(--line-soft)}
+  .strip div:last-child{border-right:0}
+  .strip b{display:block;font-size:15px;font-weight:600;color:var(--text-strong);font-variant-numeric:tabular-nums}
+  .strip span{font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
+  /* the nav row: Sprint board on the left, the entry on the right */
+  .nav{display:flex;align-items:center;gap:8px;padding:5px 11px;height:34px;font-size:12px;color:var(--dim);border-bottom:1px solid var(--line-soft)}
+  .nav kbd{font-family:var(--mono);font-size:10.5px;padding:0 5px;border:1px solid var(--line);border-radius:3px;color:var(--faint)}
+  .cta{margin-left:auto;background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r);padding:3px 10px;font:inherit;font-size:11.5px;color:var(--dim);cursor:pointer}
+  .cta:hover{color:var(--text-strong);border-color:#404040}
+  .cta[aria-pressed="true"]{background:var(--panel-3);color:var(--text-strong);border-color:var(--accent-border)}
+  .grp{padding:6px 11px 3px;font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);background:var(--bg)}
+  /* one seat anatomy for persona and skill: 44px, initials disc, no portrait */
+  .seat{display:flex;align-items:center;gap:10px;height:44px;padding:0 11px;border-bottom:1px solid var(--line-soft);position:relative}
+  .seat.cur{background:var(--tile-current)}
+  .seat.cur::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--accent)}
+  .seat.idle .nm,.seat.idle .st{opacity:.55}
+  .seat > div:last-child{min-width:0}
+  .disc{flex:0 0 auto;width:26px;height:26px;border-radius:50%;background:var(--initials-bg);border:1px solid var(--initials-line);color:var(--text-strong);font:600 11px/24px var(--sans);text-align:center}
+  .disc.sl{font-family:var(--mono);font-size:12px;color:var(--initials-ink)}
+  .disc.s22{width:22px;height:22px;font-size:10.5px;line-height:20px}
+  .nm{display:flex;gap:7px;align-items:baseline;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .nm b{font-size:12.5px;color:var(--text-strong);font-weight:600}
+  .nm span{font-size:11px;color:var(--dim)}
+  .nm.sk b{font-family:var(--mono);font-size:12px;font-weight:400;overflow:hidden;text-overflow:ellipsis}
+  .st{display:flex;gap:6px;align-items:center;font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--faint);flex:0 0 auto}
+  .dot.work{background:var(--amber);box-shadow:0 0 0 3px rgba(185,163,103,.13)}
+  .dot.live{background:var(--green);box-shadow:0 0 0 3px rgba(122,163,135,.14)}
+  .col{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
+  .chead{display:flex;align-items:center;gap:10px;height:46px;flex:0 0 46px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--chrome)}
+  .chead b{font-size:13px;color:var(--text-strong)}
+  .chead .role{font-size:12px;color:var(--dim)}
+  .thread{flex:1}
+  .composer{padding:8px 20px 16px;border-top:1px solid var(--line-soft)}
+  .cbox{border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:10px 12px;min-height:62px}
+  .keys{margin-top:8px;font-family:var(--mono);font-size:10.5px;color:var(--faint);text-align:right}
+  .ph{padding:14px;color:var(--faint);font-size:11.5px;font-family:var(--mono)}
+  .notes{margin-top:12px;border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:10px 14px;font-size:12px;color:var(--dim)}
+  .notes ul{margin:0;padding-left:16px}.notes li{margin:3px 0}
+  .tag{display:inline-block;margin-left:6px;font:600 10px/1 var(--mono);color:var(--amber);border:1px solid #4a4228;border-radius:3px;padding:2px 5px;vertical-align:1px}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Story 7.5: Skill Session as a CTA in the Sprint board row</h1>
+  <p class="sub">The chosen placement (B), as modified: the entry is a button at the right of the Sprint board row. Every seat is 44px with a 26px initials disc and no portrait, personas and skill sessions alike. Chat copy is still left empty on purpose. Dark theme only.</p>
+
+  <h2>At rest: a persona's chat is open, the button is not pressed</h2>
+  <div class="frame">
+    <header class="topbar"><b>BMad Harness</b><span class="crumbs">bmad-harness</span><span class="spacer"></span><span class="chip">main</span><div class="seg"><span class="on">1:1</span><span>Party</span><span>Board</span></div></header>
+    <div class="body">
+      <aside class="side">
+        <div class="head"><h3>Team</h3><span class="meta">5 agents</span></div>
+        <div class="strip"><div><b>1</b><span>working</span></div><div><b>5</b><span>idle</span></div><div><b>0</b><span>error</span></div><div><b>0</b><span>changed</span></div></div>
+        <div class="nav"><span>Sprint board</span><kbd>g b</kbd><button class="cta" aria-pressed="false">Skill Session</button></div>
+        <div class="seat idle"><div class="disc">M</div><div><div class="nm"><b>Mary</b><span>Analyst</span></div><div class="st"><span class="dot"></span>idle</div></div></div>
+        <div class="seat idle"><div class="disc">J</div><div><div class="nm"><b>John</b><span>PM</span></div><div class="st"><span class="dot"></span>idle</div></div></div>
+        <div class="seat idle"><div class="disc">S</div><div><div class="nm"><b>Sally</b><span>UX Designer</span></div><div class="st"><span class="dot"></span>idle</div></div></div>
+        <div class="seat idle"><div class="disc">W</div><div><div class="nm"><b>Winston</b><span>Architect</span></div><div class="st"><span class="dot"></span>idle</div></div></div>
+        <div class="seat cur"><div class="disc">A</div><div><div class="nm"><b>Amelia</b><span>Developer</span></div><div class="st"><span class="dot work"></span>working · 4m 12s</div></div></div>
+        <div class="grp">Skill sessions</div>
+        <div class="seat"><div class="disc sl">/</div><div><div class="nm sk"><b>bmad-create-epics-and-stories</b></div><div class="st"><span class="dot live"></span>live</div></div></div>
+      </aside>
+      <section class="col">
+        <div class="chead"><div class="disc s22">A</div><b>Amelia</b><span class="role">Developer</span></div>
+        <div class="thread"><div class="ph">[a persona's thread]</div></div>
+        <div class="composer"><div class="cbox"></div><div class="keys">Enter send · Shift+Enter newline</div></div>
+      </section>
+      <aside class="props"><div class="head"><h3>Outputs</h3><span class="meta">_bmad/</span></div></aside>
+    </div>
+  </div>
+
+  <h2>Pressed: the empty chat is open (a second click lands here)</h2>
+  <div class="frame">
+    <header class="topbar"><b>BMad Harness</b><span class="crumbs">bmad-harness</span><span class="spacer"></span><span class="chip">main</span><div class="seg"><span class="on">1:1</span><span>Party</span><span>Board</span></div></header>
+    <div class="body">
+      <aside class="side">
+        <div class="head"><h3>Team</h3><span class="meta">5 agents</span></div>
+        <div class="strip"><div><b>1</b><span>working</span></div><div><b>5</b><span>idle</span></div><div><b>0</b><span>error</span></div><div><b>0</b><span>changed</span></div></div>
+        <div class="nav"><span>Sprint board</span><kbd>g b</kbd><button class="cta" aria-pressed="true">Skill Session</button></div>
+        <div class="seat idle"><div class="disc">M</div><div><div class="nm"><b>Mary</b><span>Analyst</span></div><div class="st"><span class="dot"></span>idle</div></div></div>
+        <div class="seat idle"><div class="disc">J</div><div><div class="nm"><b>John</b><span>PM</span></div><div class="st"><span class="dot"></span>idle</div></div></div>
+        <div class="seat idle"><div class="disc">S</div><div><div class="nm"><b>Sally</b><span>UX Designer</span></div><div class="st"><span class="dot"></span>idle</div></div></div>
+        <div class="seat idle"><div class="disc">W</div><div><div class="nm"><b>Winston</b><span>Architect</span></div><div class="st"><span class="dot"></span>idle</div></div></div>
+        <div class="seat idle"><div class="disc">A</div><div><div class="nm"><b>Amelia</b><span>Developer</span></div><div class="st"><span class="dot"></span>idle</div></div></div>
+        <div class="grp">Skill sessions</div>
+        <div class="seat"><div class="disc sl">/</div><div><div class="nm sk"><b>bmad-build</b></div><div class="st"><span class="dot work"></span>working · 4m 12s</div></div></div>
+        <div class="seat"><div class="disc sl">/</div><div><div class="nm sk"><b>bmad-create-epics-and-stories</b></div><div class="st"><span class="dot live"></span>live</div></div></div>
+      </aside>
+      <section class="col">
+        <div class="chead"><div class="disc s22 sl">/</div><b>Skill Session</b></div>
+        <div class="thread"><div class="ph">[empty chat: copy decided next]</div></div>
+        <div class="composer"><div class="cbox"></div><div class="keys">Enter send · Shift+Enter newline</div></div>
+      </section>
+      <aside class="props"><div class="head"><h3>Outputs</h3><span class="meta">_bmad/</span></div></aside>
+    </div>
+  </div>
+
+  <div class="notes"><ul>
+    <li>The button is the ghost control already in the system (<code>panel-2</code>, 1px <code>line</code>, <code>control</code> radius, <code>3px 10px</code>, the same as header <em>Stop</em>). No accent fill, no icon, no count. Pressed is <code>panel-3</code> with <code>text-strong</code> and the <code>accent-border</code>. <span class="tag">STAND-IN</span></li>
+    <li>In the second frame no persona tile is current: the open chat is the empty one, and the pressed button is the only mark of it.</li>
+    <li>Persona tiles drop from 56px to 44px and the 36px portrait becomes a 26px initials disc, one letter, the same rule as the thread. Idle tiles still dim. <span class="tag">STAND-IN</span></li>
+    <li>The two frames are the sidebar at two different moments (a different session is working in each), not one state.</li>
+  </ul></div>
+</div>
+</body>
+</html>

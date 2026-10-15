@@ -1,10 +1,10 @@
 ---
 name: 'bmad-visual-harness'
 type: design-spine
-description: 'Dense, hairline-ruled desktop shell in two themes, dark and light, whose entire restraint budget is spent on one thing: illustrated portraits of plausible colleagues.'
+description: 'Dense, hairline-ruled desktop shell in two themes, dark and light, that spends its restraint budget on nothing: no portrait, no illustration, no identity device. A person or a skill is an initials disc and a name.'
 status: final
 created: '2026-09-24'
-updated: '2026-10-09'
+updated: '2026-10-15'
 sources:
   - ../../../specs/spec-bmad-visual-harness/SPEC.md
   - ../../../specs/spec-bmad-visual-harness/ui-surfaces.md
@@ -22,12 +22,15 @@ sources:
   - mockups/paperclip-board.html
   - mockups/chat-thread-reference.png
   - mockups/document-card-dead-air.html
-  - mockups/portrait.html
+  - mockups/portrait.html   # historical: the removed portrait generator (2026-10-15)
   - mockups/welcome-screen.html
   - mockups/light-a-shell.html
   - mockups/light-a-welcome.html
   - mockups/light-b-shell.html
   - mockups/light-b-welcome.html
+  - mockups/skill-session-entry.html
+  - mockups/new-session-landing.html
+  - mockups/skill-session-entry-options.html
   - ../../epics.md
 companions:
   - EXPERIENCE.md
@@ -330,10 +333,13 @@ components:
     live-halo: '0 0 0 3px {colors.halo-live}'
     note: '{colors.note}'
     error: '{colors.red}'
+  # ── portrait: REMOVED 2026-10-15, kept until the portrait-removal story. No portrait is drawn anywhere in the product
+  #    (Team tiles, cast cards, Welcome and the thread are all initials discs). The tokens stay because the code and its pinned
+  #    tests (portrait.test, tokens.test) still carry them; no prose specifies them any more.
   portrait:
     viewBox: '0 0 100 100'
     radius: '{rounded.full}'
-    sizes: '36 persona tile · 44 cast card · none in the chat thread or its header (initials, 26 and 22)'
+    sizes: '36 persona tile · 44 cast card · none in the chat thread or its header (initials, 26 and 22)'   # removed 2026-10-15
     minLegibleSize: 32px
     faceRatio: '0.76'
     speakingRing: '0 0 0 2px {colors.accent}'
@@ -353,13 +359,47 @@ components:
     radius: '{rounded.full}'
     stackOverlap: -5px
     stackRing: '0 0 0 1.5px {colors.panel-2}'
+    # The skill variant (Story 7.5, 2026-10-15): the same neutral disc, holding a slash in mono. No new colour.
+    skillGlyph: '/'      # mono, in {colors.initials-ink}; the disc of a skill-first session, in a turn (26px), the header (22px) and a skill seat (26px)
+    skillBackground: '{colors.initials-bg}'
+    skillBorder: '1px solid {colors.initials-line}'
+    skillColor: '{colors.initials-ink}'
+    skillFontFamily: '{typography.mono.fontFamily}'
+    skillFontSize: '{typography.label} size at 26px, {typography.micro} size at 22px'   # [ASSUMPTION] the mock draws 12px at 26px; no 12px mono role exists
   persona-tile:
     background: 'transparent'
     hoverBackground: '{colors.panel-2}'
     currentBackground: '{colors.tile-current}'
     currentEdge: '2px {colors.accent}'
-    portraitSize: 36px
-    height: 56px
+    discSize: '{components.initials.sizeThread}'   # 26px initials disc; replaces portraitSize (36px, removed 2026-10-15)
+    height: 44px                                   # was 56px
+  skill-seat:
+    # One anatomy with persona-tile (Story 7.5): a 44px row, a 26px initials disc, no portrait. The disc is the skill variant of {components.initials}.
+    height: '{components.persona-tile.height}'
+    background: '{components.persona-tile.background}'
+    hoverBackground: '{components.persona-tile.hoverBackground}'
+    currentBackground: '{components.persona-tile.currentBackground}'
+    currentEdge: '{components.persona-tile.currentEdge}'
+    discSize: '{components.persona-tile.discSize}'
+    disc: '{components.initials} skill variant (`/`)'
+    name: '{typography.name} size and weight in the mono family, {colors.text-strong}; ellipsis, never wrap'
+    startTime: '{typography.meta} mono, {colors.faint}, after the name; drawn only when two seats share a name'
+    stateLine: '{typography.label} mono: `working · <elapsed>` with {components.status-dot} work, or `live` with {components.status-dot} live, or `ended` with no dot'
+    group: 'the heading `Skill sessions` (the existing group-heading treatment), below the last persona tile; drawn only while a seat exists'
+  skill-session-button:
+    # The entry to the empty chat, right-aligned in the Sprint board row. The same control as the chat header's Stop.
+    background: '{colors.panel-2}'
+    border: '1px solid {colors.line}'
+    radius: '{rounded.DEFAULT}'     # as chat-header.stop: a ghost button is DEFAULT in Shapes; see Open items 6
+    padding: '3px 10px'
+    type: '{typography.body-ui} in {colors.dim}'
+    label: 'Skill Session'
+    hoverColor: '{colors.text-strong}'
+    hoverBorder: '{colors.ghost-border-hover}'
+    pressedBackground: '{colors.panel-3}'
+    pressedColor: '{colors.text-strong}'
+    pressedBorder: '1px solid {colors.accent-border}'
+    focus: '{components.focus.ring}'
   rail-row:
     stateColor: '{colors.dim}'
     writingName: '{colors.text-strong}'
@@ -433,6 +473,7 @@ components:
     pending: 'a persona turn with no words yet: initials disc, head timed from the turn''s start, the caret as the whole body, the state line under it'
     roomPending: 'the room before a speaker is known: the turn row with no disc, no head and no caret, only the state line'
     max: '{spacing.thread-max}'
+    skillFirst: 'the same row with the skill variant of {components.initials} (26px) and, in the head, the skill name in {typography.name} size and weight in the mono family, {colors.text-strong}; no role; the time as for a persona'
   chat-header:
     height: '{spacing.chat-head}'
     background: '{colors.chrome}'
@@ -444,6 +485,15 @@ components:
     line: '{typography.body-ui} sans, dim: `title · story <id>`; the story reference omitted when it has no source'
     pill: 'the status pill: {colors.status-pill-ink} on {colors.status-pill-bg}, border {colors.status-pill-line}, {typography.ident} mono'
     stop: '{colors.panel-2} ground, 1px {colors.line}, {rounded.DEFAULT}, padding 3px 10px, {typography.body-ui} {colors.dim}; hover {colors.text-strong}, border {colors.ghost-border-hover}'
+    # The skill variant (Story 7.5, 2026-10-15): a skill-first session, and the empty `New session` chat.
+    skill:
+      avatar: '{components.initials} skill variant at {components.initials.sizeHeader}'
+      name: 'the skill name in {typography.name} size and weight, mono family, {colors.text-strong}; no title, no story reference'
+      right: 'the status pill, then `Stop` while a turn is in flight and `close session` otherwise'
+    landing:
+      avatar: '{components.initials} skill variant at {components.initials.sizeHeader}'
+      name: '`New session` in {typography.name} sans, {colors.text-strong}'
+      right: 'nothing: no pill, no Stop, no close'
   run-step:
     grid: '14px 1fr auto'
     gap: '9px'
@@ -484,7 +534,8 @@ components:
     speakingBorder: '{colors.cast-speaking-border}'
     speakingBackground: '{colors.cast-speaking-ground}'
     speakingShadow: '{colors.shadow-speaking}'
-    portraitSize: 44px
+    discSize: '{components.initials.sizeThread}'   # 26px initials disc (2026-10-15)
+    portraitSize: 44px                             # removed 2026-10-15, kept until the portrait-removal story
   welcome:
     window: '{spacing.welcome-window}, opened by main, no project'
     ground: '{colors.bg}'
@@ -503,7 +554,8 @@ components:
     lane-label: '{typography.label} mono uppercase, {colors.faint}, then a 1px {colors.line} rule filling the row, then the lane number in {typography.badge} {colors.meta}'
     lane-columns: '1fr 2fr 1fr 1fr, gap 10px (planning holds two cards)'
     persona-card: '{colors.panel} ground, 1px {colors.line}, {rounded.card}, padding 12px 12px 11px, gap 8px'
-    portraitSize: 44px
+    discSize: '{components.initials.sizeThread}'   # 26px initials disc (2026-10-15)
+    portraitSize: 44px                             # removed 2026-10-15, kept until the portrait-removal story
     opacity: '1 — these are not a room, so nothing is dimmed'
     theme-line: '{typography.meta} mono along the bottom edge, right-aligned: `theme · system · light · dark`; the current word {colors.text-strong}, the others {colors.accent}, hover underlines'
   follow-control:
@@ -563,6 +615,7 @@ components:
     rule: '1px line, drawn as ::before/::after flex fills either side of the text'
     margin: '14px 2px 10px'
     note: 'Harness-authored transcript entry. Never attributed to a persona.'
+    lines: 'Story 7.5 adds two, in this style and no other: `no skill named <word>` and `session ended`; lower-case, no full stop'
   focus:
     ring: '0 0 0 2px {colors.accent}'
     offset: '2px'
@@ -577,19 +630,19 @@ components:
 
 ## Brand & Style
 
-The harness is a dark, dense, hairline-ruled desktop shell that reads as an instrument, not an app. Every visual decision in it is downstream of one sentence from the architecture: *"if it reads as a chat box with a portrait glued on, it has failed regardless of feature completeness."*
+The harness is a dark, dense, hairline-ruled desktop shell that reads as an instrument, not an app. Every visual decision in it is downstream of one rule: nothing on screen is there to be looked at for its own sake; everything on screen is a fact the user is reading.
 
-The restraint is not minimalism as taste. It is a budget. Real illustrated faces carry the entire premise — presence, a room where a team visibly works — and the named top risk is that those faces read as childish and take the perceived intelligence down with them. Every other surface is therefore pulled back to the point of being nearly invisible so the portraits are the only thing in the product with warmth in it. Surfaces step up in five near-identical greys. Borders are hairlines. There is one accent. There is no icon font, no emoji, no image file, no gradient outside two chrome fills, and exactly one non-default font weight in the whole system. Glyphs in copy are literal Unicode (`→ ↔ · § ≈ —`); **`⌘↵` is not in the inventory**, because the composer sends on `Enter` (EXPERIENCE.md → *Accessibility Floor → Keyboard reach*).
+**The product spends its restraint budget on nothing.** *(Rewritten 2026-10-15.)* The earlier premise was that illustrated portraits of plausible colleagues were the one thing in the product allowed warmth, and that every other surface was pulled back so they could carry it. The portraits are gone from the product completely, and nothing replaces them: there is no identity device, no illustration, no image, no colour per persona and no second ornament to take the budget over. A persona is a **26px initials disc and a name**; a skill session is the same disc holding a `/`. The restraint that remains is not a budget spent on something. It is the absence of anything that is not state, text or a hairline. Surfaces step up in five near-identical greys. Borders are hairlines. There is one accent. There is no icon font, no emoji, no image file, no gradient outside two chrome fills, and exactly one non-default font weight in the whole system. Glyphs in copy are literal Unicode (`→ ↔ · § ≈ —`); **`⌘↵` is not in the inventory**, because the composer sends on `Enter` (EXPERIENCE.md → *Accessibility Floor → Keyboard reach*).
 
-**2026-10-09: the chat thread carries no portraits.** By the user's decision the thread and its header show a persona as an initials disc, on flat rows. The faces stay on the Team tiles, the cast cards and the Welcome, and the budget described above is spent there; the shell around the thread is held to it, the thread itself is as plain as the screenshot draws it.
+*Amended 2026-10-15.* On 2026-10-09 the chat thread alone dropped its portraits (flat rows, initials discs); on 2026-10-15 the Team tiles, the cast cards and the Welcome did too, so the thread, the tile, the card and the Welcome row draw a person the same way. What the earlier sentences said about a thread held "as plain as the screenshot draws it" while the faces carried the warmth elsewhere no longer applies: the whole product is as plain as the thread. The removal is recorded where the portrait component stood (*Components → Removed 2026-10-15*).
 
 Information density is high and deliberate: the densest type tier was 10.5px in the mockup and is 11px since the 2026-10-10 legibility pass; it is still the most-used size in the product. This is a tool for an engineer reading state, not a consumer surface. Nothing is padded to feel generous.
 
-**Two themes, one design.** Dark is the theme the product was designed in; light (2026-10-08; repainted 2026-10-09 as the dark theme reversed) is its twin and is chosen, not inferred: *System* (the default, following the OS), *Light* or *Dark* (EXPERIENCE.md → *Theme*). No stylesheet and no component reads `prefers-color-scheme`, and there is no high-contrast variant. Every rule in this document holds in both themes, and the restraint budget most of all: the portraits are the only thing with warmth in either one, which is why the light palette is neutral grey.
+**Two themes, one design.** Dark is the theme the product was designed in; light (2026-10-08; repainted 2026-10-09 as the dark theme reversed) is its twin and is chosen, not inferred: *System* (the default, following the OS), *Light* or *Dark* (EXPERIENCE.md → *Theme*). No stylesheet and no component reads `prefers-color-scheme`, and there is no high-contrast variant. Every rule in this document holds in both themes, and the restraint most of all: nothing carries warmth in either one but the friction tone, which is why the light palette is neutral grey.
 
 Two tonal rules govern everything below. **One accent, one friction colour.** The accent, a soft off-white, is the system's voice; the warm tone belongs to disagreement and to nothing else — friction is the one thing given its own colour, because friction is the feature most likely to be sanded off in implementation. **State is never decoration.** Four state colours exist and every one of them is driven by a real system fact.
 
-**The ownership convention, stated once and used throughout.** Anatomy and appearance are specified here, in DESIGN.md. Triggers, transitions, data sources and keyboard behaviour are specified in EXPERIENCE.md. Where a state is named here, what drives it and when it changes live there; where a component is named there, what it looks like lives here. **Mockups illustrate; this spine wins** (stated once here). Four still draw what the chat look replaced (container turns, a tinted user turn, portraits in the thread): `follow-the-thread.html`, `rail-resize-collapse.html`, `light-a-shell.html` and the transcript box of `portrait.html`. Their turn rendering is superseded by *Layout, chat and Board → The chat look* in EXPERIENCE.md; the rest of each stands.
+**The ownership convention, stated once and used throughout.** Anatomy and appearance are specified here, in DESIGN.md. Triggers, transitions, data sources and keyboard behaviour are specified in EXPERIENCE.md. Where a state is named here, what drives it and when it changes live there; where a component is named there, what it looks like lives here. **Mockups illustrate; this spine wins** (stated once here). Four still draw what the chat look replaced (container turns, a tinted user turn, portraits in the thread): `follow-the-thread.html`, `rail-resize-collapse.html`, `light-a-shell.html` and the transcript box of `portrait.html`. Their turn rendering is superseded by *Layout, chat and Board → The chat look* in EXPERIENCE.md; the rest of each stands, **except every portrait they draw (Team tiles, cast cards, the Welcome team), removed 2026-10-15**; `portrait.html` is kept as history only. The Story 7.5 mocks, [`skill-session-entry.html`](mockups/skill-session-entry.html) (the button, the 44px seats, the Skill sessions group), [`new-session-landing.html`](mockups/new-session-landing.html) (the landing, two moments) and [`skill-session-entry-options.html`](mockups/skill-session-entry-options.html) (the record of the rejected placement A), illustrate the entry and its seats; where one draws a value this spine does not name, the spine's token wins.
 
 **Open items** (after the 2026-10-09 chat-look update; each is also tagged `[OPEN]` where it appears; the rest of `review-rubric.md` is in `validation-report.md`):
 1. `[OPEN]` **Stop vs `close session`.** Does the header's `Stop` replace `close session`, or take its slot only while a turn is in flight? The contract has `run.stop(runId)` and `session.close` only, so a plain chat turn has nothing to stop with.
@@ -597,6 +650,8 @@ Two tonal rules govern everything below. **One accent, one friction colour.** Th
 3. `[OPEN]` **The skill-name source.** `handed to <persona> · <skill>` and the run card head show a name the renderer's events do not carry.
 4. `[OPEN]` **Register split under steps.** Steps and prose are both mono; structure, not typeface, tells them apart.
 5. `[OPEN]` **The `@Name` chip.** A handoff strips the `@name` from the turn, so the chip the screenshot draws needs a display text recorded beside the sent text in `turn.send`: a contract change, handed to `bmad-architecture`. Not built.
+6. `[OPEN]` **Radius of the `Skill Session` button.** It is drawn as the header's `Stop` (a ghost button, `{rounded.DEFAULT}`, 5px, as the mock draws it). The Story 7.5 brief says `control` (4px); the two cannot both hold, and the spine follows the Stop and the mock.
+7. `[OPEN]` **An `ended` skill seat's presence.** Persona tiles dim at `{opacity.idle}` when idle; the mock draws skill seats at full opacity and says nothing of an ended one. Drawn undimmed until decided (*Components → Skill seat*).
 
 ## Colors
 
@@ -614,7 +669,7 @@ The `:root` block above is copied from `harness-mockup.html` unchanged, in sourc
 
 ### Accent
 
-`accent` (`#e3e3e5`) is the single chromatic voice: the current-persona edge on a tile, the pressed underline on the segmented control, the caret at the tail of words being written (a document card's prose, a persona's turn in flight), the skill-button code chip, the decision-option key, the requirement ids in rendered markdown (`.fr`), and the speaking ring on a cast portrait. `accent-bg` is its 12% fill and is the only accent *fill* in the product — accent is a line, an edge, a chip border, almost never a surface.
+`accent` (`#e3e3e5`) is the single chromatic voice: the current-persona edge on a tile, the pressed underline on the segmented control, the caret at the tail of words being written (a document card's prose, a persona's turn in flight), the skill-button code chip, the decision-option key, the requirement ids in rendered markdown (`.fr`), and the lit border of the speaking cast card (`cast-speaking-border`). `accent-bg` is its 12% fill and is the only accent *fill* in the product — accent is a line, an edge, a chip border, almost never a surface.
 
 Accent is not a state. That distinction is the reason for the next token.
 
@@ -656,7 +711,7 @@ The remaining tokens in the block above are not new colours. Each is a value alr
 - **The four state colours keep their meaning and stay muted.** Green `#4a6a54`, amber `#726134` and red `#89554e` keep each dark hue and saturation and are darkened until each clears 4.5:1 on every surface text sits on, `panel-3` included. The halos around the live and work dots are strengthened to `.16`, because a glow reads weaker on a light ground. `disagree #994c3e` stays a distinct warm tone and is not `red`.
 - **Document ink reverses with the page.** `ink-doc #3d3d3d`, `ink-doc-strong #151515`, `ink-md #2b2b2b`; the document card's mono body and the markdown window read as dark-on-grey.
 - **Shadows and the scrim are neutral and low.** The window shadow is `0 30px 70px -20px rgba(8,8,8,.35)`, the speaking cast card's shadow likewise, the scrim `rgba(8,8,8,.35)`. A dark theme's alpha would read as dirt on a light ground.
-- **Portraits are identical in both themes.** Backdrops stay the dark tones in the parameter table, so on a light page the faces read as dark discs and remain the strongest thing on screen. `ArtParams` gains no theme field and a portrait's markup does not vary with theme.
+- **The initials disc is the one avatar in both themes.** *(Replaces the portraits-are-identical bullet, 2026-10-15.)* `initials-bg`, `initials-line` and `initials-ink` have light twins above; the skill variant (the `/`) uses the same three tokens and so resolves in both themes with no new colour.
 
 **Measured contrast** (WCAG ratio of the foreground against the surface it sits on, from the twins above; dark is the shipped theme):
 
@@ -676,6 +731,7 @@ The remaining tokens in the block above are not new colours. Each is a value alr
 | `disagree` on `panel` | 7.3 | 5.0 |
 | `text-strong` on `initials-bg` (a persona's disc) | 11.4 | 12.1 |
 | `accent` on `accent-bg` over `bg` (your disc) | 11.6 | 12.1 |
+| `initials-ink` on `initials-bg` (a skill's `/` disc, 2026-10-15) | 6.0 | 5.3 |
 
 The clock time in a turn head sits at `meta` and restates nothing load-bearing: a turn's order is its place in the thread.
 
@@ -683,7 +739,7 @@ Every pair that carries text clears 4.5 in both themes, `meta` included. The thr
 
 ### What has no colour
 
-No gradients except the two chrome fills (cast strip, window titlebar). No shadows carrying hue. No semantic colour on text below `dim` other than the four states. No colour-coding by persona, module, file type or recency — the portrait is the only per-persona colour in the product, and the rail is deliberately monochrome so it reads as a filesystem rather than a dashboard. (The proposed Board, below, is the one surface allowed to read as a dashboard, and it is monochrome too.)
+No gradients except the two chrome fills (cast strip, window titlebar). No shadows carrying hue. No semantic colour on text below `dim` other than the four states. No colour-coding by persona, skill, module, file type or recency — there is no per-persona colour in the product, and the rail is deliberately monochrome so it reads as a filesystem rather than a dashboard. (The proposed Board, below, is the one surface allowed to read as a dashboard, and it is monochrome too.)
 
 ## Typography
 
@@ -725,7 +781,7 @@ AD-14 states the type scale as "base 13px/1.55". That is the body rule, not the 
 | `h2` | 14.5px | sans 600 | Markdown h2, document window only |
 | `h1` | 20px | sans 600, -.01em | Markdown h1, document window only. Never appears in the shell |
 
-Line-heights are four: `1.55` everywhere by default, `1.72` for both reading measures (card prose and rendered markdown), `1.45` for the open-question block, and `0` on the portrait wrapper to kill inline descender space.
+Line-heights are three: `1.55` everywhere by default, `1.72` for both reading measures (card prose and rendered markdown), and `1.45` for the open-question block.
 
 ### Weight and tracking
 
@@ -745,7 +801,7 @@ AD-14 names layout literals as equal in force to the colours. These are the cont
 
 | Constant | Value | Surface |
 |---|---|---|
-| Team sidebar | **244px** by default, **resizable 200–400px**, `flex:0 0` | 1:1 view, left side: the state strip, the nav rows, the persona tiles |
+| Team sidebar | **244px** by default, **resizable 200–400px**, `flex:0 0` | 1:1 view, left side: the state strip, the nav rows (the Sprint board row carries the `Skill Session` button at its right), the persona tiles, then the Skill sessions group |
 | Rail | **300px** by default, **resizable 260–480px**, `flex:0 0`; the chat column keeps **420px** at least | 1:1 view, right side: the Outputs half (the context panel's other sections are proposed) |
 | Room panel | **240px** by default, **resizable 200–400px**; the party column keeps **480px** at least | Party view, right side; hidden at ≤1180px |
 | Topbar | **42px** | `chrome`, 1px `line` bottom rule, 14px gap |
@@ -761,7 +817,7 @@ AD-14 names layout literals as equal in force to the colours. These are the cont
 
 | Welcome window | **1080 × 720** | Separate window, no project. Its column is **560px**, its lanes **960px** max |
 
-Portrait render sizes are a closed set: **36** persona tile and **44** cast card (and the Welcome's 44px). The chat thread and its header carry initials discs, not portraits (*Components → Initials*). Persona tiles are 56px tall, so roughly six fit the Team sidebar before it scrolls. **Tiles are grouped by the agent's `module` and `team` fields** (AD-10; the grouping rule is EXPERIENCE.md → *Interaction Primitives → Persona tile order*). The six-tile scroll limit is not the reason for the grouping — it is what makes the grouping load-bearing.
+Every seat is a **44px row** (`{components.persona-tile.height}`) with a **26px initials disc** (*Components → Persona tile*, *Skill seat*); the closed set of image sizes is gone (*Components → Portrait (removed)*). The disc is 26px in a thread turn, a seat, a cast card and a Welcome row, 22px in the chat header only, and 20px for small references. More rows fit the Team sidebar before it scrolls than the six 56px tiles did. **Tiles are grouped by the agent's `module` and `team` fields** (AD-10; the grouping rule is EXPERIENCE.md → *Interaction Primitives → Persona tile order*). The scroll limit is not the reason for the grouping — it is what makes the grouping load-bearing. The skill seats sit below the personas, under their own heading (*Components → Skill seat*), and are not grouped by `module`.
 
 ### Resizing the side panels
 
@@ -804,7 +860,7 @@ Shadows exist for exactly three jobs, and only three:
 
 1. **State halos** — a 3px spread ring at very low alpha around a live (`halo-live`) or work (`halo-work`) status dot. This is the dot reading as lit, not as raised.
 2. **Inset rules** — `inset 0 -2px 0 accent` under the pressed segmented button; `inset 2px 0 0 accent` on the live party turn `[ASSUMPTION — OPEN]`, kept with its `party-live-ground` as the only turn row with either (*Conversation turn*). These are edges drawn with a shadow, not depth.
-3. **True separation** — the document window, which is a separate OS window over a scrim and is the only element in the product entitled to a real shadow: `shadow-window` over a `scrim` fill. The speaking cast card gets a restrained version, `shadow-speaking`, because it must read as lifted out of a row of dimmed peers, and the 2px accent ring on its portrait belongs to the same gesture.
+3. **True separation** — the document window, which is a separate OS window over a scrim and is the only element in the product entitled to a real shadow: `shadow-window` over a `scrim` fill. The speaking cast card gets a restrained version, `shadow-speaking`, because it must read as lifted out of a row of dimmed peers; its lit border (`cast-speaking-border`) belongs to the same gesture.
 
 Two z-indexes exist: **40** for the scrim, **50** for the window. Nothing else stacks, and nothing else may: **a surface that needs a z-index is a window**, and is built as one.
 
@@ -824,12 +880,12 @@ Presence and absence are expressed by **opacity, never by removal**: cast cards 
 | `card` | 6px | A container holding content: document card, composer, cast card; the room's live turn if its ground and edge are kept `[OPEN]`. A conversation turn is a flat row and takes no radius |
 | `window` | 8px | The document window. The only 8px in the product |
 | `scrollbar` | 10px | Scrollbar thumb, with a 3px transparent inset border and `background-clip: content-box` |
-| `full` | 50% | Status dots, portraits, initials, traffic lights, the speaking portrait ring |
+| `full` | 50% | Status dots, initials discs, traffic lights |
 | `pill` | 99px | The handoff chip, and only the handoff chip |
 
 The pill is a single deliberate exception: the handoff chip is the one element that proposes crossing a boundary between personas, and its shape says so. Nothing else is a pill — no pill buttons, no pill badges, no pill status.
 
-Perfect circles are reserved for **things that stand for a person or a light**: portraits, initials, status dots, traffic lights. A circle anywhere else will be misread.
+Perfect circles are reserved for **things that stand for a person, a skill or a light**: initials discs, status dots, traffic lights. A circle anywhere else will be misread.
 
 ## Components
 
@@ -837,64 +893,17 @@ Anatomy and appearance only, per the ownership convention. Triggers, transitions
 
 **As built, not respecified here:** the install chip, the branch chip, the run chip, the status pill (its colours are the `status-pill-*` tokens) and the end-session control (`close session`) ship as built in `src/renderer/ui/`. They are named so a reader knows they exist; a change to one is an Update.
 
-### Portrait
+### Portrait (removed)
 
-[`mockups/portrait.html`](mockups/portrait.html) — the approved generator rendered at every size the product uses, in context on tiles and cast cards (its transcript-turn box is superseded: the chat shows initials), with the derived-agent grid and the initials token. Where it and this spine disagree, **this spine wins**.
-
-
-The highest-risk component in the product and the reason the rest of the shell is as quiet as it is.
-
-**Art direction (binding, AD-16).** A *company-directory illustrated headshot: a plausible colleague.* **Not pixel art, not a JRPG sprite, not a cartoon.** The measure is whether the face could sit in a staff directory without comment. The named failure mode is "childish and game-like", which takes the perceived intelligence of the whole product with it.
-
-**Legibility — relaxed from 20px to 32px.** AD-16 as written requires "legible from 20px to tile size". That **no longer holds as written**: it becomes **legible from 32px**. At 20px the portrait degrades to a colour blob with a hair silhouette, and with no collision check in the derivation two agents can become visually indistinguishable there. The 20px case — stacked faces and the handoff chip — is served by the initials token instead. This relaxation is what paid for v2's extra facial detail, and it is stated explicitly here because AD-16 is an architecture invariant.
-
-`icon` from `_bmad/config.toml` is **never rendered as a portrait**, at any size, as a fallback or otherwise.
-
-**Construction.** Procedural inline SVG, `viewBox="0 0 100 100"`, `role="img"`, `aria-label="{name}, {title}"`, `border-radius:50%`, `display:block`. The wrapper is `display:inline-block; line-height:0; vertical-align:middle`. No external assets and no licensing dependency, ever.
-
-**Purity requirements — hard.** No `id` attributes, no `<defs>`, no gradients, no clip paths, no filters, no masks, no external references. Two portraits in the same document must not be able to collide, which is the whole reason for the constraint: every shape is a flat fill or a stroke, and shading is achieved with overlaid low-opacity shapes rather than a gradient. The function is pure — same input, same output, no global state — and determinism is asserted in tests.
-
-**Geometry (v2 — the approved generator).** The single biggest cause of the rejected v1's toy read was a perfectly symmetrical face ellipse at a width/height ratio of .89. v2 replaces it:
-
-- **Face** — a tapered-jaw path spanning x 32.5→67.5 and y 24→70, a **width/height ratio of .76**. Wide at the temples, narrowing through the cheek, closing to a rounded chin. This is the load-bearing change.
-- **One light source, upper-left.** Four shapes carry it and they must all be present: a right-contour shadow (`shade` at .26 opacity following the face's right edge), a cheek highlight (`lite` at .24, left cheek), a jaw shadow cast on the neck (an ellipse in `dark` at .5 above the collar), and an inner-ear shadow on each ear (`dark` at .45).
-- **Eyes — almond, not round.** Per eye: a soft socket shadow (`shade` at .2), an almond white (`#f0ebe3`, a quadratic upper lid over a shallower lower curve), an **iris** (r 1.95 in the eye colour), a smaller **pupil** (r .92, `#17120f`), a **catchlight** (r .5, white at .75, offset up and left toward the light), and a **weighted upper lid** stroked in `#3a2f29` at 1.3. The catchlight is the one specular white in the face; there is no pure white or pure black anywhere else in it.
-- **Brows** — filled tapered wedges in `hairDark`, heavier at the inner end. Not strokes.
-- **Nose** — three parts: a bridge shadow stroked in `shade` at .6 opacity, a tip ellipse (`shade` at .36), and two nostril ellipses (`dark` at .55).
-- **Mouth** — a flat resting curve stroked in `#8d5a4d` at 1.35, plus a lower-lip highlight (`lite` at .22). A resting mouth, not a smile arc.
-- **Hair** — a mass plus a **highlight arc** (`hairLite` at .3) across the upper-left of the crown. The highlight is what stops the hair reading as a helmet; it is omitted only for `receding`. `long` and `bun` additionally draw a back mass in `hairDark` behind the head; `curly` is seven circles with two highlighted.
-
-Draw order is fixed: backdrop → back hair mass → neck → jaw shadow → shoulders → collar notch and stroked V → crown → ears → face → contour shadow → cheek highlight → beard → fringe → hair highlight → brows → eyes → nose → mouth → glasses → earrings.
-
-**Parameters.**
-
-| Parameter | Domain |
-|---|---|
-| `skin` + `shade` | Paired. 8 pairs, `#f2d2b3`→`#7d4f30`; five visibly distinct tones among the curated five |
-| `eye` | **NEW in v2.** 8 values (`#4a3325 #5a4332 #6b4a2f #3d2a1e #5c6b4a #4f6068 #6b7a80 #54453a`). Added because five identical dark-brown eyes read as clones |
-| `hair` | 8 colours, `#1e1a17`→`#9ba3ab` |
-| `style` | `short · long · curly · bun · receding` — five values. Derived agents draw from a **weighted six-entry list**; see *Derivation* below |
-| `fringe` | `straight · sweep · null`. `receding` forces `null` |
-| `crown` | Optional `{cy, rx, ry}` override; default `{cy:35, rx:19.2, ry:19.6}`. Curated personas only |
-| `beard` | `full · close · null` |
-| `glasses` | `rect · round · null` |
-| `earrings` | boolean |
-| `shirt` + `collar` + `bg` | Paired as 8 triples |
-
-Derived at render, never passed: `hairDark = shade(hair, −20)`, `hairLite = shade(hair, +26)`, `lite = shade(skin, +20)`, `dark = shade(skin, −38)`.
-
-The palette is **muted and desaturated throughout** — backgrounds are dark slate-to-plum (`#2a3340`, `#2f3742`, `#2f3a3c`, `#383345`, `#333c3a`), shirts are their lighter partners. Nothing saturated, nothing primary. The portrait must sit *inside* the surface ramp, not on top of it.
-
-**Derivation for non-curated agents.** The five core personas carry curated parameters. Every other installed agent derives deterministically from its `agentId`: a 32-bit FNV-1a hash **salted per field** (`skin`, `fit`, `style`, `hair`, `eye`, `fringe`, `beard`, `beardk`, `glass`, `glassk`, `ear`), indexed modulo a constrained palette. The palettes are constrained precisely so the derived population **holds together as one company** — same muted range, same lighting, same construction. `style` is drawn from a weighted six-entry list — **`short · short · long · curly · bun · receding`** — so `short` lands at twice the rate of each of the other four; `beard` fires at 32%, `glasses` at 34%, `earrings` at 28%. There is no collision check, and two agents can in principle derive to similar faces; that is accepted at these sizes and is part of why the 20px case was reassigned.
-
-**Signature.** `portrait(artParams, size, state)`. `state` is accepted from the start even though v1 renders a **single neutral expression for every face** — same faint resting mouth, same level brows. The state dot carries state; the face does not. Reactive faces are a Should-tier deferral that needs no signature change.
+*Removed 2026-10-15.* The illustrated portrait, its procedural generator, its sizes (36 on a tile, 44 on a cast card and a Welcome row), its 32px legibility floor and its art direction are removed from the product completely, by the user's decision. A person is an initials disc and a name on every surface (*Initials*), and a skill session is the same disc holding a `/`. Nothing replaces the portrait as an identity device (*Brand & Style*). This supersedes SPEC CAP-3 and CAP-10 and AD-16 in whole; the architecture amendment of AD-16, and the code and tests that still carry the portrait (`portrait.test`, `tokens.test`, the `portrait` and `portraitSize` tokens in the frontmatter, marked there), wait for the portrait-removal story. [`mockups/portrait.html`](mockups/portrait.html) is kept as history only.
 
 ### Initials
 
 The avatar of the chat, and the small-reference token.
 
-- **26px** circle beside a chat turn and **22px** in the chat header — a persona's and yours alike (2026-10-09: the chat carries no portraits, *Conversation turn*). **20px** for small agent references elsewhere (stacked faces, handoff chip).
+- **26px** circle beside a chat turn, on a Team tile and skill seat, on a cast card and on a Welcome row, and **22px** in the chat header only — a persona's and yours alike (2026-10-09: the chat carries no portraits, *Conversation turn*; 2026-10-15: no surface does). **20px** for small agent references elsewhere (stacked faces, handoff chip).
 - Persona disc: `initials-bg` fill, 1px `initials-line` border, centred. At 26px and 22px the glyphs are **sans 600** (11px, 10.5px) in `text-strong`, as the prototype's `.av` draws them. At 20px they stay `mono` in `initials-ink` at 10.5px `[ASSUMPTION]`.
+- **Skill variant** *(Story 7.5, 2026-10-15).* The same circle on `initials-bg`, 1px `initials-line`, holding **`/`** in `mono` in `initials-ink`, at 26px (a turn, a seat) and 22px (the header). It is neutral on purpose: it never takes a persona's letters or tint, so a skill-first session cannot be mistaken for a persona. Sizes are the persona disc's (`{typography.label}` at 26px, `{typography.micro}` at 22px) `[ASSUMPTION]`: the mock draws 12px at 26px, and no 12px mono role exists. No new colour: the three tokens have light twins, so the variant resolves in both themes.
 - Your disc: the same circle on `accent-bg`, 1px `accent-border`, glyphs in `accent` — the prototype's `.av.u`, the one tint that tells you from a persona at a glance.
 - Stacked: `margin-right: -5px` overlap with a `0 0 0 1.5px panel-2` ring cutting each disc out of the one behind it.
 - Where a disc stands alone, the name-and-role reveal renders **identically on `:hover` and on `:focus-visible`**; the focus treatment is *Focus*, below. In the thread and header the name is beside the disc, which is decorative there. Why the parity is mandatory, and the ARIA that carries it, are EXPERIENCE.md's (→ *Accessibility Floor → The initials token — focus parity*).
@@ -915,7 +924,43 @@ The avatar of the chat, and the small-reference token.
 
 ### Persona tile
 
-56px row: 36px portrait, name at `name` (12.5px/600) with the title beside it at `ident` in `dim`, and a state line below at `label` with its dot. Default ground is transparent; hover is `panel-2` and reveals the menu hint; **current** is `[aria-current="true"]` → `tile-current` ground with a 2px `accent` left bar via `::before`. The menu hint expands `max-height: 0 → 60px` over `.16s`.
+44px row (it was 56px until 2026-10-15): a **26px initials disc** (`{components.persona-tile.discSize}`; the persona's letters by the `initialsOf` rule, one letter for a one-word name, as in the thread), then name at `name` (12.5px/600) with the title beside it at `ident` in `dim`, and a state line below at `label` with its dot. Default ground is transparent; hover is `panel-2` and reveals the menu hint; **current** is `[aria-current="true"]` → `tile-current` ground with a 2px `accent` left bar via `::before`. The menu hint expands `max-height: 0 → 60px` over `.16s`. An idle tile dims at `{opacity.idle}`. Nothing on a tile is drawn but the disc, the two lines and the dot.
+
+### Skill seat
+
+*Added 2026-10-15 (Story 7.5).* A persona tile's anatomy for a skill-first session: **one anatomy, not a second component** — the same 44px row (`{components.skill-seat.height}` is `{components.persona-tile.height}`), the same 26px disc slot, the same ground, hover, current edge and ring. Behaviour (when a seat appears, what a click does, the order, the end of a session) is EXPERIENCE.md's.
+
+- **Disc** — the skill variant of *Initials*: a `/` in mono in `initials-ink` on `initials-bg`.
+- **Line one** — the skill name at `{typography.name}` size and weight in the **mono** family, `text-strong`; it truncates with an ellipsis and never wraps (a name like `bmad-create-epics-and-stories` is long). There is no title beside it. Only when two seats share a name, each shows its start time `HH:MM` after the name, in `{typography.meta}` mono at `dim` (decided 2026-10-15; `faint` may not be the only carrier of a fact).
+- **Line two** — `{typography.label}` mono with its dot: `working · <elapsed>` with the `work` dot (amber, halo, `pulse`) while a turn is in flight; `live` with the `live` dot (green, halo) when idle and holding context; `ended` with **no dot** after a relaunch (Story 7.4's live dot is its own; this only draws what it hands over). Elapsed formats are those of the persona tile's `working · <elapsed>`.
+- **No control on the row.** No close, no menu hint, no count: the one end control is the chat header's `close session` (Story 7.4).
+- **Group.** Seats sit under a heading, `Skill sessions`, below the last persona tile. It uses the existing group-heading treatment (the persona and file group labels: uppercase, tracked, `faint`, `{typography.badge}` tier) `[ASSUMPTION]` for the exact tier, since the mock draws 9.5px sans, `.09em`; no token is added. It is drawn **only while at least one seat exists**; there is no empty state and no placeholder row. Seats keep start order, no recency sort.
+
+| State | Dark | Light | Source |
+|---|---|---|---|
+| Rest | ground transparent; name `text-strong` `#f1f1f2`; line two `faint` `#8c8c90` | transparent; `#0e0e0e`; `#5c5c5c` | `text-strong`, `faint` |
+| Hover | ground `panel-2` `#1a1a1b` | `#e5e5e5` | `components.skill-seat.hoverBackground` |
+| Pressed (mouse down) | no separate treatment, as a persona tile `[ASSUMPTION]` | same | — |
+| Current (the session being viewed, `aria-current`) | ground `tile-current` `#252525`, 2px `accent` `#e3e3e5` left bar | `#dadada`, `#1b1b1b` | `tile-current`, `accent` |
+| Focus | the shared ring, `0 0 0 2px accent` at 2px offset | same, `#1b1b1b` | `{components.focus}` |
+| Working dot | `amber` `#b9a367`, halo `halo-work`, `pulse` | `#726134` | `status-dot` work |
+| Live dot | `green` `#7aa387`, halo `halo-live` | `#4a6a54` | `status-dot` live |
+| Ended | text only, no dot; drawn at full opacity, not at `{opacity.idle}` `[OPEN]` (Open items 7) | same | — |
+
+### Skill Session button
+
+*Added 2026-10-15 (Story 7.5).* The entry to the empty chat: a ghost button at the **right of the Sprint board row**, in the same row as the nav label and its key hint (`g b`), `margin-left: auto`. It is the same control as the chat header's `Stop`, drawn the same way, with the label **`Skill Session`**. It is an entry to a chat, not a launcher: it lists no skill and carries no accent fill, icon or count. A native `<button aria-pressed>`; pressed means the empty chat is open (EXPERIENCE.md → *Skill sessions*).
+
+`panel-2` ground, 1px `line`, `{rounded.DEFAULT}`, padding `3px 10px`, `{typography.body-ui}` in `dim` (`{components.skill-session-button}`).
+
+| State | Dark | Light | Source |
+|---|---|---|---|
+| Rest | `panel-2` `#1a1a1b` ground, `line` `#29292b` border, `dim` `#9b9b9f` text | `#e5e5e5`, `#d5d5d5`, `#505050` | `panel-2`, `line`, `dim` |
+| Hover | text `text-strong` `#f1f1f2`, border `ghost-border-hover` `#404040` | `#0e0e0e`, `#bfbfbf` | `text-strong`, `ghost-border-hover` |
+| Pressed (`aria-pressed="true"`) | `panel-3` `#202021` ground, `text-strong` text, `accent-border` `#434343` border | `#dfdfdf`, `#0e0e0e`, `#bcbcbc` | `panel-3`, `text-strong`, `accent-border` |
+| Focus | the shared ring, `0 0 0 2px accent` at 2px offset | `#1b1b1b` | `{components.focus}` |
+
+A pressed button that is also hovered keeps the pressed look (the mock's rule order). Nothing animates: the change is one frame.
 
 ### Rail row (Outputs half)
 
@@ -925,7 +970,7 @@ Two visually distinct registers on one line, because AD-2 forbids merging them. 
 
 `{rounded.card}` radius, `panel` body, 1px `line` border, three parts.
 
-- **Head** — `panel-2` ground, `1px line-soft` bottom rule, `7px 11px`. Status dot · file path in `mono` `{typography.ident}` at `text` · status string in `mono` `{typography.meta}` right-aligned in `amber` while writing and `green` when saved · elapsed in `mono` `{typography.meta}` at `faint` · the stop control. **Run-list head** (a run that writes no document, 2026-10-09, from the screenshot): the skill's name in `{typography.ident}` `text-strong` at 600, then `run` in `dim`; at the right `working` and the elapsed in `mono` `{typography.meta}`; the stop control stays. With no known skill name the head reads `run` alone `[ASSUMPTION — OPEN]`.
+- **Head** — `panel-2` ground, `1px line-soft` bottom rule, `7px 11px`. Status dot · file path in `mono` `{typography.ident}` at `text` · status string in `mono` `{typography.meta}` right-aligned in `amber` while writing and `green` when saved · elapsed in `mono` `{typography.meta}` at `faint` · the stop control. **Run-list head** (a run that writes no document, 2026-10-09, from the screenshot): the skill's name in `{typography.ident}` `text-strong` at 600, then `run` in `dim`; at the right `working` and the elapsed in `mono` `{typography.meta}`; the stop control stays. With no known skill name the head reads `run` alone `[ASSUMPTION — OPEN]`. *Added 2026-10-15 (Story 7.5):* in a skill-first session the name is the session's own, so the head reads `<skill> run`, the skill in the same `text-strong` 600.
 - **Body** — `max-height: 230px`, scrolling, padding `11px 13px` `[ASSUMPTION]` (the one value no source states; matched to the side-section padding). **Two modes, both content, per the approved dead-air treatment.** In prose mode: `doc-prose` (mono 11.5/1.72) in `ink-doc`, `white-space: pre-wrap`, headings in `ink-doc-strong` at 600, muted runs in `ink-doc-mute`, with the streaming caret at the tail. In run-list mode: the steps and the run notes in one list (*Run step* and *Run note*, below). The card never has an empty body. Which mode is showing, and when it switches, is EXPERIENCE.md's (→ *State Patterns → Document card*).
 - **Foot** — `panel-2`, `1px line-soft` top rule, `6px 11px`, `{typography.label}` sans at `faint`, 8px gaps (the mockup's `.df`), wrapping. Carries the counts and the **named list of not-yet-written sections**. There is no denominator and no progress bar anywhere in the card. A run that writes **no document** has no foot `[ASSUMPTION]`: the screenshot draws none.
 - **Caret** — 6.5 × 13px `accent` block, `blink 1.05s steps(1)`. Removed, not faded, when writing stops. It is one caret, shared with the conversation turn in flight (below): the same class, size, colour and blink wherever words are being written.
@@ -980,7 +1025,7 @@ The block has **no chosen state and no disabled state**, because it does not sur
 
 One treatment, everywhere: `{components.focus}` — a `0 0 0 2px {colors.accent}` ring at **2px** offset, drawn outside the element and inheriting its radius. Stacked initials take a **3px** offset so the ring clears the `-5px` overlap of the disc behind. There is no focus fill, no focus shadow, no colour change and no motion; the ring is the whole treatment and it is identical on every primitive.
 
-It is specified for **every surface EXPERIENCE.md requires to be keyboard-operable**: the view switch and each of its buttons, the persona tile, the skill button and `+N more`, the composer's send button, the decision option, the document card and its stop control, the rail row, the document window's three escapes, the cast chooser, the party header controls, and the initials token.
+It is specified for **every surface EXPERIENCE.md requires to be keyboard-operable**: the view switch and each of its buttons, the persona tile, the skill seat, the `Skill Session` button, the skill button and `+N more`, the composer's send button, the decision option, the document card and its stop control, the rail row, the document window's three escapes, the cast chooser, the party header controls, and the initials token.
 
 `:focus-visible` only — a mouse press never draws the ring. Hover and focus are separate treatments and must not be collapsed into one: hover is `panel-2`, focus is the accent ring, and a surface may carry both at once.
 
@@ -992,9 +1037,11 @@ The row must look right at **1 to 10 entries**. Its overflow behaviour — in-pl
 
 ### Conversation turn
 
-The conversation's most-repeated element, and the one the radius table names only in passing. **A flat row** (2026-10-09, from [`mockups/chat-thread-reference.png`](mockups/chat-thread-reference.png)): no container, no radius, no ground, no border. An initials disc (`{components.initials}`, 26px) on the left and, on the right, a header line over the words, 11px apart; successive turns 16px apart. The disc is the same for a persona and for you, with your tint (*Initials*). There is no portrait in the thread, in the 1:1 or in the room.
+The conversation's most-repeated element, and the one the radius table names only in passing. **A flat row** (2026-10-09, from [`mockups/chat-thread-reference.png`](mockups/chat-thread-reference.png)): no container, no radius, no ground, no border. An initials disc (`{components.initials}`, 26px) on the left and, on the right, a header line over the words, 11px apart; successive turns 16px apart. The disc is the same for a persona and for you, with your tint (*Initials*). In a skill-first session it is the skill variant (the `/` disc). The thread, in the 1:1 or in the room, draws no image of a person.
 
 The header is, on one baseline and 8px apart, the name at `{typography.name}` (12.5px/600, `text-strong`), the role at `{typography.ident}` (11px, sans, `faint`) and the clock time in mono at `{typography.meta}` (10px, `meta`), **inline after the role, not pushed to the right edge**. The words follow at `{typography.base}` (13px) in sans, `white-space: pre-wrap`, with paragraphs split on blank lines and nothing else: no prefix, frame, label, summary or classification of what a persona said. Everything a project or a persona supplies is rendered as text. The `@name` a handoff was typed with is drawn in your turn as the `mention` chip (frontmatter) before the words: mono at `{typography.ident}`, `panel-2` ground, 1px `line` border, chip radius, `text` colour, not a control. It comes from the stored `mention` field beside the text (AD-25), never from parsing the words, so a restored turn reads as it did live; the persona received only the text.
+
+**A skill-first turn** *(Story 7.5, 2026-10-15).* The same row, with the skill variant of the disc (26px) and a head of the **skill name in `{typography.name}` size and weight in the mono family, `text-strong`**, then the time as for a persona. **No role**: a skill has none, so nothing sits where the role does, and the time follows the name 8px on. It never takes a persona's letters or tint. Its run card head reads `<skill> run` (*Document card*). When the run ends the thread adds nothing about who to talk to next: no prompt, chip or suggestion.
 
 **Your turn** is the same row as a persona's. It has no ground and no rule: the one difference is your disc's tint and your name. It is not a different component.
 
@@ -1013,6 +1060,8 @@ No hover lift, no entrance animation, no typewriter reveal. The thread caps at `
 - **Left** — the persona's initials disc at 22px, the name at `{typography.name}` in `text-strong`, then `title · story <id>` in `{typography.body-ui}` `dim`. The story reference is omitted when there is no source; it is never drawn empty.
 - **Right** — the existing status pill (the state's dot and word), then **`Stop`**: a ghost button, `panel-2` ground, 1px `line`, `{rounded.DEFAULT}`, `3px 10px`, `{typography.body-ui}` in `dim`, `text-strong` and a stronger border on hover. While no turn is in flight the slot is `close session`, as built `[ASSUMPTION — OPEN]`.
 - **Ellipsis, not wrap**, as built: the name and the line truncate.
+- **Skill variant** *(Story 7.5, 2026-10-15)* — a skill-first session: the skill variant of the disc at 22px, the **skill name** in `{typography.name}` size and weight in the mono family, `text-strong`; **no title and no story reference** (nothing is drawn after the name). Right: the status pill, then `Stop` while a turn is in flight and `close session` otherwise (Story 7.4's end), both as above.
+- **The empty `New session` chat** — the same 46px header with the 22px skill-variant disc and **`New session`** in `{typography.name}` sans, `text-strong`. **No pill, no Stop, no close**: the right side is empty. It is the chat a window opens on, where the window lands after the user ends the skill session being viewed, and what the `Skill Session` button opens; the thread shows nothing, the composer is empty with focus and carries a hidden `aria-label` of `message`. The button is pressed while it is open. [`mockups/new-session-landing.html`](mockups/new-session-landing.html) draws it in both moments.
 
 
 ### Composer
@@ -1021,7 +1070,7 @@ No hover lift, no entrance animation, no typewriter reveal. The thread caps at `
 
 ### Cast card
 
-`{rounded.card}` radius, `flex:1 1 0` at `min-width:148px`, on a `grad-cast` strip that scrolls horizontally. 44px portrait, name at `{typography.name}`, title at `{typography.ident}`, status at `{typography.micro}`. **Default `{opacity.idle}`** (.42), hover `{opacity.hover}` (.72), speaking `{opacity.speaking}` with border `cast-speaking-border`, ground `cast-speaking-ground`, the accent glow, a `0 0 0 2px accent` ring on the portrait, and status in `accent` with the equaliser. Presence is expressed by dimming, never by removal — every chosen portrait stays visible for the life of the room.
+`{rounded.card}` radius, `flex:1 1 0` at `min-width:148px`, on a `grad-cast` strip that scrolls horizontally. A **26px initials disc** (2026-10-15), name at `{typography.name}`, title at `{typography.ident}`, status at `{typography.micro}`. **Default `{opacity.idle}`** (.42), hover `{opacity.hover}` (.72), speaking `{opacity.speaking}` with border `cast-speaking-border`, ground `cast-speaking-ground`, the accent glow, and status in `accent` with the equaliser. The speaking card keeps its lit border; the ring that sat on the portrait goes with it. Presence is expressed by dimming, never by removal — every chosen persona's card stays visible for the life of the room.
 
 ### Welcome
 
@@ -1033,7 +1082,7 @@ A window of its own, opened by main when the harness starts without a project an
 
 **Recent** is a section label (`recent`, mono, `faint`) over rows. A row is the project's folder name in `accent`, the folder's parent path in mono at `dim` with the home directory written `~`, and its age at the right in `meta` mono (`2h`, `3d`). Hover underlines the name, as every link in the product does. A project whose folder is gone keeps its row, with the name at `dim`, no underline and the text `folder missing` in the age's place. **There is no install chip, count or version on a row**: the harness stats a folder here and runs no resolver for a row it has not opened.
 
-**The team** sits under a full-width `line` rule: the label `the team` and one meta line (`the five core personas, by phase of the method · a project's own install can add more`). Four **lanes**, in the order of the method — `analysis`, `planning`, `solutioning`, `implementation` — each headed by its label, a rule and its number. A **persona card** is a 44px portrait, the name at `name` and the title at `ident`, with a two-to-three-line description in `body-ui` at `dim`. Two cards share `planning`, so that lane is twice the width. Cards are content, not controls: they take no focus, have no hover state and open nothing. **Portraits are at full opacity** (the dimming of a cast card means *not speaking*, and nobody is in a room here) and are the same `artParamsFor` faces as everywhere, at the same 44.
+**The team** sits under a full-width `line` rule: the label `the team` and one meta line (`the five core personas, by phase of the method · a project's own install can add more`). Four **lanes**, in the order of the method — `analysis`, `planning`, `solutioning`, `implementation` — each headed by its label, a rule and its number. A **persona card** is a 26px initials disc (2026-10-15), the name at `name` and the title at `ident`, with a two-to-three-line description in `body-ui` at `dim`. Two cards share `planning`, so that lane is twice the width. Cards are content, not controls: they take no focus, have no hover state and open nothing. **Discs are at full opacity** (the dimming of a cast card means *not speaking*, and nobody is in a room here) and are the same initials discs as everywhere, at the same 26px.
 
 **The five descriptions are the harness's words about a role, not a persona's words.** They carry no first person, no quotation, and no instruction. They are written from each agent's `role`, shortened, and held as one table in the renderer (the welcome is the one place a roster is shown before any install has been read).
 
@@ -1085,7 +1134,7 @@ The renderer's visual range is **exactly what sanitized markdown-it output can b
 
 **Topbar** 42px `chrome`, 1px `line` bottom, 14px gaps. The brand mark is pure CSS — a 16px bordered square with an `::after` accent square inset 3px, at `.75` opacity. Breadcrumb separator is the literal `│`. **Segmented control** at `{typography.control}` (12px) size, `{rounded.DEFAULT}` radius; pressed is `[aria-pressed="true"]` → `raised` ground, `text-strong`, `inset 0 -2px 0 accent`. **Legend footer** 24px `chrome` with the badge in `legend-badge` on `legend-badge-bg`, uppercase `{typography.badge}` at `.08em`.
 
-**Sysline** is the harness's own voice in the transcript: centred `{typography.label}` (11px) mono in `faint`, with a 1px `line` rule filling the space either side via `::before` / `::after`, margin `14px 2px 10px`. It carries session-resumed, handoff and room-opened notices. It is never styled as, or attributed to, a persona — see `EXPERIENCE.md` → *Voice and Tone*.
+**Sysline** is the harness's own voice in the transcript: centred `{typography.label}` (11px) mono in `faint`, with a 1px `line` rule filling the space either side via `::before` / `::after`, margin `14px 2px 10px`. It carries session-resumed, handoff and room-opened notices, and, from Story 7.5, two lines about a skill session: **`no skill named <word>`** (`<word>` the first word as typed; shown in the empty chat when a first message does not begin `/<name>` with an installed skill: no persona answers, no user turn is drawn, the unsent text stays in the composer) and **`session ended`** (a message to a skill session that ended with a relaunch: nothing starts, the text stays in the composer). Both are lower-case, with no full stop, in this style and no other, one line each. It is never styled as, or attributed to, a persona — see `EXPERIENCE.md` → *Voice and Tone*.
 
 **Scrollbars** are custom: 10px wide, `scrollbar-thumb` (`scrollbar-thumb-hover` on hover), `{rounded.scrollbar}` (10px) radius, with a 3px transparent inset border and `background-clip: content-box` so the thumb reads as narrower than its track.
 
@@ -1115,9 +1164,10 @@ Streaming prose arrives in frame-sized bursts, with the caret at the tail; a per
 
 | Part | Anatomy |
 |---|---|
-| State strip | *Built.* a four-cell grid (working, idle, error, changed), 1px `line-soft` between cells and below. Each cell, centred: the figure at `{typography.head}`, weight 600, tabular, `text-strong`; the label at `{typography.micro}` uppercase `faint`, tracked `.04em`, the state's own word in lower case in the markup. Cell padding `--team-strip-padding` (8px 4px), so the longest label fits at the default width. No cell takes colour, a fill or the accent: it is a count, not an alert |
-| Nav row (*Sprint board*; the *Inbox* row is deferred, not built, and holds no slot) | padding `6px 11px`, `{typography.control}` in `dim`, a 1px `line-soft` below, `panel-2` on hover; the current row takes `panel-2` and `text-strong`. A trailing key hint is a chip: `{typography.label}` in `faint`, 1px `line`, `{rounded.chip}`. **No count** on any row |
-| Persona tile | the existing tile, unchanged, in config order. Idle tiles dim at `{opacity.idle}`. No group heading by state |
+| State strip | *Built.* **counts personas only** (2026-10-15): a skill session adds to no cell, and the head's `5 agents` figure equals the personas. A four-cell grid (working, idle, error, changed), 1px `line-soft` between cells and below. Each cell, centred: the figure at `{typography.head}`, weight 600, tabular, `text-strong`; the label at `{typography.micro}` uppercase `faint`, tracked `.04em`, the state's own word in lower case in the markup. Cell padding `--team-strip-padding` (8px 4px), so the longest label fits at the default width. No cell takes colour, a fill or the accent: it is a count, not an alert |
+| Nav row (*Sprint board*; the *Inbox* row is deferred, not built, and holds no slot) | padding `6px 11px`, `{typography.control}` in `dim`, a 1px `line-soft` below, `panel-2` on hover; the current row takes `panel-2` and `text-strong`. A trailing key hint is a chip: `{typography.label}` in `faint`, 1px `line`, `{rounded.chip}`. **No count** on any row. *Added 2026-10-15:* the **`Skill Session` button** (*Components → Skill Session button*) sits at the row's right edge, after the key hint; it is not a second row |
+| Persona tile | the tile (*Persona tile*: 44px, a 26px initials disc, since 2026-10-15), in config order. Idle tiles dim at `{opacity.idle}`. No group heading by state |
+| Skill sessions group | *Added 2026-10-15.* The heading `Skill sessions` (the existing group-heading treatment) and the skill seats (*Skill seat*), below the last persona tile, in start order. Drawn only while a seat exists, with no empty state |
 
 **Context panel.** `panel` ground, a 1px `line` on its left edge, default width 300px (`{spacing.rail}`, 260–480px, *built*, as the class `.rail` holding the Outputs half only), scrolling inside, its own splitter. Head as the sidebar's. Sections are separated by `line-soft` with padding `9px 12px`; a section label is `{typography.micro}` uppercase `faint`, its right-hand note `{typography.meta}` in `faint`.
 
@@ -1146,8 +1196,8 @@ A field with no source is not drawn.
 | Board | *Built.* five columns (and one more for each status the file holds beyond them) in one panel, 1px `line-soft` between them, each padded `8px`. Column head: the status as the file writes it, `{typography.micro}` uppercase `faint`, **no count**. A column with no card says `no stories` in mono `dim`. Cards stack with a `7px` gap |
 | Story card | *Built as the id and the title only.* `bg` ground, 1px `line`, `{rounded.control}`, padding `7px 8px`. Id in mono `{typography.label}` `faint`; the title at `{typography.control}` `text`; a foot at `{typography.ident}` `faint` with the owner's initials disc (*Initials*) and the run's `working · <elapsed>`. A card with a run on it takes the amber pulse dot and a 1px `accent-border`. **The foot, the disc and the run treatment are cut:** they were Story 6.8, cut 2026-10-10 for want of a run-to-story rule, so a card is not a control and carries no owner. The disc and `working · <elapsed>` are drawn on the Agents row only. **No progress bar** |
 | Epics | *Built.* rows at `{typography.control}`: id in mono `dim`, title `text`, then one decorative track (`--board-bar-width` by `--board-bar-height`, `line` ground, a `dim` fill, pill radius, `aria-hidden`; drawn only for an epic with stories) and `n of m stories done` in mono `dim` on the right; an epic with no stories says `no stories`; 1px `line-soft` between rows. The words are the one place the figure is stated: no `<progress>`, `<meter>`, percentage or accent |
-| Agents | the persona tile's anatomy in a panel: the portrait, name and title, the state line, the run line (code, subject path, elapsed) in mono `dim`, not `faint`: it is the only carrier of the fact. Idle rows dim at `{opacity.idle}` |
-| Recent activity | rows at `{typography.control}`: the status dot, the persona's name in `text`, what it did (`started CP`, `finished CP`, `stopped CP`, `failed CP`) in `dim`, the absolute `MM-DD HH:MM` time right-aligned in mono `dim`, not `faint`: it is the only carrier of when; 1px `line-soft` between rows. Only the start row of a run still running pulses; every other dot, the `work` dot of an ended run's start row included, is drawn still (amber, no pulse) |
+| Agents | the persona tile's anatomy in a panel: the 26px initials disc (2026-10-15), name and title, the state line, the run line (code, subject path, elapsed) in mono `dim`, not `faint`: it is the only carrier of the fact. Idle rows dim at `{opacity.idle}` |
+| Recent activity | rows at `{typography.control}`: the status dot, the persona's name in `text`, what it did (`started CP`, `finished CP`, `stopped CP`, `failed CP`) in `dim`, the absolute `MM-DD HH:MM` time right-aligned in mono `dim`, not `faint`: it is the only carrier of when; 1px `line-soft` between rows. Only the start row of a run still running pulses; every other dot, the `work` dot of an ended run's start row included, is drawn still (amber, no pulse). ***A skill-first run*** *(Story 7.5, 2026-10-15)*: the row is the same, with **the skill name in the persona's place** (mono, `text` `[ASSUMPTION]`: the skill-name register everywhere else) and the words `started`, `finished`, `stopped` or `failed` in `dim` **with no code** (it would repeat the name); the same dot rules and the same `MM-DD HH:MM`. It is never a Board column, has no story owner, and the Agents panel counts no persona for it |
 
 **Motion.** Nothing here adds to the closed motion inventory (*Motion*): no shimmer, no fade for the actions toolbar, no transition on a splitter.
 
@@ -1164,30 +1214,34 @@ A field with no source is not drawn.
 | Set document prose in `mono` and run notes in `sans` in the same card body, and keep run-step labels to a few words (steps are mono too) | Separate the two feeds with a container, rule or label — the typeface register **is** the mechanism |
 | Use `mono` for paths, state, metadata, timestamps and codes | Set a file path in sans, or a persona's sentence in mono |
 | Use 600 for emphasis, or one step up the text ramp | Use both at once, add a third weight, or emphasise with colour |
-| Render portraits at 36 / 44 only (the tile and the cast card), and use initials in the chat thread, the chat header and below 32px | Render a portrait at 20px — AD-16's "legible from 20px" is explicitly relaxed to 32px |
-| Keep the portrait generator pure: no ids, no gradients, no clip paths, no defs, no external assets | Introduce anything that can collide between two portraits in one document |
-| Keep every face on the single neutral expression in v1 | Let the face carry state — the state dot carries state |
-| Render `icon` from config as plain text in the harness's own register | Render `icon` as a portrait, ever, including as a fallback |
+| Draw every person, persona or you, as an initials disc and a name: 26px in a turn, a seat, a cast card and a Welcome row, 22px in the chat header only, 20px for small references | Draw a portrait, an illustration or any other identity device, or give a persona a colour of its own. The product spends its restraint budget on nothing, and nothing replaces what it once spent on |
+| Render `icon` from config as plain text in the harness's own register | Render `icon` as an image or an avatar, ever, including as a fallback |
 | Animate only what is actually happening | Animate a transition, a reveal, an entrance, or anything decorative; substitute a spinner or skeleton at any point |
 | Use `steps(1)` for the caret | Fade the caret — a fading caret is decoration |
 | Draw a turn in flight with the parts the thread has: the caret, the `work` state line, the initials disc and head | Draw a skeleton turn, a placeholder word, a spinner, or pace a burst out character by character |
 | Draw a turn as a flat row: disc, head, words | Give a turn a container, ground, left rule or radius |
 | Disable **all** animation and transition globally under `prefers-reduced-motion: reduce` | Keep "essential" animation running, or leave a fact legible only while something moves |
 | Restate any `faint`-tier fact at `dim` or above | Put a fact only a user can act on at `faint` or `{colors.meta}` on `bg` — the locked ramp makes that a real contrast risk |
-| Express absence and inattention with opacity | Remove a chosen persona's face from the room |
+| Express absence and inattention with opacity | Remove a chosen persona's card from the room |
 | Build the party side panel with the *Room* section only, at its new width | Implement AD-14's 288px, or reserve slots for the deferred disagreement and decision sections |
 | Let the rail stay monochrome and dense | Turn the rail into a dashboard with colour-coded rows or badges |
 | Give the welcome its own breathing room, once, because it holds no state | Carry the welcome's spacing into the shell, or the shell's density into the welcome |
 | Draw the open button's folder glyph inline as one stroked path, as the rail row's file icon is | Add an icon font, an icon set, an emoji or an image file for it |
 | Show a drop target with a 1px dashed `line` border | Use a dashed border for anything but the welcome's drop zone |
-| Keep the five welcome portraits at 44px and full opacity | Render a larger "hero" face, or dim a face that is not in a room |
+| Keep the five Welcome personas as 26px discs at full opacity | Render a larger "hero" mark, or dim a disc that is not in a room |
 | State a missing recent folder as `folder missing` | Show an install chip, agent count or version on a recent row, or run a resolver to fill one |
 | Take every colour from a token, so both themes resolve through the same component | Name a theme in a component, or write a literal that is right in one theme only |
 | Set the theme from the stored choice and the OS appearance in main, before a window is first shown | Read `prefers-color-scheme` in a stylesheet or a component, or paint a window in one theme and then switch it |
-| Keep the portraits identical in both themes, on their dark backdrops | Give a portrait a theme-dependent backdrop, or a theme field in `ArtParams` |
+| Let the skill disc's `/` take its colours from `initials-bg`, `initials-line` and `initials-ink` only, so it resolves in both themes | Give a skill a colour or a letter of its own, or name a theme in the disc |
 | Strengthen the state-dot halos in light (`.16`) | Reuse the dark alpha, which fades on white |
 | Let a collapsed folder keep showing a file that is changing, with its amber dot and `changing` | Hide a live state because its row is folded away, or replace it with a count |
 | Resize a panel with no easing and no snap, and return it to its default on double-click | Animate the panel's width, or snap it to preset widths |
 | Say a folder disagreement as one mono line, in `dim`, with both folders named | Colour it, add an icon or a warning treatment, or recommend which folder is right |
 | Show `↓ latest` as one literal string over a thread that is not following | Add a count, a dot, a *new* label, a pulse, or a shadow to it |
 | Ship the two themes and nothing else | Add a high-contrast variant, or a third palette |
+| Draw a skill seat as a persona tile's anatomy: 44px, the 26px `/` disc, the skill name in mono, `working · <elapsed>`, `live` or `ended` | Add a second row component, a control, a count or a menu hint to a seat, or sort seats by recency |
+| Show `Skill sessions` only while a seat exists, in the existing group-heading treatment | Draw an empty group, a placeholder row or a new heading style |
+| Draw the `Skill Session` button as the header's `Stop`: `panel-2`, 1px `line`, pressed on `panel-3` with `accent-border` | Give it an accent fill, an icon, a count, or a list of skills: it is an entry to a chat, not a launcher |
+| Name a skill-first turn by the skill, in mono, with no role | Give it a persona's letters, tint or role, or suggest who to talk to next when its run ends |
+| Say `no skill named <word>` and `session ended` as syslines: lower-case, mono, no full stop | Attribute them to a persona, add a suggestion, or colour them |
+| Count personas only in the state strip and the head | Add a skill session to a state count, the Agents panel or a Board column |

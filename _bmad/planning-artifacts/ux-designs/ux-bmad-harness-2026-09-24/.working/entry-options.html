@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Story 7.5: where the Skill Session entry lives</title>
+<style>
+  /* Governs: DESIGN.md Team sidebar (state strip, nav row, persona tile), Initials, Chat header.
+     Exploration for Story 7.5 only. Dark theme, tokens copied from DESIGN.md colors.
+     Portraits are stood in for by grey discs (the real tiles carry illustrated portraits).
+     The ONLY variable between the two frames is where the entry lives. Everything else is held equal. */
+  :root{
+    --bg:#0d0d0e; --chrome:#111112; --panel:#151516; --panel-2:#1a1a1b; --panel-3:#202021;
+    --line:#29292b; --line-soft:#1e1e20; --text:#dedee0; --text-strong:#f1f1f2; --dim:#9b9b9f; --faint:#8c8c90;
+    --accent:#e3e3e5; --accent-bg:rgba(227,227,229,.12); --green:#7aa387; --amber:#b9a367; --red:#b88a84;
+    --tile-current:#252525; --initials-bg:#323232; --initials-line:#414141; --initials-ink:#b2b2b2;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --r:5px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#0b0b0c;color:var(--text);font-family:var(--sans);font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .page{max-width:1180px;margin:0 auto;padding:20px 24px 60px}
+  h1{margin:0 0 4px;font-size:16px;font-weight:600;color:var(--text-strong)}
+  .sub{margin:0 0 6px;color:var(--faint);font-size:12px;max-width:860px}
+  h2{margin:34px 0 4px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+  .frame{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column;height:640px}
+  .topbar{display:flex;align-items:center;gap:14px;height:42px;flex:0 0 42px;padding:0 12px;background:var(--chrome);border-bottom:1px solid var(--line)}
+  .topbar b{font-size:12.5px;color:var(--text-strong)}
+  .crumbs{font-family:var(--mono);font-size:11.5px;color:var(--dim)}
+  .spacer{flex:1}
+  .chip{display:inline-flex;align-items:center;height:20px;padding:0 7px;border:1px solid var(--line);border-radius:3px;background:var(--panel-2);font-family:var(--mono);font-size:10.5px;color:var(--dim)}
+  .seg{display:flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--panel-2)}
+  .seg span{padding:4px 13px;font-size:12px;color:var(--dim);border-right:1px solid var(--line-soft)}
+  .seg span:last-child{border-right:0}
+  .seg span.on{background:#252527;color:var(--text-strong);box-shadow:inset 0 -2px 0 var(--accent)}
+  .body{display:flex;flex:1;min-height:0}
+  .side{flex:0 0 244px;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;overflow:hidden}
+  .props{flex:0 0 300px;background:var(--panel);border-left:1px solid var(--line)}
+  .head{display:flex;align-items:center;gap:8px;height:30px;flex:0 0 30px;padding:0 11px;border-bottom:1px solid var(--line-soft);background:var(--panel-2)}
+  .head h3{margin:0;font-size:10.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--dim)}
+  .head .meta{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--faint)}
+  .strip{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--line-soft)}
+  .strip div{padding:8px 4px 7px;text-align:center;border-right:1px solid var(--line-soft)}
+  .strip div:last-child{border-right:0}
+  .strip b{display:block;font-size:15px;font-weight:600;color:var(--text-strong);font-variant-numeric:tabular-nums}
+  .strip span{font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
+  .nav{display:flex;align-items:center;gap:8px;padding:6px 11px;font-size:12px;color:var(--dim);border-bottom:1px solid var(--line-soft)}
+  .nav.cur{background:var(--panel-2);color:var(--text-strong)}
+  .nav kbd{margin-left:auto;font-family:var(--mono);font-size:10.5px;padding:0 5px;border:1px solid var(--line);border-radius:3px;color:var(--faint)}
+  .grp{padding:6px 11px 3px;font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);background:var(--bg)}
+  .tile{display:flex;align-items:center;gap:10px;height:56px;padding:0 11px;border-bottom:1px solid var(--line-soft);position:relative}
+  .tile.cur{background:var(--tile-current)}
+  .tile.cur::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--accent)}
+  .tile.idle .nm,.tile.idle .st{opacity:.55}
+  .por{flex:0 0 auto;width:36px;height:36px;border-radius:50%;background:linear-gradient(160deg,#3a3a3c,#232324);border:1px solid var(--initials-line);color:var(--faint);font:600 11px/34px var(--sans);text-align:center}
+  .nm{display:flex;gap:7px;align-items:baseline}
+  .nm b{font-size:12.5px;color:var(--text-strong);font-weight:600}
+  .nm span{font-size:11px;color:var(--dim)}
+  .st{display:flex;gap:6px;align-items:center;font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--faint);flex:0 0 auto}
+  .dot.work{background:var(--amber);box-shadow:0 0 0 3px rgba(185,163,103,.13)}
+  .dot.live{background:var(--green);box-shadow:0 0 0 3px rgba(122,163,135,.14)}
+  /* the skill disc: neutral initials disc, a slash in mono (proposal; see note) */
+  .disc{flex:0 0 auto;border-radius:50%;background:var(--initials-bg);border:1px solid var(--initials-line);color:var(--initials-ink);font-family:var(--mono);font-weight:600;text-align:center}
+  .disc.s36{width:36px;height:36px;font-size:14px;line-height:34px}
+  .disc.s26{width:26px;height:26px;font-size:12px;line-height:24px}
+  .disc.s22{width:22px;height:22px;font-size:11px;line-height:20px}
+  .disc.ring{background:transparent;border-style:dashed}
+  /* a skill seat: a tile without a portrait, so shorter than a persona tile */
+  .seat{display:flex;align-items:center;gap:10px;height:44px;padding:0 11px;border-bottom:1px solid var(--line-soft)}
+  .seat > div:last-child{min-width:0}
+  .seat .sn{font-family:var(--mono);font-size:12px;color:var(--text-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* chat column */
+  .col{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
+  .chead{display:flex;align-items:center;gap:10px;height:46px;flex:0 0 46px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--chrome)}
+  .chead b{font-size:13px;color:var(--text-strong)}
+  .thread{flex:1}
+  .composer{padding:8px 20px 16px;border-top:1px solid var(--line-soft)}
+  .cbox{border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:10px 12px;color:#868686;min-height:62px}
+  .keys{margin-top:8px;font-family:var(--mono);font-size:10.5px;color:var(--faint);text-align:right}
+  .ph{padding:14px;color:var(--faint);font-size:11.5px;font-family:var(--mono)}
+  .pros{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+  .box{border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:10px 14px;font-size:12px;color:var(--dim)}
+  .box h4{margin:0 0 6px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-strong)}
+  .box ul{margin:0;padding-left:16px}
+  .box li{margin:3px 0}
+  .box.con h4{color:var(--amber)}
+  .tag{display:inline-block;margin-left:6px;font:600 10px/1 var(--mono);color:var(--amber);border:1px solid #4a4228;border-radius:3px;padding:2px 5px;vertical-align:1px}
+  .legend{margin:10px 0 0;font-size:11.5px;color:var(--faint);max-width:900px}
+  .legend code{font-family:var(--mono);color:var(--dim)}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Story 7.5: where the Skill Session entry lives</h1>
+  <p class="sub">Two placements of the same entry, everything else held equal. In both, the empty chat is open (the entry is the current row), and two skill sessions are already live: <code>bmad-build</code> working, <code>bmad-create-epics-and-stories</code> waiting for a message. Chat copy is deliberately left empty: it is decided after the placement. Grey discs stand in for the illustrated portraits. Dark theme only.</p>
+  <p class="legend">Skill disc shown as a neutral initials disc holding <code>/</code> in mono (a proposal, decided separately). Skill seats are drawn shorter than persona tiles (44px, no portrait) so they do not read as a sixth persona <span class="tag">STAND-IN</span></p>
+
+  <!-- ============================ OPTION A ============================ -->
+  <h2>Option A: with the team, after the last persona</h2>
+  <div class="frame">
+    <header class="topbar"><b>BMad Harness</b><span class="crumbs">bmad-harness</span><span class="spacer"></span><span class="chip">main</span><div class="seg"><span class="on">1:1</span><span>Party</span><span>Board</span></div></header>
+    <div class="body">
+      <aside class="side">
+        <div class="head"><h3>Team</h3><span class="meta">5 agents</span></div>
+        <div class="strip"><div><b>1</b><span>working</span></div><div><b>5</b><span>idle</span></div><div><b>0</b><span>error</span></div><div><b>0</b><span>changed</span></div></div>
+        <div class="nav"><span>Sprint board</span><kbd>g b</kbd></div>
+        <div class="tile idle"><div class="por">MA</div><div><div class="nm"><b>Mary</b><span>Analyst</span></div><div class="st"><span class="dot"></span>idle</div></div></div>
+        <div class="tile idle"><div class="por">JO</div><div><div class="nm"><b>John</b><span>PM</span></div><div class="st"><span class="dot"></span>idle</div></div></div>
+        <div class="tile idle"><div class="por">SA</div><div><div class="nm"><b>Sally</b><span>UX Designer</span></div><div class="st"><span class="dot"></span>idle</div></div></div>
+        <div class="tile idle"><div class="por">WI</div><div><div class="nm"><b>Winston</b><span>Architect</span></div><div class="st"><span class="dot"></span>idle</div></div></div>
+        <div class="tile idle"><div class="por">AM</div><div><div class="nm"><b>Amelia</b><span>Developer</span></div><div class="st"><span class="dot"></span>idle</div></div></div>
+        <!-- the entry, in the tile family -->
+        <div class="tile cur"><div class="disc s36 ring">/</div><div><div class="nm"><b>Skill Session</b></div><div class="st">no persona</div></div></div>
+        <!-- the seats, directly under the door that makes them -->
+        <div class="seat"><div class="disc s26">/</div><div><div class="sn">bmad-build</div><div class="st"><span class="dot work"></span>working · 4m 12s</div></div></div>
+        <div class="seat"><div class="disc s26">/</div><div><div class="sn">bmad-create-epics-and-stories</div><div class="st"><span class="dot live"></span>live</div></div></div>
+      </aside>
+      <section class="col">
+        <div class="chead"><div class="disc s22">/</div><b>Skill Session</b></div>
+        <div class="thread"><div class="ph">[empty chat: copy decided after the placement]</div></div>
+        <div class="composer"><div class="cbox"></div><div class="keys">Enter send · Shift+Enter newline</div></div>
+      </section>
+      <aside class="props"><div class="head"><h3>Outputs</h3><span class="meta">_bmad/</span></div></aside>
+    </div>
+  </div>
+  <div class="pros">
+    <div class="box"><h4>For A</h4><ul>
+      <li>All the chats live in one list. The door and the seats it makes sit next to each other, which is what you first reached for.</li>
+      <li>Reads as one more kind of conversation beside the five personas and the room, which is what the epic says it is.</li>
+      <li>The Sprint board row stays the only navigation row; the top of the sidebar does not grow.</li>
+    </ul></div>
+    <div class="box con"><h4>Against A</h4><ul>
+      <li>It sits at the end of the persona list. With more than about six personas the list scrolls and the entry goes below the fold.</li>
+      <li>A tile-shaped row is the closest the sidebar gets to saying "a participant", the one thing a skill session must not be (FR134). The slash disc and "no persona" have to do that work alone.</li>
+      <li>The persona list is no longer only personas, which weakens the grouping rule (module and team, config order).</li>
+    </ul></div>
+  </div>
+
+  <!-- ============================ OPTION B ============================ -->
+  <h2>Option B: beside the Sprint board row</h2>
+  <div class="frame">
+    <header class="topbar"><b>BMad Harness</b><span class="crumbs">bmad-harness</span><span class="spacer"></span><span class="chip">main</span><div class="seg"><span class="on">1:1</span><span>Party</span><span>Board</span></div></header>
+    <div class="body">
+      <aside class="side">
+        <div class="head"><h3>Team</h3><span class="meta">5 agents</span></div>
+        <div class="strip"><div><b>1</b><span>working</span></div><div><b>5</b><span>idle</span></div><div><b>0</b><span>error</span></div><div><b>0</b><span>changed</span></div></div>
+        <div class="nav"><span>Sprint board</span><kbd>g b</kbd></div>
+        <!-- the entry, in the nav-row family -->
+        <div class="nav cur"><span>Skill Session</span></div>
+        <div class="tile idle"><div class="por">MA</div><div><div class="nm"><b>Mary</b><span>Analyst</span></div><div class="st"><span class="dot"></span>idle</div></div></div>
+        <div class="tile idle"><div class="por">JO</div><div><div class="nm"><b>John</b><span>PM</span></div><div class="st"><span class="dot"></span>idle</div></div></div>
+        <div class="tile idle"><div class="por">SA</div><div><div class="nm"><b>Sally</b><span>UX Designer</span></div><div class="st"><span class="dot"></span>idle</div></div></div>
+        <div class="tile idle"><div class="por">WI</div><div><div class="nm"><b>Winston</b><span>Architect</span></div><div class="st"><span class="dot"></span>idle</div></div></div>
+        <div class="tile idle"><div class="por">AM</div><div><div class="nm"><b>Amelia</b><span>Developer</span></div><div class="st"><span class="dot"></span>idle</div></div></div>
+        <!-- the seats, in a group of their own below the personas -->
+        <div class="grp">Skill sessions</div>
+        <div class="seat"><div class="disc s26">/</div><div><div class="sn">bmad-build</div><div class="st"><span class="dot work"></span>working · 4m 12s</div></div></div>
+        <div class="seat"><div class="disc s26">/</div><div><div class="sn">bmad-create-epics-and-stories</div><div class="st"><span class="dot live"></span>live</div></div></div>
+      </aside>
+      <section class="col">
+        <div class="chead"><div class="disc s22">/</div><b>Skill Session</b></div>
+        <div class="thread"><div class="ph">[empty chat: copy decided after the placement]</div></div>
+        <div class="composer"><div class="cbox"></div><div class="keys">Enter send · Shift+Enter newline</div></div>
+      </section>
+      <aside class="props"><div class="head"><h3>Outputs</h3><span class="meta">_bmad/</span></div></aside>
+    </div>
+  </div>
+  <div class="pros">
+    <div class="box"><h4>For B</h4><ul>
+      <li>Always in the same place at the top, however many personas the install has. It never scrolls away.</li>
+      <li>Looks like a way in, not a member of the team: a plain row with no disc, beside the other row that is a place you go. That fits "an entry to a chat, not a launcher".</li>
+      <li>The persona list stays only personas, in config order.</li>
+      <li>The nav row already has a "current" look, which gives the reuse rule a natural reading: the row stays lit while the empty chat is open and a second click lands on it.</li>
+    </ul></div>
+    <div class="box con"><h4>Against B</h4><ul>
+      <li>The door and its seats are apart: the entry at the top, the seats in their own group at the bottom. Your instinct to keep the chats together is only half met.</li>
+      <li>Sprint board is a read-only view; Skill Session opens a chat. Two rows that look alike do different kinds of thing.</li>
+      <li>The top of the sidebar grows by one row (about 30px), pushing every persona tile down.</li>
+      <li>The seats still need a group heading, which A does not.</li>
+    </ul></div>
+  </div>
+</div>
+</body>
+</html>
