@@ -199,6 +199,43 @@ describe('the Board, read', () => {
   })
 })
 
+describe('the Board’s files (Story 7.1)', () => {
+  const path = '_bmad/implementation-artifacts/spec-1-2-b.md'
+  const board: BoardSnapshot = {
+    revision: 1,
+    kind: 'read',
+    epics: [
+      {
+        key: 'epic-1',
+        number: 1,
+        title: 'Shell',
+        status: 'in-progress',
+        known: true,
+        file: '_bmad/implementation-artifacts/epic-1-context.md',
+        stories: [
+          { key: '1-1-a', number: '1.1', title: 'A', status: 'done', known: true },
+          { key: '1-2-b', number: '1.2', title: 'B', status: 'in-progress', known: true, file: path }
+        ]
+      }
+    ],
+    others: [{ key: 'notes', status: 'backlog', known: true }]
+  }
+  const html = shell({ board })
+  const stories = html.slice(html.indexOf('board-stories'), html.indexOf('board-agents'))
+
+  it('draws a control only where a file is: one card and one row, and no other button, tab stop or handler on the Board', () => {
+    expect(stories.match(/<button/g)).toHaveLength(2)
+    expect(stories).toContain('<button type="button" class="board-card-open">')
+    expect(stories).toContain('<button type="button" class="board-epic-open">')
+    expect(stories).not.toMatch(/tabindex|onclick|role=|<a |<input/i)
+  })
+
+  it('shows no path, and says nothing about why a card or row has none', () => {
+    expect(stories).not.toMatch(/spec-|epic-1-context|implementation-artifacts|\.md\b|title=|aria-label/i)
+    expect(stories.replace(/<[^>]*>/g, ' ')).not.toMatch(/\bopen\b|no spec|missing|unavailable|no file/i)
+  })
+})
+
 describe('the Board’s Agents panel', () => {
   const board: BoardSnapshot = { revision: 1, kind: 'read', epics: [], others: [] }
   const panel = (html: string): string => html.slice(html.indexOf('<section class="board-agents"'), html.indexOf('</section>', html.indexOf('<section class="board-agents"')))

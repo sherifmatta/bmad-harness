@@ -1,8 +1,10 @@
+import { useCallback, useRef } from 'react'
 import type { JSX } from 'react'
 
 import type { BoardSnapshot } from '../../../shared/board'
 import type { AgentView, HarnessError } from '../../../shared/install'
 import type { ProseStore } from '../chat/prose-store'
+import { useDocOpen } from '../outputs/use-doc-open'
 import type { TranscriptEntry } from '../chat/transcript-entry'
 import type { PersonaState } from '../persona/portrait'
 import { activityRowsOf } from './board-activity'
@@ -11,6 +13,7 @@ import { agentRowsOf } from './board-agents'
 import { AgentsPanel } from './board-agents-panel'
 import { columnsOf } from './board-columns'
 import { epicRowsOf, overviewOf } from './board-figures'
+import type { EpicRow } from './board-figures'
 
 /**
  * The Board's body (Stories 6.3 to 6.5). A snapshot that says there is none, or
@@ -56,6 +59,18 @@ export function BoardView({
   entries: readonly TranscriptEntry[]
   prose?: ProseStore | undefined
 }): JSX.Element | null {
+  // The native buttons a card or row with a file draws, by the path they open, so a closed document window returns focus to its opener.
+  const openers = useRef(new Map<string, HTMLButtonElement>())
+  const returnFocus = useCallback((path: string) => openers.current.get(path)?.focus(), [])
+  const open = useDocOpen(returnFocus)
+  const holding = (path: string) => (element: HTMLButtonElement | null) => {
+    if (element === null) {
+      openers.current.delete(path)
+    } else {
+      openers.current.set(path, element)
+    }
+  }
+
   if (snapshot !== null && snapshot.kind === 'read') {
     const overview = overviewOf(snapshot, installed, states)
     return (
@@ -78,12 +93,25 @@ export function BoardView({
               <h3 className="board-column-head">{status}</h3>
               <ul className="board-cards">
                 {stories.length === 0 && <li className="board-cards-empty">no stories</li>}
-                {stories.map((story) => (
-                  <li className="board-card" key={story.key}>
-                    <span className="board-card-number">{story.number}</span>
-                    <span className="board-card-title">{story.title}</span>
-                  </li>
-                ))}
+                {stories.map(({ key, number, title, file }) => {
+                  const words = (
+                    <>
+                      <span className="board-card-number">{number}</span>
+                      <span className="board-card-title">{title}</span>
+                    </>
+                  )
+                  return (
+                    <li className="board-card" key={key}>
+                      {file === undefined ? (
+                        words
+                      ) : (
+                        <button type="button" className="board-card-open" ref={holding(file)} onClick={() => open(file)}>
+                          {words}
+                        </button>
+                      )}
+                    </li>
+                  )
+                })}
               </ul>
             </section>
           ))}
@@ -91,18 +119,15 @@ export function BoardView({
         <section className="board-epics">
           <h3 className="board-epics-head">epics</h3>
           <ul className="board-epic-rows">
-            {epicRowsOf(snapshot).map((row) => (
+            {epicRowsOf(snapshot).map(({ file, ...row }) => (
               <li className="board-epic" key={row.key}>
-                <span className="board-epic-id">{row.id}</span>
-                {row.title !== '' && <span className="board-epic-title">{row.title}</span>}
-                {row.total > 0 && (
-                  <span className="board-epic-track" aria-hidden="true">
-                    <span className="board-epic-fill" style={{ width: `${Math.round((row.done / row.total) * 100)}%` }} />
-                  </span>
+                {file === undefined ? (
+                  epicParts(row)
+                ) : (
+                  <button type="button" className="board-epic-open" ref={holding(file)} onClick={() => open(file)}>
+                    {epicParts(row)}
+                  </button>
                 )}
-                <span className="board-epic-progress">
-                  {row.total === 0 ? 'no stories' : `${row.done} of ${row.total} stories done`}
-                </span>
               </li>
             ))}
           </ul>
@@ -121,5 +146,21 @@ export function BoardView({
       <p className="board-empty-line">no sprint status</p>
       {folder !== undefined && <p className="board-empty-path">{`${folder}implementation-artifacts/sprint-status.yaml`}</p>}
     </div>
+  )
+}
+
+/** An epic row's words and its decorative track; the same whether or not the row opens a file. */
+function epicParts(row: Omit<EpicRow, 'file'>): JSX.Element {
+  return (
+    <>
+      <span className="board-epic-id">{row.id}</span>
+      {row.title !== '' && <span className="board-epic-title">{row.title}</span>}
+      {row.total > 0 && (
+        <span className="board-epic-track" aria-hidden="true">
+          <span className="board-epic-fill" style={{ width: `${Math.round((row.done / row.total) * 100)}%` }} />
+        </span>
+      )}
+      <span className="board-epic-progress">{row.total === 0 ? 'no stories' : `${row.done} of ${row.total} stories done`}</span>
+    </>
   )
 }

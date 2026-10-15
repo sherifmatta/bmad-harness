@@ -117,6 +117,34 @@ describe('BoardView', () => {
       expect(html.slice(0, html.indexOf('>review<'))).not.toContain('6.4')
     })
 
+    it('draws a card with a file as a native button holding the same two words, and a card without one as it was (Story 7.1)', () => {
+      const path = '_bmad/implementation-artifacts/spec-6-4-every-story-in-its-column.md'
+      const html = markup(withStories({ ...story('6.4', 'Every story, in its column', 'review'), file: path }, story('6.5', 'No spec yet', 'review')))
+
+      expect(html).toContain(
+        '<li class="board-card"><button type="button" class="board-card-open"><span class="board-card-number">6.4</span><span class="board-card-title">Every story, in its column</span></button></li>'
+      )
+      expect(html).toContain('<li class="board-card"><span class="board-card-number">6.5</span><span class="board-card-title">No spec yet</span></li>')
+      // A path is never shown, and the markup carries none: the renderer holds it, main made it.
+      expect(html).not.toContain('spec-6-4')
+      expect(html.match(/<button/g)).toHaveLength(1)
+    })
+
+    it('draws an epic row with a file as a native button around the same words, and a row without one as it was (Story 7.1)', () => {
+      const html = markup({
+        revision: 5,
+        kind: 'read',
+        epics: [{ ...epicOf(6, 'done', 'Board', []), file: '_bmad/implementation-artifacts/epic-6-context.md' }, epicOf(7, 'backlog', 'Work', [])],
+        others: []
+      })
+
+      expect(html).toContain(
+        '<li class="board-epic"><button type="button" class="board-epic-open"><span class="board-epic-id">Epic 6</span><span class="board-epic-title">Board</span><span class="board-epic-progress">no stories</span></button></li>'
+      )
+      expect(html).toContain('<li class="board-epic"><span class="board-epic-id">Epic 7</span>')
+      expect(html).not.toContain('epic-6-context')
+    })
+
     it('draws a column with no card as its heading and a `no stories` line', () => {
       const html = markup(withStories(story('6.4', 'T', 'review')))
 

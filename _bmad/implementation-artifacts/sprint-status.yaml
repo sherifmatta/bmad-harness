@@ -123,8 +123,8 @@ development_status:
   6-9-nothing-this-epic-promised-not-to-do: done
   epic-6-retrospective: optional
 
-  epic-7: backlog
-  7-1-open-a-story-or-an-epic-from-the-board: backlog
+  epic-7: in-progress
+  7-1-open-a-story-or-an-epic-from-the-board: done
   7-2-read-the-markdown-the-personas-write-in-the-chat: backlog
   7-3-find-a-skill-by-typing: backlog
   7-4-a-seat-for-each-persona-that-stays-until-you-end-it: backlog

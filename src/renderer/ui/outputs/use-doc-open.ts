@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 /**
  * The two bridge methods the rail's rows use to open a document (FR55) and to
@@ -37,12 +37,53 @@ export function connectDocClosed(
 }
 
 /**
- * The rail's whole use of the document window: a function that opens a row's
- * document, and a subscription that calls `onClosed` with the row's path when
- * the window goes away. The bridge is read when it is used, never while
- * rendering, so the rows render wherever there is no window object at all.
+ * Which instance of `useDocOpen` opened each path last. Several surfaces open documents (the rail's rows,
+ * the Board's cards), and the window's close is one event for all of them: the one that opened the
+ * document takes the focus back, and no other. A path nobody here opened has no owner, and then every
+ * instance hears the close, as before.
+ */
+const openers = new Map<string, object>()
+
+/**
+ * A surface's whole use of the document window: a function that opens a document, and a subscription
+ * that calls `onClosed` with the path when the window goes away, if this surface opened it. The bridge is
+ * read when it is used, never while rendering, so the rows render wherever there is no window object at all.
  */
 export function useDocOpen(onClosed: (path: string) => void): (path: string) => void {
-  useEffect(() => connectDocClosed(window.harness, onClosed), [onClosed])
-  return useCallback((path: string) => openDocument(window.harness, path), [])
+  // This instance's own token: what the map holds to say who opened a path.
+  const [self] = useState(() => ({}))
+  useEffect(
+    () =>
+      connectDocClosed(window.harness, (path) => {
+        const opener = openers.get(path)
+        if (opener === undefined || opener === self) {
+          onClosed(path)
+          // The close is answered: the path is nobody's until opened again. After the turn, so the surfaces told after this one still find the opener.
+          queueMicrotask(() => {
+            if (openers.get(path) === self) {
+              openers.delete(path)
+            }
+          })
+        }
+      }),
+    [onClosed, self]
+  )
+  // An instance that goes away owns nothing: a close it can no longer answer is heard by whoever is left.
+  useEffect(
+    () => () => {
+      for (const [path, opener] of openers) {
+        if (opener === self) {
+          openers.delete(path)
+        }
+      }
+    },
+    [self]
+  )
+  return useCallback(
+    (path: string) => {
+      openers.set(path, self)
+      openDocument(window.harness, path)
+    },
+    [self]
+  )
 }

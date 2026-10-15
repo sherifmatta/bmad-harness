@@ -272,6 +272,28 @@
   border-radius: var(--radius-control);
 }
 
+/* A card with a file is a native button that fills the card, reset to read as the card's own words (Story 7.1): no icon, count, hover reveal or colour of its own. The card's padding moves inside the button so the whole card is the target and the ring follows its corners. */
+.board-card:has(> .board-card-open) {
+  padding: 0;
+}
+
+.board-card-open {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-hair);
+  margin: 0;
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--radius-control);
+  border: 0;
+  background: transparent;
+  font-family: var(--sans);
+  font-size: inherit;
+  line-height: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
 /* An empty column says so, in the dim ink: the rest of the row is cards and a bare column reads as missing. */
 .board-cards-empty {
   font-family: var(--mono);
@@ -371,6 +393,29 @@
   gap: var(--space-xl);
   padding: var(--space-md) var(--space-xl);
   font-size: var(--fs-control);
+}
+
+/* An epic row with a file is the same flex row inside a native button (Story 7.1), reset the same way, with the row's padding moved inside it. */
+.board-epic:has(> .board-epic-open) {
+  padding: 0;
+}
+
+.board-epic-open {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xl);
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-md) var(--space-xl);
+  border: 0;
+  background: transparent;
+  font-family: var(--sans);
+  font-size: inherit;
+  line-height: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
 }
 
 .board-epic + .board-epic {

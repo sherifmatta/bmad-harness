@@ -146,3 +146,53 @@ describe('foldSprintStatus', () => {
     expect(outcome).toMatchObject({ message: 'board · the sprint status cannot be read · EACCES' })
   })
 })
+
+describe('the files a story and an epic carry (Story 7.1)', () => {
+  const DIR = '_bmad/implementation-artifacts/'
+  const body = (names: string[], ...lines: string[]) => {
+    const folded = foldSprintStatus(text(`development_status:\n${lines.map((line) => `  ${line}`).join('\n')}\n`), undefined, { dir: DIR, names })
+    if (folded.kind !== 'read') {
+      throw new Error(`expected a read, got ${folded.code}`)
+    }
+    return folded
+  }
+
+  it('carries the path of the one spec for a story, by number and not by its key’s slug', () => {
+    const { epics } = body(['spec-5-2-the-systems-theme.md'], 'epic-5: done', '5-2-the-system-s-theme: done')
+    expect(epics[0].stories[0].file).toBe(`${DIR}spec-5-2-the-systems-theme.md`)
+  })
+
+  it('carries none for no spec, several, or another story whose number begins the same way', () => {
+    const { epics } = body(
+      ['spec-3-1-a.md', 'spec-3-1-b.md', 'spec-1-10-x.md'],
+      'epic-1: in-progress', '1-1-a: done', '1-10-x: done', 'epic-3: backlog', '3-1-a: done', '3-2-b: done', 'epic-2: backlog', '2-14-c: done'
+    )
+    const stories = epics.flatMap((epic) => epic.stories)
+    expect(stories.map((story) => [story.number, story.file])).toEqual([
+      ['1.1', undefined],
+      ['1.10', `${DIR}spec-1-10-x.md`],
+      ['3.1', undefined],
+      ['3.2', undefined],
+      ['2.14', undefined]
+    ])
+    for (const story of stories) {
+      expect('file' in story, story.number).toBe(story.file !== undefined)
+    }
+  })
+
+  it('carries an epic’s context file and not its retrospective’s', () => {
+    const { epics } = body(['epic-6-context.md', 'epic-6-retro-2026-10-12.md', 'epic-7-retro-x.md'], 'epic-6: done', 'epic-7: backlog')
+    expect(epics.map((epic) => epic.file)).toEqual([`${DIR}epic-6-context.md`, undefined])
+  })
+
+  it('carries no file for a story outside any epic, a retrospective or an unrecognised row', () => {
+    const { others, epics } = body(['spec-9-1-a.md', 'epic-1-context.md'], 'epic-1: done', 'epic-1-retrospective: done', '9-1-a: done', 'notes: backlog')
+    expect(others.every((other) => !('file' in other))).toBe(true)
+    expect(epics[0].retrospective).toEqual({ key: 'epic-1-retrospective', status: 'done', known: true })
+  })
+
+  it('carries no file at all when no listing is given', () => {
+    const { epics } = read(text('development_status:\n  epic-1: done\n  1-1-a: done\n'))
+    expect('file' in epics[0] || 'file' in epics[0].stories[0]).toBe(false)
+  })
+})

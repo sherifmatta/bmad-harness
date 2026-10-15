@@ -13,7 +13,7 @@ import { fixedOutputFolder } from './output-folder-model'
 import type { OutputFolderHandle } from './output-folder-model'
 import { createBoardProjection } from './projections/board'
 import type { BoardProjection } from './projections/board'
-import { boardPaths, readSprintStatus } from './sources/project/read-sprint-status'
+import { artifactsDirOf, boardPaths, readArtifactNames, readSprintStatus } from './sources/project/read-sprint-status'
 import { readText } from './sources/project/read-text'
 
 /**
@@ -28,6 +28,8 @@ export type BoardBridgeDeps = {
   outputFolder?: (sender: Sender, projectRoot: string) => OutputFolderHandle
   /** Opens `sprint-status.yaml`, and nothing else. */
   read?: (projectRoot: string, folder: string) => Promise<SprintStatusRead>
+  /** Lists the file names directly in `<folder>implementation-artifacts/`, so a story's or epic's file can be found by number. */
+  readNames?: (projectRoot: string, folder: string) => Promise<string[]>
   /** Reads `epics.md` for the titles; `undefined` when it cannot be read. */
   readTitles?: (absolutePath: string) => Promise<string | undefined>
   writeDiagnostic?: (line: string) => void
@@ -48,6 +50,9 @@ type Service = { ready: Promise<void>; projection: BoardProjection; folder: () =
 
 const QUIET_MS = 100
 
+/** The names `board-files.ts` can resolve, directly in `implementation-artifacts/`. */
+const FILE_NAME = /^(?:spec-\d+-\d+-[^/]+|epic-\d+-context)\.md$/
+
 /**
  * Answer `board.get`, and push `board:changed` once per revision of what
  * `sprint-status.yaml` comes to (Story 6.2).
@@ -63,6 +68,7 @@ export function registerBoardBridge(deps: BoardBridgeDeps = {}): BoardBridge {
   const projectPathFor = deps.projectPathFor ?? defaultProjectPathFor
   const outputFolder = deps.outputFolder ?? (() => fixedOutputFolder())
   const read = deps.read ?? readSprintStatus
+  const readNames = deps.readNames ?? readArtifactNames
   const readTitles = deps.readTitles ?? readText
   const writeDiagnostic = deps.writeDiagnostic ?? defaultWriteDiagnostic
   const quietMs = deps.quietMs ?? QUIET_MS
@@ -89,8 +95,10 @@ export function registerBoardBridge(deps: BoardBridgeDeps = {}): BoardBridge {
         const sprint = await read(projectRoot, where)
         // The titles are read only when there is a file to title.
         const epics = sprint.state === 'text' ? await readTitles(join(projectRoot, boardPaths(where).epics)) : undefined
+        // The listing is read beside them; a failure of it is no files, never a failed Board.
+        const names = sprint.state === 'text' ? await readNames(projectRoot, where).catch((): string[] => []) : []
         if (!gone) {
-          projection.apply(foldSprintStatus(sprint, titlesOf(epics)))
+          projection.apply(foldSprintStatus(sprint, titlesOf(epics), { dir: artifactsDirOf(where), names }))
         }
       } catch (error) {
         writeDiagnostic(`board/read · ${error instanceof Error ? error.message : String(error)}`)
@@ -184,7 +192,10 @@ export function registerBoardBridge(deps: BoardBridgeDeps = {}): BoardBridge {
         return
       }
       const paths = boardPaths(service.folder())
-      if (observation.path === paths.sprintStatus || observation.path === paths.epics) {
+      const artifacts = artifactsDirOf(service.folder())
+      // Only a name that can be a story's or an epic's file changes what the Board resolves.
+      const inArtifacts = observation.path.startsWith(artifacts) && FILE_NAME.test(observation.path.slice(artifacts.length))
+      if (observation.path === paths.sprintStatus || observation.path === paths.epics || inArtifacts) {
         service.schedule()
       }
     }

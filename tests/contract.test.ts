@@ -127,6 +127,21 @@ describe('the events out', () => {
   })
 })
 
+describe('the Board’s files (Story 7.1)', () => {
+  const board = withoutComments(read('src/shared/board.ts'))
+
+  it('are one optional `file` on a story and on an epic, additive, and carried nowhere else', () => {
+    expect(board).toMatch(/export type BoardStory = BoardEntry & \{[^}]*\bfile\?: string \}/)
+    expect(board).toMatch(/export type BoardEpic = BoardEntry & \{[^}]*\bfile\?: string\n\}/)
+    expect(board.match(/\bfile\??:/g)).toHaveLength(2)
+    expect([...withoutComments(read('src/shared/channels.ts')).matchAll(/\bBOARD_\w+_CHANNEL\b/g)].map(([name]) => name).sort()).toEqual(['BOARD_CHANGED_CHANNEL', 'BOARD_GET_CHANNEL'])
+  })
+
+  it('leave the contract version as it was', () => {
+    expect(read('src/shared/events.ts')).toMatch(/export const CONTRACT_VERSION = 1\n/)
+  })
+})
+
 describe('the commands in', () => {
   const body = mapBody(withoutComments(read('src/shared/commands.ts')), 'ContractCommands')
   const declared = entries(body)

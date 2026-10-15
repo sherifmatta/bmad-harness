@@ -51,6 +51,9 @@ const text = (...lines: string[]): SprintStatusRead => ({ state: 'text', text: `
 
 let sprint: SprintStatusRead
 let titles: string | undefined
+let names: string[]
+let nameReads: [string, string][]
+let namesFail = false
 let reads: [string, string][]
 let titleReads: string[]
 let diagnostics: string[]
@@ -75,6 +78,9 @@ beforeEach(() => {
   handlers.clear()
   sprint = text('epic-1: in-progress', '1-1-a: backlog')
   titles = '## Epic 1: Room\n### Story 1.1: A\n'
+  names = []
+  nameReads = []
+  namesFail = false
   reads = []
   titleReads = []
   diagnostics = []
@@ -87,6 +93,10 @@ beforeEach(() => {
     read: (root, where) => {
       reads.push([root, where])
       return Promise.resolve(sprint)
+    },
+    readNames: (root, where) => {
+      nameReads.push([root, where])
+      return namesFail ? Promise.reject(new Error('EACCES')) : Promise.resolve(names)
     },
     readTitles: (path) => {
       titleReads.push(path)
@@ -134,6 +144,39 @@ describe('board.get', () => {
     titles = undefined
     const reply = await get(new FakeSender(1))
     expect(reply.ok && reply.snapshot.kind === 'read' && reply.snapshot.epics[0].stories[0].title).toBe('a')
+  })
+})
+
+describe('the files a card carries', () => {
+  it('lists the names beside the other reads and carries the path of a story’s and an epic’s file', async () => {
+    names = ['spec-1-1-the-a.md', 'epic-1-context.md', 'epic-1-retro-2026-10-01.md']
+    const reply = await get(new FakeSender(1))
+
+    expect(nameReads).toEqual([['/project-1', '_bmad/']])
+    expect(reply.ok && reply.snapshot.kind === 'read' && reply.snapshot.epics[0]).toMatchObject({
+      file: '_bmad/implementation-artifacts/epic-1-context.md',
+      stories: [{ file: '_bmad/implementation-artifacts/spec-1-1-the-a.md' }]
+    })
+  })
+
+  it('lists where the output folder is, and lists nothing when there is no sprint status', async () => {
+    folder = 'docs/out/'
+    names = ['spec-1-1-a.md']
+    const reply = await get(new FakeSender(1))
+    expect(reply.ok && reply.snapshot.kind === 'read' && reply.snapshot.epics[0].stories[0].file).toBe('docs/out/implementation-artifacts/spec-1-1-a.md')
+
+    sprint = { state: 'absent' }
+    await get(new FakeSender(2))
+    expect(nameReads).toHaveLength(1)
+  })
+
+  it('carries no file, and the Board is the same, when the listing fails', async () => {
+    namesFail = true
+    const reply = await get(new FakeSender(1))
+
+    expect(reply).toMatchObject({ ok: true, snapshot: { kind: 'read', epics: [{ key: 'epic-1', stories: [{ key: '1-1-a' }] }] } })
+    expect(reply.ok && reply.snapshot.kind === 'read' && ('file' in reply.snapshot.epics[0] || 'file' in reply.snapshot.epics[0].stories[0])).toBe(false)
+    expect(diagnostics).toEqual([])
   })
 })
 
@@ -207,10 +250,31 @@ describe('board:changed', () => {
     expect(reads).toEqual([])
 
     await get(sender)
-    bridge.observeArtifact(sender, '/project-1', observation('_bmad/implementation-artifacts/spec-1-1-a.md'))
+    bridge.observeArtifact(sender, '/project-1', observation('_bmad/implementation-artifacts/notes.txt'))
+    bridge.observeArtifact(sender, '/project-1', observation('_bmad/implementation-artifacts/deeper/spec-1-1-a.md'))
+    bridge.observeArtifact(sender, '/project-1', observation('_bmad/planning-artifacts/spec-1-1-a.md'))
     bridge.observeArtifact(sender, '/project-1', observation('other/implementation-artifacts/sprint-status.yaml'))
     await vi.advanceTimersByTimeAsync(100)
     expect(reads).toHaveLength(1)
+  })
+
+  it('rereads when a .md directly in implementation-artifacts is found, written or removed, so a file’s arrival reaches its card', async () => {
+    const sender = new FakeSender(1)
+    sprint = text('epic-1: in-progress', '1-1-a: backlog')
+    await get(sender)
+    const spec = '_bmad/implementation-artifacts/spec-1-1-a.md'
+
+    names = ['spec-1-1-a.md']
+    bridge.observeArtifact(sender, '/project-1', observation(spec, 'artifact:found'))
+    await vi.advanceTimersByTimeAsync(50)
+    expect(sender.pushes).toHaveLength(1)
+    expect(sender.pushes[0]).toMatchObject({ epics: [{ stories: [{ file: spec }] }] })
+
+    names = []
+    bridge.observeArtifact(sender, '/project-1', observation(spec, 'artifact:removed'))
+    await vi.advanceTimersByTimeAsync(50)
+    expect(sender.pushes).toHaveLength(2)
+    expect(sender.pushes[1].kind === 'read' && 'file' in sender.pushes[1].epics[0].stories[0]).toBe(false)
   })
 
   it('reads again at the new folder when the output folder moves', async () => {

@@ -456,3 +456,118 @@ describe('the view switch and the chord, in the real shell', () => {
     expect(section('board').hidden).toBe(false)
   })
 })
+
+describe('a card or row with a file is a button, and only that one (Story 7.1)', () => {
+  const DIR = '_bmad/implementation-artifacts/'
+  const NAMES = ['spec-2-3-a-story-in-progress.md', 'spec-2-4-one.md', 'spec-2-4-two.md', 'epic-2-context.md', 'epic-2-retro-2026-10-01.md']
+  const WITH_FILES: BoardSnapshot = {
+    revision: 7,
+    ...foldSprintStatus({ state: 'text', text: FULL_TEXT }, undefined, { dir: DIR, names: NAMES })
+  }
+  const openDoc = vi.fn((path: string) => {
+    void path
+    return Promise.resolve()
+  })
+  let closed: (path: string) => void = () => {}
+
+  const mountFiles = (): void =>
+    mountWith({ name: 'files', snapshot: WITH_FILES, folder: '_bmad/', states: ALL_IDLE, entries: [], regions: true })
+
+  beforeEach(() => {
+    openDoc.mockClear()
+    closed = () => {}
+    ;(window as unknown as { harness: unknown }).harness = {
+      openDoc,
+      onDocClosed: (listener: (path: string) => void) => {
+        closed = listener
+        return () => {}
+      }
+    }
+  })
+  afterEach(() => {
+    delete (window as unknown as { harness?: unknown }).harness
+  })
+
+  it('draws exactly one button for the one story with exactly one spec and one for the epic, each a native button in the tab order with no tabindex, icon or handler on anything else', () => {
+    mountFiles()
+
+    const buttons = all('button')
+    expect(buttons.map((button) => button.className)).toEqual(['board-card-open', 'board-epic-open'])
+    expect(buttons.map(text)).toEqual(['2.3a story in progress', 'Epic 21 of 7 stories done'])
+    for (const button of buttons) {
+      expect(button.getAttribute('type')).toBe('button')
+      expect(button.hasAttribute('tabindex')).toBe(false)
+      expect(button.hasAttribute('disabled')).toBe(false)
+      expect(button.querySelector('svg, img, [class*=icon]')).toBeNull()
+      expect(button.closest('li')?.parentElement?.tagName).toBe('UL')
+    }
+    // Nothing else is a control, a tab stop or has a handler: a story with two specs, with none, an epic with no context, and every figure.
+    expect(container.querySelector('a, input, select, textarea, [tabindex], [role~=button], [role~=link], [onclick]')).toBeNull()
+    for (const element of all('*').filter((node) => !buttons.includes(node as HTMLElement))) {
+      expect(handlersOf(element), `${element.tagName}.${element.className}`).toEqual([])
+    }
+    // The cards that have no file are exactly the plain text they were.
+    const plain = all('.board-card').filter((card) => card.querySelector('button') === null)
+    expect(plain).toHaveLength(6)
+    for (const card of plain) {
+      expect([...card.children].map((child) => child.className)).toEqual(['board-card-number', 'board-card-title'])
+    }
+    expect(all('.board-epic').filter((row) => row.querySelector('button') === null)).toHaveLength(2)
+  })
+
+  it('shows no path, count, icon or word about why, on a card or row with a file or without', () => {
+    mountFiles()
+
+    const regions = all('.board-stories, .board-epics')
+    expect(regions).toHaveLength(2)
+    for (const region of regions) {
+      expect(text(region)).not.toMatch(/spec-|epic-2-context|implementation-artifacts|\.md\b/)
+      expect(spoken(region)).not.toMatch(/\bopen\b|\bview\b|\bno spec\b|\bmissing\b|\bnot available\b/i)
+      expect(all('[title], [aria-label], [aria-describedby], [aria-disabled]', region)).toEqual([])
+    }
+    expect(container.querySelector(`${LIVE}, ${ANNOUNCING}, ${LIVE_REGIONS}`)).toBeNull()
+  })
+
+  it('asks main to open the exact path of a card, and of a row, when pressed', () => {
+    mountFiles()
+    const [card, row] = all('button')
+
+    act(() => card.click())
+    act(() => row.click())
+
+    expect(openDoc.mock.calls).toEqual([[`${DIR}spec-2-3-a-story-in-progress.md`], [`${DIR}epic-2-context.md`]])
+  })
+
+  it('opens with Enter and Space as any native button does: the key presses are the button’s click, and nothing handles a key itself', () => {
+    mountFiles()
+    const [card] = all('button')
+
+    expect(handlersOf(card)).toEqual(['onClick'])
+    act(() => card.focus())
+    expect(document.activeElement).toBe(card)
+    expect(card.tabIndex).toBe(0)
+  })
+
+  it('gives focus back to the card that opened a document when its window closes, and to no other', () => {
+    mountFiles()
+    const [card, row] = all('button')
+    act(() => card.click())
+
+    act(() => closed(`${DIR}spec-2-3-a-story-in-progress.md`))
+    expect(document.activeElement).toBe(card)
+
+    act(() => row.click())
+    act(() => closed(`${DIR}epic-2-context.md`))
+    expect(document.activeElement).toBe(row)
+  })
+
+  it('leaves the Board’s plain text without a tab stop or a cursor of its own: no card without a file is focusable', () => {
+    mountFiles()
+
+    for (const card of all('.board-card').filter((one) => one.querySelector('button') === null)) {
+      act(() => card.focus())
+      expect(document.activeElement).not.toBe(card)
+      expect(card.tabIndex).toBe(-1)
+    }
+  })
+})

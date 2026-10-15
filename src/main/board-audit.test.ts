@@ -157,10 +157,14 @@ describe('the Board’s life over a real project', () => {
     real.writeFileSync(join(project, 'src/index.ts'), 'export {}\n')
 
     const lines: string[] = []
+    const setup = writes.length
     const bridge = registerBoardBridge({ projectPathFor: () => project, quietMs: 5, writeDiagnostic: (line) => lines.push(line) })
     const sender = new FakeSender(1)
     const first = (await handlers.get(BOARD_GET_CHANNEL)!({ sender })) as { ok: boolean; snapshot: BoardSnapshot }
     expect(first).toMatchObject({ ok: true, snapshot: { kind: 'read', epics: [{ stories: [{ status: 'review' }] }] } })
+    // Story 7.1: the listing of implementation-artifacts finds the spec, and the reading wrote nothing doing it.
+    expect(first).toMatchObject({ snapshot: { epics: [{ stories: [{ file: SPEC }] }] } })
+    expect(writes.slice(setup)).toEqual([])
 
     // A file changes: the test is the writer. The tree is taken after it, so what follows is the Board's alone.
     real.writeFileSync(join(project, SPRINT), 'development_status:\n  epic-1: in-progress\n  1-1-a: done\n')
@@ -179,6 +183,8 @@ describe('the Board’s life over a real project', () => {
     transcripts.flushAll()
     bridge.observeArtifact(sender, project, observation(SPEC, 'artifact:found'))
     bridge.observeArtifact(sender, project, observation(EPICS))
+    // A spec appearing in the directory is read again through the listing, and nothing is written for it.
+    bridge.observeArtifact(sender, project, observation('_bmad/implementation-artifacts/spec-1-2-b.md', 'artifact:found'))
     await vi.waitFor(() => expect(sender.pushes.length).toBeGreaterThanOrEqual(1))
     await new Promise((resolve) => setTimeout(resolve, 30))
 

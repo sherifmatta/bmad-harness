@@ -12,8 +12,12 @@ import type { HarnessError } from './install'
 /** A status as written, and whether it is one of the six words the file defines. */
 export type BoardEntry = { status: string; known: boolean }
 
-/** One story: its file key, its number `N.M` and its title. */
-export type BoardStory = BoardEntry & { key: string; number: string; title: string }
+/**
+ * One story: its file key, its number `N.M` and its title. `file` is the project-relative POSIX path of
+ * the one `spec-<epic>-<story>-*.md` in `implementation-artifacts/`, resolved in main and carried only
+ * when there is exactly one; the renderer passes it to `doc.open` and never builds a path (Story 7.1).
+ */
+export type BoardStory = BoardEntry & { key: string; number: string; title: string; file?: string }
 
 /** An epic's retrospective: parsed so it can be left out of a count, never shown. */
 export type BoardRetrospective = BoardEntry & { key: string }
@@ -25,6 +29,8 @@ export type BoardEpic = BoardEntry & {
   title: string
   stories: BoardStory[]
   retrospective?: BoardRetrospective
+  /** The project-relative POSIX path of `epic-<n>-context.md`, when it is listed (Story 7.1). */
+  file?: string
 }
 
 /** A key that is neither an epic, a story nor a retrospective, or a story whose epic has no row. */

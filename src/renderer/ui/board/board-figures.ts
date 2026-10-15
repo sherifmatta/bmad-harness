@@ -14,7 +14,7 @@ import { columnsOf } from './board-columns'
 export type Overview = { running: number; installedCount: number; inProgress: number; shown: number }
 
 /** One epic's row: its own stories, all of them, whether or not the epic is done. */
-export type EpicRow = { key: string; id: string; title: string; done: number; total: number }
+export type EpicRow = { key: string; id: string; title: string; done: number; total: number; file?: string }
 
 export function overviewOf(
   snapshot: BoardSnapshot,
@@ -40,6 +40,7 @@ export function epicRowsOf(snapshot: BoardSnapshot): EpicRow[] {
     id: `Epic ${epic.number}`,
     title: epic.title,
     done: epic.stories.filter((story) => story.status === 'done').length,
-    total: epic.stories.length
+    total: epic.stories.length,
+    ...(epic.file === undefined ? {} : { file: epic.file })
   }))
 }

@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync }
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import { boardPaths, readSprintStatus } from './read-sprint-status'
+import { artifactsDirOf, boardPaths, readArtifactNames, readSprintStatus } from './read-sprint-status'
 
 const root = mkdtempSync(join(tmpdir(), 'harness-sprint-status-'))
 afterAll(() => rmSync(root, { recursive: true, force: true }))
@@ -48,10 +48,35 @@ describe('readSprintStatus', () => {
   })
 })
 
+describe('readArtifactNames', () => {
+  const listed = mkdtempSync(join(tmpdir(), 'harness-artifact-names-'))
+  afterAll(() => rmSync(listed, { recursive: true, force: true }))
+
+  it('lists the files directly in implementation-artifacts, leaves out a directory, and says where it looks', async () => {
+    const dir = join(listed, 'docs/out/implementation-artifacts')
+    mkdirSync(join(dir, 'nested'), { recursive: true })
+    writeFileSync(join(dir, 'spec-1-1-a.md'), 'x')
+    writeFileSync(join(dir, 'epic-1-context.md'), 'x')
+    writeFileSync(join(dir, 'nested/spec-1-2-b.md'), 'x')
+
+    expect(artifactsDirOf('docs/out/')).toBe('docs/out/implementation-artifacts/')
+    expect((await readArtifactNames(listed, 'docs/out/')).sort()).toEqual(['epic-1-context.md', 'spec-1-1-a.md'])
+  })
+
+  it('says nothing for a directory that is not there or is not a directory, and never rejects', async () => {
+    await expect(readArtifactNames(listed, 'missing/')).resolves.toEqual([])
+    mkdirSync(join(listed, 'plain'), { recursive: true })
+    writeFileSync(join(listed, 'plain/implementation-artifacts'), 'a file, not a directory')
+    await expect(readArtifactNames(listed, 'plain/')).resolves.toEqual([])
+  })
+})
+
 describe('the reader’s source', () => {
   it('opens one file and writes nothing', () => {
     const source = readFileSync(join(import.meta.dirname, 'read-sprint-status.ts'), 'utf8')
     expect(source).not.toMatch(/writeFile|appendFile|\brename\b|unlink|\bmkdir|\btruncate|\butimes|\bchmod|createWriteStream/)
     expect(source.match(/readFile\(/g)).toHaveLength(1)
+    // The listing is the one other call: a read of the directory's names, never of a file in it.
+    expect(source.match(/readdir\(/g)).toHaveLength(1)
   })
 })

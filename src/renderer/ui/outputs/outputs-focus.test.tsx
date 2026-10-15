@@ -309,6 +309,8 @@ describe('Outputs, opening', () => {
     expect(hooks.events).toEqual([`set:outputs:1:${PRD}`])
     expect(openDoc).toHaveBeenCalledExactlyOnceWith(PRD)
     expect(tabStops(renderOutputs())).toEqual([false, false, true])
+    // The window closes, which leaves the path owned by nobody for the next test.
+    closed(PRD)
   })
 })
 

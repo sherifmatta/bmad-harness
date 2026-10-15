@@ -1582,9 +1582,33 @@ describe('the Board’s regions (Stories 6.4 to 6.7)', () => {
   it('gives no column or card an overflow, transition, animation or literal of its own', () => {
     for (const [, selectors, body] of rules) {
       // The one animation word a Board rule may carry is Recent activity's `animation: none`, which stills a dot.
-      expect(body.replace(/animation:\s*none;/g, ''), selectors).not.toMatch(/overflow(?!-wrap)|transition|animation|cursor/)
+      // And the one `cursor` is `pointer` on the two rules that are native buttons (Story 7.1); a card or row with no file has none.
+      const opens = selectors.split(',').every((selector) => /^\.board-(?:card|epic)-open$/.test(selector.trim()))
+      const bare = body.replace(/animation:\s*none;/g, '').replace(opens ? /cursor:\s*pointer;/g : /^$/, '')
+      expect(bare, selectors).not.toMatch(/overflow(?!-wrap)|transition|animation|cursor/)
     }
     expect(literalsIn(path, readFileSync(join(ROOT, path), 'utf8'))).toEqual([])
+  })
+
+  it('draws a card or row with a file as a reset native button: a pointer, the shared focus ring, and no hover, colour, icon or accent of its own (Story 7.1)', () => {
+    const opens = boardRulesAnywhere(/\.board-(?:card|epic)-open/)
+
+    // The two buttons, and the two rules that hand the card's and the row's padding to the button so the whole of either is the target.
+    expect(opens.map(([, selectors]) => selectors.trim()).sort()).toEqual([
+      '.board-card-open',
+      '.board-card:has(> .board-card-open)',
+      '.board-epic-open',
+      '.board-epic:has(> .board-epic-open)'
+    ])
+    for (const [, selectors, body] of opens.filter(([, selectors]) => !selectors.includes(':has'))) {
+      expect(body, selectors).toMatch(/cursor:\s*pointer;/)
+      expect(body, selectors).toMatch(/border:\s*0;/)
+      expect(body, selectors).toMatch(/background:\s*transparent;/)
+      expect(body, selectors).toMatch(/color:\s*inherit;/)
+      expect(body, selectors).not.toMatch(/--accent|outline|box-shadow|content:|opacity|url\(/)
+    }
+    // No state of its own: no hover, focus or active rule names them, the global `:focus-visible` ring is the one.
+    expect(boardRulesAnywhere(/\.board-(?:card|epic)-open[^{]*:(?:hover|focus|active)/)).toEqual([])
   })
 
   it('gives every Board rule, the empty state’s and the view’s too, no motion beyond `animation: none`, and the sheet no keyframes', () => {

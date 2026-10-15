@@ -7,6 +7,7 @@ import type {
   BoardStory,
   SprintStatusRead
 } from '../../shared/board'
+import { epicFileOf, storyFileOf } from './board-files'
 import { titlesOf } from './epic-titles'
 import type { Titles } from './epic-titles'
 
@@ -91,12 +92,18 @@ function entriesOf(text: string): [string, string][] | undefined {
   return entries.length === 0 ? undefined : entries
 }
 
+/**
+ * The listing of `implementation-artifacts/` the files are resolved from: the directory, project-relative
+ * POSIX with its trailing `/`, and the file names directly in it (Story 7.1).
+ */
+export type ArtifactFiles = { dir: string; names: readonly string[] }
+
 const entryOf = (status: string): BoardEntry => ({ status, known: KNOWN_STATUSES.has(status) })
 
 /** A key's slug with its hyphens read as spaces, as written: a slug cut short stays cut short. */
 const slugTitle = (slug: string): string => slug.replace(/-/g, ' ')
 
-export function foldSprintStatus(read: SprintStatusRead, titles: Titles = titlesOf(undefined)): BoardBody {
+export function foldSprintStatus(read: SprintStatusRead, titles: Titles = titlesOf(undefined), files?: ArtifactFiles): BoardBody {
   if (read.state === 'absent') {
     return none(NONE.absent)
   }
@@ -118,7 +125,15 @@ export function foldSprintStatus(read: SprintStatusRead, titles: Titles = titles
     const epic = EPIC_KEY.exec(key)
     const number = Number(epic?.[1])
     if (epic !== null && !epics.has(number)) {
-      epics.set(number, { key, number, title: titles.epics.get(number) ?? '', ...entryOf(status), stories: [] })
+      const file = epicFileOf(files?.names ?? [], number)
+      epics.set(number, {
+        key,
+        number,
+        title: titles.epics.get(number) ?? '',
+        ...entryOf(status),
+        stories: [],
+        ...(file === undefined || files === undefined ? {} : { file: `${files.dir}${file}` })
+      })
       asEpic.add(at)
     }
   })
@@ -136,7 +151,14 @@ export function foldSprintStatus(read: SprintStatusRead, titles: Titles = titles
       epic.retrospective = retrospective
     } else if (story !== null && epic !== undefined) {
       const number = `${Number(story[1])}.${Number(story[2])}`
-      const placed: BoardStory = { key, number, title: titles.stories.get(number) ?? slugTitle(story[3]), ...entryOf(status) }
+      const file = storyFileOf(files?.names ?? [], Number(story[1]), Number(story[2]))
+      const placed: BoardStory = {
+        key,
+        number,
+        title: titles.stories.get(number) ?? slugTitle(story[3]),
+        ...entryOf(status),
+        ...(file === undefined || files === undefined ? {} : { file: `${files.dir}${file}` })
+      }
       epic.stories.push(placed)
     } else {
       others.push({ key, ...entryOf(status) })
