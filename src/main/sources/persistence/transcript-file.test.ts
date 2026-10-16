@@ -64,7 +64,7 @@ describe('writeTranscript and loadTranscript', () => {
       projectPath: project,
       entries
     })
-    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', entries, runs: [], dropped: 0 })
+    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', skillSessions: [], entries, runs: [], dropped: 0 })
   })
 
   it('leaves no temporary file behind, and replaces what was there', () => {
@@ -73,7 +73,7 @@ describe('writeTranscript and loadTranscript', () => {
     writeTranscript(file, project, entries.slice(0, 1))
 
     expect(readdirSync(join(userData, 'conversations'))).toEqual([`${file.split('/').pop()}`])
-    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', entries: entries.slice(0, 1), runs: [], dropped: 0 })
+    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', skillSessions: [], entries: entries.slice(0, 1), runs: [], dropped: 0 })
   })
 
   it('keeps every earlier record when a sysline sits among them, at version 1', () => {
@@ -99,7 +99,7 @@ describe('writeTranscript and loadTranscript', () => {
     writeTranscript(file, project, held)
 
     const loaded = loadTranscript(file, project)
-    expect(loaded).toEqual({ kind: 'loaded', entries: held, runs: [], dropped: 0 })
+    expect(loaded).toEqual({ kind: 'loaded', skillSessions: [], entries: held, runs: [], dropped: 0 })
     expect(loaded.kind === 'loaded' && 'room' in loaded.entries[1]).toBe(false)
   })
 
@@ -113,7 +113,7 @@ describe('writeTranscript and loadTranscript', () => {
     writeTranscript(file, project, held)
 
     const loaded = loadTranscript(file, project)
-    expect(loaded).toEqual({ kind: 'loaded', entries: held, runs: [], dropped: 0 })
+    expect(loaded).toEqual({ kind: 'loaded', skillSessions: [], entries: held, runs: [], dropped: 0 })
     expect(loaded.kind === 'loaded' && 'room' in loaded.entries[2]).toBe(false)
   })
 
@@ -126,7 +126,7 @@ describe('writeTranscript and loadTranscript', () => {
     writeTranscript(file, project, held)
 
     const loaded = loadTranscript(file, project)
-    expect(loaded).toEqual({ kind: 'loaded', entries: held, runs: [], dropped: 0 })
+    expect(loaded).toEqual({ kind: 'loaded', skillSessions: [], entries: held, runs: [], dropped: 0 })
     expect(loaded.kind === 'loaded' && 'mention' in loaded.entries[1]).toBe(false)
   })
 
@@ -136,7 +136,7 @@ describe('writeTranscript and loadTranscript', () => {
     writeFileSync(file, JSON.stringify({ version: TRANSCRIPT_VERSION, projectPath: project, entries: old }))
 
     expect(TRANSCRIPT_VERSION).toBe(1)
-    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', entries: old, runs: [], dropped: 0 })
+    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', skillSessions: [], entries: old, runs: [], dropped: 0 })
   })
 
   it.each([[3], [null], [{}], [['@a']], [true], [''], ['  '], ['Amelia'], ['@'], ['@ a'], ['@a b']])(
@@ -149,6 +149,7 @@ describe('writeTranscript and loadTranscript', () => {
       const loaded = loadTranscript(file, project)
       expect(loaded).toEqual({
         kind: 'loaded',
+        skillSessions: [],
         entries: [{ kind: 'user', id: 'm-0', at: 1, text: 'kept' }],
         runs: [],
         dropped: 0
@@ -169,6 +170,7 @@ describe('writeTranscript and loadTranscript', () => {
     const loaded = loadTranscript(file, project)
     expect(loaded).toEqual({
       kind: 'loaded',
+      skillSessions: [],
       entries: stored.map((record) => {
         const plain: Record<string, unknown> = { ...record }
         delete plain.mention
@@ -187,7 +189,7 @@ describe('writeTranscript and loadTranscript', () => {
       JSON.stringify({ version: 1, projectPath: project, entries: [good, { ...good, id: 'm-1', room: 'yes' }] })
     )
 
-    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', entries: [good], runs: [], dropped: 1 })
+    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', skillSessions: [], entries: [good], runs: [], dropped: 1 })
   })
 
   it('reports the errno code and throws nothing when the write cannot happen', () => {
@@ -296,6 +298,7 @@ describe('writeTranscript and loadTranscript', () => {
 
       expect(loadTranscript(file, project)).toEqual({
         kind: 'loaded',
+        skillSessions: [],
         entries: [good, { kind: 'user', id: 'm-2', at: 3, text: 'also kept' }],
         runs: [],
         dropped: 1
@@ -304,8 +307,8 @@ describe('writeTranscript and loadTranscript', () => {
     })
 
     it('is loaded with nothing left out when every record is one, and when there are none', () => {
-      expect(loadTranscript(write([good]), project)).toEqual({ kind: 'loaded', entries: [good], runs: [], dropped: 0 })
-      expect(loadTranscript(write([]), project)).toEqual({ kind: 'loaded', entries: [], runs: [], dropped: 0 })
+      expect(loadTranscript(write([good]), project)).toEqual({ kind: 'loaded', skillSessions: [], entries: [good], runs: [], dropped: 0 })
+      expect(loadTranscript(write([]), project)).toEqual({ kind: 'loaded', skillSessions: [], entries: [], runs: [], dropped: 0 })
     })
   })
 })
@@ -332,7 +335,7 @@ describe('the run cards stored beside the entries', () => {
     expect(writeTranscript(file, project, entries, runs)).toEqual({ ok: true })
     const written = JSON.parse(readFileSync(file, 'utf8'))
     expect(written).toEqual({ version: 1, projectPath: project, entries, runs })
-    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', entries, runs, dropped: 0 })
+    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', skillSessions: [], entries, runs, dropped: 0 })
   })
 
   it('leave a file with no run cards the file it always was, and a file without them loads with none', () => {
@@ -340,7 +343,7 @@ describe('the run cards stored beside the entries', () => {
     writeTranscript(file, project, entries, [])
 
     expect(Object.keys(JSON.parse(readFileSync(file, 'utf8')))).toEqual(['version', 'projectPath', 'entries'])
-    expect(loadTranscript(file, project)).toMatchObject({ kind: 'loaded', runs: [], dropped: 0 })
+    expect(loadTranscript(file, project)).toMatchObject({ kind: 'loaded', skillSessions: [], runs: [], dropped: 0 })
   })
 
   const filed = (runs: unknown): string => {
@@ -369,6 +372,7 @@ describe('the run cards stored beside the entries', () => {
 
     expect(loadTranscript(file, project)).toEqual({
       kind: 'loaded',
+      skillSessions: [],
       entries,
       runs: [stored('keep-1'), stored('keep-2', 'running')],
       dropped: 1
@@ -393,7 +397,7 @@ describe('the run cards stored beside the entries', () => {
       const runs = [withSteps([step('a'), step('b', { status: 'running', endedAt: undefined, notesBefore: 2 })])]
       writeTranscript(file, project, entries, runs)
 
-      expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', entries, runs: [{ ...runs[0], card: { ...runs[0].card, steps: [step('a'), { ...step('b', { status: 'running', notesBefore: 2 }), endedAt: undefined }] } }], dropped: 0 })
+      expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', skillSessions: [], entries, runs: [{ ...runs[0], card: { ...runs[0].card, steps: [step('a'), { ...step('b', { status: 'running', notesBefore: 2 }), endedAt: undefined }] } }], dropped: 0 })
     })
 
     it('load as none from a card written before steps, counting nothing left out', () => {
@@ -401,11 +405,11 @@ describe('the run cards stored beside the entries', () => {
       delete old.steps
       const file = filed([{ card: old, lastAt: 40 }])
 
-      expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', entries, runs: [stored('r1')], dropped: 0 })
+      expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', skillSessions: [], entries, runs: [stored('r1')], dropped: 0 })
     })
 
     it.each([['a string', 'oops'], ['an object', { a: 1 }], ['null', null], ['a number', 3]])('load %s as none, counting nothing left out', (_name, bad) => {
-      expect(loadTranscript(filed([withSteps(bad)]), project)).toEqual({ kind: 'loaded', entries, runs: [stored('r1')], dropped: 0 })
+      expect(loadTranscript(filed([withSteps(bad)]), project)).toEqual({ kind: 'loaded', skillSessions: [], entries, runs: [stored('r1')], dropped: 0 })
     })
 
     it('keep the well-formed steps of a list and drop the malformed ones', () => {
@@ -427,7 +431,7 @@ describe('the run cards stored beside the entries', () => {
         ]),
         project
       )
-      expect(loaded).toMatchObject({ kind: 'loaded', dropped: 0 })
+      expect(loaded).toMatchObject({ kind: 'loaded', skillSessions: [], dropped: 0 })
       expect(loaded.kind === 'loaded' && loaded.runs[0].card.steps).toEqual([good])
     })
 
@@ -448,12 +452,12 @@ describe('the run cards stored beside the entries', () => {
       const runs = [withSkill('bmad-build')]
       writeTranscript(file, project, entries, runs)
 
-      expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', entries, runs, dropped: 0 })
+      expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', skillSessions: [], entries, runs, dropped: 0 })
     })
 
     it('loads from a card written before it with no key, nothing counted as left out', () => {
       const loaded = loadTranscript(filed([stored('r1')]), project)
-      expect(loaded).toMatchObject({ kind: 'loaded', dropped: 0 })
+      expect(loaded).toMatchObject({ kind: 'loaded', skillSessions: [], dropped: 0 })
       expect(loaded.kind === 'loaded' && loaded.runs[0].card).not.toHaveProperty('skill')
     })
 
@@ -461,21 +465,21 @@ describe('the run cards stored beside the entries', () => {
       'is dropped when it is %s, and the card kept',
       (_name, bad) => {
         const loaded = loadTranscript(filed([withSkill(bad)]), project)
-        expect(loaded).toEqual({ kind: 'loaded', entries, runs: [stored('r1')], dropped: 0 })
+        expect(loaded).toEqual({ kind: 'loaded', skillSessions: [], entries, runs: [stored('r1')], dropped: 0 })
         expect(loaded.kind === 'loaded' && loaded.runs[0].card).not.toHaveProperty('skill')
       }
     )
   })
 
   it('count a `runs` that is not a list as one thing left out, with the entries kept', () => {
-    expect(loadTranscript(filed({ r1: 1 }), project)).toEqual({ kind: 'loaded', entries, runs: [], dropped: 1 })
+    expect(loadTranscript(filed({ r1: 1 }), project)).toEqual({ kind: 'loaded', skillSessions: [], entries, runs: [], dropped: 1 })
   })
 
   it('add to the entries left out when both are damaged', () => {
     const file = join(userData, 'both.json')
     writeFileSync(file, JSON.stringify({ version: 1, projectPath: project, entries: [...entries, null], runs: [null, stored('r1')] }))
 
-    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', entries, runs: [stored('r1')], dropped: 2 })
+    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', skillSessions: [], entries, runs: [stored('r1')], dropped: 2 })
   })
 })
 
@@ -526,5 +530,85 @@ describe('setAsideTranscript', () => {
     const outcome = setAsideTranscript(join(userData, 'nothing-here.json'), project)
 
     expect(outcome).toEqual({ ok: false, errno: 'ENOENT' })
+  })
+})
+
+describe('the skill-first sessions beside the entries (Story 7.5)', () => {
+  const kept: TranscriptRecord[] = [
+    { kind: 'user', id: 'm-0', at: 1, text: '/bmad-build x', skillSession: 's1' },
+    { kind: 'skill', id: 'm-1', at: 2, messageId: 'msg', text: 'on it', skillSession: 's1' },
+    { kind: 'sysline', id: 'm-2', at: 3, text: 'session ended · the process exited', skillSession: 's1' }
+  ]
+  const sessions = [{ sessionId: 's1', skill: 'bmad-build', at: 1 }]
+  const filed = (extra: Record<string, unknown>, list: unknown[] = kept): string => {
+    const file = transcriptFilePath(userData, project)
+    mkdirSync(join(file, '..'), { recursive: true })
+    writeFileSync(file, JSON.stringify({ version: TRANSCRIPT_VERSION, projectPath: project, entries: list, ...extra }))
+    return file
+  }
+
+  it('are written under `skillSessions` at version 1 and read back as they were written, with the records they flag', () => {
+    const file = transcriptFilePath(userData, project)
+
+    expect(writeTranscript(file, project, kept, [], sessions)).toEqual({ ok: true })
+
+    expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ version: 1, projectPath: project, entries: kept, skillSessions: sessions })
+    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', entries: kept, runs: [], skillSessions: sessions, dropped: 0 })
+  })
+
+  it('leave a file with none as the file it always was, and load as having none', () => {
+    const file = transcriptFilePath(userData, project)
+    writeTranscript(file, project, entries)
+
+    expect(Object.keys(JSON.parse(readFileSync(file, 'utf8')))).toEqual(['version', 'projectPath', 'entries'])
+    expect(loadTranscript(file, project)).toMatchObject({ kind: 'loaded', skillSessions: [], dropped: 0 })
+  })
+
+  it.each([
+    ['an item that is a string', 'nope'],
+    ['an item with no session id', { skill: 'bmad-build', at: 1 }],
+    ['an item whose skill is not a plain name', { sessionId: 's1', skill: 'two words', at: 1 }],
+    ['an item with no time', { sessionId: 's1', skill: 'bmad-build' }]
+  ])('keep the others and count %s as left out', (_why, bad) => {
+    const loaded = loadTranscript(filed({ skillSessions: [bad, ...sessions] }), project)
+
+    expect(loaded).toEqual({ kind: 'loaded', entries: kept, runs: [], skillSessions: sessions, dropped: 1 })
+  })
+
+  it('count a `skillSessions` that is not a list as one thing left out, and the records that flag a session it cannot name as left out too', () => {
+    expect(loadTranscript(filed({ skillSessions: { s1: 1 } }), project)).toEqual({
+      kind: 'loaded',
+      entries: [],
+      runs: [],
+      skillSessions: [],
+      dropped: 1 + kept.length
+    })
+  })
+
+  it('leaves out a record that flags a session the list does not hold, whatever its kind, and keeps the plain ones', () => {
+    const plain: TranscriptRecord = { kind: 'user', id: 'm-9', at: 9, text: 'plain' }
+    const orphans: TranscriptRecord[] = [
+      { kind: 'user', id: 'm-7', at: 7, text: 'orphan', skillSession: 'gone' },
+      { kind: 'skill', id: 'm-8', at: 8, messageId: 'x', text: 'orphan', skillSession: 'gone' }
+    ]
+    const loaded = loadTranscript(filed({ skillSessions: sessions }, [...kept, ...orphans, plain]), project)
+
+    expect(loaded).toEqual({ kind: 'loaded', entries: [...kept, plain], runs: [], skillSessions: sessions, dropped: 2 })
+  })
+
+  it('lists a session once, and counts the repeat as left out', () => {
+    const loaded = loadTranscript(filed({ skillSessions: [...sessions, { ...sessions[0], at: 5 }] }), project)
+
+    expect(loaded).toEqual({ kind: 'loaded', entries: kept, runs: [], skillSessions: sessions, dropped: 1 })
+  })
+
+  it.each([
+    ['a skill record with no session', { kind: 'skill', id: 'm-9', at: 1, messageId: 'x', text: 't' }],
+    ['a skill record with no message', { kind: 'skill', id: 'm-9', at: 1, text: 't', skillSession: 's1' }],
+    ['a user record whose flag is not a session id', { kind: 'user', id: 'm-9', at: 1, text: 't', skillSession: 3 }]
+  ])('count %s as left out', (_why, bad) => {
+    const loaded = loadTranscript(filed({ skillSessions: sessions }, [...kept, bad]), project)
+
+    expect(loaded).toMatchObject({ kind: 'loaded', entries: kept, dropped: 1 })
   })
 })

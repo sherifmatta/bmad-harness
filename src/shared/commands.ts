@@ -22,11 +22,13 @@ export type CommandSpec<Args extends unknown[], Cardinality extends string, Repl
 }
 
 /**
- * What `session.open` opens: a persona's session, by its agent id, or the room
- * (Story 4.1), a party session of the cast named, in the order given. The room
- * has no agent id of its own.
+ * What `session.open` opens: a persona's session, by its agent id, the room
+ * (Story 4.1), a party session of the cast named, in the order given, or a
+ * first message (Story 7.5): the text as typed, which main reads (`/<skill>`)
+ * and answers with a seat, the room or a skill-first session. The room has no
+ * agent id of its own.
  */
-export type SessionTarget = AgentId | { room: readonly AgentId[] }
+export type SessionTarget = AgentId | { room: readonly AgentId[] } | { first: string }
 
 /** The eight commands in, by name. */
 export type ContractCommands = {

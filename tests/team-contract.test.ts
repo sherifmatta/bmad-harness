@@ -342,9 +342,10 @@ describe('the shell mounts the team', () => {
 
   it('mounts Team in the Team half and the header above the scroll, keyed by agent id', () => {
     expect(shell).toContain('<Team')
-    expect(shell).toContain('<ChatHeader key={current.id}')
+    expect(shell).toContain('<ChatHeader key={persona.id}')
     expect(shell.indexOf('<ChatHeader')).toBeLessThan(shell.indexOf('className="scroll"'))
-    expect(shell).toMatch(/<RailHalf label="Team" beneath=\{<TeamStrip[^>]*\/>\}>\s*<Team/)
+    // Story 7.5: the strip is followed, in the same head, by the `Skill Session` button's row.
+    expect(shell).toMatch(/<RailHalf\s+label="Team"\s+beneath=\{[\s\S]*?<TeamStrip[^>]*\/>[\s\S]*?skill-session-row[\s\S]*?\}\s*>\s*<Team/)
     expect(shell).toMatch(/<RailHalf\s+label="Outputs"[\s\S]*?>\s*<ConnectedOutputs/)
   })
 
@@ -358,7 +359,8 @@ describe('the shell mounts the team', () => {
     expect(shell).toContain('currentId: chosenId')
     expect(shell).toContain('onCurrentChange')
     expect(code('src/renderer/ui/app.tsx')).toMatch(/currentId=\{currentId\}/)
-    expect(code('src/renderer/ui/app.tsx')).toMatch(/onCurrentChange=\{setCurrentId\}/)
+    // Story 7.5: a tile also turns the chat column to its persona.
+    expect(code('src/renderer/ui/app.tsx')).toMatch(/onCurrentChange=\{\(agentId\) => \{\s*setCurrentId\(agentId\)/)
   })
 
   it('moves focus on no activation: a tile click never calls focus, and only an arrow move does in the team', () => {

@@ -25,6 +25,11 @@ import './composer.css'
  * user typed, and a whitespace-only draft is kept, not discarded. The text
  * handed on is trimmed of surrounding whitespace and otherwise untouched.
  *
+ * **A send can be refused (Story 7.5).** A handler that answers with a promise is asked to say whether it took the
+ * text: `false` leaves the draft where it was (the New session chat, whose first message may name no skill; a skill-first
+ * session that has ended), and until it answers the field is as it was and a second send waits. A handler that answers
+ * nothing is as it always was: the draft is cleared once it has been given.
+ *
  * **The `/` list.** A composer handed `slashEntries` opens a list above the field when
  * its text begins with `/` (Story 7.3). It is the list's hook that reads the
  * text, takes the keys it answers to and draws the rows; this file only offers
@@ -38,6 +43,8 @@ import './composer.css'
 export function Composer({
   agentName,
   onSend,
+  initialText = '',
+  onTextChange,
   focusOnMount = false,
   refocus = 0,
   head,
@@ -45,8 +52,13 @@ export function Composer({
   fieldRef,
   slashEntries
 }: {
-  agentName: string
-  onSend?: (text: string) => void
+  /** Who the message is for: it names the field. Left out, as in the New session chat (Story 7.5), the field has no placeholder and is named `message`. */
+  agentName?: string
+  onSend?: (text: string) => void | Promise<boolean>
+  /** The draft the field starts with: the New session chat keeps its half-typed text across a turn to another chat. */
+  initialText?: string
+  /** Told every change of the draft, so a surface that keeps it can. */
+  onTextChange?: (text: string) => void
   /**
    * Take focus when this composer appears. Only a handoff the user made from the
    * keyboard sets it, so the user lands in the new persona's composer; choosing a
@@ -76,7 +88,8 @@ export function Composer({
   /** The rows a leading `/` lists, as main gave them. Absent, the composer has no such list. */
   slashEntries?: readonly SlashEntry[]
 }): JSX.Element {
-  const [text, setText] = useState('')
+  const [text, setText] = useState(initialText)
+  const sending = useRef(false)
   const field = useRef<HTMLTextAreaElement>(null)
   const returnedKey = useRef(returned?.key)
   const slash = useSlashList({ entries: slashEntries, text, setText, field })
@@ -89,6 +102,10 @@ export function Composer({
     },
     [fieldRef]
   )
+
+  useEffect(() => {
+    onTextChange?.(text)
+  }, [text, onTextChange])
 
   useEffect(() => {
     if (returned === undefined || returned.key === returnedKey.current) {
@@ -123,11 +140,27 @@ export function Composer({
   }, [refocus])
 
   function send(): void {
-    if (onSend === undefined || text.trim() === '') {
+    if (onSend === undefined || text.trim() === '' || sending.current) {
       return
     }
-    onSend(text.trim())
-    setText('')
+    const answer = onSend(text.trim())
+    if (answer !== undefined) {
+      // The handler says whether it took the text: a refusal leaves the draft as it was.
+      sending.current = true
+      // A handler that fails did not take the text: the draft stays, and later sends are not held for it.
+      void answer
+        .then((took) => {
+          if (took) {
+            setText('')
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          sending.current = false
+        })
+    } else {
+      setText('')
+    }
     field.current?.focus()
   }
 
@@ -159,8 +192,8 @@ export function Composer({
             className="composer-input"
             rows={1}
             value={text}
-            placeholder={`message ${agentName}`}
-            aria-label={`Message ${agentName}`}
+            placeholder={agentName === undefined ? undefined : `message ${agentName}`}
+            aria-label={agentName === undefined ? 'message' : `Message ${agentName}`}
             onChange={(event) => setText(event.target.value)}
             onKeyDown={onKeyDown}
             {...slash.fieldProps}

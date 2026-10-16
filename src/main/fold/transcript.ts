@@ -9,9 +9,11 @@ import type { TranscriptRecord } from '../../shared/conversation'
  * `messageId`: the text is appended as it came, never trimmed, joined with a
  * separator or edited. Anything else starts a record of its own. Ids are
  * `m-<n>`, assigned here, continuing past the highest a loaded transcript holds.
- * A `persona:said` without an `agentId` is no one's and is not recorded. One the room
- * said (`room`, with the `agentId` its turn's marker named) is recorded like any other,
- * with the flag kept on the record; so is the user's turn into the room.
+ * A `persona:said` without an `agentId` is no persona's: it is recorded only when it carries a
+ * `skillSession` (Story 7.5), as the skill's own record, joined as a persona's is; otherwise it is
+ * no one's and is not recorded. One the room said (`room`, with the `agentId` its turn's marker
+ * named) is recorded like any other, with the flag kept on the record; so is the user's turn into
+ * the room, and into a skill-first session (`skillSession`).
  * A sysline is the harness's own line and is always a record of its own: it ends
  * whatever persona message came before it, so later words open a new one.
  */
@@ -42,11 +44,17 @@ function withRecord(state: TranscriptState, record: TranscriptRecord): Transcrip
 }
 
 export function foldPersonaSaid(state: TranscriptState, said: PersonaSaid): TranscriptState {
-  const { agentId, messageId, text, at, room } = said
-  if (agentId === undefined) {
-    return state
-  }
+  const { agentId, messageId, text, at, room, skillSession } = said
   const last = state.entries[state.entries.length - 1]
+  if (agentId === undefined) {
+    if (skillSession === undefined) {
+      return state
+    }
+    if (last !== undefined && last.kind === 'skill' && last.skillSession === skillSession && last.messageId === messageId) {
+      return { ...state, entries: [...state.entries.slice(0, -1), { ...last, text: last.text + text }] }
+    }
+    return withRecord(state, { kind: 'skill', id: `m-${state.nextId}`, at, messageId, text, skillSession })
+  }
   if (last !== undefined && last.kind === 'persona' && last.agentId === agentId && last.messageId === messageId) {
     return {
       ...state,
@@ -69,7 +77,8 @@ export function foldUserTurn(
   text: string,
   at: number,
   room?: true,
-  mention?: string
+  mention?: string,
+  skillSession?: string
 ): TranscriptState {
   return withRecord(state, {
     kind: 'user',
@@ -77,22 +86,40 @@ export function foldUserTurn(
     at,
     text,
     ...(mention !== undefined ? { mention } : {}),
-    ...(room === true ? { room: true as const } : {})
+    ...(room === true ? { room: true as const } : {}),
+    ...(skillSession !== undefined ? { skillSession } : {})
   })
 }
 
 /**
  * The harness's own line, appended as a record that no persona message joins. `room`, set on every line about a room,
- * is kept on the record when set, and is absent otherwise.
+ * is kept on the record when set, and is absent otherwise; so is `skillSession`, set on every line about a
+ * skill-first session (Story 7.5).
  */
-export function foldSysline(state: TranscriptState, text: string, at: number, room?: true): TranscriptState {
+export function foldSysline(
+  state: TranscriptState,
+  text: string,
+  at: number,
+  room?: true,
+  skillSession?: string
+): TranscriptState {
   return withRecord(state, {
     kind: 'sysline',
     id: `m-${state.nextId}`,
     at,
     text,
-    ...(room === true ? { room: true as const } : {})
+    ...(room === true ? { room: true as const } : {}),
+    ...(skillSession !== undefined ? { skillSession } : {})
   })
+}
+
+/**
+ * A skill-first session's records gone (Story 7.5): every record carrying its `skillSession`. Ids keep
+ * counting from where they were, so none is ever reused.
+ */
+export function foldWithoutSkillSession(state: TranscriptState, sessionId: string): TranscriptState {
+  const entries = state.entries.filter((entry) => !('skillSession' in entry && entry.skillSession === sessionId))
+  return entries.length === state.entries.length ? state : { ...state, entries }
 }
 
 /**

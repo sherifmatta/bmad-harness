@@ -10,7 +10,8 @@ import type { RailSnapshot } from '../../../shared/rail'
 import { BoardView } from '../board/board-view'
 import type { ProseStore } from '../chat/prose-store'
 import type { TranscriptEntry } from '../chat/transcript-entry'
-import { ChatHeader } from '../chat/chat-header'
+import { ChatHeader, NewSessionHeader, SkillHeader } from '../chat/chat-header'
+import type { SkillSeat } from '../status/skill-seat'
 import { OrphanHeader } from '../chat/orphan-header'
 import { FollowScroller } from '../follow/follow-scroller'
 import { PanelSplitter } from '../layout/panel-splitter'
@@ -63,6 +64,15 @@ function RailHalf({
   )
 }
 
+/**
+ * What the chat column is turned to (Story 7.5): the New session chat, a skill-first session by its id, or the
+ * current persona. A window opens on the New session chat; choosing a tile turns it to a persona.
+ */
+export type ChatMode = 'new' | 'persona' | { skillSession: string }
+
+/** No skill-first session: no seats. */
+const NO_SEATS: readonly SkillSeat[] = []
+
 /** No session outlives the roster: no orphan header. */
 const NO_ORPHANS: readonly AgentView[] = []
 
@@ -99,10 +109,10 @@ const NO_SINCE: ReadonlyMap<string, number> = new Map()
  * the thread holds.
  *
  * Which persona is current is derived at render from the display order — the
- * chosen id if the roster still has it, else the topmost tile — so a roster
- * change that removes the current agent lands in one frame. The chosen id is the
- * window's (`App` passes it, so `@<name>` can change it as a tile can) or, where
- * none is passed, the shell's own.
+ * chosen id if the roster still has it, else nobody (Story 7.5) — so a roster
+ * change that removes the current agent lands in one frame. With nobody current the
+ * column is the New session chat. The chosen id is the window's (`App` passes it,
+ * so `@<name>` can change it as a tile can) or, where none is passed, the shell's own.
  */
 export function Shell({
   projectPath,
@@ -132,6 +142,16 @@ export function Shell({
   pinned,
   party,
   threadEmpty = false,
+  chat = 'persona',
+  skillSeats = NO_SEATS,
+  onNewSession = ignore,
+  onSelectSeat,
+  onCloseSkill,
+  onStopSkill,
+  skillBusy = NO_LIVE,
+  skillComposer,
+  newComposer,
+  showView,
   children
 }: {
   projectPath: string
@@ -199,6 +219,27 @@ export function Shell({
   party?: ReactNode
   /** The thread holds nothing yet: the current persona is introduced in its place. */
   threadEmpty?: boolean
+  /** What the chat column is turned to (Story 7.5). Left out it is the current persona's, as it always was; with
+      no current persona, whatever was asked for, it is the New session chat. */
+  chat?: ChatMode
+  /** The skill-first sessions, in start order: the `Skill sessions` group of the Team half. */
+  skillSeats?: readonly SkillSeat[]
+  /** Called when the `Skill Session` button is pressed: the window turns to the New session chat. */
+  onNewSession?: () => void
+  /** Called with a seat's session id when it is chosen. */
+  onSelectSeat?: (sessionId: string) => void
+  /** Called with the session id when a skill-first session's `close session` is activated. */
+  onCloseSkill?: (sessionId: string) => void
+  /** Called with the session id when a skill-first session's `Stop` is activated. */
+  onStopSkill?: (sessionId: string) => void
+  /** The skill-first sessions that have a turn in flight, by session id: while the one in view is, its header reads `Stop`. */
+  skillBusy?: ReadonlySet<string>
+  /** The composer of the skill-first session in view. */
+  skillComposer?: (seat: SkillSeat, fieldRef: RefObject<HTMLTextAreaElement | null>) => ReactNode
+  /** The composer of the New session chat. */
+  newComposer?: (fieldRef: RefObject<HTMLTextAreaElement | null>) => ReactNode
+  /** A view the window asks the shell to show (the room, after `/bmad-party-mode`): shown once for each new `n`. */
+  showView?: { view: ViewId; n: number }
   children?: ReactNode
 }): JSX.Element {
   const [view, setView] = useState<ViewId>(initialView)
@@ -226,13 +267,23 @@ export function Shell({
   )
   // The current composer's field, which the thread's `↓ latest` puts focus in (Story 5.3).
   const [fieldRef] = useState(() => createRef<HTMLTextAreaElement>())
+  // The window asked for a view (the room, after `/bmad-party-mode`): shown once for each new request.
+  const [shownN, setShownN] = useState(showView?.n)
+  if (showView !== undefined && showView.n !== shownN) {
+    setShownN(showView.n)
+    setView(showView.view)
+  }
 
   const currentId = chosenId === undefined ? ownId : chosenId
   const ordered = displayOrder(groupAgents(snapshot.agents))
   const current = currentAgent(ordered, currentId)
+  // What the column is turned to: a seat that is gone, or a persona nobody chose, is the New session chat.
+  const seat = typeof chat === 'object' ? skillSeats.find(({ sessionId }) => sessionId === chat.skillSession) : undefined
+  const mode: 'new' | 'persona' | 'skill' = seat !== undefined ? 'skill' : chat === 'persona' && current !== null ? 'persona' : 'new'
+  const persona = mode === 'persona' ? current : null
 
   const outputsLine = rail === null ? undefined : stateLineOf(rail, rail.refusal)
-  const pinnedNode = current === null ? null : (pinned?.(current) ?? null)
+  const pinnedNode = persona === null ? null : (pinned?.(persona) ?? null)
 
   // With nobody listening, selecting is only choosing the current persona.
   const select =
@@ -261,14 +312,34 @@ export function Shell({
         ref={holdView}
       >
         <div className="sidebar" style={sidebarStyle}>
-          <RailHalf label="Team" beneath={<TeamStrip agents={snapshot.agents} states={states} />}>
+          <RailHalf
+            label="Team"
+            beneath={
+              <>
+                <TeamStrip agents={snapshot.agents} states={states} />
+                <div className="skill-session-row">
+                  <button
+                    type="button"
+                    className="skill-session-button"
+                    aria-pressed={mode === 'new' && view === 'conversation'}
+                    onClick={onNewSession}
+                  >
+                    Skill Session
+                  </button>
+                </div>
+              </>
+            }
+          >
             <Team
               agents={snapshot.agents}
               menus={snapshot.menus}
               states={states}
               since={since}
-              currentId={current?.id ?? null}
+              currentId={persona?.id ?? null}
               onSelect={select}
+              skillSeats={skillSeats}
+              currentSeatId={seat?.sessionId ?? null}
+              onSelectSeat={onSelectSeat}
             />
           </RailHalf>
         </div>
@@ -279,31 +350,45 @@ export function Shell({
             // Prefixed: keeps these keys apart from the current persona's header key.
             <OrphanHeader key={`orphan-${orphan.id}`} agent={orphan} onClose={onCloseOrphan ?? ignore} />
           ))}
-          {current !== null && (
-            <ChatHeader key={current.id}
-              agent={current}
-              state={stateOf(current.id, states)}
-              since={since.get(current.id)}
+          {persona !== null && (
+            <ChatHeader key={persona.id}
+              agent={persona}
+              state={stateOf(persona.id, states)}
+              since={since.get(persona.id)}
               onClose={
-                onCloseSession !== undefined && liveSessions.has(current.id)
-                  ? () => onCloseSession(current.id)
+                onCloseSession !== undefined && liveSessions.has(persona.id)
+                  ? () => onCloseSession(persona.id)
                   : undefined
               }
-              turnInFlight={turnsInFlight.has(current.id)}
-              onStop={onStopTurn === undefined ? undefined : () => onStopTurn(current.id)}
+              turnInFlight={turnsInFlight.has(persona.id)}
+              onStop={onStopTurn === undefined ? undefined : () => onStopTurn(persona.id)}
             />
           )}
+          {seat !== undefined && (
+            <SkillHeader
+              key={`skill-${seat.sessionId}`}
+              skill={seat.skill}
+              state={seat.state}
+              since={seat.since}
+              turnInFlight={skillBusy.has(seat.sessionId)}
+              onClose={() => onCloseSkill?.(seat.sessionId)}
+              onStop={onStopSkill === undefined ? undefined : () => onStopSkill(seat.sessionId)}
+            />
+          )}
+          {mode === 'new' && <NewSessionHeader />}
           <FollowScroller
             className="scroll"
             contentClassName="thread"
-            resetKey={current?.id}
+            resetKey={seat === undefined ? (persona?.id ?? 'new') : `skill:${seat.sessionId}`}
             sends={sends}
             fieldRef={fieldRef}
           >
-            {threadEmpty && current !== null && <ThreadIntro agent={current} items={snapshot.menus[current.id] ?? NO_ITEMS} />}
+            {threadEmpty && persona !== null && <ThreadIntro agent={persona} items={snapshot.menus[persona.id] ?? NO_ITEMS} />}
             {children}
           </FollowScroller>
-          {current !== null && composer?.(current, snapshot.menus[current.id] ?? NO_ITEMS, fieldRef)}
+          {persona !== null && composer?.(persona, snapshot.menus[persona.id] ?? NO_ITEMS, fieldRef)}
+          {seat !== undefined && skillComposer?.(seat, fieldRef)}
+          {mode === 'new' && newComposer?.(fieldRef)}
         </div>
         <PanelSplitter splitter={railSplitter} />
         <div className="rail" style={railStyle}>

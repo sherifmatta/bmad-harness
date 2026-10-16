@@ -60,10 +60,10 @@ export function createVoice(deps: {
   emit: (sender: Sender, event: ContractEvent) => void
 }): (
   sender: Sender,
-  line: { sessionId: SessionId; projectRoot: string; text: string; room?: true }
+  line: { sessionId: SessionId; projectRoot: string; text: string; room?: true; skillSession?: SessionId }
 ) => void {
-  return (sender, { sessionId, projectRoot, text, room }) => {
-    const record = deps.transcripts.forProject(projectRoot).recordSysline(text, deps.now(), room)
+  return (sender, { sessionId, projectRoot, text, room, skillSession }) => {
+    const record = deps.transcripts.forProject(projectRoot).recordSysline(text, deps.now(), room, skillSession)
     deps.emit(sender, {
       name: 'harness:said',
       payload: {
@@ -71,7 +71,8 @@ export function createVoice(deps: {
         id: record.id,
         text: record.text,
         at: record.at,
-        ...(record.room === true ? { room: true } : {})
+        ...(record.room === true ? { room: true } : {}),
+        ...(record.skillSession === undefined ? {} : { skillSession: record.skillSession })
       }
     })
   }

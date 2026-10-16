@@ -394,6 +394,8 @@ describe('the view switch and the chord, in the real shell', () => {
           runs: RUNS,
           prose: proseStore,
           rail: { revision: 1, folder: '_bmad/', rows: [] },
+          // A window opens on the New session chat (Story 7.5); the persona's composer is the field under test.
+          currentId: installed.agents[0].id,
           composer: () => createElement('textarea', { className: 'composer-field' })
         })
       )

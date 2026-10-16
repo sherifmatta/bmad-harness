@@ -109,3 +109,36 @@ describe('activityRowsOf (Story 6.7)', () => {
     expect(rowsOf()).toEqual([])
   })
 })
+
+describe('activityRowsOf, a skill-first session’s run (Story 7.5)', () => {
+  const skillRun = (id: string, over: Partial<RunCardEntry> = {}): RunCardEntry => {
+    const plain = run(id, { skill: 'bmad-build', skillSession: `s-${id}`, code: 'bmad-build', ...over })
+    delete plain.agentId
+    return plain
+  }
+
+  it('names the skill where a persona’s name goes and says the bare verb, with no code', () => {
+    expect(rowsOf(skillRun('r1', { status: 'finished', endedAt: 2000 }))).toEqual([
+      { key: 'r1:end', name: 'bmad-build', did: 'finished', at: 2000, state: 'idle', pulse: false },
+      { key: 'r1:start', name: 'bmad-build', did: 'started', at: 1000, state: 'work', pulse: false }
+    ])
+  })
+
+  it('says stopped and failed in the same bare words, with the error dot', () => {
+    const rows = rowsOf(skillRun('r1', { status: 'stopped', endedAt: 2000 }), skillRun('r2', { status: 'failed', endedAt: 3000, at: 2500 }))
+
+    expect(rows.filter((row) => row.state === 'error').map((row) => row.did)).toEqual(['failed', 'stopped'])
+  })
+
+  it('pulses only the start row of a run in flight, and is ranked with the personas’ rows by time', () => {
+    expect(said(run('p1', { at: 1500 }), skillRun('r1', { at: 1000 }))).toEqual(['Ada started CP 1500', 'bmad-build started 1000'])
+    expect(rowsOf(skillRun('r1'))[0].pulse).toBe(true)
+  })
+
+  it('raises nothing for an agentless run that is not a skill-first session’s', () => {
+    const unflagged = skillRun('r1')
+    delete unflagged.skillSession
+
+    expect(rowsOf(unflagged)).toEqual([])
+  })
+})

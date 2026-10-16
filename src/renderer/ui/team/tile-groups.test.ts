@@ -95,8 +95,8 @@ describe('groupAgents', () => {
 describe('currentAgent', () => {
   const order = ['a', 'b', 'c'].map((id) => agent(id, 'bmm'))
 
-  it('is the topmost tile when nobody has been chosen', () => {
-    expect(currentAgent(order, null)?.id).toBe('a')
+  it('is nobody when nobody has been chosen (Story 7.5)', () => {
+    expect(currentAgent(order, null)).toBeNull()
   })
 
   it('is the chosen agent while the roster still holds it, and changes when another is chosen', () => {
@@ -104,11 +104,11 @@ describe('currentAgent', () => {
     expect(currentAgent(order, 'c')?.id).toBe('c')
   })
 
-  it('falls back to the topmost tile when a roster change drops the chosen agent', () => {
+  it('is nobody when a roster change drops the chosen agent, and falls back to no tile', () => {
     const after = order.filter(({ id }) => id !== 'b')
 
-    expect(currentAgent(after, 'b')?.id).toBe('a')
-    expect(currentAgent(order, 'gone')?.id).toBe('a')
+    expect(currentAgent(after, 'b')).toBeNull()
+    expect(currentAgent(order, 'gone')).toBeNull()
   })
 
   it('is nobody when there are no agents', () => {

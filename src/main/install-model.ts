@@ -1,3 +1,4 @@
+import type { SkillView } from '../shared/install'
 import type { InstallProjection } from './projections/install'
 import type { ResolvedMenuEntry } from './sources/install/schema'
 
@@ -48,4 +49,13 @@ export function menuEntryFor(
   code: string
 ): ResolvedMenuEntry | undefined {
   return projections.get(webContentsId)?.menuEntry(agentId, code)
+}
+
+/**
+ * Every skill the window's install declares, in manifest order, as main's own install model has it: what a
+ * first message's `/<name>` is matched against (Story 7.5). Empty when no install is known or the manifest
+ * is missing or empty.
+ */
+export function skillsFor(webContentsId: number): readonly SkillView[] {
+  return projections.get(webContentsId)?.snapshot().skills ?? []
 }

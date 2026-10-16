@@ -955,7 +955,7 @@ The avatar of the chat, and the small-reference token.
 
 ### Skill Session button
 
-*Added 2026-10-15 (Story 7.5).* The entry to the empty chat: a ghost button at the **right of the Sprint board row**, in the same row as the nav label and its key hint (`g b`), `margin-left: auto`. It is the same control as the chat header's `Stop`, drawn the same way, with the label **`Skill Session`**. It is an entry to a chat, not a launcher: it lists no skill and carries no accent fill, icon or count. A native `<button aria-pressed>`; pressed means the empty chat is open (EXPERIENCE.md → *Skill sessions*).
+*Added 2026-10-15 (Story 7.5).* *Built 2026-10-16: the Sprint board row is not built in the code, so the button is right-aligned in a Team-half row of its own between the strip and the tiles; the `Sprint board` label and its `g b` hint stay unbuilt.* The entry to the empty chat: a ghost button at the **right of the Sprint board row**, in the same row as the nav label and its key hint (`g b`), `margin-left: auto`. It is the same control as the chat header's `Stop`, drawn the same way, with the label **`Skill Session`**. It is an entry to a chat, not a launcher: it lists no skill and carries no accent fill, icon or count. A native `<button aria-pressed>`; pressed means the empty chat is open (EXPERIENCE.md → *Skill sessions*).
 
 `panel-2` ground, 1px `line`, `{rounded.DEFAULT}`, padding `3px 10px`, `{typography.body-ui}` in `dim` (`{components.skill-session-button}`).
 

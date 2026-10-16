@@ -28,6 +28,21 @@ export type PersonaRecord = {
   room?: true
 }
 
+/**
+ * What a skill said in a skill-first session (Story 7.5): the speaker is the skill's name, which the
+ * session's `skillSession` finds, never a persona. It belongs to that session's own thread alone.
+ */
+export type SkillRecord = {
+  kind: 'skill'
+  /** Main-assigned, `m-<n>`. */
+  id: string
+  at: EpochMs
+  messageId: MessageId
+  text: string
+  /** The skill-first session this was said in. */
+  skillSession: SessionId
+}
+
 /** What the user sent into a session, at the moment main wrote it. */
 export type UserRecord = {
   kind: 'user'
@@ -41,6 +56,8 @@ export type UserRecord = {
   mention?: string
   /** Set on what the user sent into the room (Story 4.2): it belongs to the party thread. Absent otherwise. */
   room?: true
+  /** Set on what the user sent into a skill-first session (Story 7.5): it belongs to that session's thread alone. */
+  skillSession?: SessionId
 }
 
 /**
@@ -60,9 +77,11 @@ export type SyslineRecord = {
    * thread and never to a persona's 1:1 thread. Absent on every other line.
    */
   room?: true
+  /** Set on every harness line about a skill-first session (Story 7.5): it belongs to that session's thread alone. */
+  skillSession?: SessionId
 }
 
-export type TranscriptRecord = PersonaRecord | UserRecord | SyslineRecord
+export type TranscriptRecord = PersonaRecord | UserRecord | SyslineRecord | SkillRecord
 
 /**
  * What `session.open` answers: the session. `handoff` stays declared as an
@@ -78,6 +97,12 @@ export type SessionOpenReply = CommandReply<{
    * already live alike: that room's own cast, in open order, and when it opened. Absent on a persona's.
    */
   room?: { cast: AgentId[]; openedAt: EpochMs }
+  /** Set on the answer to a first message that started a skill-first session (Story 7.5): its skill's name. */
+  skill?: string
+  /** Set on the answer to a first message that named a persona (Story 7.5): the seat to turn to. */
+  seat?: AgentId
+  /** Set on the answer to a first message that was routed to a seat or the room, when words followed the name. */
+  rest?: string
 }>
 
 /** What opening a session resolves with in the renderer, once the envelope is unwrapped. */
@@ -86,6 +111,12 @@ export type OpenedSession = {
   handoff?: SyslineRecord
   /** The room's own cast and open time, as the open's reply carried them (Story 4.7). */
   room?: { cast: AgentId[]; openedAt: EpochMs }
+  /** The skill a first message started a skill-first session for (Story 7.5). */
+  skill?: string
+  /** The persona's seat a first message turned to (Story 7.5). */
+  seat?: AgentId
+  /** The words after the skill's name in a first message routed to a seat or the room (Story 7.5). */
+  rest?: string
 }
 
 /**
@@ -94,6 +125,9 @@ export type OpenedSession = {
  * back is a run that was cut off, and it ends at that moment.
  */
 export type StoredRun = { card: RunCardSnapshot; lastAt: EpochMs }
+
+/** One skill-first session the transcript lists (Story 7.5): its id, its skill and when it started. */
+export type StoredSkillSession = { sessionId: SessionId; skill: string; at: EpochMs }
 
 /**
  * The transcript as it lies on disk, one file per project. `runs` is additive:
@@ -104,6 +138,8 @@ export type TranscriptFile = {
   projectPath: string
   entries: TranscriptRecord[]
   runs?: StoredRun[]
+  /** Additive (Story 7.5): the skill-first sessions, in start order. A file from before them loads with none. */
+  skillSessions?: StoredSkillSession[]
 }
 
 /** Where a run stands: in flight, or the terminal event it ended on. */
@@ -201,6 +237,11 @@ export type ConversationSnapshot = {
    * card stands.
    */
   runs: RunCardSnapshot[]
+  /**
+   * The skill-first sessions this project lists (Story 7.5), in start order: `live` is true only for one
+   * main holds this launch. Never among `sessions` and never the room.
+   */
+  skillSessions?: { sessionId: SessionId; skill: string; live: boolean }[]
 }
 
 /** What `menu.dispatch` answers: the run it started, or the envelope saying why not. */

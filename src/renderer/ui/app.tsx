@@ -4,6 +4,7 @@ import type { JSX } from 'react'
 import { Announcer } from './a11y/announcer'
 import { LiveRegion } from './a11y/live-region'
 import { Composer } from './chat/composer'
+import { Sysline } from './chat/sysline'
 import { handoffTarget } from './chat/handoff-target'
 import { SkillRow } from './chat/skill-row'
 import { RunCard } from './chat/run-card'
@@ -20,14 +21,28 @@ import { useInstall } from './install/use-install'
 import { useBoard } from './board/use-board'
 import { useRail } from './outputs/use-rail'
 import { PartyView } from './party/party-view'
+import { skillKey } from './status/skill-seat'
 import { Shell } from './shell/shell'
+import type { ChatMode } from './shell/shell'
 import { currentAgent, displayOrder, groupAgents } from './team/tile-groups'
 import type { SyslineRecord } from '../../shared/conversation'
+import type { ViewId } from './shell/view'
 import type { AgentView } from '../../shared/install'
 import { refusalLine } from '../../shared/output-folder'
 
 /** No roster yet: the conversation is mounted before the install has answered. */
 const NO_AGENTS: readonly AgentView[] = []
+
+/**
+ * The New session chat (Story 7.5): a renderer surface with no session behind it, kept for the window with the
+ * lines it refused a first message with. `id` tells one chat from the next, so a fresh one starts with an empty
+ * field. One is always kept: sending a first message spends it and puts a fresh one in its place, so pressing
+ * `Skill Session` again turns to an empty chat, as if it had been made then.
+ */
+type NewChat = { id: number; lines: readonly { id: string; text: string }[] }
+
+/** A chat nobody has typed into: the one a window opens on, and the one that takes the place of a chat whose first message was sent. */
+const freshChat = (id: number): NewChat => ({ id, lines: [] })
 
 /** No run expanded: every card of a persona not viewed is a line. */
 const NO_RUNS: ReadonlySet<string> = new Set()
@@ -62,6 +77,12 @@ const NO_RUNS: ReadonlySet<string> = new Set()
  * into view and spend. A request for a run the conversation does not hold (it
  * ended) is dropped on arrival. The current persona, the documents and the
  * sessions are not touched on this path.
+ *
+ * A window opens on the New session chat (Story 7.5): no persona is current until a tile is chosen. The chat column
+ * is turned to that chat, a persona or a skill-first session's seat, and `ChatMode` says which. A first message typed
+ * in the New session chat is sent as it is typed and main reads it: it starts a skill-first session, turns to a
+ * persona's seat or the room (and the words after the name are sent there), or is refused, and then the refusal is a
+ * line in that chat and the text stays in its field.
  */
 export function App(): JSX.Element | null {
   const [projectPath, setProjectPath] = useState<string | null>(null)
@@ -73,6 +94,12 @@ export function App(): JSX.Element | null {
   const layout = useLayout()
   const [announcer] = useState(() => new Announcer())
   const [currentId, setCurrentId] = useState<string | null>(null)
+  // What the chat column is turned to, and the one New session chat the window keeps until its first message is sent.
+  const [chat, setChat] = useState<ChatMode>('new')
+  const [newChat, setNewChat] = useState<NewChat>(() => freshChat(0))
+  // The kept chat's half-typed text, so a turn to another chat and back finds it as it was.
+  const [newDraft, setNewDraft] = useState('')
+  const [showView, setShowView] = useState<{ view: ViewId; n: number } | undefined>(undefined)
   // The persona whose composer takes focus when it appears, or when `n` moves: after an
   // `@` handoff, and after the user answers a decision with an option (`n` counts those).
   const [composerFocus, setComposerFocus] = useState<{ id: string; n: number } | null>(null)
@@ -227,6 +254,49 @@ export function App(): JSX.Element | null {
   // The personas with a live session and a turn in flight, run or chat: main's own busy set, which the
   // header's Stop reads (`turnsInFlight` leaves out a run that has said nothing yet).
   const busyPersonas = new Set([...conversation.live].filter((agentId) => !conversation.canAnswer(agentId)))
+  // The New session chat's field takes focus when it appears, and again each time the window lands on it after a
+  // skill-first session ended: a counter, so the same request can be made again.
+  const landOnNew = (): void => setChat('new')
+  // A first message from the New session chat: main reads it. A refusal is a line here, never a record, and the
+  // text stays in the field; anything else spends the chat and turns the window to what main made of it.
+  const sendFirst = (text: string): Promise<boolean> =>
+    conversation.startFrom(text, Date.now()).then((outcome) => {
+      if (outcome.kind === 'refused') {
+        const line = outcome.line
+        if (line !== undefined) {
+          setNewChat((held) => ({ ...held, lines: [...held.lines, { id: `new-line-${held.lines.length}`, text: line }] }))
+          announcer.announce(line, performance.now())
+        }
+        return false
+      }
+      setNewDraft('')
+      setNewChat((held) => freshChat(held.id + 1))
+      if (outcome.kind === 'skill') {
+        setChat({ skillSession: outcome.sessionId })
+        // The chat that held focus is spent: the user's place is the new session's composer, as after a seat.
+        setComposerFocus({ id: skillKey(outcome.sessionId), n: 0 })
+      } else if (outcome.kind === 'seat') {
+        setCurrentId(outcome.agentId)
+        setChat('persona')
+        setComposerFocus({ id: outcome.agentId, n: 0 })
+        if (outcome.rest !== '') {
+          conversation.send(outcome.agentId, outcome.rest)
+        }
+      } else {
+        setShowView((held) => ({ view: 'party', n: (held?.n ?? 0) + 1 }))
+        if (outcome.rest !== '') {
+          conversation.sendToRoom(outcome.rest)
+        }
+      }
+      return true
+    })
+  const closeSkill = (sessionId: string): void => {
+    void conversation.closeSkill(sessionId).then((closed) => {
+      if (closed) {
+        landOnNew()
+      }
+    })
+  }
   const room = roomState(snapshot, installFailure)
   if (room === 'pending') {
     return null
@@ -247,7 +317,11 @@ export function App(): JSX.Element | null {
   }
   // The viewed persona, resolved as the shell resolves it, and the one run card of theirs in
   // flight: drawn in the shell's pinned slot and skipped in the thread (Story 3.14).
-  const viewed = currentAgent(displayOrder(groupAgents(snapshot.agents)), currentId)
+  const current = currentAgent(displayOrder(groupAgents(snapshot.agents)), currentId)
+  // What the column is turned to, as the shell resolves it: a seat that is gone, or a persona nobody chose, is the New session chat.
+  const seat = typeof chat === 'object' ? conversation.skillSeats.find(({ sessionId }) => sessionId === chat.skillSession) : undefined
+  const mode: 'new' | 'persona' | 'skill' = seat !== undefined ? 'skill' : chat === 'persona' && current !== null ? 'persona' : 'new'
+  const viewed = mode === 'persona' ? current : null
   const pinnedEntry = pinnedRun(conversation.entries, viewed?.id)
   // The personas with a turn in flight, by main's state, each named as the transcript names them:
   // the roster's, an orphan's, else the id standing as the name.
@@ -265,8 +339,12 @@ export function App(): JSX.Element | null {
     since: turn.since,
     entryId: turn.entryId
   }))
-  // The user's own turns outside the room: a rise is a send, and the thread goes to its bottom (Story 5.3).
-  const sends = conversation.entries.filter((entry) => entry.kind === 'user' && entry.room !== true).length
+  // The user's own turns in the thread in view, outside the room: a rise is a send, and the thread goes to its bottom (Story 5.3).
+  // A skill-first session's thread counts its own, and the shared one none of them (Story 7.5).
+  const scope = seat?.sessionId
+  const sends = conversation.entries.filter(
+    (entry) => entry.kind === 'user' && entry.room !== true && entry.skillSession === scope
+  ).length
   // A card names its persona as the lifecycle line does: the roster's name, an orphan's, else the id.
   const collapse: RunCollapse = {
     viewedId: viewed?.id,
@@ -299,7 +377,11 @@ export function App(): JSX.Element | null {
         prose={conversation.prose}
         onChooseFolder={chooseFolder}
         currentId={currentId}
-        onCurrentChange={setCurrentId}
+        onCurrentChange={(agentId) => {
+          setCurrentId(agentId)
+          // A tile turns the chat to its persona; the New session chat is left kept, as it was.
+          setChat('persona')
+        }}
         onActivate={(agentId) => {
           // A tile never moves focus, so nothing is waiting to take it.
           setComposerFocus(null)
@@ -344,7 +426,37 @@ export function App(): JSX.Element | null {
           />
         }
         sends={sends}
-        threadEmpty={conversation.entries.length === 0}
+        threadEmpty={conversation.entries.every((entry) => entry.skillSession !== undefined)}
+        chat={seat === undefined ? (mode === 'persona' ? 'persona' : 'new') : { skillSession: seat.sessionId }}
+        skillSeats={conversation.skillSeats}
+        onNewSession={landOnNew}
+        onSelectSeat={(sessionId) => setChat({ skillSession: sessionId })}
+        onCloseSkill={closeSkill}
+        onStopSkill={(sessionId) => void conversation.stopSkill(sessionId)}
+        skillBusy={conversation.busy}
+        showView={showView}
+        skillComposer={(skillSeat, fieldRef) => (
+          // Keyed by the session: each seat's field is its own. It has no `/` list: nothing inside a session suggests starting another.
+          <Composer
+            key={`skill-composer-${skillSeat.sessionId}`}
+            agentName={skillSeat.skill}
+            fieldRef={fieldRef}
+            focusOnMount={composerFocus?.id === skillKey(skillSeat.sessionId)}
+            onSend={(text) => conversation.sendToSkill(skillSeat.sessionId, text)}
+          />
+        )}
+        newComposer={(fieldRef) => (
+          // The New session chat's field: empty, no placeholder, focused, given the `/` list and nothing else.
+          <Composer
+            key={`new-composer-${newChat.id}`}
+            fieldRef={fieldRef}
+            slashEntries={snapshot.skills}
+            focusOnMount
+            initialText={newDraft}
+            onTextChange={setNewDraft}
+            onSend={sendFirst}
+          />
+        )}
         composer={(agent, items, fieldRef) => (
           // Keyed apart from the chat header, which carries the same agent id in the same list.
           <Composer
@@ -390,7 +502,20 @@ export function App(): JSX.Element | null {
           <ErrorLine key={`${error.code}-${index}`} error={error} />
         ))}
         {conversation.failure !== null && <ErrorLine error={conversation.failure} />}
-        <Turns entries={conversation.entries} onCancel={conversation.cancel} canAnswer={conversation.canAnswer} onChoose={answer} prose={conversation.prose} pinnedRunId={pinnedEntry?.id} collapse={collapse} onStop={conversation.stopRun} inFlight={inFlight} />
+        {mode === 'new' && newChat.lines.map((line) => <Sysline key={line.id} text={line.text} />)}
+        {mode === 'skill' && seat !== undefined && (
+          <Turns
+            entries={conversation.entries}
+            onCancel={conversation.cancel}
+            prose={conversation.prose}
+            collapse={collapse}
+            onStop={conversation.stopRun}
+            skillView={{ sessionId: seat.sessionId, name: seat.skill, inFlight: conversation.skillInFlight(seat.sessionId) }}
+          />
+        )}
+        {mode === 'persona' && (
+          <Turns entries={conversation.entries} onCancel={conversation.cancel} canAnswer={conversation.canAnswer} onChoose={answer} prose={conversation.prose} pinnedRunId={pinnedEntry?.id} collapse={collapse} onStop={conversation.stopRun} inFlight={inFlight} />
+        )}
       </Shell>
       <LiveRegion key="live-region" announcer={announcer} />
     </LayoutContext.Provider>

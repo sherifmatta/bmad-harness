@@ -130,8 +130,7 @@ development_status:
   # 7-7 was added 2026-10-15 and is built before 7-4, whose seat is drawn on the 44px initials-disc row it makes.
   7-7-every-person-is-an-initials-disc-and-the-portrait-is-gone: done
   7-4-a-seat-for-each-persona-that-stays-until-you-end-it: done
-  # 7-5 is blocked until a bmad-ux run decides where the user opens an empty chat (owner's suggestion: a Skill Session option under the personas); its spec also settles the run code printed for a skill-first run and the command that starts one. Needs 7-4 done first.
-  7-5-start-a-chat-from-a-skill-with-no-persona: backlog
+  7-5-start-a-chat-from-a-skill-with-no-persona: done
   7-6-nothing-this-epic-promised-not-to-do: backlog
   epic-7-retrospective: optional
 action_items:

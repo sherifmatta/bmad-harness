@@ -9,7 +9,13 @@ import {
   writeFileSync
 } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import type { RunCardStep, StoredRun, TranscriptFile, TranscriptRecord } from '../../../shared/conversation'
+import type {
+  RunCardStep,
+  StoredRun,
+  StoredSkillSession,
+  TranscriptFile,
+  TranscriptRecord
+} from '../../../shared/conversation'
 import { MAX_STEPS } from '../../../shared/run-steps'
 import { isPlainSkillName } from '../../../shared/run-skill'
 import { isStoredMention } from '../../../shared/stored-mention'
@@ -19,7 +25,8 @@ import { errnoOf } from '../errno'
  * Where a project's transcript lives and how it is read and written. The one
  * thing persisted (FR16, FR100, NFR2): `{version, projectPath, entries, runs?}`
  * JSON at `<userData>/conversations/<sha256(projectPath) hex>.json`, and nothing
- * else. `runs` are the run cards that stand beside the entries, each with the
+ * else. `skillSessions` (Story 7.5) is the list of skill-first sessions, additive
+ * in the same way: a file from before it loads as having none. `runs` are the run cards that stand beside the entries, each with the
  * moment of its last event (`StoredRun`); a file from before they were kept has
  * none, and loads as having none, at the same version.
  *
@@ -92,7 +99,12 @@ function isRecord(value: unknown): value is TranscriptRecord {
   }
   // The room's flag is `true` or not there at all: a record that says otherwise is not one this build wrote.
   if (record.room !== undefined && record.room !== true) return false
+  // A skill-first session's flag is its session id or not there at all (Story 7.5).
+  if (record.skillSession !== undefined && typeof record.skillSession !== 'string') return false
   if (record.kind === 'user' || record.kind === 'sysline') return true
+  if (record.kind === 'skill') {
+    return typeof record.messageId === 'string' && typeof record.skillSession === 'string'
+  }
   return (
     record.kind === 'persona' &&
     typeof record.agentId === 'string' &&
@@ -115,6 +127,13 @@ function withoutBadMention(record: TranscriptRecord): TranscriptRecord {
   const plain: Record<string, unknown> = { ...held }
   delete plain.mention
   return plain as TranscriptRecord
+}
+
+/** Whether a listed skill-first session is what it should be: its id, its plain skill name and when it started. */
+function isStoredSkillSession(value: unknown): value is StoredSkillSession {
+  if (typeof value !== 'object' || value === null) return false
+  const { sessionId, skill, at } = value as Record<string, unknown>
+  return typeof sessionId === 'string' && isPlainSkillName(skill) && typeof at === 'number' && Number.isFinite(at)
 }
 
 const RUN_STATUSES: ReadonlySet<unknown> = new Set(['running', 'finished', 'stopped', 'failed'])
@@ -188,7 +207,13 @@ export type LoadOutcome =
    * A transcript. `dropped` counts the records and run cards in it that were not
    * what they should be and are left out.
    */
-  | { kind: 'loaded'; entries: TranscriptRecord[]; runs: StoredRun[]; dropped: number }
+  | {
+      kind: 'loaded'
+      entries: TranscriptRecord[]
+      runs: StoredRun[]
+      skillSessions: StoredSkillSession[]
+      dropped: number
+    }
   /** The file could not be read: the errno code. */
   | { kind: 'unreadable'; errno: string }
   /** Not JSON, not an object, not this project's, or without its entries. */
@@ -227,16 +252,35 @@ export function loadTranscript(filePath: string, projectPath: string): LoadOutco
   if (file.projectPath !== projectPath || !Array.isArray(file.entries)) {
     return { kind: 'corrupt' }
   }
-  const entries = file.entries.filter(isRecord).map(withoutBadMention)
+  // The skill-first sessions first: a record that flags a session the list does not hold could never be removed, so it is left out.
+  const listed: unknown[] = Array.isArray(file.skillSessions) ? file.skillSessions : []
+  const valid = listed.filter(isStoredSkillSession)
+  const skillSessions = valid.filter((item, at) => valid.findIndex((other) => other.sessionId === item.sessionId) === at)
+  const listedIds = new Set(skillSessions.map(({ sessionId }) => sessionId))
+  const entries = file.entries
+    .filter(isRecord)
+    .filter((record) => !('skillSession' in record) || record.skillSession === undefined || listedIds.has(record.skillSession))
+    .map(withoutBadMention)
   // No `runs` is a file from before they were kept; a `runs` that is not a list is damage.
-  const held: unknown[] = Array.isArray(file.runs) ? file.runs : []
-  const runs = held.filter(isStoredRun).map(withSteps).map(withSkill)
+  const stored: unknown[] = Array.isArray(file.runs) ? file.runs : []
+  const runs = stored.filter(isStoredRun).map(withSteps).map(withSkill)
   const damaged = file.runs === undefined || Array.isArray(file.runs) ? 0 : 1
+  // The same for the skill-first sessions: none is a file from before them, a value that is not a list is damage.
+  const skillsDamaged = file.skillSessions === undefined || Array.isArray(file.skillSessions) ? 0 : 1
   return {
     kind: 'loaded',
     entries,
     runs,
-    dropped: file.entries.length - entries.length + held.length - runs.length + damaged
+    skillSessions,
+    dropped:
+      file.entries.length -
+      entries.length +
+      stored.length -
+      runs.length +
+      damaged +
+      listed.length -
+      skillSessions.length +
+      skillsDamaged
   }
 }
 
@@ -266,12 +310,13 @@ export function setAsideTranscript(filePath: string, projectPath: string): Aside
 
 export type WriteOutcome = { ok: true } | { ok: false; errno: string }
 
-/** Replace a project's file with `entries` and `runs`: the errno code when it could not, never a throw. */
+/** Replace a project's file with `entries`, `runs` and `skillSessions`: the errno code when it could not, never a throw. */
 export function writeTranscript(
   filePath: string,
   projectPath: string,
   entries: readonly TranscriptRecord[],
-  runs: readonly StoredRun[] = []
+  runs: readonly StoredRun[] = [],
+  skillSessions: readonly StoredSkillSession[] = []
 ): WriteOutcome {
   if (isInsideProject(projectPath, filePath)) {
     return { ok: false, errno: 'inside-project' }
@@ -284,7 +329,9 @@ export function writeTranscript(
       projectPath,
       entries: [...entries],
       // A file with no run cards is the file it always was.
-      ...(runs.length === 0 ? {} : { runs: [...runs] })
+      ...(runs.length === 0 ? {} : { runs: [...runs] }),
+      // Nor does a file with no skill-first sessions hold the field.
+      ...(skillSessions.length === 0 ? {} : { skillSessions: [...skillSessions] })
     }
     writeFileSync(temporary, JSON.stringify(file))
     renameSync(temporary, filePath)

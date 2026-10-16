@@ -77,6 +77,14 @@
   font-size: var(--fs-micro);
 }
 
+/*
+ * The skill's disc (Story 7.5): the same neutral disc holding the slash, in mono and not the sans of a name's
+ * letters, since a slash is a code and not a letter of anyone's name.
+ */
+.initials--skill {
+  font-family: var(--mono);
+}
+
 /* Your own disc: the one tint that tells you from a persona at a glance. */
 .initials--you {
   background: var(--accent-bg);

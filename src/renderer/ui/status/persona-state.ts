@@ -41,3 +41,9 @@ export function stateOf(id: string, states: ReadonlyMap<string, PersonaState>): 
 export function skillsDisabled(state: PersonaState): boolean {
   return state === 'work'
 }
+
+/**
+ * The word a skill-first session's seat says once its process is gone (Story 7.5): after a relaunch, or when the
+ * process exited. Not a fifth persona state and no dot: only a seat and a skill's header ever say it.
+ */
+export const ENDED_TEXT = 'ended'

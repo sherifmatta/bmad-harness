@@ -8,6 +8,8 @@ import type { Sender } from './bridge-kit'
 import { LINES, QUIET_MS, createQuietClock, createVoice, defaultSchedule } from './session-voice'
 import { SESSION_EVENT_CHANNEL } from '../shared/channels'
 import { personaProjectionFor } from './persona-states'
+import { kindOf } from './session-kind'
+import type { EntryKind } from './session-kind'
 import type { PersonaProjection } from './projections/personas'
 import { railAnnotatorFor } from './rail-annotations'
 import type { RailAnnotator } from './projections/rail-annotator'
@@ -42,16 +44,21 @@ import type {
  * A window's service exists from its first `session.open` and holds one session
  * per agent: a second open for a live agent is the same session and spawns
  * nothing. It holds at most one room beside them (Story 4.1): a session with no
- * agent, kept in `room` and in `bySession`, never in `byAgent`. Frames are folded in main and only `persona:said` goes on to the
- * renderer; it never sees a frame.
+ * agent, kept in `room` and in `bySession`, never in `byAgent`. And it holds the
+ * skill-first sessions (Story 7.5), any number: a session with a `skill` and no
+ * agent, kept in `skills` and in `bySession`, never in `byAgent` or `room`. What a
+ * session is, is `kindOf(entry)`, and no site reads "no agent" as "the room". Frames
+ * are folded in main and only `persona:said` goes on to the renderer; it never sees a frame.
  */
 
 export type OpenReply = SessionOpenReply
 
 export type Entry = {
   sessionId: SessionId
-  /** The persona of the session; absent for the room, which has none (Story 4.1). */
+  /** The persona of the session; absent for the room, which has none (Story 4.1), and for a skill-first session. */
   agentId?: AgentId
+  /** The skill a skill-first session was started with (Story 7.5): its name. Absent on a persona's entry and on the room. */
+  skill?: string
   projectRoot: string
   session: SessionProcess | undefined
   /**
@@ -96,6 +103,9 @@ export type Entry = {
   openedAt: EpochMs | undefined
 }
 
+export { kindOf }
+export type { EntryKind }
+
 export type Service = {
   /** The project this window was opened for, which its transcript is kept under. */
   projectRoot: string
@@ -103,6 +113,8 @@ export type Service = {
   byAgent: Map<AgentId, Entry>
   /** The window's room session while it is open or starting; at most one (Story 4.1). */
   room: Entry | undefined
+  /** The window's skill-first sessions while they are open or starting, by session id; no cap (Story 7.5). */
+  skills: Map<SessionId, Entry>
   /** The window's persona states, shared with the rail bridge. */
   personas: PersonaProjection
   /**
@@ -171,7 +183,17 @@ export type SessionRegistry = {
     cast: readonly AgentId[],
     firstTurn: string
   ): Entry
-  /** The harness says a line in its own voice about a session; a room's lines are flagged as the party thread's (Story 4.1). */
+  /**
+   * Start a skill-first session (Story 7.5): a session with a `skill` and no agent, spawned on `firstTurn`,
+   * the text as the user typed it. Once it is up its list item and the user's first turn (flagged) are
+   * kept, and its run begins (`code` and `skill` both the name, no plan); a start that fails keeps nothing.
+   * Its `ready` says how that went.
+   */
+  openSkill(sender: Sender, service: Service, projectRoot: string, skill: string, firstTurn: string): Entry
+  /**
+   * The harness says a line in its own voice about a session; a room's lines are flagged as the party thread's
+   * (Story 4.1) and a skill-first session's as its own thread's (Story 7.5).
+   */
   say(sender: Sender, entry: Entry, text: string): void
   /** Kill every session of a window and close each one. */
   closeSessions(sender: Sender, service: Service): void
@@ -270,7 +292,7 @@ function foldFrame(
   // A persona's plain turn the user stopped says so once, at its first failed `result`: the harness's
   // own line, before the session is free. The mark is spent with it, so a wake that follows a result
   // which left tasks live adds none, and the stop's wait for the turn to end finds it done.
-  if (interrupted && entry.agentId !== undefined && entry.run === undefined) {
+  if (interrupted && kindOf(entry) !== 'room' && entry.run === undefined) {
     entry.interrupting = false
     say(sender, entry, LINES.stopped)
   }
@@ -313,25 +335,28 @@ function foldFrame(
   const routed = routeFrame(entry.route, frame, {
     sessionId: entry.sessionId,
     ...(entry.agentId === undefined ? {} : { agentId: entry.agentId }),
+    ...(entry.skill === undefined ? {} : { skillSession: entry.sessionId }),
     ...(entry.run === undefined ? {} : { runId: entry.run.runId }),
     projectRoot: entry.projectRoot,
     now: now(),
-    // Only a room reads the roster: a persona's session is its own speaker.
-    ...(entry.agentId === undefined ? { roster: roster(sender) } : {})
+    // Only a room reads the roster: a persona's session and a skill's are their own speakers.
+    ...(kindOf(entry) === 'room' ? { roster: roster(sender) } : {})
   })
   entry.route = routed.state
   const wrote = foldWrittenPaths(entry.written, frame, entry.projectRoot)
   entry.written = wrote.state
   if (wrote.paths.length > 0) {
-    if (entry.agentId === undefined) {
+    const kind = kindOf(entry)
+    if (kind === 'room') {
       // The room's files are the room's, not any persona's: they mark the rail's rows, and no handoff names them.
       roomWrote(service, wrote.paths)
-    } else {
+    } else if (kind === 'persona' && entry.agentId !== undefined) {
       // A persona writing a file the room wrote takes it over: it is the persona's now.
       service.annotations.personaWrote(wrote.paths)
       const before = service.written.get(entry.agentId) ?? []
       service.written.set(entry.agentId, withWrittenPaths(before, wrote.paths))
     }
+    // A skill-first session's files are nobody's: no persona owns them and the room did not write them.
   }
   // What the persona said is kept and told; a run's document events go to its card.
   deliver(runs, sender, service, entry, routed.events)
@@ -361,9 +386,10 @@ function startProcess(
   sender: Sender,
   service: Service,
   entry: Entry,
-  firstTurn: string | undefined
+  firstTurn: string | undefined,
+  up?: () => void
 ): Promise<OpenReply> {
-  const { agentId, projectRoot } = entry
+  const { agentId, projectRoot, skill } = entry
   return new Promise<SpawnOutcome>((resolve) =>
     resolve(
       kit.start({
@@ -400,11 +426,18 @@ function startProcess(
       entry.openedAt = at
       kit.announce(sender, service, {
         name: 'session:opened',
-        payload: { sessionId: entry.sessionId, ...(agentId === undefined ? {} : { agentId }), at }
+        payload: {
+          sessionId: entry.sessionId,
+          ...(agentId === undefined ? {} : { agentId }),
+          ...(skill === undefined ? {} : { skill }),
+          at
+        }
       })
+      // A skill-first session keeps its list item and its first turn, and its run begins (Story 7.5).
+      up?.()
       // The activation turn is in flight.
       kit.watch(sender, service, entry)
-      return { ok: true, sessionId: entry.sessionId }
+      return { ok: true, sessionId: entry.sessionId, ...(skill === undefined ? {} : { skill }) }
     },
     (error: unknown): never => {
       kit.discard(service, entry)
@@ -420,6 +453,7 @@ function newService(sender: Sender, projectRoot: string, now: () => number): Ser
     bySession: new Map(),
     byAgent: new Map(),
     room: undefined,
+    skills: new Map(),
     personas: personaProjectionFor(sender, now),
     written: new Map(),
     runs: createRunProjection(),
@@ -428,16 +462,18 @@ function newService(sender: Sender, projectRoot: string, now: () => number): Ser
   }
 }
 
-/** A new entry for a session about to start: the persona's, or the room's when there is no `agentId`. */
+/** A new entry for a session about to start: the persona's (`agentId`), a skill-first session's (`skill`) or the room's (neither). */
 function newEntry(
   sessionId: SessionId,
   projectRoot: string,
   agentId: AgentId | undefined,
-  roomCast?: readonly AgentId[]
+  roomCast?: readonly AgentId[],
+  skill?: string
 ): Entry {
   return {
     sessionId,
     ...(agentId === undefined ? {} : { agentId }),
+    ...(skill === undefined ? {} : { skill }),
     projectRoot,
     session: undefined,
     turn: initialTurn,
@@ -456,6 +492,30 @@ function newEntry(
   }
 }
 
+/** Forget a session that never came up: it was never announced, so nothing is closed. */
+function discard(service: Service, entry: Entry): void {
+  entry.closed = true
+  entry.stopQuietClock?.()
+  entry.stopQuietClock = undefined
+  service.bySession.delete(entry.sessionId)
+  if (entry.agentId !== undefined && service.byAgent.get(entry.agentId) === entry) {
+    service.byAgent.delete(entry.agentId)
+  }
+  if (service.room === entry) {
+    service.room = undefined
+  }
+  if (service.skills.get(entry.sessionId) === entry) {
+    service.skills.delete(entry.sessionId)
+  }
+}
+
+/** A skill-first session is up (Story 7.5): its list item and the user's first turn, flagged, at one instant. */
+function keepSkillStart(transcripts: TranscriptRegistry, entry: Entry, firstTurn: string, at: number): void {
+  const transcript = transcripts.forProject(entry.projectRoot)
+  transcript.openSkillSession({ sessionId: entry.sessionId, skill: entry.skill ?? '', at })
+  transcript.recordUserTurn(firstTurn, at, undefined, undefined, entry.sessionId)
+}
+
 export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistry {
   const { start, now, newSessionId, newRunId, transcripts } = deps
   const services = new Map<number, Service>()
@@ -472,12 +532,14 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
 
   const sayLine = createVoice({ transcripts, now, emit })
   // A line of the room's (Story 4.1) is flagged as the party thread's: nothing a room says of itself lands in a persona's 1:1 thread.
+  // A skill-first session's (Story 7.5) is flagged as its own thread's, and lands in no other.
   const say = (sender: Sender, entry: Entry, text: string): void =>
     sayLine(sender, {
       sessionId: entry.sessionId,
       projectRoot: entry.projectRoot,
       text,
-      ...(entry.agentId === undefined ? { room: true as const } : {})
+      ...(kindOf(entry) === 'room' ? { room: true as const } : {}),
+      ...(entry.skill === undefined ? {} : { skillSession: entry.sessionId })
     })
   const clock = createQuietClock<Sender, Entry>({
     schedule: deps.schedule ?? defaultSchedule,
@@ -526,20 +588,6 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
     }
   }
 
-  /** Forget a session that never came up: it was never announced, so nothing is closed. */
-  function discard(service: Service, entry: Entry): void {
-    entry.closed = true
-    entry.stopQuietClock?.()
-    entry.stopQuietClock = undefined
-    service.bySession.delete(entry.sessionId)
-    if (entry.agentId !== undefined && service.byAgent.get(entry.agentId) === entry) {
-      service.byAgent.delete(entry.agentId)
-    }
-    if (service.room === entry) {
-      service.room = undefined
-    }
-  }
-
   function finish(
     sender: Sender,
     service: Service,
@@ -559,6 +607,7 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
       payload: {
         sessionId: entry.sessionId,
         ...(entry.agentId === undefined ? {} : { agentId: entry.agentId }),
+        ...(entry.skill === undefined ? {} : { skill: entry.skill }),
         reason,
         at: now()
       }
@@ -570,11 +619,11 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
     watch(sender, service, entry)
   }
 
-  /** Hold a new entry and start its process; a room has no `agentId` and is given its first turn. */
-  function begin(sender: Sender, service: Service, entry: Entry, firstTurn?: string): Entry {
+  /** Hold a new entry and start its process; a room and a skill-first session are given their first turn. */
+  function begin(sender: Sender, service: Service, entry: Entry, firstTurn?: string, up?: () => void): Entry {
     service.bySession.set(entry.sessionId, entry)
     const kit = { start, now, announce, say, watch, discard, finish, onFrame, decide }
-    entry.ready = startProcess(kit, sender, service, entry, firstTurn)
+    entry.ready = startProcess(kit, sender, service, entry, firstTurn, up)
     return entry
   }
 
@@ -590,11 +639,22 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
     return begin(sender, service, entry, firstTurn)
   }
 
+  function openSkill(sender: Sender, service: Service, projectRoot: string, skill: string, firstTurn: string): Entry {
+    const entry = newEntry(newSessionId(), projectRoot, undefined, undefined, skill)
+    service.skills.set(entry.sessionId, entry)
+    return begin(sender, service, entry, firstTurn, () => {
+      // Up: the session is listed and the first turn is its first record, and its run begins.
+      keepSkillStart(transcripts, entry, firstTurn, now())
+      startRun(runs, sender, service, entry, newRunId(), skill, undefined, skill)
+    })
+  }
+
   return {
     serviceOf: (senderId) => services.get(senderId),
     serviceFor,
     open,
     openRoom,
+    openSkill,
     say,
     watch,
     startRun: (sender, service, entry, ...started) => startRun(runs, sender, service, entry, ...started),

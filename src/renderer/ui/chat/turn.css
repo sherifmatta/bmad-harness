@@ -44,6 +44,11 @@
   color: var(--text-strong);
 }
 
+/* A skill-first session's speaker (Story 7.5): the same strong colour and size as a persona's name, in mono: it is a name of code. */
+.turn-name--mono {
+  font-family: var(--mono);
+}
+
 .turn-role {
   font-family: var(--sans);
   font-size: var(--fs-ident);

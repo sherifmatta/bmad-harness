@@ -46,7 +46,7 @@ describe('what the room did not add', () => {
 
   it('widens the argument of session.open and leaves its reply as it was', () => {
     const commands = stripped(read('src/shared/commands.ts'))
-    expect(commands).toContain('export type SessionTarget = AgentId | { room: readonly AgentId[] }')
+    expect(commands).toContain('export type SessionTarget = AgentId | { room: readonly AgentId[] } | { first: string }')
     expect(commands).toMatch(/'session\.open': CommandSpec<\s*\[target: SessionTarget\],\s*'[^']+',\s*CommandReply<\{ sessionId: SessionId \}>\s*>/)
     expect(stripped(read('src/preload/harness-api.d.ts'))).toContain('openSession(target: SessionTarget): Promise<OpenedSession>')
   })

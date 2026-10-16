@@ -128,7 +128,7 @@ export function RunCard({
     <section className="run-card" aria-busy={running ? true : undefined} tabIndex={focusFirst ? -1 : undefined} ref={container}>
       <div className="run-card-head">
         <StatusDot state={runDotState(entry)} />
-        <span className="run-card-path">{writes ? path : <RunHeadName skill={entry.skill} />}</span>
+        <span className="run-card-path">{writes && entry.skillSession === undefined ? path : <RunHeadName skill={entry.skill} />}</span>
         <RunStatus entry={entry} written={written} progress={progress} hasText={hasText} working={!writes} />
         <RunElapsed entry={entry} />
         {running && onStop !== undefined && <RunStop runId={runId} label={path === '' ? undefined : path} onStop={onStop} />}

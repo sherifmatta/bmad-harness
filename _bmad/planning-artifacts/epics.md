@@ -124,7 +124,7 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 
 #### CAP-9 — Party mode
 
-- **FR64:** Party mode is a session of the same kind as a persona session, opened with `/bmad-party-mode`. It carries a `sessionId` and **no `agentId`**, gets no persona tile, and its rail rows show the room as owner.
+- **FR64:** Party mode is a session of the same kind as a persona session, opened with `/bmad-party-mode`. It carries a `sessionId` and **no `agentId`**, gets no persona tile, and its rail rows show the room as owner. *(Amended 2026-10-16, Story 7.5, built: no `agentId` no longer means the room alone. A skill-first session has none either and carries a `skill`; main reads one `kindOf(entry)` (`persona`, `room` or `skill`) wherever it once read no agent as the room.)*
 - **FR65:** On opening the room, a cast chooser lets the user choose who is in it, defaulting to the five core personas.
 - **FR66:** Every chosen portrait stays permanently visible for the life of the room. Presence and inattention are expressed by dimming, **never by removal**; the current speaker is lit.
 - **FR67:** The party header carries topic, participant count, turn counter, elapsed time, and *Write summary to `_bmad/`*.
@@ -3933,7 +3933,7 @@ So that the skills that are not personas have a place in the conversation, and I
 
 **Given** every line a skill-first session produces
 **Then** its speaker is the skill's name, in `name` mono, and never a persona's initials, face or colour, and the thread never presents the session as a persona's (FR134)
-**And** with no persona's disc to draw, the turn's disc is the skill's own mark in the shared initials style (a neutral disc with the skill's first letter), and `DESIGN.md` states it.
+**And** with no persona's disc to draw, the turn's disc is the skill's own mark in the shared initials style (a neutral disc holding `/` in mono, never the skill's first letter, since every `bmad-*` skill would read `B`; *amended 2026-10-16, built so*), and `DESIGN.md` states it.
 
 **Given** the skill finishes and the user types a plain message
 **Then** it goes to the same session, which is still live, and the session's replies keep the skill's name as their speaker
@@ -3958,9 +3958,9 @@ So that the skills that are not personas have a place in the conversation, and I
 **Given** `EXPERIENCE.md` and `DESIGN.md`
 **Then** they gain the empty chat, the skill-first turn, the skill seat in the rail, and Story 2.9's, FR126's and Story 6.8's notes are in place, so the documents say what was built.
 
-**Decisions to confirm before build (defaults in brackets):** the skill-first run's `code`, which Story 6.7 prints after `started`, is the skill's name, so a row reads `<skill> · started` or the like [decide the exact words in Story 7.5's spec; nothing else prints a code for it]; the skill-first disc is the skill's first letter in a neutral disc [yes, it needs no new colour]; a message to an ended skill-first session after a relaunch says so and starts nothing [yes].
+**Decisions to confirm before build (defaults in brackets):** the skill-first run's `code`, which Story 6.7 prints after `started`, is the skill's name, so a row reads `<skill> · started` or the like [decide the exact words in Story 7.5's spec; nothing else prints a code for it]; the skill-first disc is a neutral disc holding `/` in mono [settled 2026-10-16: the skill's first letter would read `B` for every `bmad-*` skill; it needs no new colour]; a message to an ended skill-first session after a relaunch says so and starts nothing [yes].
 
-**Open question (not decided in the room, and the story cannot start before it is):** **how the user opens an empty chat.** `EXPERIENCE.md` has no such surface, the shell always has a current persona, and FR30 forbids a launcher. The room settled that the chat has no persona and the composer takes `/`; it did not settle where that composer lives. The owner's suggestion (2026-10-14): a **Skill Session** option under the personas, which opens the empty composer; it is an entry to a chat and not a launcher, and lists no skill (FR30 stands, Story 7.3's `/` list is the only place skills are listed). Its exact place, wording and look are left to a later `bmad-ux` run, and Story 7.5's spec adopts that run's answer before any build.
+**Settled 2026-10-16 (built; the `bmad-ux` run decided it, the spec adopted it): the user opens an empty chat with the `Skill Session` button, and the window rests on that chat when it opens.** *The question as it stood: **how the user opens an empty chat.** `EXPERIENCE.md` has no such surface, the shell always has a current persona, and FR30 forbids a launcher. The room settled that the chat has no persona and the composer takes `/`; it did not settle where that composer lives. The owner's suggestion (2026-10-14): a **Skill Session** option under the personas, which opens the empty composer; it is an entry to a chat and not a launcher, and lists no skill (FR30 stands, Story 7.3's `/` list is the only place skills are listed). Its exact place, wording and look were left to a later `bmad-ux` run, and Story 7.5's spec adopted that run's answer before any build. Built as a Team-half row of its own between the strip and the tiles, since the `Sprint board` row is not built in the code; the New session chat's composer is given Story 7.3's `/` list; the start command is a third form of `session.open` (`{ first }`) and `session ended` is a failure reply the window draws, never a record.*
 
 **Boundaries:** no skill picker beyond Story 7.3's list; no inference of a persona from what is typed; no suggestion of a persona to talk to next; no attribution of a skill's work to a persona; no new Board column or card for a skill-first run; no resume across a relaunch; no change to the room's or a persona's seat's behaviour; no cap.
 

@@ -115,7 +115,9 @@ export function createRunNotifier(deps: RunNotifierDeps): { told: Told } {
         if (!isSupported()) return
 
         const { runId } = card
-        const name = card.agentId === undefined ? undefined : (deps.agentName(sender.id, card.agentId) ?? card.agentId)
+        // A persona's run is named by the persona; a skill-first session's (Story 7.5) by its skill; any other has none.
+        const name =
+          card.agentId === undefined ? card.skill : (deps.agentName(sender.id, card.agentId) ?? card.agentId)
         const subject = subjectOf(card.documents)
         const body = completionLine({
           name,

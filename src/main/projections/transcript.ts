@@ -1,5 +1,11 @@
 import type { PersonaSaid } from '../../shared/events'
-import type { RunCardSnapshot, StoredRun, SyslineRecord, TranscriptRecord } from '../../shared/conversation'
+import type {
+  RunCardSnapshot,
+  StoredRun,
+  StoredSkillSession,
+  SyslineRecord,
+  TranscriptRecord
+} from '../../shared/conversation'
 import type { EpochMs } from '../../shared/ids'
 import {
   EMPTY_TRANSCRIPT,
@@ -7,6 +13,7 @@ import {
   foldPersonaSaid,
   foldSysline,
   foldUserTurn,
+  foldWithoutSkillSession,
   transcriptFrom
 } from '../fold/transcript'
 import type { TranscriptState } from '../fold/transcript'
@@ -64,13 +71,17 @@ export const NOT_SAVED_LINE =
 export type ProjectTranscript = {
   entries(): readonly TranscriptRecord[]
   recordPersonaSaid(said: PersonaSaid): void
-  /** `room` marks what the user sent into the room (Story 4.2): it belongs to the party thread. */
-  recordUserTurn(text: string, at: number, room?: true, mention?: string): void
+  /**
+   * `room` marks what the user sent into the room (Story 4.2): it belongs to the party thread.
+   * `skillSession` marks what the user sent into a skill-first session (Story 7.5): its own thread.
+   */
+  recordUserTurn(text: string, at: number, room?: true, mention?: string, skillSession?: string): void
   /**
    * Write the harness's own line into the transcript and return the record it became;
    * `room` marks a line about a room (it opened, its turns, its process); every such line belongs to the party thread.
+   * `skillSession` marks a line about a skill-first session (Story 7.5): its own thread.
    */
-  recordSysline(text: string, at: number, room?: true): SyslineRecord
+  recordSysline(text: string, at: number, room?: true, skillSession?: string): SyslineRecord
   /**
    * A run's card as it stands after the event at `at`, kept with the transcript:
    * replaces the run's earlier copy, if any. A run of a conversation that has
@@ -83,6 +94,16 @@ export type ProjectTranscript = {
    * that was still running is `failed`, with `endedAt` at its last event.
    */
   storedRuns(): readonly RunCardSnapshot[]
+  /** A skill-first session started (Story 7.5): listed, in start order, and kept with the transcript. One already listed is not listed twice. */
+  openSkillSession(session: StoredSkillSession): void
+  /** The skill-first sessions the transcript lists, in start order: those the file held and those started since. */
+  skillSessions(): readonly StoredSkillSession[]
+  /**
+   * A skill-first session ended by the user (Story 7.5): its records, its stored run cards and its list item
+   * go, written with the transcript. Nothing else is touched; a run of it that ends afterwards is not kept.
+   * False when it was not listed.
+   */
+  removeSkillSession(sessionId: string): boolean
   /**
    * Empty the transcript, the file first: it is written as `entries: []` at
    * once, with no run cards, and only when that succeeds is the in-memory
@@ -119,7 +140,8 @@ export type TranscriptRegistryDeps = {
     filePath: string,
     projectPath: string,
     entries: readonly TranscriptRecord[],
-    runs: readonly StoredRun[]
+    runs: readonly StoredRun[],
+    skillSessions: readonly StoredSkillSession[]
   ) => WriteOutcome
 }
 
@@ -161,6 +183,8 @@ export function createTranscriptRegistry(deps: TranscriptRegistryDeps): Transcri
     let state: TranscriptState = transcriptFrom(outcome.kind === 'loaded' ? outcome.entries : [])
     // What the file held, as this launch reads it, and then every run this launch kept.
     let runs: StoredRun[] = outcome.kind === 'loaded' ? outcome.runs.map(deadOf) : []
+    /** The skill-first sessions the file listed, then those started since, in start order (Story 7.5). */
+    let skillSessions: StoredSkillSession[] = outcome.kind === 'loaded' ? [...outcome.skillSessions] : []
     /**
      * The runs of a conversation that has ended. Ending it closes its sessions after the
      * file is cleared, and a run in flight ends with its session: that last event is of a
@@ -178,7 +202,7 @@ export function createTranscriptRegistry(deps: TranscriptRegistryDeps): Transcri
       if (!dirty || blocked) {
         return
       }
-      const stored = write(filePath, projectPath, state.entries, runs)
+      const stored = write(filePath, projectPath, state.entries, runs, skillSessions)
       if (stored.ok) {
         dirty = false
       } else {
@@ -222,7 +246,7 @@ export function createTranscriptRegistry(deps: TranscriptRegistryDeps): Transcri
     function clear(): WriteOutcome {
       // A file that could not be moved aside is left as it is, even by this: the
       // conversation of this launch is all there is to end.
-      const outcome: WriteOutcome = blocked ? { ok: true } : write(filePath, projectPath, [], [])
+      const outcome: WriteOutcome = blocked ? { ok: true } : write(filePath, projectPath, [], [], [])
       if (!outcome.ok) {
         log(`persist/write-failed · ${outcome.errno}`)
         return outcome
@@ -232,19 +256,29 @@ export function createTranscriptRegistry(deps: TranscriptRegistryDeps): Transcri
       state = EMPTY_TRANSCRIPT
       for (const { card } of runs) ended.add(card.runId)
       runs = []
+      skillSessions = []
       dirty = false
       return outcome
     }
 
-    function recordSysline(text: string, at: number, room?: true): SyslineRecord {
-      changed(foldSysline(state, text, at, room))
+    /** A record flagged for a skill-first session that is not listed (it was ended, or never listed) is no one's and is not kept. */
+    const unlisted = (skillSession: string | undefined): boolean =>
+      skillSession !== undefined && !skillSessions.some((held) => held.sessionId === skillSession)
+
+    function recordSysline(text: string, at: number, room?: true, skillSession?: string): SyslineRecord {
+      if (unlisted(skillSession)) {
+        // Said to the window all the same, with the id it would have had, but never stored: nothing could remove it.
+        return { kind: 'sysline', id: `m-${state.nextId}`, at, text, skillSession: skillSession as string }
+      }
+      changed(foldSysline(state, text, at, room, skillSession))
       return state.entries[state.entries.length - 1] as SyslineRecord
     }
 
     return {
       entries: () => state.entries,
-      recordPersonaSaid: (said) => changed(foldPersonaSaid(state, said)),
-      recordUserTurn: (text, at, room, mention) => changed(foldUserTurn(state, text, at, room, mention)),
+      recordPersonaSaid: (said) => unlisted(said.skillSession) || changed(foldPersonaSaid(state, said)),
+      recordUserTurn: (text, at, room, mention, skillSession) =>
+        unlisted(skillSession) || changed(foldUserTurn(state, text, at, room, mention, skillSession)),
       recordSysline,
       recordRun(card, at) {
         if (ended.has(card.runId)) {
@@ -254,6 +288,29 @@ export function createTranscriptRegistry(deps: TranscriptRegistryDeps): Transcri
         touched()
       },
       storedRuns: () => runs.map((stored) => deadOf(stored).card),
+      openSkillSession(session) {
+        if (skillSessions.some((held) => held.sessionId === session.sessionId)) {
+          return
+        }
+        skillSessions = [...skillSessions, session]
+        touched()
+      },
+      skillSessions: () => skillSessions,
+      removeSkillSession(sessionId) {
+        if (!skillSessions.some((held) => held.sessionId === sessionId)) {
+          return false
+        }
+        skillSessions = skillSessions.filter((held) => held.sessionId !== sessionId)
+        for (const { card } of runs) {
+          if (card.sessionId === sessionId) {
+            ended.add(card.runId)
+          }
+        }
+        runs = runs.filter(({ card }) => card.sessionId !== sessionId)
+        state = foldWithoutSkillSession(state, sessionId)
+        touched()
+        return true
+      },
       clear,
       flush
     }

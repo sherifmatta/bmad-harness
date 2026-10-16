@@ -28,21 +28,22 @@ import {
 } from './bridge-kit'
 import type { Sender } from './bridge-kit'
 import { beginTurn } from './fold/turn-end'
-import { agentNameFor, menuEntryFor, rosterFor } from './install-model'
+import { agentNameFor, menuEntryFor, rosterFor, skillsFor } from './install-model'
 import { validMention } from './mention'
 import type { RosterMember } from './install-model'
+import type { SkillView } from '../shared/install'
 import { personaProjectionFor } from './persona-states'
 import { createTranscriptRegistry } from './projections/transcript'
 import type { TranscriptRegistry } from './projections/transcript'
 import { LINES } from './session-voice'
-import { NOT_FOUND, createSessionRegistry } from './session-registry'
+import { NOT_FOUND, createSessionRegistry, kindOf } from './session-registry'
 import type { Entry, OpenReply, Service, SessionRegistry, SessionRegistryDeps } from './session-registry'
 import type { TemplatePlan } from '../shared/section-plan'
 import type { ResolvedMenuEntry } from './sources/install/schema'
 import { readText } from './sources/project/read-text'
 import { readPlan } from './sources/skill/read-plan'
 import { canonicalPath } from './sources/session/canonical-path'
-import { isAgentId, roomActivationTurn, spawnSession } from './sources/session/session-process'
+import { ROOM_SKILL, isAgentId, roomActivationTurn, spawnSession } from './sources/session/session-process'
 import type { SpawnOutcome, SpawnSessionOptions } from './sources/session/session-process'
 
 /**
@@ -88,6 +89,11 @@ export type SessionBridgeDeps = {
    * reads the install bridge's projection.
    */
   roster?: (webContentsId: number) => readonly RosterMember[]
+  /**
+   * Every skill the install of the window with this id declares, in manifest order: what a first message's
+   * `/<name>` is matched against (Story 7.5). The real one reads the install bridge's projection.
+   */
+  skills?: (webContentsId: number) => readonly SkillView[]
   /**
    * The transcripts, per project, that survive a reload and a relaunch. The
    * real one keeps them under `userData`; the composition root holds it so it
@@ -146,6 +152,7 @@ type Context = {
   registry: SessionRegistry
   nameOf: NonNullable<SessionBridgeDeps['agentName']>
   roster: NonNullable<SessionBridgeDeps['roster']>
+  skills: NonNullable<SessionBridgeDeps['skills']>
   menuEntryFor: NonNullable<SessionBridgeDeps['menuEntryFor']>
   newRunId: () => RunId
   readPlan: NonNullable<SessionBridgeDeps['readPlan']>
@@ -154,6 +161,11 @@ type Context = {
 /** The argument that asks for the room rather than a persona: an object carrying `room`. */
 function asksForRoom(target: unknown): target is { room: unknown } {
   return typeof target === 'object' && target !== null && !Array.isArray(target) && 'room' in target
+}
+
+/** The argument that carries a first message: an object carrying `first` (Story 7.5). */
+function asksForFirst(target: unknown): target is { first: unknown } {
+  return typeof target === 'object' && target !== null && !Array.isArray(target) && 'first' in target
 }
 
 const INVALID_CAST = failure({
@@ -227,12 +239,76 @@ function withRoom(reply: OpenReply, entry: Entry): OpenReply {
   return { ...reply, room: { cast: [...entry.roomCast], openedAt: entry.openedAt } }
 }
 
+/**
+ * A persona's seat, opened or found: turning to a persona is no record (Story 7.4). The one way the tile, `@name`
+ * and a first message's `/<agent>` all arrive at a seat.
+ */
+async function openSeat(ctx: Context, sender: Sender, projectRoot: string, agentId: string): Promise<OpenReply> {
+  const service = ctx.registry.serviceFor(sender, projectRoot)
+  const existing = service.byAgent.get(agentId)
+  return existing !== undefined ? existing.ready : ctx.registry.open(sender, service, projectRoot, agentId).ready
+}
+
+/**
+ * The refusal of a first message that names no installed skill (Story 7.5): the first word as typed, the
+ * leading `/` removed, case kept. It is the command's reply and nothing is recorded or started.
+ */
+function noSkill(word: string): ReturnType<typeof failure> {
+  return failure({ code: 'session/no-skill', message: `no skill named ${word.startsWith('/') ? word.slice(1) : word}` })
+}
+
+/**
+ * A first message, typed in the New session chat (Story 7.5), read here and nowhere else: its first word, up
+ * to the first whitespace, must begin `/` and name, exactly and case-sensitively, a skill of the window's
+ * install. A roster persona's skill is that persona's seat, the party skill with a roster is the room opened
+ * with everyone as its cast, and any other installed skill starts a skill-first session on the text as typed.
+ * A reply for a seat or the room carries the words after the name (`rest`), present only when there are some.
+ */
+async function openFirst(ctx: Context, sender: Sender, projectRoot: string, first: unknown): Promise<OpenReply> {
+  const text = typeof first === 'string' ? first : ''
+  const trimmed = text.trimStart()
+  const word = trimmed.split(/\s+/, 1)[0] ?? ''
+  const name = word.startsWith('/') ? word.slice(1) : undefined
+  const skills = ctx.skills(sender.id)
+  const skill =
+    name === undefined || skillOf(name) === undefined ? undefined : skills.find((held) => held.name === name)
+  if (name === undefined || skill === undefined) {
+    return noSkill(word)
+  }
+  const rest = trimmed.slice(word.length).trim()
+  const withRest = (reply: OpenReply): OpenReply => (reply.ok && rest !== '' ? { ...reply, rest } : reply)
+  const roster = ctx.roster(sender.id)
+  if (roster.some(({ id }) => id === name)) {
+    const reply = await openSeat(ctx, sender, projectRoot, name)
+    return withRest(reply.ok ? { ...reply, seat: name } : reply)
+  }
+  if (name === ROOM_SKILL && roster.length > 0) {
+    return withRest(
+      await openRoom(
+        ctx,
+        sender,
+        projectRoot,
+        roster.map(({ id }) => id)
+      )
+    )
+  }
+  const service = ctx.registry.serviceFor(sender, projectRoot)
+  return ctx.registry.openSkill(sender, service, projectRoot, name, text).ready
+}
+
 function openSession(ctx: Context) {
   return async (event: IpcMainInvokeEvent, agentId: unknown): Promise<OpenReply> => {
     const sender = senderOf(event)
     const projectRoot = ctx.projectPathFor(sender.id)
     if (projectRoot === undefined) {
       return noProject('session')
+    }
+    if (asksForFirst(agentId)) {
+      try {
+        return await openFirst(ctx, sender, projectRoot, agentId.first)
+      } catch (error) {
+        return unexpected('session', error, ctx.writeDiagnostic)
+      }
     }
     if (asksForRoom(agentId)) {
       try {
@@ -248,13 +324,9 @@ function openSession(ctx: Context) {
       })
     }
     try {
-      const service = ctx.registry.serviceFor(sender, projectRoot)
-      const existing = service.byAgent.get(agentId)
       // Turning to a persona is not a record: a live seat answers as it is, one that is not
       // live opens, and no other seat or transcript entry is touched (Story 7.4).
-      return await (existing !== undefined
-        ? existing.ready
-        : ctx.registry.open(sender, service, projectRoot, agentId).ready)
+      return await openSeat(ctx, sender, projectRoot, agentId)
     } catch (error) {
       return unexpected('session', error, ctx.writeDiagnostic)
     }
@@ -312,7 +384,7 @@ async function writeTurn(entry: Entry, text: string): Promise<{ ok: true } | Ref
 /**
  * A send into a room whose turn is in flight: the room's speaker is interrupted and, once the turn has
  * ended, the session is writable. `undefined` when this is not that case (refused for another reason,
- * or a persona's session, whose busy refusal is unchanged); a refusal when the interrupt was not
+ * or a persona's or a skill-first session, whose busy refusal is unchanged); a refusal when the interrupt was not
  * acknowledged or the turn did not end in time, with nothing killed and nothing said.
  */
 async function interruptedRoom(
@@ -326,7 +398,7 @@ async function interruptedRoom(
     return undefined
   }
   const entry = ctx.registry.serviceOf(sender.id)?.bySession.get(sessionId as string)
-  if (entry === undefined || entry.agentId !== undefined || entry.closed || entry.session === undefined) {
+  if (entry === undefined || kindOf(entry) !== 'room' || entry.closed || entry.session === undefined) {
     return undefined
   }
   if (!(await ctx.registry.interruptTurn(entry))) {
@@ -334,6 +406,19 @@ async function interruptedRoom(
   }
   // The turn ended while the send waited: the session may have gone, or another send may have got in first.
   return writableSession(ctx, sender, sessionId, arg)
+}
+
+/** What a send to a skill-first session that is listed and not held is told (Story 7.5). */
+const SESSION_ENDED = failure({ code: 'session/ended', message: 'session ended' })
+
+/** Whether the transcript of the sender's project lists a skill-first session by this id. */
+function listedSkillSession(ctx: Context, sender: Sender, sessionId: unknown): boolean {
+  const projectRoot = ctx.projectPathFor(sender.id)
+  return (
+    typeof sessionId === 'string' &&
+    projectRoot !== undefined &&
+    ctx.transcripts.forProject(projectRoot).skillSessions().some((held) => held.sessionId === sessionId)
+  )
 }
 
 function sendTurn(ctx: Context) {
@@ -365,9 +450,13 @@ function sendTurn(ctx: Context) {
     // The user's turn is recorded once it is written, at the instant it started.
     const at = ctx.now()
     const transcript = ctx.transcripts.forProject(entry.projectRoot)
-    if (entry.agentId === undefined) {
+    const kind = kindOf(entry)
+    if (kind === 'room') {
       transcript.recordUserTurn(target.arg, at, true)
-    } else {
+    } else if (kind === 'skill') {
+      // A skill-first session's turn belongs to its own thread (Story 7.5); no persona received it, so no mention is kept.
+      transcript.recordUserTurn(target.arg, at, undefined, undefined, entry.sessionId)
+    } else if (entry.agentId !== undefined) {
       // A mention is kept only if it names the persona that received the turn; otherwise it is dropped, silently.
       const named = validMention(mention, ctx.nameOf(sender.id, entry.agentId))
       transcript.recordUserTurn(target.arg, at, undefined, named)
@@ -387,9 +476,14 @@ function sendTurn(ctx: Context) {
     text: unknown,
     mention?: unknown
   ): Promise<SendReply> => {
-    const entry =
-      typeof sessionId === 'string' ? ctx.registry.serviceOf(senderOf(event).id)?.bySession.get(sessionId) : undefined
-    if (entry === undefined || entry.agentId !== undefined) {
+    const sender = senderOf(event)
+    const entry = typeof sessionId === 'string' ? ctx.registry.serviceOf(sender.id)?.bySession.get(sessionId) : undefined
+    if ((entry === undefined || entry.closed) && listedSkillSession(ctx, sender, sessionId)) {
+      // A skill-first session the transcript lists and this launch does not hold (Story 7.5): it ended with the
+      // launch, or its process exited. Nothing starts and nothing is recorded; the reply is the window's to draw.
+      return Promise.resolve(SESSION_ENDED)
+    }
+    if (entry === undefined || kindOf(entry) !== 'room') {
       return sendNow(event, sessionId, text, mention)
     }
     // The room's sends are one at a time (Story 4.2): each interrupts and writes after the one before it is
@@ -417,11 +511,12 @@ function dispatchMenu(ctx: Context) {
       return target.error
     }
     const chosen = target.arg
-    // The room has no menu: a dispatch for it is a session nobody can dispatch into.
-    if (target.entry.agentId === undefined) {
+    // The room has no menu, and neither has a skill-first session: a dispatch for either is a session nobody can dispatch into.
+    const agentId = target.entry.agentId
+    if (kindOf(target.entry) !== 'persona' || agentId === undefined) {
       return NOT_FOUND
     }
-    const resolved = ctx.menuEntryFor(sender.id, target.entry.agentId, chosen)
+    const resolved = ctx.menuEntryFor(sender.id, agentId, chosen)
     if (resolved === undefined) {
       return failure({
         code: 'menu/unknown-entry',
@@ -465,28 +560,60 @@ async function readPlanOf(ctx: Context, projectRoot: string, skill: string): Pro
 }
 
 // Ends one session of this window: its process is killed and it is closed
-// through `finish`, so `session:closed` is emitted. A room (no agent) says one
-// harness line first (Story 4.5), and so does a persona's seat (Story 7.4): the
-// thread keeps every turn, so the line is what says the persona starts fresh.
-// The transcript is not otherwise touched, and neither is any other session. Nothing else ends a session short of the
-// conversation ending, the process exiting or the window going.
+// through `finish`, so `session:closed` is emitted. A room says one harness line
+// first (Story 4.5), and so does a persona's seat (Story 7.4): the thread keeps
+// every turn, so the line is what says the persona starts fresh. A skill-first
+// session (Story 7.5) says nothing and takes its own records with it: its
+// records, its stored run cards, its run-projection cards and its list item.
+// One the transcript lists and this launch does not hold (it ended with a
+// launch) is removed the same way, with no process to kill. The transcript is
+// not otherwise touched, and neither is any other session. Nothing else ends a
+// session short of the conversation ending, the process exiting or the window going.
 function closeSession(ctx: Context) {
   return (event: IpcMainInvokeEvent, sessionId: unknown): CloseReply => {
     const sender = senderOf(event)
     const service = ctx.registry.serviceOf(sender.id)
-    const entry = typeof sessionId === 'string' ? service?.bySession.get(sessionId) : undefined
-    if (service === undefined || entry === undefined || entry.closed) {
-      return NOT_FOUND
+    const held = typeof sessionId === 'string' ? service?.bySession.get(sessionId) : undefined
+    const entry = held === undefined || held.closed ? undefined : held
+    if (service === undefined || entry === undefined) {
+      return removeListedSkillSession(ctx, sender, service, sessionId)
     }
-    if (entry.agentId === undefined) {
+    const kind = kindOf(entry)
+    if (kind === 'room') {
       ctx.registry.say(sender, entry, LINES.roomStopped)
-    } else {
-      ctx.registry.say(sender, entry, LINES.seatEnded(ctx.nameOf(sender.id, entry.agentId) || entry.agentId))
+    } else if (kind === 'persona') {
+      ctx.registry.say(sender, entry, LINES.seatEnded(ctx.nameOf(sender.id, entry.agentId ?? '') || (entry.agentId ?? '')))
     }
     entry.session?.kill()
     ctx.registry.finish(sender, service, entry, 'closed')
+    if (kind === 'skill') {
+      // One still starting was never listed: there is nothing to remove, and it is ended all the same.
+      removeListedSkillSession(ctx, sender, service, entry.sessionId)
+    }
     return { ok: true }
   }
+}
+
+/**
+ * Take a skill-first session's records, stored run cards, run-projection cards and list item out of the
+ * window's project (Story 7.5); `session/not-found` when the transcript lists no such session. Nothing else
+ * is touched, and no line is written.
+ */
+function removeListedSkillSession(
+  ctx: Context,
+  sender: Sender,
+  service: Service | undefined,
+  sessionId: unknown
+): CloseReply {
+  const projectRoot = ctx.projectPathFor(sender.id)
+  if (typeof sessionId !== 'string' || projectRoot === undefined) {
+    return NOT_FOUND
+  }
+  if (!ctx.transcripts.forProject(projectRoot).removeSkillSession(sessionId)) {
+    return NOT_FOUND
+  }
+  service?.runs.removeSession(sessionId)
+  return { ok: true }
 }
 
 /** What a stop is told for a run that is not in flight: ended, never started, or another window's. */
@@ -588,13 +715,19 @@ function getConversation(ctx: Context) {
     const live = [...(service?.bySession.values() ?? [])].filter(
       (entry) => !entry.closed && entry.session !== undefined
     )
-    const personaSessions = live.flatMap(({ agentId, sessionId }) =>
-      agentId === undefined ? [] : [{ agentId, sessionId }]
+    const personaSessions = live.flatMap((entry) =>
+      kindOf(entry) === 'persona' && entry.agentId !== undefined ? [{ agentId: entry.agentId, sessionId: entry.sessionId }] : []
     )
     // The live room is named beside them (Story 4.7), from main's memory alone: one still starting is
     // not in `live`, and one that stopped, exited or came before a relaunch is not held at all.
-    const room = live.find((entry) => entry.agentId === undefined && entry.roomCast !== undefined && entry.openedAt !== undefined)
+    const room = live.find((entry) => kindOf(entry) === 'room' && entry.roomCast !== undefined && entry.openedAt !== undefined)
     const transcript = ctx.transcripts.forProject(projectRoot)
+    // The skill-first sessions the transcript lists (Story 7.5), in start order; one is live only if this launch holds it.
+    const skillSessions = transcript.skillSessions().map(({ sessionId, skill }) => ({
+      sessionId,
+      skill,
+      live: service?.skills.get(sessionId)?.closed === false
+    }))
     const own = service?.runs.snapshot() ?? []
     const held = new Set(own.map((card) => card.runId))
     return {
@@ -609,7 +742,8 @@ function getConversation(ctx: Context) {
         personas: personaProjectionFor(sender, ctx.now).snapshot(),
         // The cards the transcript keeps that this window does not hold (the stored conversation's,
         // and those of an earlier window of this launch), each as it ended, then this window's own.
-        runs: [...transcript.storedRuns().filter((card) => !held.has(card.runId)), ...own]
+        runs: [...transcript.storedRuns().filter((card) => !held.has(card.runId)), ...own],
+        ...(skillSessions.length === 0 ? {} : { skillSessions })
       }
     }
   }
@@ -656,6 +790,7 @@ export function registerSessionBridge(deps: SessionBridgeDeps = {}): SessionBrid
     }),
     nameOf: deps.agentName ?? agentNameFor,
     roster: deps.roster ?? rosterFor,
+    skills: deps.skills ?? skillsFor,
     menuEntryFor: deps.menuEntryFor ?? menuEntryFor,
     newRunId,
     readPlan: deps.readPlan ?? readPlan

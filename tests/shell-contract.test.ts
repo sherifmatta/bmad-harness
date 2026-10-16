@@ -79,7 +79,8 @@ describe('the view switch', () => {
   })
 
   it('is one rule, and hover comes before it so the pressed text is not overridden', () => {
-    expect(shellCss.match(/aria-pressed/g)).toHaveLength(1)
+    // Story 7.5: the other pressed rule is the `Skill Session` button's, after the switch's own.
+    expect(shellCss.match(/aria-pressed/g)).toHaveLength(2)
     expect(shellCss.indexOf('button:hover')).toBeLessThan(shellCss.indexOf('aria-pressed'))
   })
 
@@ -309,8 +310,10 @@ describe('the shell furniture stays within scope', () => {
       [...code(path).matchAll(/<button|<input|role=/g)].map(() => relative(ROOT, join(ROOT, path)))
     )
 
+    // Story 7.5: and the `Skill Session` button, which the shell draws in the Team half.
     expect(controls.sort()).toEqual([
       'src/renderer/ui/shell/end-session.tsx',
+      'src/renderer/ui/shell/shell.tsx',
       'src/renderer/ui/shell/view-switch.tsx',
       'src/renderer/ui/shell/view-switch.tsx'
     ])

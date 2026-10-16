@@ -69,3 +69,15 @@ describe('agentRowsOf (Story 6.6)', () => {
     expect(row.run?.runId).toBe('r2')
   })
 })
+
+describe('agentRowsOf, a skill-first session’s run (Story 7.5)', () => {
+  it('counts no persona and adds no row for it: one row per installed persona, none on a run it did not make', () => {
+    const skillRun = run('r1', 'a', 100, { skill: 'bmad-build', skillSession: 's1' })
+    delete skillRun.agentId
+
+    const rows = agentRowsOf(ROSTER, states(['a', 'work']), [skillRun])
+
+    expect(rows.map((row) => row.agent.id)).toEqual(['a', 'b', 'c'])
+    expect(rows.every((row) => row.run === undefined)).toBe(true)
+  })
+})

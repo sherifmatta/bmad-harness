@@ -157,6 +157,11 @@ export function collapsedReason(entry: RunCardEntry, progress: RunProgress): str
  * never a viewed persona's, so it is collapsed too; a terminal card never is.
  */
 export function isCollapsed(entry: RunCardEntry, viewedId: string | undefined, expanded: ReadonlySet<string>): boolean {
+  // A skill-first session's card (Story 7.5) is drawn in that session's own thread and no other, so it is in view
+  // wherever it is drawn: it never becomes a persona-less line.
+  if (entry.skillSession !== undefined) {
+    return false
+  }
   return entry.status === 'running' && (entry.agentId === undefined || entry.agentId !== viewedId) && !expanded.has(entry.runId)
 }
 

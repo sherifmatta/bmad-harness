@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { SessionTarget } from '../../../shared/commands'
 import type { ConversationSnapshot, OpenedSession, SyslineRecord } from '../../../shared/conversation'
 import type { ContractEvent } from '../../../shared/events'
-import type { AgentView } from '../../../shared/install'
+import type { AgentView, HarnessError } from '../../../shared/install'
 import { inAct, renderHook, settle } from '../testing/render-hook'
 import type { MountedHook } from '../testing/render-hook'
 import { createProseStore } from './prose-store'
@@ -70,7 +70,17 @@ class FakeBridge implements ConversationBridge {
   /** The room an open answers with, in place of the one it asked for; one entry is read per room open (Story 4.7). */
   roomAnswers: ({ cast: string[]; openedAt: number } | undefined)[] = []
 
+  /** The first messages the New session chat asked main to read (Story 7.5), in order. */
+  firsts: string[] = []
+  /** What main answers a first message: an opened session, or a refusal; one entry is read per first message. */
+  firstAnswers: (OpenedSession | HarnessError)[] = []
+
   openSession(target: SessionTarget): Promise<OpenedSession> {
+    if (typeof target === 'object' && 'first' in target) {
+      this.firsts.push(target.first)
+      const answer = this.firstAnswers.shift()
+      return answer === undefined || 'code' in answer ? Promise.reject(answer ?? { code: 'session/no-skill', message: 'no skill named' }) : Promise.resolve(answer)
+    }
     const handoff = this.handoffs[this.opens.length]
     const room =
       typeof target === 'string'
@@ -2133,5 +2143,187 @@ describe('stopRoom (Story 4.5)', () => {
     await conversation.stopRoom()
 
     expect(bridge.closed).toEqual(['r1'])
+  })
+})
+
+describe('the New session chat’s first message and a skill-first session (Story 7.5)', () => {
+  /** A refusal main answers with, made ahead of the send that will meet it, and so already handled. */
+  const refusal = (code: string, message: string): Promise<void> => {
+    const refused = Promise.reject({ code, message })
+    refused.catch(() => {})
+    return refused
+  }
+  const skillOpened = (sessionId = 'sk1'): ContractEvent => ({
+    name: 'session:opened',
+    payload: { sessionId, skill: 'bmad-build', at: 5 }
+  })
+  const snapshot = (conversation: ReturnType<typeof build>) => conversation.last() as unknown as {
+    entries: readonly { kind: string; skillSession?: string; text?: string; queuedFor?: string }[]
+  }
+
+  it('sends only the text as typed, and a started session is held with its first turn drawn at the instant it was sent', async () => {
+    bridge.firstAnswers = [{ sessionId: 'sk1', skill: 'bmad-build' }]
+    const built = build()
+    await connected(built.conversation)
+
+    const outcome = await built.conversation.startFrom('/bmad-build make a thing', 77)
+
+    expect(bridge.firsts).toEqual(['/bmad-build make a thing'])
+    expect(outcome).toEqual({ kind: 'skill', sessionId: 'sk1' })
+    expect(snapshot(built).entries).toEqual([
+      { kind: 'user', id: 'entry-0', at: 77, text: '/bmad-build make a thing', skillSession: 'sk1' }
+    ])
+    expect(bridge.opens).toEqual([])
+  })
+
+  it('draws no user turn for a refusal: the harness’s line comes back with it, and nothing is held', async () => {
+    bridge.firstAnswers = [{ code: 'session/no-skill', message: 'no skill named hello' }]
+    const built = build()
+    await connected(built.conversation)
+
+    expect(await built.conversation.startFrom('hello there', 1)).toEqual({ kind: 'refused', line: 'no skill named hello' })
+    expect(snapshot(built).entries).toEqual([])
+    expect(built.failures.filter((failure) => failure !== null)).toEqual([])
+  })
+
+  it('shows any other refusal as the failure line, with no line of the chat’s own', async () => {
+    bridge.firstAnswers = [{ code: 'session/spawn-failed', message: 'session · could not start the session' }]
+    const built = build()
+    await connected(built.conversation)
+
+    expect(await built.conversation.startFrom('/bmad-build x', 1)).toEqual({ kind: 'refused' })
+    expect(built.failures.filter((failure) => failure !== null)).toEqual([
+      { code: 'session/spawn-failed', message: 'session · could not start the session' }
+    ])
+  })
+
+  it('turns to a persona’s seat as a tile does, with the words after the name for the caller to send', async () => {
+    bridge.firstAnswers = [{ sessionId: 's-pm', seat: john.id, rest: 'draft it' }]
+    const built = build()
+    await connected(built.conversation)
+
+    expect(await built.conversation.startFrom('/bmad-agent-pm draft it', 1)).toEqual({ kind: 'seat', agentId: john.id, rest: 'draft it' })
+    // The seat is live: a send goes to its session at once.
+    built.conversation.send(john.id, 'draft it')
+    expect(bridge.sends).toEqual([['s-pm', 'draft it']])
+  })
+
+  it('makes the room of main’s answer, its cast and time its own, and hands back the words after the name', async () => {
+    bridge.firstAnswers = [{ sessionId: 'room-1', room: { cast: [mary.id, john.id], openedAt: 500 } }]
+    const built = build()
+    await connected(built.conversation)
+
+    expect(await built.conversation.startFrom('/bmad-party-mode', 1)).toEqual({ kind: 'room', rest: '' })
+    built.conversation.sendToRoom('hello all')
+    expect(bridge.sends).toEqual([['room-1', 'hello all']])
+  })
+
+  it('waits for main’s snapshot before asking, so a refusal is read against what the window holds', async () => {
+    const pending = deferred<ConversationSnapshot>()
+    bridge.conversation = pending.promise
+    bridge.firstAnswers = [{ sessionId: 'sk1', skill: 'bmad-build' }]
+    const built = build()
+    built.conversation.connect()
+    const outcomes: unknown[] = []
+    void built.conversation.startFrom('/bmad-build x', 1).then((outcome) => outcomes.push(outcome))
+    await settle()
+    expect(bridge.firsts).toEqual([])
+
+    pending.resolve(EMPTY)
+    await settle()
+    expect(bridge.firsts).toEqual(['/bmad-build x'])
+    expect(outcomes).toEqual([{ kind: 'skill', sessionId: 'sk1' }])
+  })
+
+  it('sends a plain message to the same live session, and queues one typed in flight as the skill’s', async () => {
+    bridge.firstAnswers = [{ sessionId: 'sk1', skill: 'bmad-build' }]
+    const built = build()
+    await connected(built.conversation)
+    await built.conversation.startFrom('/bmad-build x', 1)
+    bridge.push(skillOpened())
+
+    expect(await built.conversation.sendToSkill('sk1', 'while you work')).toBe(true)
+    expect(bridge.sends).toEqual([])
+    expect(snapshot(built).entries.at(-1)).toMatchObject({ kind: 'user', skillSession: 'sk1', queuedFor: 'bmad-build' })
+
+    bridge.push({ name: 'session:awaiting-turn', payload: { sessionId: 'sk1', at: 9 } })
+    expect(bridge.sends).toEqual([['sk1', 'while you work']])
+    expect(snapshot(built).entries.at(-1)).not.toHaveProperty('queuedFor')
+  })
+
+  it('asks main about a session it does not hold, and `session ended` is one line in its thread with no turn drawn and the text the user’s still', async () => {
+    bridge.conversation = Promise.resolve({
+      ...EMPTY,
+      entries: [{ kind: 'user', id: 'm-0', at: 1, text: '/bmad-build x', skillSession: 'sk1' }],
+      skillSessions: [{ sessionId: 'sk1', skill: 'bmad-build', live: false }]
+    })
+    bridge.sendResults = [refusal('session/ended', 'session ended')]
+    const built = build()
+    await connected(built.conversation)
+
+    expect(await built.conversation.sendToSkill('sk1', 'are you there')).toBe(false)
+
+    expect(bridge.sends).toEqual([['sk1', 'are you there']])
+    expect(snapshot(built).entries.map((entry) => [entry.kind, entry.text])).toEqual([
+      ['user', '/bmad-build x'],
+      ['sysline', 'session ended']
+    ])
+    expect(built.handoffs.map((record) => record.text)).toEqual(['session ended'])
+    expect(built.failures.filter((failure) => failure !== null)).toEqual([])
+  })
+
+  it('ends one on main’s reply: its thread, cards and seat go, and nothing of anybody else’s', async () => {
+    bridge.firstAnswers = [{ sessionId: 'sk1', skill: 'bmad-build' }]
+    const built = build()
+    await connected(built.conversation)
+    await built.conversation.startFrom('/bmad-build x', 1)
+    bridge.push(skillOpened())
+    bridge.push(said(mary.id, 'p1', 'persona words'))
+
+    expect(await built.conversation.closeSkill('sk1')).toBe(true)
+
+    expect(bridge.closed).toEqual(['sk1'])
+    expect(snapshot(built).entries.map((entry) => entry.kind)).toEqual(['persona'])
+  })
+
+  it('keeps it when main refuses the end, and shows the refusal as the failure line', async () => {
+    bridge.firstAnswers = [{ sessionId: 'sk1', skill: 'bmad-build' }]
+    bridge.closeResults = [refusal('session/not-found', 'session · no such session is open')]
+    const built = build()
+    await connected(built.conversation)
+    await built.conversation.startFrom('/bmad-build x', 1)
+
+    expect(await built.conversation.closeSkill('sk1')).toBe(false)
+    expect(snapshot(built).entries).toHaveLength(1)
+    expect(built.failures.filter((failure) => failure !== null)).toEqual([
+      { code: 'session/not-found', message: 'session · no such session is open' }
+    ])
+  })
+
+  it('stops the turn of a skill-first session and says nothing when it is no longer in flight', async () => {
+    bridge.turnStopResults = [refusal('turn/not-found', 'turn · no turn is in flight')]
+    const built = build()
+    await connected(built.conversation)
+
+    await built.conversation.stopSkill('sk1')
+
+    expect(bridge.turnStops).toEqual(['sk1'])
+    expect(built.failures.filter((failure) => failure !== null)).toEqual([])
+  })
+
+  it('drops a started session that the conversation’s end outlived, and ends with the rest', async () => {
+    const pending = deferred<OpenedSession>()
+    bridge.openSession = (target: SessionTarget): Promise<OpenedSession> => {
+      if (typeof target === 'object' && 'first' in target) return pending.promise
+      return Promise.reject(new Error('unexpected'))
+    }
+    const built = build()
+    await connected(built.conversation)
+    const outcome = built.conversation.startFrom('/bmad-build x', 1)
+    await built.conversation.end('/work/falcon')
+    pending.resolve({ sessionId: 'sk1', skill: 'bmad-build' })
+
+    expect(await outcome).toEqual({ kind: 'refused' })
+    expect(snapshot(built).entries).toEqual([])
   })
 })

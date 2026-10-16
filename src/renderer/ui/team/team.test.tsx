@@ -347,14 +347,12 @@ describe('Shell, the chain from a click to the header', () => {
     }
   }
 
-  it('opens on the topmost agent: its header, its tile current, its tab stop', () => {
+  it('opens on nobody (Story 7.5): no persona header, no tile current, the topmost tile the tab stop', () => {
     const { header, team, tiles } = renderShell()
 
-    expect(header).toHaveLength(1)
-    expect(header[0].props.agent.id).toBe('bmad-agent-0')
-    expect(header[0].key).toBe('bmad-agent-0')
-    expect(team.props.currentId).toBe('bmad-agent-0')
-    expect(tiles.map((tile) => tile.current)).toEqual([true, false, false])
+    expect(header).toHaveLength(0)
+    expect(team.props.currentId).toBeNull()
+    expect(tiles.map((tile) => tile.current)).toEqual([false, false, false])
     expect(tiles.map((tile) => tile.tabStop)).toEqual([true, false, false])
   })
 
@@ -381,14 +379,15 @@ describe('Shell, the chain from a click to the header', () => {
   it('reads the header’s state from the shell’s states map, idle when absent', () => {
     hooks.begin('shell')
     const states = new Map<string, PersonaState>([['bmad-agent-0', 'error']])
-    const tree = Shell({ projectPath: '/p', snapshot, states })
+    const tree = Shell({ projectPath: '/p', snapshot, states, currentId: 'bmad-agent-0' })
 
     expect(elementsOfType<{ state: PersonaState }>(tree, ChatHeader)[0].props.state).toBe('error')
     expect(elementsOfType<TeamProps>(tree, Team)[0].props.states).toBe(states)
-    expect(renderShell().header[0].props.state).toBe('idle')
+    hooks.begin('shell')
+    expect(elementsOfType<{ state: PersonaState }>(Shell({ projectPath: '/p', snapshot, currentId: 'bmad-agent-1' }), ChatHeader)[0].props.state).toBe('idle')
   })
 
-  it('falls back to the topmost tile in the same render when the chosen agent leaves the roster', () => {
+  it('lands on nobody in the same render when the chosen agent leaves the roster (Story 7.5)', () => {
     const { team } = renderShell()
     team.props.onSelect('bmad-agent-2')
     expect(renderShell().header[0].props.agent.id).toBe('bmad-agent-2')
@@ -396,8 +395,8 @@ describe('Shell, the chain from a click to the header', () => {
     team.props.onSelect('gone')
     const after = renderShell()
 
-    expect(after.header[0].props.agent.id).toBe('bmad-agent-0')
-    expect(after.tiles.map((tile) => tile.current)).toEqual([true, false, false])
+    expect(after.header).toHaveLength(0)
+    expect(after.tiles.map((tile) => tile.current)).toEqual([false, false, false])
   })
 
   it('draws no header when there are no agents', () => {
@@ -440,7 +439,7 @@ describe('Shell, the chain from a click to the header', () => {
       }
     }
 
-    expect(renderHeld(null).header[0].props.agent.id).toBe('bmad-agent-0')
+    expect(renderHeld(null).header).toHaveLength(0)
     const held = renderHeld('bmad-agent-2')
     expect(held.header[0].props.agent.id).toBe('bmad-agent-2')
     expect(held.header[0].key).toBe('bmad-agent-2')
@@ -460,9 +459,12 @@ describe('Shell, the chain from a click to the header', () => {
       seen.push(agent.id)
       return null
     }
-    Shell({ projectPath: '/p', snapshot, composer: slot })
+    Shell({ projectPath: '/p', snapshot, composer: slot, currentId: 'bmad-agent-0' })
     hooks.begin('shell')
     Shell({ projectPath: '/p', snapshot: { ...snapshot, agents: [] }, composer: slot })
+    hooks.begin('shell')
+    // Nobody chosen is no composer for a persona: the window holds the New session chat's own.
+    Shell({ projectPath: '/p', snapshot, composer: slot })
 
     expect(seen).toEqual(['bmad-agent-0'])
   })

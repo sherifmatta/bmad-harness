@@ -2,7 +2,7 @@ import type { JSX } from 'react'
 
 import './chat-header.css'
 import type { AgentView } from '../../../shared/install'
-import { Initials } from '../persona/initials'
+import { Initials, SkillDisc } from '../persona/initials'
 import type { PersonaState } from '../status/persona-state'
 import { StateLine } from '../status/status-dot'
 
@@ -64,6 +64,69 @@ export function ChatHeader({
             {stops ? 'Stop' : 'close session'}
           </button>
         )}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * A skill-first session's header (Story 7.5): the skill's `/` disc at 22px, its name in mono and the state as the
+ * status pill (`working`, `live`, or `ended` with no dot), with no title or story reference. The one control is a
+ * native button, the persona header's own: `Stop` while a turn is in flight and `stop` was given, else `close session`
+ * (an ended session keeps it: it removes what the session kept). Neither asks for confirmation.
+ */
+export function SkillHeader({
+  skill,
+  state,
+  since,
+  turnInFlight = false,
+  onClose,
+  onStop
+}: {
+  skill: string
+  state: 'work' | 'live' | 'ended'
+  /** When the turn in flight began; `work` counts its elapsed time from here. */
+  since?: number | undefined
+  turnInFlight?: boolean | undefined
+  onClose: () => void
+  onStop?: (() => void) | undefined
+}): JSX.Element {
+  const stops = turnInFlight && onStop !== undefined
+  return (
+    <div className="chat-head">
+      <SkillDisc size={22} />
+      <div className="chat-head-id">
+        <div className="chat-head-line">
+          <h2 className="chat-head-name chat-head-name--skill">{skill}</h2>
+        </div>
+      </div>
+      <div className="chat-head-state">
+        <StateLine state={state} since={since} />
+        <button
+          type="button"
+          className="chat-close"
+          aria-label={`${stops ? 'Stop' : 'close session'} · ${skill}`}
+          onClick={stops ? onStop : onClose}
+        >
+          {stops ? 'Stop' : 'close session'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The New session chat's header (Story 7.5): the `/` disc at 22px and `New session`, and nothing else: no status pill,
+ * no `Stop`, no close. It is no session: a renderer surface with nothing to end.
+ */
+export function NewSessionHeader(): JSX.Element {
+  return (
+    <div className="chat-head">
+      <SkillDisc size={22} />
+      <div className="chat-head-id">
+        <div className="chat-head-line">
+          <h2 className="chat-head-name">New session</h2>
+        </div>
       </div>
     </div>
   )

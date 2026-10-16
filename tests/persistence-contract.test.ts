@@ -260,11 +260,13 @@ describe('what is stored, and where', () => {
     const file = code(join(SRC, 'main/sources/persistence/transcript-file.ts'))
     const runs = code(join(SRC, 'main/fold/stored-runs.ts'))
 
-    expect(file).not.toMatch(/sessions|busy|personas|queue|install/i)
+    // Story 7.5: the list of skill-first sessions (`skillSessions`) is the one thing of a session the file holds.
+    expect(file.replaceAll('skillSessions', '').replaceAll('StoredSkillSession', '')).not.toMatch(/sessions|busy|personas|queue|install/i)
     expect(runs).not.toMatch(/sessions|busy|personas|queue|install/i)
     expect(code(join(SRC, 'shared/conversation.ts'))).toMatch(/version: 1/)
     // The cards ride beside the entries, additively: the file is still version 1 and `runs` is optional.
     expect(code(join(SRC, 'shared/conversation.ts'))).toMatch(/runs\?: StoredRun\[\]/)
+    expect(code(join(SRC, 'shared/conversation.ts'))).toMatch(/skillSessions\?: StoredSkillSession\[\]/)
     expect(file).toMatch(/TRANSCRIPT_VERSION = 1/)
   })
 
@@ -369,6 +371,7 @@ describe('a transcript is cleared only by ending the conversation', () => {
         return () => `s${(n += 1)}`
       })(),
       agentName: (_id: number, agentId: string) => agentId,
+      skills: () => [{ name: 'bmad-build', description: 'Build' }],
       writeDiagnostic: () => {},
       spawn: (options: SpawnSessionOptions): Promise<SpawnOutcome> => {
         feed = options.onFrame
@@ -435,6 +438,29 @@ describe('a transcript is cleared only by ending the conversation', () => {
         expect(write.size).toBeGreaterThanOrEqual(previous)
         return write.size
       }, 0)
+    } finally {
+      world.done()
+    }
+  })
+
+  it('lets the user end a skill-first session remove its own records, and no one else’s, with no clear (Story 7.5)', async () => {
+    const world = await scene()
+    try {
+      await world.call<Promise<unknown>>(SESSION_OPEN_CHANNEL, 'bmad-agent-analyst')
+      for (const frame of speak('hello')) world.frame(frame)
+      await world.call<Promise<unknown>>(SESSION_OPEN_CHANNEL, { first: '/bmad-build go' })
+      for (const frame of speak('on it')) world.frame(frame)
+      world.flush()
+      // The persona's words, the skill's first turn and the skill's words.
+      expect(world.fileEntries()).toBe(3)
+
+      expect(world.call(SESSION_CLOSE_CHANNEL, 's2')).toEqual({ ok: true })
+      world.flush()
+
+      expect(world.fileEntries()).toBe(1)
+      expect(world.clears).toBe(0)
+      const reply = world.call<ConversationReply>(CONVERSATION_GET_CHANNEL)
+      expect(reply.ok && reply.snapshot.entries).toMatchObject([{ kind: 'persona', text: 'hello' }])
     } finally {
       world.done()
     }

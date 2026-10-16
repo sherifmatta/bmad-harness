@@ -43,6 +43,11 @@
   text-overflow: ellipsis;
 }
 
+/* A skill's name (Story 7.5): the persona name's size and weight, in mono. */
+.chat-head-name--skill {
+  font-family: var(--mono);
+}
+
 .chat-head-title {
   min-width: 0;
   font-size: var(--fs-body-ui);

@@ -359,3 +359,92 @@ describe('fieldRef (Story 5.3)', () => {
     expect(document.activeElement).toBe(field)
   })
 })
+
+describe('a send that can be refused (Story 7.5)', () => {
+  const settled = async (): Promise<void> => void (await act(async () => void (await Promise.resolve())))
+
+  function mountWith(onSend: (text: string) => void | Promise<boolean>, extra: Record<string, unknown> = {}): HTMLTextAreaElement {
+    mounted = mount(createElement(Composer, { agentName: 'John', onSend, ...extra }))
+    return mounted.container.querySelector('textarea') as HTMLTextAreaElement
+  }
+
+  it('keeps the text when the handler answers that it was refused, and clears it when it was taken', async () => {
+    const answers = [false, true]
+    const field = mountWith(() => Promise.resolve(answers.shift() as boolean))
+
+    type(field, 'hello there')
+    press(field, {})
+    await settled()
+    expect(field.value).toBe('hello there')
+
+    press(field, {})
+    await settled()
+    expect(field.value).toBe('')
+  })
+
+  it('holds a second send until the first is answered, so one message is not sent twice', async () => {
+    let calls = 0
+    let answer: (took: boolean) => void = () => {}
+    const field = mountWith(() => {
+      calls += 1
+      return new Promise<boolean>((resolve) => void (answer = resolve))
+    })
+
+    type(field, 'once')
+    press(field, {})
+    press(field, {})
+    expect(calls).toBe(1)
+    answer(true)
+    await settled()
+    expect(field.value).toBe('')
+  })
+
+  it('keeps the text and holds no later send when the handler fails: a failure is a send that was not taken', async () => {
+    let calls = 0
+    const field = mountWith(() => {
+      calls += 1
+      return calls === 1 ? Promise.reject(new Error('refused')) : Promise.resolve(true)
+    })
+
+    type(field, 'try me')
+    press(field, {})
+    await settled()
+    await settled()
+    expect(field.value).toBe('try me')
+
+    press(field, {})
+    await settled()
+    expect(calls).toBe(2)
+    expect(field.value).toBe('')
+  })
+
+  it('clears at once for a handler that answers nothing, as it always did', () => {
+    const field = mountWith(() => {})
+
+    type(field, 'plain')
+    press(field, {})
+
+    expect(field.value).toBe('')
+  })
+
+  it('has no placeholder and is named `message` when it is for nobody in particular, and is named for the persona otherwise', () => {
+    const nobody = mountWith(() => {}, { agentName: undefined })
+    expect(nobody.hasAttribute('placeholder')).toBe(false)
+    expect(nobody.getAttribute('aria-label')).toBe('message')
+    mounted?.unmount()
+
+    const john = mountWith(() => {})
+    expect(john.getAttribute('placeholder')).toBe('message John')
+    expect(john.getAttribute('aria-label')).toBe('Message John')
+  })
+
+  it('starts from the draft it is given and tells every change of it, so a surface that keeps one can', () => {
+    const told: string[] = []
+    const onTextChange = (text: string): void => void told.push(text)
+    const field = mountWith(() => {}, { initialText: 'half', onTextChange })
+
+    expect(field.value).toBe('half')
+    type(field, 'half a')
+    expect(told).toEqual(['half', 'half a'])
+  })
+})

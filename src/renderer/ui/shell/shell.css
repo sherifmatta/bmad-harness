@@ -804,3 +804,41 @@
     width: var(--stack-crumbs-width);
   }
 }
+
+/*
+ * The `Skill Session` button (Story 7.5): a native button at the right end of a row of the Team half between the
+ * strip and the tiles, drawn as the chat header's `Stop` (a ghost button, its own padding, radius and border) and
+ * nothing more: no icon, count, accent fill or tooltip. Pressed (`aria-pressed`, which says it in words) takes the
+ * raised ground, the strong text and the accent border. Focus is the shared ring's.
+ */
+.skill-session-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--rail-group-padding);
+  border-bottom: var(--rule-width) solid var(--line-soft);
+}
+
+.skill-session-button {
+  flex: 0 0 auto;
+  padding: var(--ghost-padding);
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--r);
+  background: var(--panel-2);
+  font-family: var(--sans);
+  font-size: var(--fs-body-ui);
+  color: var(--dim);
+  cursor: pointer;
+}
+
+.skill-session-button:hover {
+  color: var(--text-strong);
+  border-color: var(--ghost-border-hover);
+}
+
+/* Pressed is `components.skill-session-button`: the raised ground, the strong text and the accent border. It comes
+   after hover so a pressed button keeps its own border under the pointer. */
+.skill-session-button[aria-pressed='true'] {
+  background: var(--panel-3);
+  color: var(--text-strong);
+  border-color: var(--accent-border);
+}

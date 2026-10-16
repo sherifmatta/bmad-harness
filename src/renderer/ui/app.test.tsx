@@ -64,6 +64,12 @@ let dispatchedMenus: [string, string][]
 let railNow: RailSnapshot
 let railListeners: ((next: RailSnapshot) => void)[]
 let chooseCalls: number
+/** The first messages the New session chat sent (Story 7.5), and what main answers each with: an opened session, or a thrown refusal. */
+let firsts: string[]
+let firstAnswer: (text: string) => unknown
+/** What `getConversation` answers with, and a refusal `sendTurn` throws for a session, if any (Story 7.5). */
+let conversationNow: () => unknown
+let sendRefusal: ((sessionId: string) => unknown) | undefined
 /** What `getBoard` answers with, or a rejection; and who `onBoardChanged` subscribed. */
 let boardNow: () => Promise<unknown>
 let boardListeners: ((next: unknown) => void)[]
@@ -99,7 +105,11 @@ function installBridge(): void {
       dispatchedMenus.push([sessionId, code])
       return 'r-dispatched'
     },
-    openSession: async (target: string | { room: readonly string[] }) => {
+    openSession: async (target: string | { room: readonly string[] } | { first: string }) => {
+      if (typeof target !== 'string' && 'first' in target) {
+        firsts.push(target.first)
+        return firstAnswer(target.first)
+      }
       if (typeof target !== 'string') {
         roomCasts.push(target.room)
         return { sessionId: 'session-of-the-room', room: { cast: [...target.room], openedAt: 1_700_000_000_000 } }
@@ -113,6 +123,10 @@ function installBridge(): void {
       closedSessions.push(sessionId)
     },
     sendTurn: async (sessionId: string, text: string, mention?: string) => {
+      const refused = sendRefusal?.(sessionId)
+      if (refused !== undefined) {
+        throw refused
+      }
       sent.push(mention === undefined ? [sessionId, text] : [sessionId, text, mention])
     },
     stopRun: async (runId: string) => {
@@ -122,7 +136,7 @@ function installBridge(): void {
     stopTurn: async (sessionId: string) => {
       turnStopped.push(sessionId)
     },
-    getConversation: async () => ({ entries: [], sessions: [], busy: [], personas: [], runs: [] }),
+    getConversation: async () => conversationNow(),
     endConversation: async (projectId: string) => {
       ended.push(projectId)
     },
@@ -158,6 +172,13 @@ beforeEach(() => {
   chooseCalls = 0
   boardNow = async () => ({ revision: 1, kind: 'none', code: 'board/absent', message: 'board · no sprint status' })
   boardListeners = []
+  firsts = []
+  // Main's own refusal: the first word as typed, the leading slash removed (Story 7.5).
+  firstAnswer = (text: string) => {
+    throw { code: 'session/no-skill', message: `no skill named ${text.split(/\s+/)[0].replace(/^\//, '')}` }
+  }
+  conversationNow = () => ({ entries: [], sessions: [], busy: [], personas: [], runs: [] })
+  sendRefusal = undefined
   installBridge()
 })
 
@@ -186,6 +207,22 @@ function tile(name: string): HTMLButtonElement {
   if (found === undefined) throw new Error(`no tile for ${name}`)
   return found
 }
+
+/**
+ * A window opens on the New session chat (Story 7.5), with no persona current. Most of what follows is about a
+ * persona, so it turns to Mary's tile first; the open that asks of main is the setup, not what is under test, and
+ * is not counted in `opened`.
+ */
+async function mountOn(name: string): Promise<void> {
+  mounted = mount(createElement(App))
+  await settle()
+  await settle()
+  act(() => tile(name).click())
+  await settle()
+  opened.length = 0
+}
+
+const mountOnMary = (): Promise<void> => mountOn('Mary')
 
 describe('App, the Board', () => {
   const boardSection = (): HTMLElement => mounted!.container.querySelector('.view-board') as HTMLElement
@@ -412,9 +449,7 @@ describe('App, the Board', () => {
 
 describe('App, the conversation glue', () => {
   it('opens the selected persona’s session, remounts the composer for them, and sends their text to their session', async () => {
-    mounted = mount(createElement(App))
-    await settle()
-    await settle()
+    await mountOnMary()
 
     // The window opens on the topmost persona with a composer and no session.
     expect(tile('Mary').getAttribute('aria-current')).toBe('true')
@@ -440,10 +475,17 @@ describe('App, the conversation glue', () => {
     expect(sent).toEqual([[`session-of-${john.id}`, 'hello john']])
   })
 
-  it('opens the session on the first send to the current persona, and not before', async () => {
+  it('opens no session until a persona is chosen, and a send to the one chosen opens no other (Story 7.5)', async () => {
     mounted = mount(createElement(App))
     await settle()
     await settle()
+    // The window opens on the New session chat: nobody is current and nothing is open.
+    expect(opened).toEqual([])
+    expect(mounted.container.querySelector('.chat-head-name')?.textContent).toBe('New session')
+
+    act(() => tile('Mary').click())
+    await settle()
+    expect(opened).toEqual([mary.id])
 
     type(field(), 'hello mary')
     act(() => {
@@ -452,12 +494,11 @@ describe('App, the conversation glue', () => {
     await settle()
 
     expect(opened).toEqual([mary.id])
+    expect(sent).toEqual([[`session-of-${mary.id}`, 'hello mary']])
   })
 
   it('queues a message typed while the persona works, leaves focus and the composer alone, and un-dims it in place when the turn ends', async () => {
-    mounted = mount(createElement(App))
-    await settle()
-    await settle()
+    await mountOnMary()
     const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
     push({ name: 'session:opened', payload: { sessionId: 's-mary', agentId: mary.id, at: 1 } })
 
@@ -469,7 +510,7 @@ describe('App, the conversation glue', () => {
     })
     await settle()
 
-    const turn = mounted.container.querySelector('.turn--user') as HTMLElement
+    const turn = mounted!.container.querySelector('.turn--user') as HTMLElement
     expect(turn.className).toContain('turn--queued')
     expect(turn.textContent).toContain('queued · sends when Mary finishes')
     expect(sent).toEqual([])
@@ -480,7 +521,7 @@ describe('App, the conversation glue', () => {
 
     push({ name: 'session:awaiting-turn', payload: { sessionId: 's-mary', at: 2 } })
     expect(sent).toEqual([['s-mary', 'while you work']])
-    const same = mounted.container.querySelector('.turn--user') as HTMLElement
+    const same = mounted!.container.querySelector('.turn--user') as HTMLElement
     expect(same).toBe(turn)
     expect(same.className).not.toContain('turn--queued')
     expect(same.textContent).not.toContain('queued')
@@ -488,9 +529,7 @@ describe('App, the conversation glue', () => {
   })
 
   it('takes a cancelled message out of the transcript and never sends it', async () => {
-    mounted = mount(createElement(App))
-    await settle()
-    await settle()
+    await mountOnMary()
     const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
     push({ name: 'session:opened', payload: { sessionId: 's-mary', agentId: mary.id, at: 1 } })
 
@@ -499,21 +538,20 @@ describe('App, the conversation glue', () => {
       field().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
     })
     await settle()
-    const cancel = mounted.container.querySelector('button.turn-cancel') as HTMLButtonElement
+    const cancel = mounted!.container.querySelector('button.turn-cancel') as HTMLButtonElement
     act(() => cancel.click())
     push({ name: 'session:awaiting-turn', payload: { sessionId: 's-mary', at: 2 } })
 
-    expect(mounted.container.querySelector('.turn--user')).toBeNull()
+    expect(mounted!.container.querySelector('.turn--user')).toBeNull()
     expect(sent).toEqual([])
   })
 
   it('shows what main reports on the tile and the chat header, with a counter for work and none after', async () => {
-    mounted = mount(createElement(App))
-    await settle()
-    await settle()
+    await mountOnMary()
     const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
-    const container = mounted.container
-    const header = (): Element => container.querySelector('.chat-head-state') as Element
+    const container = mounted!.container
+    // The state line alone: Mary's seat is open (her tile was chosen), so the header carries its close control as well.
+    const header = (): Element => container.querySelector('.chat-head-state .state-line') as Element
     const tileState = (name: string): Element => tile(name).querySelector('.tile-state') as Element
 
     // Nothing reported: every dot reads idle and nothing counts.
@@ -545,18 +583,16 @@ describe('App, the conversation glue', () => {
   })
 
   it('ends the conversation from the topbar: sends this window’s project, empties the thread, announces it once, and leaves no new live region', async () => {
-    mounted = mount(createElement(App))
-    await settle()
-    await settle()
+    await mountOnMary()
     const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
     push({ name: 'session:opened', payload: { sessionId: 's-mary', agentId: mary.id, at: 1 } })
     push({
       name: 'persona:said',
       payload: { sessionId: 's-mary', agentId: mary.id, messageId: 'm1', text: 'Hello', at: 2 }
     })
-    expect(mounted.container.querySelectorAll('.turn')).toHaveLength(1)
+    expect(mounted!.container.querySelectorAll('.turn')).toHaveLength(1)
 
-    const buttons = [...mounted.container.querySelectorAll<HTMLButtonElement>('.topbar button')]
+    const buttons = [...mounted!.container.querySelectorAll<HTMLButtonElement>('.topbar button')]
     expect(buttons.map((button) => button.textContent)).toEqual(['1:1 Conversation', 'Party Mode', 'Board', 'End session'])
     const control = buttons[3]
     expect(control.type).toBe('button')
@@ -575,9 +611,9 @@ describe('App, the conversation glue', () => {
     })
 
     expect(ended).toEqual(['/work/falcon'])
-    expect(mounted.container.querySelectorAll('.turn')).toHaveLength(0)
-    expect(mounted.container.querySelectorAll('.visually-hidden')).toHaveLength(1)
-    expect(mounted.container.querySelector('.visually-hidden')?.textContent).toBe('conversation · ended')
+    expect(mounted!.container.querySelectorAll('.turn')).toHaveLength(0)
+    expect(mounted!.container.querySelectorAll('.visually-hidden')).toHaveLength(1)
+    expect(mounted!.container.querySelector('.visually-hidden')?.textContent).toBe('conversation · ended')
     // Nothing else changed: the composer is there and the next message opens a fresh session.
     type(field(), 'new start')
     act(() => {
@@ -595,9 +631,7 @@ describe('App, the conversation glue', () => {
         message: 'conversation · could not end the conversation',
         detail: 'EACCES'
       })
-    mounted = mount(createElement(App))
-    await settle()
-    await settle()
+    await mountOnMary()
     act(() =>
       listeners.forEach((listener) =>
         listener({
@@ -607,16 +641,16 @@ describe('App, the conversation glue', () => {
       )
     )
 
-    const control = [...mounted.container.querySelectorAll<HTMLButtonElement>('.topbar button')][3]
+    const control = [...mounted!.container.querySelectorAll<HTMLButtonElement>('.topbar button')][3]
     act(() => control.click())
     await settle()
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 300))
     })
 
-    expect(mounted.container.textContent).toContain('conversation · could not end the conversation')
-    expect(mounted.container.querySelectorAll('.turn')).toHaveLength(1)
-    expect(mounted.container.querySelector('.visually-hidden')?.textContent).toBe('')
+    expect(mounted!.container.textContent).toContain('conversation · could not end the conversation')
+    expect(mounted!.container.querySelectorAll('.turn')).toHaveLength(1)
+    expect(mounted!.container.querySelector('.visually-hidden')?.textContent).toBe('')
   })
 })
 
@@ -645,9 +679,7 @@ describe('App, turning to the next persona', () => {
   }
 
   async function start(): Promise<void> {
-    mounted = mount(createElement(App))
-    await settle()
-    await settle()
+    await mountOnMary()
   }
 
   it('turning to a tile writes nothing into the thread, and leaves focus on the tile that carries aria-current', async () => {
@@ -742,7 +774,8 @@ describe('App, turning to the next persona', () => {
     await start()
     await say(text)
 
-    expect(opened).toEqual([mary.id])
+    // Mary's seat was opened by turning to her tile, in the setup; the text asks for no other.
+    expect(opened).toEqual([])
     expect(sent).toEqual([[`session-of-${mary.id}`, text]])
     expect(mounted!.container.querySelector('.sysline')).toBeNull()
     expect(mounted!.container.querySelector('.turn--user')?.textContent).toContain(text)
@@ -782,9 +815,7 @@ describe('App, when a persona stops to ask', () => {
 
   /** Mary's session is open and idle after she asked. */
   async function asked(): Promise<void> {
-    mounted = mount(createElement(App))
-    await settle()
-    await settle()
+    await mountOnMary()
     push({ name: 'session:opened', payload: { sessionId: 's-mary', agentId: mary.id, at: 1 } })
     push({
       name: 'persona:said',
@@ -916,11 +947,9 @@ describe('App, a session that outlives the install changing under it', () => {
       (button.getAttribute('aria-label') ?? '').split(',')[0]
     )
 
-  /** Mary's session is live and has spoken; John has one too, idle. */
+  /** Mary's session is live and has spoken; John has one too, idle, and John is the persona the window is turned to. */
   async function live(): Promise<void> {
-    mounted = mount(createElement(App))
-    await settle()
-    await settle()
+    await mountOn('John')
     push({ name: 'session:opened', payload: { sessionId: 's-mary', agentId: mary.id, at: 1 } })
     push({ name: 'session:opened', payload: { sessionId: 's-john', agentId: john.id, at: 1 } })
     push({
@@ -1006,11 +1035,12 @@ describe('App, a session that outlives the install changing under it', () => {
     await live()
     reinstall([agent('bmad-agent-dev', 'Amelia')])
 
-    expect(headers().map((header) => header.querySelector('.chat-head-name')?.textContent)).toEqual(['Mary', 'John'])
+    // In the order their sessions were opened: John's tile was the window's first.
+    expect(headers().map((header) => header.querySelector('.chat-head-name')?.textContent)).toEqual(['John', 'Mary'])
 
     act(() => closeButtons()[1].click())
     await settle()
-    expect(closedSessions).toEqual(['s-john'])
+    expect(closedSessions).toEqual(['s-mary'])
   })
 
   it('keeps a header, and its failure line off the orphan, when main refuses the close', async () => {
@@ -1044,13 +1074,19 @@ describe('App, the current persona’s close control', () => {
   ]
 
   async function mountAndOpenMary(): Promise<void> {
+    await mountOnMary()
+  }
+
+  it('is not there while the current persona has no session, nor in the New session chat', async () => {
     mounted = mount(createElement(App))
     await settle()
     await settle()
-  }
+    // A window opens on the New session chat, whose header has no control (Story 7.5).
+    expect(closeButtons()).toHaveLength(0)
 
-  it('is not there while the current persona has no session', async () => {
     await mountAndOpenMary()
+    // Turning to her tile opened her seat; once it is closed she has none, and the control goes with it.
+    push({ name: 'session:closed', payload: { sessionId: 'session-of-bmad-agent-analyst', agentId: mary.id, reason: 'closed', at: 3 } })
 
     expect(field().getAttribute('aria-label')).toBe('Message Mary')
     expect(closeButtons()).toHaveLength(0)
@@ -1406,6 +1442,9 @@ describe('App, the running card stays in view (Story 3.14)', () => {
     mounted = mount(createElement(App))
     await settle()
     await settle()
+    // The window opens on the New session chat (Story 7.5): the run is Mary's to be viewed, so it turns to her tile first.
+    act(() => tile('Mary').click())
+    await settle()
     push({ name: 'session:opened', payload: { sessionId: 's-Mary', agentId: mary.id, at: 1 } })
     push({ name: 'session:opened', payload: { sessionId: 's-John', agentId: john.id, at: 1 } })
   }
@@ -1535,9 +1574,7 @@ describe('App, the running card stays in view (Story 3.14)', () => {
         }
       ]
     })
-    mounted = mount(createElement(App))
-    await settle()
-    await settle()
+    await mountOnMary()
     await act(frame)
 
     expect(cards()).toHaveLength(1)
@@ -1641,9 +1678,7 @@ describe('App, the run you are not looking at (Story 3.5)', () => {
     )
 
   async function open(): Promise<void> {
-    mounted = mount(createElement(App))
-    await settle()
-    await settle()
+    await mountOnMary()
     push({ name: 'session:opened', payload: { sessionId: 's-Mary', agentId: mary.id, at: 1 } })
     push({ name: 'session:opened', payload: { sessionId: 's-John', agentId: john.id, at: 1 } })
   }
@@ -1837,7 +1872,9 @@ describe('App, the run you are not looking at (Story 3.5)', () => {
     // Mary is viewed: her card is the pinned one.
     expect(slot()?.querySelectorAll('.run-card')).toHaveLength(1)
 
-    // The install loses her; her session and her run go on, and John is the viewed persona.
+    // The window is turned to John, and the install loses her: her session and her run go on, and John is the viewed persona.
+    act(() => tile('John').click())
+    await settle()
     act(() => installListeners.forEach((listener) => listener({ ...snapshot, revision: 2, agents: [john] })))
     expect(slot()).toBeNull()
     expect(cards()).toHaveLength(0)
@@ -1867,9 +1904,7 @@ describe('App, the run you are not looking at (Story 3.5)', () => {
         }
       ]
     })
-    mounted = mount(createElement(App))
-    await settle()
-    await settle()
+    await mountOnMary()
 
     expect(lines()).toHaveLength(1)
     expect(lines()[0].querySelector('.run-card-line-name')?.textContent).toBe('John')
@@ -1906,9 +1941,7 @@ describe('App, stopping a run (Story 3.7)', () => {
     push({ name: 'run:started', payload: { runId, sessionId, agentId: agent.id, code: 'CP', at } })
 
   async function open(): Promise<void> {
-    mounted = mount(createElement(App))
-    await settle()
-    await settle()
+    await mountOnMary()
     push({ name: 'session:opened', payload: { sessionId: 's-Mary', agentId: mary.id, at: 1 } })
     push({ name: 'session:opened', payload: { sessionId: 's-John', agentId: john.id, at: 1 } })
   }
@@ -2011,7 +2044,9 @@ describe('App, stopping a run (Story 3.7)', () => {
       payload: { sessionId: 's-Mary', agentId: mary.id, messageId: 'm1', text: 'Hello from Mary', at: 2 }
     })
     started('r1', 's-Mary', mary, Date.now())
-    // The install loses Mary: her session and her run go on, and John is the viewed persona.
+    // The window is turned to John, and the install loses Mary: her session and her run go on, and John is the viewed persona.
+    act(() => tile('John').click())
+    await settle()
     act(() => installListeners.forEach((listener) => listener({ ...snapshot, revision: 2, agents: [john] })))
     const line = root().querySelector<HTMLElement>('.run-card-line')!
     expect(line.querySelector('.run-card-line-name')?.textContent).toBe('Mary')
@@ -2066,9 +2101,7 @@ describe('App, stopping a run (Story 3.7)', () => {
       personas: [],
       runs: [dead('d1', 'failed', mary), dead('d2', 'stopped', john), dead('d3', 'finished', mary)]
     })
-    mounted = mount(createElement(App))
-    await settle()
-    await settle()
+    await mountOnMary()
 
     expect(root().querySelectorAll('.run-card')).toHaveLength(3)
     expect(stops()).toHaveLength(0)
@@ -2096,9 +2129,7 @@ describe('App, told once when elsewhere (Story 3.10)', () => {
 
   /** Mary is current; John's run ran and ended, so its terminal card sits in the thread. */
   async function afterRun(runId = 'r1'): Promise<void> {
-    mounted = mount(createElement(App))
-    await settle()
-    await settle()
+    await mountOnMary()
     push({ name: 'session:opened', payload: { sessionId: 's-john', agentId: john.id, at: 1 } })
     push({ name: 'run:started', payload: { runId, sessionId: 's-john', agentId: john.id, code: 'CP', at: 2 } })
     push({ name: 'run:finished', payload: { runId, sessionId: 's-john', at: 3 } })
@@ -2178,9 +2209,7 @@ describe('the party view (Story 4.1)', () => {
     party().querySelector<HTMLButtonElement>('.cast-chooser-open')
 
   it('shows the chooser under Party Mode while a persona session in the 1:1 view keeps running', async () => {
-    mounted = mount(createElement(App))
-    await settle()
-    await settle()
+    await mountOnMary()
     push({ name: 'session:opened', payload: { sessionId: 's-mary', agentId: mary.id, at: 1 } })
     push({
       name: 'persona:said',
@@ -2190,18 +2219,16 @@ describe('the party view (Story 4.1)', () => {
     click(partyButton())
 
     expect(party().hasAttribute('hidden')).toBe(false)
-    expect(mounted.container.querySelector('.view-conversation')?.hasAttribute('hidden')).toBe(true)
+    expect(mounted!.container.querySelector('.view-conversation')?.hasAttribute('hidden')).toBe(true)
     expect(party().querySelectorAll('input[type="checkbox"]')).toHaveLength(2)
     expect(openButton()?.textContent).toBe('Open the room')
     // Both views stay mounted: the conversation is still there, and no session was closed by looking away.
-    expect(mounted.container.querySelectorAll('.view-conversation .turn')).toHaveLength(1)
+    expect(mounted!.container.querySelectorAll('.view-conversation .turn')).toHaveLength(1)
     expect(closedSessions).toEqual([])
   })
 
   it('asks for the room of the ticked cast when *Open the room* is pressed, and draws the room’s sysline in the party thread and never in the 1:1 thread', async () => {
-    mounted = mount(createElement(App))
-    await settle()
-    await settle()
+    await mountOnMary()
     click(partyButton())
 
     // Mary and John are two of the five core personas, so both start ticked.
@@ -2232,16 +2259,14 @@ describe('the party view (Story 4.1)', () => {
     // The cast the user chose is in the strip, one card each, nobody lit while the room awaits.
     expect([...party().querySelectorAll('.cast-card .cast-name')].map((name) => name.textContent)).toEqual(['Mary', 'John'])
     expect(party().querySelector('.cast-card--speaking')).toBeNull()
-    expect(mounted.container.querySelector('.view-conversation')?.textContent).not.toContain('room opened by you')
+    expect(mounted!.container.querySelector('.view-conversation')?.textContent).not.toContain('room opened by you')
     // The room has no tile, no state and no entry among the persona sessions.
-    expect(mounted.container.querySelectorAll('.persona-tile')).toHaveLength(2)
+    expect(mounted!.container.querySelectorAll('.persona-tile')).toHaveLength(2)
     expect(opened).toEqual([])
   })
 
   it('lights the speaker’s card while the room is mid-turn, draws party turns for the room only, and takes a message with no gate (Story 4.2)', async () => {
-    mounted = mount(createElement(App))
-    await settle()
-    await settle()
+    await mountOnMary()
     click(partyButton())
     click(openButton())
     await settle()
@@ -2260,7 +2285,7 @@ describe('the party view (Story 4.1)', () => {
     expect([...party().querySelectorAll('.turn-name')].map((name) => name.textContent)).toEqual(['John'])
     expect(party().querySelector('.turn--party-live')).not.toBeNull()
     // The 1:1 thread shows none of the room.
-    expect(mounted.container.querySelector('.view-conversation')?.textContent ?? '').not.toContain('No.')
+    expect(mounted!.container.querySelector('.view-conversation')?.textContent ?? '').not.toContain('No.')
 
     // No gate: the composer takes a message mid-turn, and it goes to the room.
     const field = party().querySelector('textarea') as HTMLTextAreaElement
@@ -2287,9 +2312,7 @@ describe('the party view (Story 4.1)', () => {
   })
 
   it('takes a message main refused as busy back out of the thread, says so once in the room, and hands the words back to the composer (Story 4.8)', async () => {
-    mounted = mount(createElement(App))
-    await settle()
-    await settle()
+    await mountOnMary()
     click(partyButton())
     click(openButton())
     await settle()
@@ -2332,9 +2355,7 @@ describe('the party view (Story 4.1)', () => {
       { path: '_bmad/party/earlier.md', state: 'saved', savedAt: 1, room: true }
     ]
     ;(window.harness as unknown as { getRail: () => Promise<unknown> }).getRail = async () => ({ revision: 2, folder: '_bmad/', rows })
-    mounted = mount(createElement(App))
-    await settle()
-    await settle()
+    await mountOnMary()
     click(partyButton())
     click(openButton())
     // The event is the first of the two to reach the window, so its time is the room's open time.
@@ -2375,9 +2396,7 @@ describe('the party view (Story 4.1)', () => {
   })
 
   it('asks the room’s session to write its summary when *Write summary to _bmad/* is pressed, and writes nothing itself (Story 4.4)', async () => {
-    mounted = mount(createElement(App))
-    await settle()
-    await settle()
+    await mountOnMary()
     click(partyButton())
     click(openButton())
     const openedAt = new Date(2026, 9, 8, 14, 31).getTime()
@@ -2402,9 +2421,7 @@ describe('the party view (Story 4.1)', () => {
   })
 
   it('returns the chooser when the room closes, and leaves the old line where it fell', async () => {
-    mounted = mount(createElement(App))
-    await settle()
-    await settle()
+    await mountOnMary()
     push({ name: 'session:opened', payload: { sessionId: 'r1', at: 1 } })
     expect(openButton()).toBeNull()
 
@@ -2414,9 +2431,7 @@ describe('the party view (Story 4.1)', () => {
   })
 
   it('stops the room with `stop room`: the session closes, the thread stays with the stop line above the chooser, and only *End session* clears it (Story 4.5)', async () => {
-    mounted = mount(createElement(App))
-    await settle()
-    await settle()
+    await mountOnMary()
     click(partyButton())
     click(openButton())
     await settle()
@@ -2432,7 +2447,7 @@ describe('the party view (Story 4.1)', () => {
     })
     const stop = party().querySelector<HTMLButtonElement>('button.party-stop') as HTMLButtonElement
     expect(stop.textContent).toBe('stop room')
-    const endButton = [...mounted.container.querySelectorAll('.topbar button')].find((button) => button.textContent === 'End session') as HTMLButtonElement
+    const endButton = [...mounted!.container.querySelectorAll('.topbar button')].find((button) => button.textContent === 'End session') as HTMLButtonElement
     expect(endButton.disabled).toBe(false)
 
     click(stop)
@@ -2467,9 +2482,7 @@ describe('the party view (Story 4.1)', () => {
   })
 
   it('shows the same stopped view when the room’s process exits on its own (Story 4.5)', async () => {
-    mounted = mount(createElement(App))
-    await settle()
-    await settle()
+    await mountOnMary()
     push({ name: 'session:opened', payload: { sessionId: 'r1', at: 1 } })
     push({ name: 'harness:said', payload: { sessionId: 'r1', id: 'm-0', text: 'session ended · the process exited', at: 2, room: true } })
     push({ name: 'session:closed', payload: { sessionId: 'r1', reason: 'process-exited', at: 3 } })
@@ -2489,9 +2502,7 @@ describe('the party view (Story 4.1)', () => {
     ]
     ;(window.harness as unknown as { getRail: () => Promise<unknown> }).getRail = async () => ({ revision: 2, folder: '_bmad/', rows })
     mounted.unmount()
-    mounted = mount(createElement(App))
-    await settle()
-    await settle()
+    await mountOnMary()
 
     const owners = [...mounted.container.querySelectorAll('.output-row-owner')]
     expect(owners.map((owner) => [owner.textContent, owner.classList.contains('output-row-owner--room')])).toEqual([
@@ -2549,10 +2560,9 @@ describe('following the thread, in the window (Story 5.3)', () => {
     act(() => void root().querySelector(selector)?.dispatchEvent(new Event('scroll')))
   }
 
+  /** The window opens on the New session chat (Story 7.5), which has no thread to follow: turn to Mary's first. */
   async function opened(): Promise<void> {
-    mounted = mount(createElement(App))
-    await settle()
-    await settle()
+    await mountOnMary()
   }
 
   it('opens at the bottom with no control, and puts the thread there after a send, a persona selected and the room opened', async () => {
@@ -2644,9 +2654,7 @@ describe('App, the output folder (Story 5.4)', () => {
     return live()
   }
   const start = async (): Promise<void> => {
-    mounted = mount(createElement(App))
-    await settle()
-    await settle()
+    await mountOnMary()
   }
 
   it('shows the folder and `change…` in the Outputs head, and no state line while there is none', async () => {
@@ -2872,5 +2880,568 @@ describe('App, the `/` list (Story 7.3)', () => {
     expect(mounted!.container.querySelector('[role="listbox"]')).toBeNull()
     expect(opened).toEqual([mary.id, john.id])
     expect(sent).toEqual([['session-of-bmad-agent-pm', 'hello', '@John']])
+  })
+})
+
+describe('App, the New session chat and a skill-first session (Story 7.5)', () => {
+  const SKILLS = [
+    { name: 'bmad-build', description: 'Build a thing' },
+    { name: 'bmad-agent-pm', description: 'John' },
+    { name: 'bmad-party-mode', description: 'The room' }
+  ]
+  const root = (): HTMLElement => mounted!.container
+  const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
+  const enter = (): void =>
+    act(() => void field().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })))
+  const say = async (text: string): Promise<void> => {
+    type(field(), text)
+    enter()
+    await settle()
+  }
+  const button = (label: string): HTMLButtonElement | undefined =>
+    [...root().querySelectorAll<HTMLButtonElement>('button')].find((candidate) => candidate.textContent === label)
+  const header = (): HTMLElement => root().querySelector('.chat-head') as HTMLElement
+  const thread = (): HTMLElement => root().querySelector('.thread') as HTMLElement
+  const seats = (): HTMLButtonElement[] =>
+    [...root().querySelectorAll<HTMLButtonElement>('.team-group:last-child button.persona-tile')].filter((tileButton) =>
+      tileButton.querySelector('.initials--skill') !== null
+    )
+  const said = (text: string, messageId = 'a1', sessionId = 'sk1', at = 20): void =>
+    push({ name: 'persona:said', payload: { sessionId, messageId, text, at, skillSession: sessionId } })
+  const live = (): string => root().querySelector(LIVE_REGIONS)?.textContent ?? ''
+  const boardOf = (): HTMLElement => root().querySelector('.view-board') as HTMLElement
+  const pressView = (label: string): void =>
+    act(() => [...root().querySelectorAll<HTMLButtonElement>('.view-switch button')].find((candidate) => candidate.textContent === label)?.click())
+
+  /** A window with the install's skills, on the New session chat as every window opens. */
+  async function start(): Promise<void> {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    act(() => installListeners.forEach((listener) => listener({ ...snapshot, revision: 2, skills: SKILLS })))
+    await settle()
+  }
+  /** `bmad-build` started from the chat: the session is up and its first turn is in flight. */
+  async function building(text = '/bmad-build make a thing', sessionId = 'sk1'): Promise<void> {
+    firstAnswer = () => ({ sessionId, skill: 'bmad-build' })
+    await start()
+    await say(text)
+    push({ name: 'session:opened', payload: { sessionId, skill: 'bmad-build', at: Date.now() } })
+  }
+
+  describe('the New session chat', () => {
+    it('is what a window opens on: the `/` disc and `New session` in the header, no pill, Stop or close, an empty thread', async () => {
+      await start()
+
+      expect(header().querySelector('h2')?.textContent).toBe('New session')
+      const disc = header().querySelector('.initials--header.initials--skill')
+      expect(disc?.textContent).toBe('/')
+      expect(disc?.getAttribute('aria-hidden')).toBe('true')
+      expect(header().querySelector('.state-line, button')).toBeNull()
+      expect(thread().textContent).toBe('')
+      expect(root().querySelector('.persona-tile[aria-current]')).toBeNull()
+    })
+
+    it('has a composer that is empty, focused, with no placeholder and the accessible name `message`', async () => {
+      await start()
+
+      expect(field().value).toBe('')
+      expect(field().hasAttribute('placeholder')).toBe(false)
+      expect(field().getAttribute('aria-label')).toBe('message')
+      expect(document.activeElement).toBe(field())
+      expect(field().disabled).toBe(false)
+    })
+
+    it('gives that composer the `/` list and no skill row, and lists nothing in the persona’s composer beside it', async () => {
+      await start()
+      type(field(), '/')
+
+      expect([...root().querySelectorAll('[role="option"] .skill-list-name')].map((row) => row.textContent)).toEqual(
+        SKILLS.map(({ name }) => name)
+      )
+      expect(root().querySelector('.skill-row')).toBeNull()
+    })
+
+    it('has the `Skill Session` button: a native button, pressed while the chat is in view, in the Team half before the tiles', async () => {
+      await start()
+      const pressed = button('Skill Session') as HTMLButtonElement
+
+      expect(pressed.tagName).toBe('BUTTON')
+      expect(pressed.getAttribute('aria-pressed')).toBe('true')
+      expect(pressed.hasAttribute('disabled')).toBe(false)
+      expect(pressed.querySelector('svg, img, .icon')).toBeNull()
+      expect(pressed.getAttributeNames().sort()).toEqual(['aria-pressed', 'class', 'type'])
+      expect(pressed.closest('.skill-session-row')?.parentElement?.closest('.sidebar')).not.toBeNull()
+      const order = [...root().querySelectorAll('.sidebar button')]
+      expect(order.indexOf(pressed)).toBeLessThan(order.indexOf(tile('Mary')))
+
+      act(() => tile('Mary').click())
+      await settle()
+      expect(pressed.getAttribute('aria-pressed')).toBe('false')
+      expect(header().querySelector('h2')?.textContent).toBe('Mary')
+    })
+
+    it('is kept, with its half-typed text and its lines, while a tile is chosen, and returned to by the button', async () => {
+      await start()
+      await say('hello there')
+      type(field(), 'half of a mess')
+
+      act(() => tile('John').click())
+      await settle()
+      expect(header().querySelector('h2')?.textContent).toBe('John')
+      expect(thread().textContent).not.toContain('no skill named')
+
+      act(() => button('Skill Session')?.click())
+      await settle()
+
+      expect(header().querySelector('h2')?.textContent).toBe('New session')
+      expect(field().value).toBe('half of a mess')
+      expect([...thread().querySelectorAll('.sysline')].map((line) => line.textContent)).toEqual(['no skill named hello'])
+      expect(document.activeElement).toBe(field())
+    })
+
+    it('is left kept, too, for the Party view and the Board, and the button reads unpressed there', async () => {
+      await start()
+      type(field(), 'kept')
+      pressView('Board')
+
+      expect(button('Skill Session')?.getAttribute('aria-pressed')).toBe('false')
+      pressView('1:1 Conversation')
+      expect(button('Skill Session')?.getAttribute('aria-pressed')).toBe('true')
+      expect(field().value).toBe('kept')
+    })
+  })
+
+  describe('a first message that names no skill', () => {
+    it.each([
+      ['text with no slash', 'hello there', 'no skill named hello'],
+      ['an @name', '@Mary hi', 'no skill named @Mary'],
+      ['a name that is no skill', '/nope', 'no skill named nope']
+    ])('refuses %s with one line, no user turn, no persona and the text kept', async (_why, text, line) => {
+      await start()
+      await say(text)
+
+      expect(firsts).toEqual([text])
+      expect([...thread().querySelectorAll('.sysline')].map((node) => node.textContent)).toEqual([line])
+      expect(thread().querySelector('.turn')).toBeNull()
+      expect(field().value).toBe(text)
+      expect(opened).toEqual([])
+      expect(sent).toEqual([])
+      expect(root().querySelectorAll('.persona-tile[aria-current]')).toHaveLength(0)
+    })
+
+    it('announces the line once, politely, and sends nothing of a message that is only whitespace', async () => {
+      await start()
+      await say('   ')
+      expect(firsts).toEqual([])
+
+      await say('hello')
+      await act(async () => void (await new Promise((resolve) => setTimeout(resolve, 300))))
+      expect(live()).toBe('no skill named hello')
+      expect(root().querySelectorAll(LIVE_REGIONS)).toHaveLength(1)
+    })
+
+    it('shows main’s other refusal as the failure line, with the text kept and no line of the chat’s own', async () => {
+      firstAnswer = () => {
+        throw { code: 'session/spawn-failed', message: 'session · could not start the session' }
+      }
+      await start()
+      await say('/bmad-build go')
+
+      expect(root().querySelector('.error-line')?.textContent).toContain('could not start the session')
+      expect(thread().querySelector('.sysline')).toBeNull()
+      expect(field().value).toBe('/bmad-build go')
+    })
+  })
+
+  describe('a first message that names a skill', () => {
+    it('sends only the text as typed, starts the session and turns the chat to it: its header, its first turn, its seat', async () => {
+      await building()
+
+      expect(firsts).toEqual(['/bmad-build make a thing'])
+      expect(header().querySelector('h2')?.textContent).toBe('bmad-build')
+      expect(header().querySelector('.chat-head-name--skill')).not.toBeNull()
+      expect(header().querySelector('.initials--header.initials--skill')?.textContent).toBe('/')
+      expect([...thread().querySelectorAll('.turn--user .turn-words')].map((node) => node.textContent)).toEqual(['/bmad-build make a thing'])
+      expect(button('Skill Session')?.getAttribute('aria-pressed')).toBe('false')
+      expect(opened).toEqual([])
+      expect(sent).toEqual([])
+    })
+
+    it('puts keyboard focus in the new session’s composer, as a turn to a seat does, and not on the page', async () => {
+      await building()
+
+      expect(document.activeElement).toBe(field())
+      expect(field().getAttribute('aria-label')).toBe('Message bmad-build')
+    })
+
+    it('puts the seat in a `Skill sessions` group below every persona group, with the `/` disc and the name in mono', async () => {
+      await building()
+
+      const team = root().querySelector('.team-list') as HTMLElement
+      const groups = [...team.querySelectorAll('.team-group')]
+      expect(groups.at(-1)?.querySelector('.rail-group')?.textContent).toBe('Skill sessions')
+      expect(groups.slice(0, -1).some((group) => group.querySelector('.initials--skill') !== null)).toBe(false)
+      const [seat] = seats()
+      expect(seat.querySelector('.initials--thread.initials--skill')?.textContent).toBe('/')
+      expect(seat.querySelector('.tile-name--skill')?.textContent).toBe('bmad-build')
+      expect(seat.getAttribute('aria-current')).toBe('true')
+      expect(seat.querySelector('.tile-title')).toBeNull()
+      expect(seat.querySelector('.menu-hint')).toBeNull()
+      expect(seat.querySelector('button, input, [role]')).toBeNull()
+    })
+
+    it('reads working with the counter, then live, in the seat and the header; ended has no dot', async () => {
+      await building()
+      const state = (): string => seats()[0].querySelector('.tile-state')?.textContent ?? ''
+
+      expect(state()).toMatch(/^working · /)
+      expect(seats()[0].querySelector('.status-dot--work')).not.toBeNull()
+      expect(header().querySelector('.state-line--work')).not.toBeNull()
+      expect(header().querySelector('button.chat-close')?.textContent).toBe('Stop')
+
+      push({ name: 'session:awaiting-turn', payload: { sessionId: 'sk1', at: Date.now() } })
+      expect(state()).toBe('live')
+      expect(seats()[0].querySelector('.status-dot--live')).not.toBeNull()
+      expect(header().querySelector('button.chat-close')?.textContent).toBe('close session')
+
+      push({ name: 'session:closed', payload: { sessionId: 'sk1', skill: 'bmad-build', reason: 'process-exited', at: Date.now() } })
+      expect(state()).toBe('ended')
+      expect(seats()[0].querySelector('.status-dot')).toBeNull()
+      expect(header().querySelector('.status-dot')).toBeNull()
+      expect(header().querySelector('button.chat-close')?.textContent).toBe('close session')
+    })
+
+    it('shows the start time after the name only while two seats share it', async () => {
+      await building()
+      expect(seats()[0].querySelector('.tile-title')).toBeNull()
+
+      push({ name: 'session:opened', payload: { sessionId: 'sk2', skill: 'bmad-build', at: Date.now() } })
+
+      expect(seats().map((seat) => seat.querySelector('.tile-title')?.textContent)).toEqual([
+        expect.stringMatching(/^\d\d:\d\d$/),
+        expect.stringMatching(/^\d\d:\d\d$/)
+      ])
+    })
+
+    it('speaks as the skill in mono beside the `/` disc, with the time and no role, and nowhere else', async () => {
+      await building()
+      said('Working on it.')
+
+      const turn = thread().querySelector('.turn:not(.turn--user)') as HTMLElement
+      expect(turn.querySelector('.initials--thread.initials--skill')?.textContent).toBe('/')
+      expect(turn.querySelector('.turn-name--mono')?.textContent).toBe('bmad-build')
+      expect(turn.querySelector('.turn-role')).toBeNull()
+      expect(turn.querySelector('.turn-time')?.textContent).toMatch(/^\d\d:\d\d$/)
+      expect(turn.textContent).toContain('Working on it.')
+
+      // The shared thread of a persona draws none of it.
+      act(() => tile('Mary').click())
+      await settle()
+      expect(thread().textContent).not.toContain('Working on it.')
+      expect(thread().textContent).not.toContain('bmad-build')
+    })
+
+    it('draws the first message’s run card in its own thread, headed `<skill> run`, and raises one activity line per run event with no code', async () => {
+      await building()
+      push({ name: 'run:started', payload: { runId: 'r1', sessionId: 'sk1', code: 'bmad-build', skill: 'bmad-build', at: Date.now() } })
+
+      const card = thread().querySelector('.run-card') as HTMLElement
+      expect(card.querySelector('.run-card-head')?.textContent).toMatch(/^bmad-build run/)
+      expect(thread().querySelector('.run-card-line')).toBeNull()
+      expect(root().querySelector('.chat > .pinned')).toBeNull()
+      // Another chat does not draw it.
+      act(() => tile('Mary').click())
+      await settle()
+      expect(root().querySelector('.run-card')).toBeNull()
+    })
+
+    it('raises a Recent activity row from the card’s skill: the skill’s name and the bare verb, no code, and no Board card or agent row', async () => {
+      boardNow = async () => ({ revision: 1, kind: 'read', epics: [], others: [] })
+      await building()
+      pressView('Board')
+      const feed = (): string[] =>
+        [...boardOf().querySelectorAll('.board-activity-row')].map(
+          (row) => `${row.querySelector('.board-activity-who')?.textContent} ${row.querySelector('.board-activity-did')?.textContent}`
+        )
+      push({ name: 'run:started', payload: { runId: 'r1', sessionId: 'sk1', code: 'bmad-build', skill: 'bmad-build', at: Date.now() - 5_000 } })
+
+      expect(feed()).toEqual(['bmad-build started'])
+      expect(boardOf().querySelector('.board-activity-row .status-dot--work')).not.toBeNull()
+
+      push({ name: 'run:finished', payload: { runId: 'r1', sessionId: 'sk1', at: Date.now() } })
+      expect(feed()).toEqual(['bmad-build finished', 'bmad-build started'])
+      expect(boardOf().querySelector('.board-card')).toBeNull()
+      expect([...boardOf().querySelectorAll('.board-agent-name')].map((node) => node.textContent)).not.toContain('bmad-build')
+    })
+
+    it('sends a plain message to the same session, and queues one typed in flight as the skill’s', async () => {
+      await building()
+      await say('and then this')
+
+      expect(sent).toEqual([])
+      expect(thread().querySelector('.turn--queued')?.textContent).toContain('queued · sends when bmad-build finishes')
+
+      push({ name: 'session:awaiting-turn', payload: { sessionId: 'sk1', at: Date.now() } })
+      expect(sent).toEqual([['sk1', 'and then this']])
+      expect(thread().querySelector('.turn--queued')).toBeNull()
+      expect(field().getAttribute('aria-label')).toBe('Message bmad-build')
+    })
+
+    it('has no `/` list and no skill row in its composer: nothing inside a session suggests starting another', async () => {
+      await building()
+      type(field(), '/')
+
+      expect(root().querySelector('[role="listbox"]')).toBeNull()
+      expect(root().querySelector('.skill-row')).toBeNull()
+    })
+
+    it('stops its turn from the header’s Stop, asking main for that session alone', async () => {
+      await building()
+
+      act(() => (header().querySelector('button.chat-close') as HTMLButtonElement).click())
+      await settle()
+
+      expect(turnStopped).toEqual(['sk1'])
+      expect(closedSessions).toEqual([])
+    })
+
+    it('counts no persona anywhere: the strip, the Agents panel and the thread of a persona are as they were', async () => {
+      const strip = (): string => root().querySelector('.team-strip')?.textContent ?? ''
+      await start()
+      const before = strip()
+      firstAnswer = () => ({ sessionId: 'sk1', skill: 'bmad-build' })
+      await say('/bmad-build go')
+      push({ name: 'session:opened', payload: { sessionId: 'sk1', skill: 'bmad-build', at: Date.now() } })
+      push({ name: 'run:started', payload: { runId: 'r1', sessionId: 'sk1', code: 'bmad-build', skill: 'bmad-build', at: Date.now() } })
+
+      expect(strip()).toBe(before)
+      expect(root().querySelectorAll('.team-strip .status-dot')).toHaveLength(0)
+    })
+
+    it('offers nothing about who to talk to next when its run ends: no suggestion, persona, handoff, button or line', async () => {
+      await building()
+      push({ name: 'run:started', payload: { runId: 'r1', sessionId: 'sk1', code: 'bmad-build', skill: 'bmad-build', at: Date.now() } })
+      said('All done.')
+      const before = thread().innerHTML
+      push({ name: 'run:finished', payload: { runId: 'r1', sessionId: 'sk1', at: Date.now() } })
+      push({ name: 'session:awaiting-turn', payload: { sessionId: 'sk1', at: Date.now() } })
+
+      expect(thread().querySelector('.sysline, .decision-block, .turn-mention')).toBeNull()
+      expect(thread().querySelectorAll('button')).toHaveLength(0)
+      expect(thread().textContent).not.toMatch(/Mary|John|talk to|next|suggest|hand/i)
+      expect(thread().querySelectorAll('.turn:not(.turn--user)')).toHaveLength(1)
+      expect(thread().innerHTML).not.toBe('')
+      expect(before).not.toBe('')
+    })
+  })
+
+  describe('ending it', () => {
+    it('kills nothing here: it asks main for that session, then removes its seat, thread and cards and lands on the New session chat with focus in its composer, saying nothing', async () => {
+      await building()
+      push({ name: 'run:started', payload: { runId: 'r1', sessionId: 'sk1', code: 'bmad-build', skill: 'bmad-build', at: Date.now() } })
+      said('Words.')
+      push({ name: 'session:awaiting-turn', payload: { sessionId: 'sk1', at: Date.now() } })
+      push({ name: 'run:finished', payload: { runId: 'r1', sessionId: 'sk1', at: Date.now() } })
+      const close = header().querySelector('button.chat-close') as HTMLButtonElement
+      expect(close.textContent).toBe('close session')
+
+      act(() => close.click())
+      push({ name: 'session:closed', payload: { sessionId: 'sk1', skill: 'bmad-build', reason: 'closed', at: Date.now() } })
+      await settle()
+
+      expect(closedSessions).toEqual(['sk1'])
+      expect(seats()).toHaveLength(0)
+      expect(root().querySelector('.rail-group')).toBeNull()
+      expect(header().querySelector('h2')?.textContent).toBe('New session')
+      expect(thread().textContent).toBe('')
+      expect(root().querySelector('.run-card')).toBeNull()
+      expect(document.activeElement).toBe(field())
+      expect(button('Skill Session')?.getAttribute('aria-pressed')).toBe('true')
+      await act(async () => void (await new Promise((resolve) => setTimeout(resolve, 300))))
+      // Ending says no line and announces nothing of its own (what the run's end said was said then).
+      expect(live()).not.toMatch(/closed|ended|session/)
+    })
+
+    it('touches no persona seat, no room and nothing in the shared thread', async () => {
+      await start()
+      act(() => tile('Mary').click())
+      await settle()
+      push({ name: 'session:opened', payload: { sessionId: 's-mary', agentId: mary.id, at: 1 } })
+      push({ name: 'persona:said', payload: { sessionId: 's-mary', agentId: mary.id, messageId: 'p1', text: 'Mary speaks', at: 2 } })
+      act(() => button('Skill Session')?.click())
+      firstAnswer = () => ({ sessionId: 'sk1', skill: 'bmad-build' })
+      await say('/bmad-build go')
+      push({ name: 'session:opened', payload: { sessionId: 'sk1', skill: 'bmad-build', at: Date.now() } })
+      push({ name: 'session:awaiting-turn', payload: { sessionId: 'sk1', at: Date.now() } })
+
+      act(() => (header().querySelector('button.chat-close') as HTMLButtonElement).click())
+      await settle()
+
+      expect(closedSessions).toEqual(['sk1'])
+      act(() => tile('Mary').click())
+      await settle()
+      expect(thread().textContent).toContain('Mary speaks')
+      expect(closedSessions).not.toContain('s-mary')
+      expect(tile('Mary').getAttribute('aria-label')).toContain('Mary, Role')
+    })
+
+    it('keeps the session and shows main’s refusal as the failure line when the end is refused', async () => {
+      await building()
+      push({ name: 'session:awaiting-turn', payload: { sessionId: 'sk1', at: Date.now() } })
+      ;(window.harness as unknown as { closeSession: (id: string) => Promise<void> }).closeSession = async () => {
+        throw { code: 'session/not-found', message: 'session · no such session is open' }
+      }
+
+      act(() => (header().querySelector('button.chat-close') as HTMLButtonElement).click())
+      await settle()
+
+      expect(seats()).toHaveLength(1)
+      expect(root().querySelector('.error-line')?.textContent).toContain('no such session is open')
+    })
+
+    it('leaves the New session chat as it was kept: its text is there on landing', async () => {
+      await start()
+      type(field(), 'half')
+      firstAnswer = () => ({ sessionId: 'sk1', skill: 'bmad-build' })
+      await say('/bmad-build go')
+      // The chat that sent was spent; the window lands on a fresh, empty one.
+      push({ name: 'session:opened', payload: { sessionId: 'sk1', skill: 'bmad-build', at: Date.now() } })
+      push({ name: 'session:awaiting-turn', payload: { sessionId: 'sk1', at: Date.now() } })
+      act(() => (header().querySelector('button.chat-close') as HTMLButtonElement).click())
+      await settle()
+
+      expect(field().value).toBe('')
+      expect(thread().textContent).toBe('')
+    })
+  })
+
+  describe('after a relaunch', () => {
+    const stored = (live: boolean): void => {
+      conversationNow = () => ({
+        entries: [
+          { kind: 'user', id: 'm-0', at: 1_700_000_000_000, text: '/bmad-build make a thing', skillSession: 'sk1' },
+          { kind: 'skill', id: 'm-1', at: 1_700_000_001_000, messageId: 'x', text: 'It was done.', skillSession: 'sk1' },
+          { kind: 'user', id: 'm-2', at: 1_700_000_002_000, text: 'a shared message' }
+        ],
+        sessions: [],
+        busy: [],
+        personas: [],
+        runs: [],
+        skillSessions: [{ sessionId: 'sk1', skill: 'bmad-build', live }]
+      })
+    }
+
+    it('lists it ended with its thread as it was and a header with `close session` only, and the shared thread draws none of it', async () => {
+      stored(false)
+      await start()
+      expect(seats()).toHaveLength(1)
+      expect(seats()[0].querySelector('.tile-state')?.textContent).toBe('ended')
+      expect(seats()[0].querySelector('.status-dot')).toBeNull()
+
+      act(() => seats()[0].click())
+      await settle()
+      expect(header().querySelector('h2')?.textContent).toBe('bmad-build')
+      expect([...header().querySelectorAll('button')].map((node) => node.textContent)).toEqual(['close session'])
+      expect(thread().textContent).toContain('It was done.')
+      expect(thread().textContent).not.toContain('a shared message')
+      expect(opened).toEqual([])
+
+      act(() => tile('Mary').click())
+      await settle()
+      expect(thread().textContent).toContain('a shared message')
+      expect(thread().textContent).not.toContain('It was done.')
+    })
+
+    it('answers a message to it `session ended` as one line in its thread, drawing no turn and keeping the text', async () => {
+      stored(false)
+      sendRefusal = () => ({ code: 'session/ended', message: 'session ended' })
+      await start()
+      act(() => seats()[0].click())
+      await settle()
+      const turns = thread().querySelectorAll('.turn').length
+
+      await say('are you there')
+
+      expect(sent).toEqual([])
+      expect([...thread().querySelectorAll('.sysline')].map((node) => node.textContent)).toEqual(['session ended'])
+      expect(thread().querySelectorAll('.turn')).toHaveLength(turns)
+      expect(field().value).toBe('are you there')
+      await act(async () => void (await new Promise((resolve) => setTimeout(resolve, 300))))
+      expect(live()).toBe('session ended')
+    })
+
+    it('removes what it kept when it is ended, and the window lands on the New session chat', async () => {
+      stored(false)
+      await start()
+      act(() => seats()[0].click())
+      await settle()
+
+      act(() => (header().querySelector('button.chat-close') as HTMLButtonElement).click())
+      await settle()
+
+      expect(closedSessions).toEqual(['sk1'])
+      expect(seats()).toHaveLength(0)
+      expect(header().querySelector('h2')?.textContent).toBe('New session')
+    })
+
+    it('lists one main still holds as live, and nothing else of a persona or a room changed', async () => {
+      stored(true)
+      conversationNow = () => ({
+        entries: [],
+        sessions: [],
+        busy: [],
+        personas: [],
+        runs: [],
+        skillSessions: [{ sessionId: 'sk1', skill: 'bmad-build', live: true }]
+      })
+      await start()
+
+      expect(seats()[0].querySelector('.tile-state')?.textContent).toBe('live')
+      expect(root().querySelectorAll('.team-strip .status-dot')).toHaveLength(0)
+    })
+  })
+
+  describe('a first message that names a persona or the room', () => {
+    it('turns to the persona’s seat with the words after the name sent to it, and starts no skill-first session', async () => {
+      firstAnswer = () => ({ sessionId: 'session-of-bmad-agent-pm', seat: john.id, rest: 'draft it' })
+      await start()
+      await say('/bmad-agent-pm draft it')
+      await settle()
+
+      expect(header().querySelector('h2')?.textContent).toBe('John')
+      expect(tile('John').getAttribute('aria-current')).toBe('true')
+      expect(sent).toEqual([['session-of-bmad-agent-pm', 'draft it']])
+      expect(seats()).toHaveLength(0)
+      expect(button('Skill Session')?.getAttribute('aria-pressed')).toBe('false')
+      expect(field().getAttribute('aria-label')).toBe('Message John')
+    })
+
+    it('opens the room and sends the words after the name as a room turn, and the empty chat is spent', async () => {
+      firstAnswer = () => ({ sessionId: 'session-of-the-room', room: { cast: [mary.id, john.id], openedAt: 1_700_000_000_000 }, rest: 'let us begin' })
+      await start()
+      await say('/bmad-party-mode let us begin')
+      await settle()
+
+      expect(sent).toEqual([['session-of-the-room', 'let us begin']])
+      expect((root().querySelector('.view-party') as HTMLElement).hidden).toBe(false)
+      expect(seats()).toHaveLength(0)
+      expect(button('Skill Session')?.getAttribute('aria-pressed')).toBe('false')
+    })
+
+    it('has a fresh, empty chat for the button after the first message was sent', async () => {
+      firstAnswer = () => ({ sessionId: 'session-of-bmad-agent-pm', seat: john.id })
+      await start()
+      // A trailing space closes the `/` list, so Enter sends what was typed.
+      await say('/bmad-agent-pm ')
+      await settle()
+
+      act(() => button('Skill Session')?.click())
+      await settle()
+
+      expect(header().querySelector('h2')?.textContent).toBe('New session')
+      expect(field().value).toBe('')
+      expect(thread().textContent).toBe('')
+    })
   })
 })

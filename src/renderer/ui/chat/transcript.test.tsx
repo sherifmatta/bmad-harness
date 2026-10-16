@@ -253,3 +253,66 @@ describe('Turns and the room (Story 4.2)', () => {
     expect(markup).not.toContain('room opened by you')
   })
 })
+
+describe('Turns, a skill-first session’s thread (Story 7.5)', () => {
+  const skillRun: RunCardEntry = card('sk', { skill: 'bmad-build', skillSession: 's1', at: 60 })
+  delete skillRun.agentId
+  const entries: TranscriptEntry[] = [
+    { kind: 'user', id: 'u0', at: 10, text: 'shared words' },
+    { kind: 'user', id: 'u1', at: 50, text: '/bmad-build go', skillSession: 's1' },
+    skillRun,
+    { kind: 'skill', id: 'k1', at: 70, text: 'On it.', messageId: 'm', skillSession: 's1' },
+    { kind: 'skill', id: 'k2', at: 71, text: 'Other session words.', messageId: 'n', skillSession: 's2' },
+    { kind: 'sysline', id: 'l1', at: 80, text: 'session ended', skillSession: 's1' },
+    { kind: 'sysline', id: 'l2', at: 81, text: 'a shared line' }
+  ]
+  const draw = (view?: { sessionId: string; name: string; inFlight?: { since: number; entryId: string | undefined } }): string => {
+    const prose = createProseStore({ raf: (run) => run() })
+    return renderToStaticMarkup(<Turns entries={entries} prose={prose} skillView={view} />)
+  }
+
+  it('draws only its own entries in its own thread, spoken as the skill, and the shared thread draws none of them', () => {
+    const own = draw({ sessionId: 's1', name: 'bmad-build' })
+
+    expect(own).toContain('/bmad-build go')
+    expect(own).toContain('On it.')
+    expect(own).toContain('session ended')
+    expect(own).toContain('<span class="turn-name turn-name--mono">bmad-build</span>')
+    expect(own).not.toContain('shared words')
+    expect(own).not.toContain('Other session words.')
+    expect(own).not.toContain('a shared line')
+
+    const shared = draw()
+    expect(shared).toContain('shared words')
+    expect(shared).toContain('a shared line')
+    for (const hidden of ['/bmad-build go', 'On it.', 'session ended', 'run-card', 'Other session words.']) {
+      expect(shared).not.toContain(hidden)
+    }
+  })
+
+  it('draws the run’s card in full, headed `<skill> run`, never a persona-less line', () => {
+    const own = draw({ sessionId: 's1', name: 'bmad-build' })
+
+    expect(own).toContain('class="run-card"')
+    expect(own).not.toContain('run-card-line')
+    expect(own).toContain('class="run-card-skill">bmad-build</span> <span class="run-card-run">run')
+  })
+
+  it('has no role slot in a skill’s turn head, and the time after the name', () => {
+    const own = draw({ sessionId: 's1', name: 'bmad-build' })
+    const turn = own.slice(own.indexOf('turn-name--mono'), own.indexOf('On it.'))
+
+    expect(turn).not.toContain('turn-role')
+    expect(turn.indexOf('turn-name')).toBeLessThan(turn.indexOf('turn-time'))
+  })
+
+  it('draws the turn in flight: the caret on the entry being written, or a pending turn before the first word', () => {
+    const writing = draw({ sessionId: 's1', name: 'bmad-build', inFlight: { since: 60, entryId: 'k1' } })
+    expect(writing).toContain('class="caret')
+    expect(writing).not.toContain('turn--pending')
+
+    const pending = draw({ sessionId: 's1', name: 'bmad-build', inFlight: { since: 90, entryId: undefined } })
+    expect(pending).toContain('turn--pending')
+    expect(pending.lastIndexOf('turn--pending')).toBeGreaterThan(pending.indexOf('session ended'))
+  })
+})

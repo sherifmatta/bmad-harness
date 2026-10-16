@@ -54,10 +54,11 @@ export function showsHeadings(groups: readonly TileGroup[]): boolean {
 }
 
 /**
- * The current persona: the chosen id if the roster still holds it, else the
- * topmost tile, else nobody. Derived at render and never stored, so a roster
- * change that drops the current agent lands in one frame with no stale header.
+ * The current persona: the chosen id if the roster still holds it, else nobody
+ * (Story 7.5: a window opens on the New session chat, so no tile is current until
+ * one is chosen). Derived at render and never stored, so a roster change that drops
+ * the current agent lands in one frame with no stale header.
  */
 export function currentAgent(order: readonly AgentView[], currentId: string | null): AgentView | null {
-  return order.find((agent) => agent.id === currentId) ?? order[0] ?? null
+  return order.find((agent) => agent.id === currentId) ?? null
 }

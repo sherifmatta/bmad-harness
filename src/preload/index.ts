@@ -193,6 +193,15 @@ const harness: HarnessApi = {
     if (reply.room !== undefined) {
       opened.room = reply.room
     }
+    if (reply.skill !== undefined) {
+      opened.skill = reply.skill
+    }
+    if (reply.seat !== undefined) {
+      opened.seat = reply.seat
+    }
+    if (reply.rest !== undefined) {
+      opened.rest = reply.rest
+    }
     return opened
   },
 

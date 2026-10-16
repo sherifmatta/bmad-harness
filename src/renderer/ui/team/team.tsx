@@ -4,9 +4,14 @@ import type { JSX, KeyboardEvent } from 'react'
 import type { AgentView, MenuEntryView } from '../../../shared/install'
 import type { PersonaState } from '../status/persona-state'
 import { stateOf } from '../status/persona-state'
-import { PersonaTile } from './persona-tile'
+import { skillKey } from '../status/skill-seat'
+import type { SkillSeat } from '../status/skill-seat'
+import { PersonaTile, SkillSeatTile } from './persona-tile'
 import { displayOrder, groupAgents, showsHeadings } from './tile-groups'
 import { tabStopId, tileMove } from './tile-nav'
+
+/** No skill-first session: no `Skill sessions` group. */
+const NO_SEATS: readonly SkillSeat[] = []
 
 /**
  * The rail's Team half (FR18, FR22, UX-DR16): one tile per installed agent,
@@ -18,6 +23,10 @@ import { tabStopId, tileMove } from './tile-nav'
  * tile current and takes the tab stop, and focus stays where it is. When the
  * current persona changes some other way, the tab stop follows it.
  *
+ * A skill-first session's seat (Story 7.5) is a row of the same list, in a `Skill sessions` group below every
+ * persona group, in start order, drawn only while one exists. The roving list covers them as it covers the tiles;
+ * `currentSeatId` marks the one the chat is turned to, and then no persona tile is current.
+ *
  * `states` is read and never written: a tile's state is `states.get(id)` or
  * `idle`, fed by what main reports of each persona's sessions. `since` is when
  * that state began, which a `work` tile counts its elapsed time from.
@@ -28,7 +37,10 @@ export function Team({
   states,
   since,
   currentId,
-  onSelect
+  onSelect,
+  skillSeats = NO_SEATS,
+  currentSeatId = null,
+  onSelectSeat
 }: {
   agents: readonly AgentView[]
   menus: Readonly<Record<string, readonly MenuEntryView[]>>
@@ -36,26 +48,33 @@ export function Team({
   since?: ReadonlyMap<string, number>
   currentId: string | null
   onSelect: (id: string) => void
+  /** The skill-first sessions, in start order. */
+  skillSeats?: readonly SkillSeat[]
+  /** The session id of the seat the chat is turned to, if one is. */
+  currentSeatId?: string | null
+  /** Called with a seat's session id when it is chosen. */
+  onSelectSeat?: (sessionId: string) => void
 }): JSX.Element | null {
   const [movedToId, setMovedToId] = useState<string | null>(null)
-  const [seenCurrentId, setSeenCurrentId] = useState(currentId)
+  const currentKey = currentSeatId === null ? currentId : skillKey(currentSeatId)
+  const [seenCurrentId, setSeenCurrentId] = useState(currentKey)
   const tiles = useRef(new Map<string, HTMLButtonElement>())
 
   // The current persona can change without a tile being touched (`@<name>` in
   // the composer): the tab stop and `aria-current` then follow it, so the two
   // never name different tiles. Arrow travel still moves the tab stop alone.
-  if (seenCurrentId !== currentId) {
-    setSeenCurrentId(currentId)
+  if (seenCurrentId !== currentKey) {
+    setSeenCurrentId(currentKey)
     setMovedToId(null)
   }
 
   const groups = groupAgents(agents)
   const order = displayOrder(groups)
-  if (order.length === 0) {
+  if (order.length === 0 && skillSeats.length === 0) {
     return null
   }
-  const ids = order.map((agent) => agent.id)
-  const tabStop = tabStopId(ids, movedToId, currentId)
+  const ids = [...order.map((agent) => agent.id), ...skillSeats.map(({ sessionId }) => skillKey(sessionId))]
+  const tabStop = tabStopId(ids, movedToId, currentKey)
   const headed = showsHeadings(groups)
 
   function onKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number): void {
@@ -78,6 +97,14 @@ export function Team({
     setMovedToId(id)
     onSelect(id)
   }
+
+  function selectSeat(sessionId: string): void {
+    setMovedToId(skillKey(sessionId))
+    onSelectSeat?.(sessionId)
+  }
+
+  /** A seat's start time shows only while another seat shares its name. */
+  const timed = (seat: SkillSeat): boolean => skillSeats.some((other) => other !== seat && other.skill === seat.skill)
 
   return (
     <div className="team-list" role="group" aria-label="Team">
@@ -111,6 +138,33 @@ export function Team({
           })}
         </div>
       ))}
+      {skillSeats.length > 0 && (
+        <div className="team-group">
+          <div className="rail-group">Skill sessions</div>
+          {skillSeats.map((seat) => {
+            const key = skillKey(seat.sessionId)
+            const index = ids.indexOf(key)
+            return (
+              <SkillSeatTile
+                key={key}
+                seat={seat}
+                timed={timed(seat)}
+                current={seat.sessionId === currentSeatId}
+                tabStop={key === tabStop}
+                onSelect={selectSeat}
+                onKeyDown={(event) => onKeyDown(event, index)}
+                tileRef={(element) => {
+                  if (element === null) {
+                    tiles.current.delete(key)
+                  } else {
+                    tiles.current.set(key, element)
+                  }
+                }}
+              />
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

@@ -748,3 +748,30 @@ describe('the run list in the card (Story 3.17)', () => {
     expect(root.querySelector('.run-step--running')).toBeNull()
   })
 })
+
+describe('RunCard, a skill-first session’s card that writes a document (Story 7.5)', () => {
+  it('reads `<skill> run` in its head, not the document’s path, whether a document was confirmed or only a plan is held', () => {
+    const store = createProseStore({ raf: (callback) => callback() })
+    store.append('r1', 'c1', '_bmad/out/spec.md', 'Words.')
+    const written = card({ skill: 'bmad-build', skillSession: 'sk1', documents: [{ path: '_bmad/out/spec.md', sections: ['A'] }] })
+    mounted = mount(createElement(RunCard, { entry: written, prose: store }))
+
+    const head = mounted.container.querySelector('.run-card-path') as HTMLElement
+    expect(head.textContent).toBe('bmad-build run')
+    expect(head.querySelector('.run-card-skill')?.textContent).toBe('bmad-build')
+    expect(head.textContent).not.toContain('spec.md')
+    mounted.unmount()
+
+    const planned = card({ skill: 'bmad-build', skillSession: 'sk1', plan: ['A', 'B'] })
+    mounted = mount(createElement(RunCard, { entry: planned, prose: createProseStore({ raf: (callback) => callback() }) }))
+    expect(mounted.container.querySelector('.run-card-path')?.textContent).toBe('bmad-build run')
+  })
+
+  it('still reads the path for a persona’s card that wrote the same document', () => {
+    const store = createProseStore({ raf: (callback) => callback() })
+    store.append('r1', 'c1', '_bmad/out/spec.md', 'Words.')
+    mounted = mount(createElement(RunCard, { entry: card({ documents: [{ path: '_bmad/out/spec.md', sections: ['A'] }] }), prose: store }))
+
+    expect(mounted.container.querySelector('.run-card-path')?.textContent).toBe('_bmad/out/spec.md')
+  })
+})

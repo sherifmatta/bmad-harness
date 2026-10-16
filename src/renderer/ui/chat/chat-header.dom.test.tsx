@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import type { AgentView } from '../../../shared/install'
 import '../testing/render-hook'
-import { ChatHeader } from './chat-header'
+import { ChatHeader, NewSessionHeader, SkillHeader } from './chat-header'
 
 let container: HTMLElement
 let root: Root
@@ -115,5 +115,65 @@ describe('ChatHeader, the Stop control (Story 3.19)', () => {
     render(undefined, { turnInFlight: true, onStop: () => {} })
 
     expect(container.querySelector('button')).toBeNull()
+  })
+})
+
+describe('the skill-first session’s header (Story 7.5)', () => {
+  function renderSkill(props: Partial<Parameters<typeof SkillHeader>[0]> = {}): void {
+    container = document.createElement('div')
+    document.body.append(container)
+    root = createRoot(container)
+    act(() => root.render(createElement(SkillHeader, { skill: 'bmad-build', state: 'live', onClose: () => {}, ...props })))
+  }
+
+  it('is the `/` disc at 22px, the skill’s name in mono and the state, with no title or story reference', () => {
+    renderSkill()
+
+    expect(container.querySelector('.initials--header.initials--skill')?.textContent).toBe('/')
+    expect(container.querySelector('.initials--header')?.getAttribute('aria-hidden')).toBe('true')
+    expect(container.querySelector('h2.chat-head-name--skill')?.textContent).toBe('bmad-build')
+    expect(container.querySelector('.chat-head-title')).toBeNull()
+    expect(container.querySelector('.state-line--live')?.textContent).toBe('live')
+  })
+
+  it('reads working with the counter while a turn is in flight, and `Stop` is the one control, the same element as `close session`', () => {
+    let stops = 0
+    let closes = 0
+    renderSkill({ state: 'work', since: Date.now() - 5_000, turnInFlight: true, onStop: () => void (stops += 1), onClose: () => void (closes += 1) })
+    const control = container.querySelector('button.chat-close') as HTMLButtonElement
+
+    expect(container.querySelectorAll('button')).toHaveLength(1)
+    expect(control.textContent).toBe('Stop')
+    expect(control.getAttribute('aria-label')).toBe('Stop · bmad-build')
+    expect(container.querySelector('.state-elapsed')).not.toBeNull()
+    act(() => control.click())
+    expect([stops, closes]).toEqual([1, 0])
+
+    act(() => root.render(createElement(SkillHeader, { skill: 'bmad-build', state: 'live', turnInFlight: false, onClose: () => void (closes += 1), onStop: () => void (stops += 1) })))
+    expect(container.querySelector('button.chat-close')).toBe(control)
+    expect(control.textContent).toBe('close session')
+    act(() => control.click())
+    expect([stops, closes]).toEqual([1, 1])
+  })
+
+  it('reads ended with no dot, and keeps `close session`, which removes what the session kept', () => {
+    renderSkill({ state: 'ended', turnInFlight: true })
+
+    expect(container.querySelector('.state-line--ended')?.textContent).toBe('ended')
+    expect(container.querySelector('.status-dot')).toBeNull()
+    expect(container.querySelector('button.chat-close')?.textContent).toBe('close session')
+  })
+})
+
+describe('the New session chat’s header (Story 7.5)', () => {
+  it('is the `/` disc at 22px and `New session`, and no pill, Stop or close', () => {
+    container = document.createElement('div')
+    document.body.append(container)
+    root = createRoot(container)
+    act(() => root.render(createElement(NewSessionHeader)))
+
+    expect(container.querySelector('.initials--header.initials--skill')?.textContent).toBe('/')
+    expect(container.querySelector('h2')?.textContent).toBe('New session')
+    expect(container.querySelector('button, .state-line, .status-dot')).toBeNull()
   })
 })

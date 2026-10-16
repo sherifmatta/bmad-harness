@@ -1,6 +1,7 @@
 import type { Sender } from './bridge-kit'
 import { endRun } from './session-run'
 import type { RunKit } from './session-run'
+import { kindOf } from './session-kind'
 import type { Entry, Service, SessionRegistry } from './session-registry'
 import { LINES } from './session-voice'
 
@@ -121,7 +122,7 @@ export async function stopRun(
  * does not end within `STOP_RESULT_MS` is the same fallback. The wait for the turn to end is the
  * room's (`untilIdle`), cancelled when the turn ends.
  *
- * `'not-found'` for a closed entry, a room, a session with no process yet and a session with no
+ * `'not-found'` for a closed entry, a room (a skill-first session is stopped as a persona's seat is, Story 7.5), a session with no process yet and a session with no
  * turn in flight. A second stop for a turn already stopping is accepted and writes nothing. The
  * reply is made once the interrupt is acknowledged or the fallback ran, not when the turn ended.
  */
@@ -131,7 +132,7 @@ export async function stopTurn(
   service: Service,
   entry: Entry
 ): Promise<'ok' | 'not-found'> {
-  if (entry.closed || entry.agentId === undefined) {
+  if (entry.closed || kindOf(entry) === 'room') {
     return 'not-found'
   }
   if (entry.run !== undefined) {

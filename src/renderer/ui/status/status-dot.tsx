@@ -4,7 +4,7 @@ import './status-dot.css'
 import { useNow } from '../outputs/use-now'
 import type { PersonaState } from './persona-state'
 import { formatElapsed } from './format-elapsed'
-import { STATE_TEXT } from './persona-state'
+import { ENDED_TEXT, STATE_TEXT } from './persona-state'
 
 /** How often the counter re-reads the clock: the finest unit it writes is a second. */
 export const COUNTER_TICK_MS = 1000
@@ -41,15 +41,16 @@ export function StateLine({
   state,
   since
 }: {
-  state: PersonaState
+  /** A persona's state, or `ended`: a skill-first session whose process is gone, which has the word and no dot (Story 7.5). */
+  state: PersonaState | 'ended'
   /** When the state began, in epoch milliseconds. */
   since?: number | undefined
 }): JSX.Element {
   return (
     <span className={`state-line state-line--${state}`}>
-      <StatusDot state={state} />
+      {state !== 'ended' && <StatusDot state={state} />}
       <span className="state-text">
-        {STATE_TEXT[state]}
+        {state === 'ended' ? ENDED_TEXT : STATE_TEXT[state]}
         {state === 'work' && since !== undefined && <ElapsedCounter since={since} />}
       </span>
     </span>

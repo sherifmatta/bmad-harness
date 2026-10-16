@@ -141,6 +141,20 @@ describe('work', () => {
     expect(table.shown.size).toBe(0)
   })
 
+  it('ignores a skill-first session whatever it does: it opens, runs, ends and closes with no persona touched (Story 7.5)', () => {
+    const skill = (event: ContractEvent): ContractEvent => event
+    const table = fold([
+      skill({ name: 'session:opened', payload: { sessionId: 'sk', skill: 'bmad-build', at: 10 } }),
+      started('sk'),
+      skill({ name: 'run:started', payload: { runId: 'r', sessionId: 'sk', code: 'bmad-build', skill: 'bmad-build', at: 11 } }),
+      skill({ name: 'run:finished', payload: { runId: 'r', sessionId: 'sk', at: 12 } }),
+      awaiting('sk'),
+      skill({ name: 'session:closed', payload: { sessionId: 'sk', skill: 'bmad-build', reason: 'closed', at: 30 } })
+    ])
+
+    expect(table).toBe(EMPTY_PERSONA_TABLE)
+  })
+
   it('is removed when its session closes', () => {
     const table = fold([opened('s1', A), closed('s1', A, 30)])
 

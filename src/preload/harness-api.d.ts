@@ -71,8 +71,11 @@ export interface HarnessApi {
    * Open the session for a persona, or find the one already open for it, and
    * resolve with its id (a reply that carried a handoff line, which main no
    * longer writes, would resolve with it too). Given `{ room }` it opens the room of that
-   * cast (Story 4.1), or finds the one already open. Rejects with the
-   * `HarnessError` envelope when main refused or could not start it.
+   * cast (Story 4.1), or finds the one already open. Given `{ first }`, the text of a first
+   * message typed in the New session chat (Story 7.5), main reads its `/<skill>` and answers
+   * with a persona's seat (`seat`, and `rest` when words followed), the room (as a room's
+   * open, and `rest`) or a skill-first session (`skill`), or refuses it (`session/no-skill`).
+   * Rejects with the `HarnessError` envelope when main refused or could not start it.
    */
   openSession(target: SessionTarget): Promise<OpenedSession>
   /**

@@ -15,6 +15,8 @@ export type RunProjection = {
   snapshot(): RunCardSnapshot[]
   /** The conversation ended: its cards go with it. */
   clear(): void
+  /** A skill-first session ended (Story 7.5): its cards go with it, and no other session's is touched. */
+  removeSession(sessionId: string): void
 }
 
 export function createRunProjection(): RunProjection {
@@ -37,6 +39,12 @@ export function createRunProjection(): RunProjection {
 
     clear() {
       cards.clear()
+    },
+
+    removeSession(sessionId) {
+      for (const [runId, card] of cards) {
+        if (card.sessionId === sessionId) cards.delete(runId)
+      }
     }
   }
 }

@@ -966,3 +966,32 @@ describe('routeFrame in a room (Story 4.2)', () => {
     expect(state.party).toEqual(initialRouteState.party)
   })
 })
+
+describe('a skill-first session (Story 7.5)', () => {
+  const SKILL: RouteContext = { sessionId: 's9', skillSession: 's9', projectRoot: ROOT, now: 7, roster: [{ id: 'bmad-agent-pm', name: 'John' }] }
+
+  it('says what the skill said as persona:said with the session flag and no agent, in one piece, whatever it looks like', () => {
+    const { events } = run([messageStart('m1'), textStart(0), textDelta(0, '**John:** a marker is only words here'), stop(0)], SKILL)
+
+    expect(events).toEqual([
+      {
+        name: 'persona:said',
+        payload: { sessionId: 's9', skillSession: 's9', messageId: 'm1', text: '**John:** a marker is only words here', at: 7 }
+      }
+    ])
+    expect(events[0].payload).not.toHaveProperty('agentId')
+  })
+
+  it('holds no room’s state of its own: the markers’ memory is never touched', () => {
+    const { state } = run([messageStart('m1'), textStart(0), textDelta(0, '**John:** hi'), stop(0)], SKILL)
+
+    expect(state.party).toEqual(initialRouteState.party)
+  })
+
+  it('is the room’s that has neither a persona nor a skill: its speech is still read for the markers', () => {
+    const room: RouteContext = { sessionId: 's1', projectRoot: ROOT, now: 7, roster: [{ id: 'bmad-agent-pm', name: 'John' }] }
+    const { events } = run([messageStart('m1'), textStart(0), textDelta(0, '**John:** hi'), stop(0)], room)
+
+    expect(events.map((event) => (event.name === 'persona:said' ? event.payload.agentId : undefined))).toEqual(['bmad-agent-pm'])
+  })
+})

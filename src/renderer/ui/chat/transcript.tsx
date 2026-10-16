@@ -7,7 +7,7 @@ import { RunCard } from './run-card'
 import { RunCardLine } from './run-card-line'
 import { isCollapsed } from './run-status'
 import { Sysline } from './sysline'
-import { PendingTurn, PersonaTurn, UserTurn } from './turn'
+import { PendingSkillTurn, PendingTurn, PersonaTurn, SkillTurn, UserTurn } from './turn'
 import type { RunCardEntry, TranscriptEntry } from './transcript-entry'
 
 /**
@@ -23,7 +23,7 @@ import type { RunCardEntry, TranscriptEntry } from './transcript-entry'
  * The markup is the shell's `.thread`, which already caps at `--thread-max`.
  */
 
-export type { PersonaEntry, RunCardEntry, SyslineEntry, TranscriptEntry, UserEntry } from './transcript-entry'
+export type { PersonaEntry, RunCardEntry, SkillEntry, SyslineEntry, TranscriptEntry, UserEntry } from './transcript-entry'
 
 /**
  * The entries ascending by `at`, stable: equal times keep the order they came
@@ -98,6 +98,17 @@ export type RunCollapse = {
  */
 export type PersonaInFlight = { agent: AgentView; since: number; entryId: string | undefined }
 
+/**
+ * The skill-first session a thread is drawn for (Story 7.5): its id, the skill's name as every line of it is
+ * spoken, and the turn in flight there, if one is (`skillTurnInFlight`). A thread drawn with none is the shared
+ * one, which draws nothing a skill-first session made.
+ */
+export type SkillView = {
+  sessionId: string
+  name: string
+  inFlight?: { since: number; entryId: string | undefined } | undefined
+}
+
 /** Whether an entry is a message of the user's still queued: those stay at the very foot. */
 function isQueuedEntry(entry: TranscriptEntry): boolean {
   return entry.kind === 'user' && entry.queuedFor !== undefined
@@ -116,7 +127,8 @@ export function Turns({
   pinnedRunId,
   collapse,
   onStop,
-  inFlight = []
+  inFlight = [],
+  skillView
 }: {
   entries: readonly TranscriptEntry[]
   /** Take a queued message back, by its entry id. */
@@ -139,10 +151,21 @@ export function Turns({
    * above the user's messages still queued.
    */
   inFlight?: readonly PersonaInFlight[]
+  /**
+   * Draw one skill-first session's thread (Story 7.5) instead of the shared one: only the entries flagged as
+   * that session's, spoken as the skill. Left out, no entry of any skill-first session is drawn.
+   */
+  skillView?: SkillView
 }): JSX.Element {
   // What the room said, or the user said into it, belongs to the party thread (Stories 4.1, 4.2):
-  // a persona's thread never draws it. A run's card carries no room flag and stays.
-  const own = orderEntries(entries.filter((entry) => entry.kind === 'run' || entry.room !== true))
+  // a persona's thread never draws it. A run's card carries no room flag and stays. What a skill-first
+  // session made belongs to its own thread alone (Story 7.5): the shared one draws none of it, and its own draws nothing else.
+  const own = orderEntries(
+    entries.filter(
+      (entry) =>
+        entry.skillSession === skillView?.sessionId && (entry.kind === 'run' || entry.room !== true)
+    )
+  )
   // A message still queued is drawn after everything else, in its own order: it has not been sent, so
   // a reply that lands meanwhile goes above it, where the pending turn stood, and never jumps across it.
   const ordered = [...own.filter((entry) => !isQueuedEntry(entry)), ...own.filter(isQueuedEntry)]
@@ -152,6 +175,9 @@ export function Turns({
     if (turn.entryId !== undefined) {
       writing.set(turn.entryId, turn.since)
     }
+  }
+  if (skillView?.inFlight?.entryId !== undefined) {
+    writing.set(skillView.inFlight.entryId, skillView.inFlight.since)
   }
   const unspoken = inFlight.filter((turn) => turn.entryId === undefined)
   // The pending turns sit after the last entry that is not a queued message of the user's.
@@ -191,6 +217,18 @@ export function Turns({
         />
       )
     }
+    if (entry.kind === 'skill') {
+      const since = writing.get(entry.id)
+      return (
+        <SkillTurn
+          key={entry.id}
+          name={skillView?.name ?? ''}
+          at={entry.at}
+          text={entry.text}
+          writing={writing.has(entry.id) ? { since } : undefined}
+        />
+      )
+    }
     if (entry.kind === 'persona') {
       // A decision is read only from the last entry, and only while its persona can
       // take a reply: any later entry, a turn in flight or no session removes it.
@@ -226,11 +264,15 @@ export function Turns({
   }
   // One list, keyed, so an entry keeps its node when the pending turns come and go above it.
   const drawnEntries = ordered.map(drawn)
+  const pendingSkill = skillView?.inFlight !== undefined && skillView.inFlight.entryId === undefined ? skillView : undefined
   drawnEntries.splice(
     foot,
     0,
     ...unspoken.map((turn) => <PendingTurn key={`in-flight-${turn.agent.id}`} agent={turn.agent} since={turn.since} />)
   )
+  if (pendingSkill?.inFlight !== undefined) {
+    drawnEntries.splice(foot + unspoken.length, 0, <PendingSkillTurn key={`in-flight-${pendingSkill.sessionId}`} name={pendingSkill.name} since={pendingSkill.inFlight.since} />)
+  }
   return <>{drawnEntries}</>
 }
 

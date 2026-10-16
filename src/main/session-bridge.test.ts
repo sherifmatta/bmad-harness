@@ -9,6 +9,7 @@ import { forgetInstall, rememberInstall } from './install-model'
 import { railAnnotatorFor } from './rail-annotations'
 import type { InstallProjection } from './projections/install'
 import { createTranscriptRegistry } from './projections/transcript'
+import { LINES } from './session-voice'
 import { STOP_ACK_MS, STOP_RESULT_MS } from './session-stop'
 import type { TranscriptRegistry, TranscriptRegistryDeps } from './projections/transcript'
 import { transcriptFilePath, writeTranscript as writeThrough } from './sources/persistence/transcript-file'
@@ -2733,5 +2734,580 @@ describe('a typed mention on turn.send (Story 2.15, AD-25)', () => {
 
     expect(await send(sender, reply.sessionId, 'go', '@Amelia')).toMatchObject({ error: { code: 'session/busy' } })
     expect(userTurns(sender)).toEqual([])
+  })
+})
+
+describe('skill-first sessions (Story 7.5)', () => {
+  const FIVE = {
+    'bmad-agent-analyst': 'Mary',
+    'bmad-agent-pm': 'John',
+    'bmad-agent-dev': 'Amelia'
+  }
+  /** The install's skills, in manifest order: a skill that is none of the persona's or the room's, and those two kinds. */
+  const INSTALLED = [
+    { name: 'bmad-build', description: 'Build a thing' },
+    { name: 'bmad-build-auto', description: 'Build, unattended' },
+    { name: 'bmad-agent-analyst', description: 'Mary' },
+    { name: 'bmad-agent-pm', description: 'John' },
+    { name: 'bmad-agent-ghost', description: 'A persona with no roster entry' },
+    { name: 'bmad-party-mode', description: 'The room' }
+  ]
+  let installed: typeof INSTALLED
+  const PROJECT = '/project-1'
+  const get = (sender: FakeSender): ConversationReply =>
+    (handlers.get(CONVERSATION_GET_CHANNEL) as unknown as (e: { sender: FakeSender }) => ConversationReply)({ sender })
+  const snapshotOf = (sender: FakeSender) => {
+    const reply = get(sender)
+    if (!reply.ok) throw new Error('no snapshot')
+    return reply.snapshot
+  }
+  const dispatch = (sender: FakeSender, sessionId: unknown, code: unknown) =>
+    (handlers.get('menu:dispatch') as unknown as (e: { sender: FakeSender }, id: unknown, code: unknown) => Promise<unknown>)(
+      { sender },
+      sessionId,
+      code
+    )
+  const stop = (sender: FakeSender, sessionId: unknown) =>
+    (handlers.get('turn:stop') as unknown as (e: { sender: FakeSender }, id: unknown) => Promise<unknown>)({ sender }, sessionId)
+  const endConversation = (sender: FakeSender, project: string) =>
+    (handlers.get(CONVERSATION_END_CHANNEL) as unknown as (e: { sender: FakeSender }, id: unknown) => unknown)({ sender }, project)
+  const entries = (project = PROJECT) => registry.forProject(project).entries()
+  const lines = (sender: FakeSender) => sender.events.flatMap((event) => (event.name === 'harness:said' ? [event.payload] : []))
+  /** Ask main to read a first message and bring up whatever process it started. */
+  async function first(sender: FakeSender, text: string) {
+    const before = processes.length
+    const pending = open(sender, { first: text })
+    const proc = processes.length > before ? processes[processes.length - 1] : undefined
+    await proc?.up()
+    return { reply: (await pending) as Record<string, unknown>, proc }
+  }
+  /** A skill-first session for `bmad-build`, up and idle. */
+  async function build(sender = new FakeSender(1), text = '/bmad-build make a thing') {
+    const { reply, proc } = await first(sender, text)
+    if (proc === undefined) throw new Error('no process')
+    proc.frame(result())
+    return { sender, proc, sessionId: reply.sessionId as string }
+  }
+
+  beforeEach(() => {
+    names = { ...FIVE }
+    installed = INSTALLED
+    launch({}, false, { skills: () => installed })
+  })
+
+  describe('a first message', () => {
+    it('starts a skill-first session on the text as typed, records the user turn flagged and begins a run named for the skill', async () => {
+      const sender = new FakeSender(1)
+      const { reply, proc } = await first(sender, '/bmad-build make a thing')
+
+      expect(reply).toEqual({ ok: true, sessionId: 's1', skill: 'bmad-build' })
+      expect(processes).toHaveLength(1)
+      expect(proc?.options.agentId).toBeUndefined()
+      expect(proc?.options.firstTurn).toBe('/bmad-build make a thing')
+      expect(proc?.writes).toEqual(['/bmad-build make a thing'])
+      expect(sender.events).toEqual([
+        { name: 'session:opened', payload: { sessionId: 's1', skill: 'bmad-build', at: 1001 } },
+        {
+          name: 'run:started',
+          payload: { runId: expect.any(String), sessionId: 's1', agentId: undefined, code: 'bmad-build', skill: 'bmad-build', at: expect.any(Number) }
+        }
+      ])
+      const at = entries()[0].at
+      expect(entries()).toEqual([{ kind: 'user', id: 'm-0', at, text: '/bmad-build make a thing', skillSession: 's1' }])
+      // The list item and the first turn are made at one instant.
+      expect(registry.forProject(PROJECT).skillSessions()).toEqual([{ sessionId: 's1', skill: 'bmad-build', at }])
+    })
+
+    it('matches the first word exactly and case-sensitively, up to the first whitespace, from the start of the text', async () => {
+      const sender = new FakeSender(1)
+
+      expect((await first(sender, '  /bmad-build\n  more')).reply).toMatchObject({ ok: true, skill: 'bmad-build' })
+      expect((await first(sender, '/bmad-build-auto')).reply).toMatchObject({ ok: true, skill: 'bmad-build-auto' })
+      expect(processes.map((proc) => proc.options.firstTurn)).toEqual(['  /bmad-build\n  more', '/bmad-build-auto'])
+      for (const typed of ['/BMAD-BUILD', '/bmad-bui', '/bmad-build-', '/ bmad-build']) {
+        expect((await first(sender, typed)).reply).toMatchObject({ ok: false, error: { code: 'session/no-skill' } })
+      }
+    })
+
+    it.each([
+      ['no slash', 'hello there', 'no skill named hello'],
+      ['an @name', '@Mary hi', 'no skill named @Mary'],
+      ['a name that is no skill', '/nope', 'no skill named nope'],
+      ['a lone slash', '/', 'no skill named '],
+      ['nothing', '', 'no skill named '],
+      ['only whitespace', '   ', 'no skill named '],
+      ['the case kept in the word', '/Nope now', 'no skill named Nope']
+    ])('refuses %s with %s and starts, records and says nothing', async (_why, typed, message) => {
+      const sender = new FakeSender(1)
+
+      expect((await first(sender, typed)).reply).toEqual({ ok: false, error: { code: 'session/no-skill', message } })
+      expect(processes).toEqual([])
+      expect(sender.sent).toEqual([])
+      expect(entries()).toEqual([])
+      expect(registry.forProject(PROJECT).skillSessions()).toEqual([])
+    })
+
+    it('refuses every first message when the install lists no skill, and one that is not a text', async () => {
+      installed = []
+      const sender = new FakeSender(1)
+
+      expect((await first(sender, '/bmad-build x')).reply).toMatchObject({ ok: false, error: { message: 'no skill named bmad-build' } })
+      expect((await first(sender, '/bmad-agent-analyst')).reply).toMatchObject({ ok: false, error: { code: 'session/no-skill' } })
+      installed = INSTALLED
+      expect(await open(sender, { first: 3 })).toMatchObject({ ok: false, error: { code: 'session/no-skill' } })
+      expect(processes).toEqual([])
+    })
+
+    it('turns to a roster persona’s seat, opened or found, with the words after the name, and starts no skill-first session', async () => {
+      const sender = new FakeSender(1)
+      const { reply, proc } = await first(sender, '/bmad-agent-pm draft it')
+
+      expect(reply).toEqual({ ok: true, sessionId: 's1', seat: 'bmad-agent-pm', rest: 'draft it' })
+      expect(proc?.options.agentId).toBe('bmad-agent-pm')
+      expect(proc?.writes).toEqual(['/bmad-agent-pm'])
+      // Found, not opened again; no words after the name, so no `rest`.
+      expect((await first(sender, '/bmad-agent-pm')).reply).toEqual({ ok: true, sessionId: 's1', seat: 'bmad-agent-pm' })
+      expect(processes).toHaveLength(1)
+      expect(entries()).toEqual([])
+      expect(registry.forProject(PROJECT).skillSessions()).toEqual([])
+    })
+
+    it('opens the room with the whole roster as its cast, in roster order, and finds it again', async () => {
+      const sender = new FakeSender(1)
+      const { reply, proc } = await first(sender, '/bmad-party-mode let us begin')
+
+      expect(reply).toEqual({
+        ok: true,
+        sessionId: 's1',
+        room: { cast: Object.keys(FIVE), openedAt: 1001 },
+        rest: 'let us begin'
+      })
+      expect(proc?.writes).toEqual(['/bmad-party-mode'])
+      expect(registry.forProject(PROJECT).skillSessions()).toEqual([])
+      const again = await first(sender, '/bmad-party-mode')
+      expect(again.reply).toEqual({ ok: true, sessionId: 's1', room: { cast: Object.keys(FIVE), openedAt: 1001 } })
+      expect(processes).toHaveLength(1)
+    })
+
+    it('starts a skill-first session for a persona skill with no roster entry, and for the party skill with an empty roster', async () => {
+      const sender = new FakeSender(1)
+
+      expect((await first(sender, '/bmad-agent-ghost hello')).reply).toEqual({ ok: true, sessionId: 's1', skill: 'bmad-agent-ghost' })
+      names = {}
+      expect((await first(sender, '/bmad-party-mode')).reply).toEqual({ ok: true, sessionId: 's2', skill: 'bmad-party-mode' })
+      expect(processes.map((proc) => proc.options.agentId)).toEqual([undefined, undefined])
+      expect(registry.forProject(PROJECT).skillSessions().map((held) => held.skill)).toEqual(['bmad-agent-ghost', 'bmad-party-mode'])
+    })
+
+    it('keeps no session and writes nothing when the process cannot start', async () => {
+      const sender = new FakeSender(1)
+      const pending = open(sender, { first: '/bmad-build x' })
+      processes[0].fail('ENOENT')
+
+      expect(await pending).toMatchObject({ ok: false, error: { code: 'session/spawn-failed', detail: 'ENOENT' } })
+      expect(sender.sent).toEqual([])
+      expect(entries()).toEqual([])
+      expect(registry.forProject(PROJECT).skillSessions()).toEqual([])
+      expect(snapshotOf(sender).skillSessions).toBeUndefined()
+    })
+
+    it('has no cap: any number of sessions of one skill, each its own', async () => {
+      const sender = new FakeSender(1)
+      const a = await first(sender, '/bmad-build one')
+      const b = await first(sender, '/bmad-build two')
+
+      expect([a.reply.sessionId, b.reply.sessionId]).toEqual(['s1', 's2'])
+      // Both first turns are in flight: main's busy set names each.
+      expect(snapshotOf(sender).busy).toEqual(['s1', 's2'])
+      expect(snapshotOf(sender).skillSessions).toEqual([
+        { sessionId: 's1', skill: 'bmad-build', live: true },
+        { sessionId: 's2', skill: 'bmad-build', live: true }
+      ])
+    })
+  })
+
+  describe('what it says and does', () => {
+    it('speaks as the skill: persona:said with no agent and its own session flag, recorded as a skill record in its own thread', async () => {
+      const { sender, proc } = await build()
+      proc.frame(messageStart('msg-1'))
+      proc.frame(textStart)
+      proc.frame(delta('Working on '))
+      proc.frame(delta('it.'))
+
+      const said = sender.events.filter((event) => event.name === 'persona:said')
+      expect(said.map((event) => event.payload)).toEqual([
+        { sessionId: 's1', messageId: 'msg-1', text: 'Working on ', at: expect.any(Number), skillSession: 's1' },
+        { sessionId: 's1', messageId: 'msg-1', text: 'it.', at: expect.any(Number), skillSession: 's1' }
+      ])
+      expect(entries().filter((entry) => entry.kind === 'skill')).toEqual([
+        { kind: 'skill', id: 'm-1', at: expect.any(Number), messageId: 'msg-1', text: 'Working on it.', skillSession: 's1' }
+      ])
+    })
+
+    it('says its own harness lines flagged as its thread’s, and nothing flagged as the room’s', async () => {
+      const { sender, proc } = await build()
+      proc.exit()
+
+      expect(lines(sender)).toEqual([
+        { sessionId: 's1', id: 'm-1', text: 'session ended · the process exited', at: expect.any(Number), skillSession: 's1' }
+      ])
+      expect(entries()[1]).toEqual({ kind: 'sysline', id: 'm-1', at: expect.any(Number), text: 'session ended · the process exited', skillSession: 's1' })
+      expect(sender.events.find((event) => event.name === 'session:closed')).toMatchObject({
+        payload: { sessionId: 's1', skill: 'bmad-build', reason: 'process-exited' }
+      })
+    })
+
+    it('records a later plain message flagged, writes it to the same session and refuses one while a turn is in flight', async () => {
+      const { sender, proc, sessionId } = await build()
+
+      expect(await send(sender, sessionId, 'and also this', '@Mary')).toEqual({ ok: true })
+      expect(proc.writes).toEqual(['/bmad-build make a thing', 'and also this'])
+      expect(entries().at(-1)).toEqual({ kind: 'user', id: 'm-1', at: expect.any(Number), text: 'and also this', skillSession: sessionId })
+      // In flight: refused as any seat is, and not interrupted as the room's is.
+      expect(await send(sender, sessionId, 'too soon')).toMatchObject({ ok: false, error: { code: 'session/busy' } })
+      expect(proc.writes).toHaveLength(2)
+    })
+
+    it('answers a stop for its turn: the run ends stopped, and nothing else does', async () => {
+      const { sender, proc, sessionId } = await build()
+      await send(sender, sessionId, 'go on')
+      const accepted = stop(sender, sessionId)
+      expect(await accepted).toEqual({ ok: true })
+      proc.frame(result('error_during_execution', true))
+
+      expect(sender.events.map((event) => event.name)).not.toContain('session:closed')
+    })
+
+    it('has a run card that carries the skill, no agent and the session, and no persona state or Board input', async () => {
+      const sender = new FakeSender(1)
+      await first(sender, '/bmad-build make a thing')
+
+      const card = snapshotOf(sender).runs[0]
+      expect(card).toMatchObject({ sessionId: 's1', code: 'bmad-build', skill: 'bmad-build', status: 'running' })
+      expect(card).not.toHaveProperty('agentId')
+      expect(sender.events.filter((event) => event.name === 'persona:state')).toEqual([])
+      expect(snapshotOf(sender).personas).toEqual([])
+    })
+
+    it('offers nothing about who to talk to next when its run ends: the turn’s end says no line and no persona', async () => {
+      const sender = new FakeSender(1)
+      const { proc } = await first(sender, '/bmad-build make a thing')
+      const before = sender.events.length
+      proc?.frame(result())
+
+      const after = sender.events.slice(before).map((event) => event.name)
+      expect(after).toEqual(['run:finished', 'session:awaiting-turn'])
+      expect(lines(sender)).toEqual([])
+    })
+
+    it('refuses a menu dispatch: it has no menu', async () => {
+      const { sender, sessionId } = await build()
+
+      expect(await dispatch(sender, sessionId, 'CP')).toMatchObject({ ok: false, error: { code: 'session/not-found' } })
+    })
+  })
+
+  describe('beside a persona’s seat and the room, each handled as itself', () => {
+    it('keeps the three apart in the send, the close, the listing, the busy-send, the dispatch and the harness line', async () => {
+      const sender = new FakeSender(1)
+      const seat = await first(sender, '/bmad-agent-analyst')
+      const room = await first(sender, '/bmad-party-mode')
+      const skill = await first(sender, '/bmad-build make a thing')
+      for (const entry of [seat, room, skill]) entry.proc?.frame(result())
+      const [seatId, roomId, skillId] = [seat.reply.sessionId, room.reply.sessionId, skill.reply.sessionId] as string[]
+
+      // sendTurn: a persona's turn is the shared thread's, the room's the party thread's, a skill's its own.
+      await send(sender, seatId, 'to mary', '@Mary')
+      await send(sender, roomId, 'to the room')
+      await send(sender, skillId, 'to the skill')
+      expect(entries().filter((entry) => entry.kind === 'user')).toEqual([
+        { kind: 'user', id: 'm-1', at: expect.any(Number), text: '/bmad-build make a thing', skillSession: skillId },
+        { kind: 'user', id: 'm-2', at: expect.any(Number), text: 'to mary', mention: '@Mary' },
+        { kind: 'user', id: 'm-3', at: expect.any(Number), text: 'to the room', room: true },
+        { kind: 'user', id: 'm-4', at: expect.any(Number), text: 'to the skill', skillSession: skillId }
+      ].map((record) => expect.objectContaining(record)))
+
+      // interruptedRoom: a send into a busy room interrupts it (the room's own tests), one into a busy skill or seat is
+      // refused as busy and interrupts nothing.
+      expect(await send(sender, skillId, 'again')).toMatchObject({ error: { code: 'session/busy' } })
+      expect(await send(sender, seatId, 'again')).toMatchObject({ error: { code: 'session/busy' } })
+      expect(skill.proc?.writes.at(-1)).toBe('to the skill')
+      expect(seat.proc?.writes.at(-1)).toBe('to mary')
+
+      // say: a harness line about each is flagged as its own thread's.
+      skill.proc?.exit()
+      room.proc?.exit()
+      seat.proc?.exit()
+      const ended = lines(sender).filter(({ text }) => text.startsWith('session ended'))
+      expect(ended.map(({ text, room: isRoom, skillSession }) => ({ text, room: isRoom, skillSession }))).toEqual([
+        { text: 'session ended · the process exited', room: undefined, skillSession: skillId },
+        { text: 'session ended · the process exited', room: true, skillSession: undefined },
+        { text: 'session ended · the process exited', room: undefined, skillSession: undefined }
+      ])
+
+      // getConversation: the three are listed apart; the skill is never among the persona's sessions or the room.
+      const snapshot = snapshotOf(sender)
+      expect(snapshot.sessions).toEqual([])
+      expect(snapshot.room).toBeUndefined()
+      expect(snapshot.skillSessions).toEqual([{ sessionId: skillId, skill: 'bmad-build', live: false }])
+    })
+
+    it('lists each live and apart in the snapshot, with the skill-first session in start order and never a persona’s or the room’s', async () => {
+      const sender = new FakeSender(1)
+      await first(sender, '/bmad-build one')
+      const seat = await first(sender, '/bmad-agent-analyst')
+      const room = await first(sender, '/bmad-party-mode')
+      await first(sender, '/bmad-build-auto two')
+      for (const proc of processes) proc.frame(result())
+
+      const snapshot = snapshotOf(sender)
+      expect(snapshot.sessions).toEqual([{ agentId: 'bmad-agent-analyst', sessionId: seat.reply.sessionId }])
+      expect(snapshot.room).toMatchObject({ sessionId: room.reply.sessionId })
+      expect(snapshot.skillSessions).toEqual([
+        { sessionId: 's1', skill: 'bmad-build', live: true },
+        { sessionId: 's4', skill: 'bmad-build-auto', live: true }
+      ])
+      expect(snapshot.busy).toEqual([])
+    })
+
+    it('draws no persona state for a skill-first session and counts none, whatever it does', async () => {
+      const { sender, proc, sessionId } = await build()
+      await send(sender, sessionId, 'again')
+      proc.frame(result())
+      proc.exit()
+
+      expect(sender.events.filter((event) => event.name === 'persona:state')).toEqual([])
+      expect(snapshotOf(sender).personas).toEqual([])
+    })
+  })
+
+  describe('a write, and a stop', () => {
+    let pending: { run: () => void; ms: number; cancelled: boolean }[]
+    const timersLive = () => pending.filter((timer) => !timer.cancelled)
+    const flushMicro = async () => {
+      for (let n = 0; n < 5; n += 1) await Promise.resolve()
+    }
+
+    beforeEach(() => {
+      pending = []
+      launch({}, false, {
+        skills: () => installed,
+        schedule: (run, ms) => {
+          const timer = { run, ms, cancelled: false }
+          pending.push(timer)
+          return () => void (timer.cancelled = true)
+        }
+      })
+    })
+
+    const writeFile = (proc: FakeProcess, path: string, index = 2): void => {
+      const json = JSON.stringify({ file_path: path, content: 'body' })
+      const frame = (event: unknown) => proc.frame({ type: 'stream_event', parent_tool_use_id: null, event })
+      frame({ type: 'content_block_start', index, content_block: { type: 'tool_use', id: `t${index}`, name: 'Write', input: {} } })
+      for (let at = 0; at < json.length; at += 9) {
+        frame({ type: 'content_block_delta', index, delta: { type: 'input_json_delta', partial_json: json.slice(at, at + 9) } })
+      }
+      frame({ type: 'content_block_stop', index })
+    }
+
+    it('names the files it writes to no one: the rail is told no room or persona wrote them, and nothing is said of them', async () => {
+      const sender = new FakeSender(1)
+      const marks: string[] = []
+      railAnnotatorFor(sender).bind({
+        annotate: () => undefined,
+        markRoom: (path) => void marks.push(`mark ${path}`),
+        unmarkRoom: (path) => void marks.push(`unmark ${path}`),
+        clearRoom: () => void marks.push('clear')
+      })
+      const room = await first(sender, '/bmad-party-mode')
+      writeFile(room.proc as FakeProcess, '/project-1/_bmad/party/note.md')
+      const skill = await first(sender, '/bmad-build go')
+      const before = sender.events.length
+      const recorded = entries().length
+
+      // The room's own file, taken over by a persona's write if a persona wrote it; a skill-first session is neither.
+      writeFile(skill.proc as FakeProcess, '/project-1/_bmad/party/note.md')
+      writeFile(skill.proc as FakeProcess, '/project-1/_bmad/other.md', 3)
+
+      expect(marks).toEqual(['mark _bmad/party/note.md'])
+      expect(sender.events.slice(before).filter((event) => event.name === 'harness:said')).toEqual([])
+      expect(entries()).toHaveLength(recorded)
+      // Turning to a persona afterwards writes no line, and none names a file.
+      await first(sender, '/bmad-agent-pm hello')
+      expect(lines(sender).map(({ text }) => text)).toEqual(['room opened by you · present · Mary · John · Amelia'])
+    })
+
+    it('says one stopped line, flagged to its thread, when a plain turn the user stopped ends on a failed result', async () => {
+      const { sender, proc, sessionId } = await build()
+      await send(sender, sessionId, 'a plain turn')
+
+      expect(await stop(sender, sessionId)).toEqual({ ok: true })
+      proc.frame(result('error_during_execution', true))
+
+      const said = lines(sender)
+      expect(said).toEqual([{ sessionId, id: expect.any(String), text: LINES.stopped, at: expect.any(Number), skillSession: sessionId }])
+      expect(entries().filter((entry) => entry.kind === 'sysline')).toEqual([
+        { kind: 'sysline', id: said[0].id, at: said[0].at, text: LINES.stopped, skillSession: sessionId }
+      ])
+      expect(sender.events.map((event) => event.name)).not.toContain('session:closed')
+    })
+
+    it('ends the first turn’s run `stopped` on a stop, with no failed line and the session open', async () => {
+      const sender = new FakeSender(1)
+      const { reply, proc } = await first(sender, '/bmad-build go')
+      const sessionId = reply.sessionId as string
+
+      expect(await stop(sender, sessionId)).toEqual({ ok: true })
+      proc?.frame(result('error_during_execution', true))
+
+      expect(sender.events.map((event) => event.name)).toContain('run:stopped')
+      expect(sender.events.map((event) => event.name)).not.toContain('run:failed')
+      expect(snapshotOf(sender).runs[0]).toMatchObject({ sessionId, status: 'stopped' })
+      expect(lines(sender)).toEqual([])
+      expect(snapshotOf(sender).skillSessions).toEqual([{ sessionId, skill: 'bmad-build', live: true }])
+    })
+
+    it('says the fallback line in its own thread and closes the session when the interrupt is not acknowledged', async () => {
+      const { sender, proc, sessionId } = await build()
+      await send(sender, sessionId, 'a plain turn')
+      proc.session.interrupt = () => Promise.resolve(false)
+
+      expect(await stop(sender, sessionId)).toEqual({ ok: true })
+      await flushMicro()
+
+      expect(proc.killed).toBe(true)
+      expect(lines(sender)).toEqual([{ sessionId, id: expect.any(String), text: LINES.stopTurnEnded, at: expect.any(Number), skillSession: sessionId }])
+      expect(entries().filter((entry) => entry.kind === 'sysline')).toEqual([
+        expect.objectContaining({ text: LINES.stopTurnEnded, skillSession: sessionId })
+      ])
+      expect(sender.events.find((event) => event.name === 'session:closed')).toMatchObject({
+        payload: { sessionId, skill: 'bmad-build', reason: 'closed' }
+      })
+      expect(timersLive().map((timer) => timer.ms)).not.toContain(STOP_RESULT_MS)
+    })
+  })
+
+  describe('ending it', () => {
+    it('kills the process, writes no line and removes its records, stored run cards and list item, and nothing else', async () => {
+      const sender = new FakeSender(1)
+      const seat = await first(sender, '/bmad-agent-analyst')
+      const skill = await build(sender)
+      seat.proc?.frame(result())
+      await send(sender, seat.reply.sessionId, 'hello')
+      skill.proc.frame(messageStart('msg-1'))
+      skill.proc.frame(textStart)
+      skill.proc.frame(delta('Said.'))
+      registry.flushAll()
+      const before = entries().filter((entry) => !('skillSession' in entry))
+
+      expect(closeSession(sender, skill.sessionId)).toEqual({ ok: true })
+
+      expect(skill.proc.killed).toBe(true)
+      expect(seat.proc?.killed).toBe(false)
+      expect(entries()).toEqual(before)
+      expect(entries().some((entry) => 'skillSession' in entry)).toBe(false)
+      expect(lines(sender)).toEqual([])
+      expect(registry.forProject(PROJECT).skillSessions()).toEqual([])
+      expect(registry.forProject(PROJECT).storedRuns()).toEqual([])
+      const snapshot = snapshotOf(sender)
+      expect(snapshot.runs).toEqual([])
+      expect(snapshot.skillSessions).toBeUndefined()
+      expect(snapshot.sessions).toEqual([{ agentId: 'bmad-agent-analyst', sessionId: seat.reply.sessionId }])
+      expect(sender.events.find((event) => event.name === 'session:closed')).toMatchObject({
+        payload: { sessionId: skill.sessionId, skill: 'bmad-build', reason: 'closed' }
+      })
+      // And a card ended by that close is not kept after it.
+      registry.flushAll()
+      const file = JSON.parse(readFileSync(transcriptFilePath(userData, PROJECT), 'utf8'))
+      expect(file.runs).toBeUndefined()
+      expect(file.skillSessions).toBeUndefined()
+    })
+
+    it('is not found for a session nobody lists, and for one already ended', async () => {
+      const { sender, sessionId } = await build()
+
+      expect(closeSession(sender, 'nobody')).toMatchObject({ ok: false, error: { code: 'session/not-found' } })
+      expect(closeSession(sender, sessionId)).toEqual({ ok: true })
+      expect(closeSession(sender, sessionId)).toMatchObject({ ok: false, error: { code: 'session/not-found' } })
+    })
+
+    it('says one line for a persona’s seat and one for the room as it always did, and none for it', async () => {
+      const sender = new FakeSender(1)
+      const seat = await first(sender, '/bmad-agent-analyst')
+      const room = await first(sender, '/bmad-party-mode')
+      const skill = await first(sender, '/bmad-build x')
+      closeSession(sender, skill.reply.sessionId)
+      closeSession(sender, seat.reply.sessionId)
+      closeSession(sender, room.reply.sessionId)
+
+      expect(lines(sender).map(({ text }) => text)).toEqual([
+        'room opened by you · present · Mary · John · Amelia',
+        'session closed · Mary starts fresh on the next message',
+        'room stopped · session released'
+      ])
+    })
+
+    it('is cleared with the rest by conversation.end, list item included', async () => {
+      const { sender } = await build()
+
+      expect(endConversation(sender, PROJECT)).toEqual({ ok: true })
+      expect(registry.forProject(PROJECT).skillSessions()).toEqual([])
+      expect(snapshotOf(sender).skillSessions).toBeUndefined()
+      expect(entries()).toEqual([])
+    })
+  })
+
+  describe('after a relaunch', () => {
+    async function relaunched() {
+      const sender = new FakeSender(1)
+      const { sessionId, proc } = await build(sender)
+      await send(sender, sessionId, 'a second turn')
+      proc.frame(result())
+      registry.flushAll()
+      launch({}, false, { skills: () => installed })
+      return { sender: new FakeSender(1), sessionId }
+    }
+
+    it('lists it ended with its thread as it was, and keeps no process', async () => {
+      const { sender, sessionId } = await relaunched()
+
+      const snapshot = snapshotOf(sender)
+      expect(snapshot.skillSessions).toEqual([{ sessionId, skill: 'bmad-build', live: false }])
+      expect(snapshot.entries.filter((entry) => 'skillSession' in entry)).toHaveLength(2)
+      expect(snapshot.sessions).toEqual([])
+      expect(processes.filter((proc) => !proc.killed)).toHaveLength(1)
+    })
+
+    it('answers a send to it `session ended`, starting and recording nothing', async () => {
+      const { sender, sessionId } = await relaunched()
+      const writes = processes.length
+      const recorded = entries().length
+
+      expect(await send(sender, sessionId, 'are you there')).toEqual({
+        ok: false,
+        error: { code: 'session/ended', message: 'session ended' }
+      })
+      expect(processes).toHaveLength(writes)
+      expect(entries()).toHaveLength(recorded)
+      expect(lines(sender)).toEqual([])
+    })
+
+    it('ends it by session.close, removing its records and its list item with no process to kill', async () => {
+      const { sender, sessionId } = await relaunched()
+
+      expect(closeSession(sender, sessionId)).toEqual({ ok: true })
+      expect(entries().some((entry) => 'skillSession' in entry)).toBe(false)
+      expect(registry.forProject(PROJECT).skillSessions()).toEqual([])
+      expect(snapshotOf(sender).skillSessions).toBeUndefined()
+      expect(closeSession(sender, sessionId)).toMatchObject({ ok: false, error: { code: 'session/not-found' } })
+    })
+
+    it('does not list one whose process exited this launch as live, and answers a send to it `session ended`', async () => {
+      const { sender, proc, sessionId } = await build()
+      proc.exit()
+
+      expect(snapshotOf(sender).skillSessions).toEqual([{ sessionId, skill: 'bmad-build', live: false }])
+      expect(await send(sender, sessionId, 'hello?')).toMatchObject({ ok: false, error: { code: 'session/ended' } })
+    })
   })
 })

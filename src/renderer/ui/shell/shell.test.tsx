@@ -229,8 +229,9 @@ describe('Shell', () => {
     )
     const outputs = rail.slice(rail.indexOf('>Outputs<'))
 
-    // The Team half, in the sidebar, holds one tile button per agent; the Outputs half, alone in the rail, holds none.
-    expect(count(sidebar, /<button/g)).toBe(5)
+    // The Team half, in the sidebar, holds one tile button per agent and the `Skill Session` button (Story 7.5); the
+    // Outputs half, alone in the rail, holds none.
+    expect(count(sidebar, /<button/g)).toBe(5 + 1)
     expect(count(rail, /<button/g)).toBe(0)
     expect(rail).not.toContain('>Team<')
     expect(outputs).not.toContain('<button')
@@ -241,10 +242,10 @@ describe('Shell', () => {
     // Spelled in two halves: accessibility.test.ts counts the bare attribute
     // across src/, and this file is not the live region.
     expect(markup).not.toContain(`aria-${'live'}`)
-    // Three switch buttons in the topbar, one button per tile in the rail.
+    // Three switch buttons in the topbar, one button per tile in the rail and the `Skill Session` button beside them.
     const bar = markup.slice(markup.indexOf('<header'), markup.indexOf('</header>'))
     expect(count(bar, /<button/g)).toBe(3)
-    expect(count(markup, /<button/g)).toBe(3 + 5)
+    expect(count(markup, /<button/g)).toBe(3 + 5 + 1)
     expect(count(bar, /tabindex/g)).toBe(0)
   })
 })
@@ -264,8 +265,8 @@ describe('Shell, the team and the header', () => {
     expect(markup.indexOf('aria-label="Team"')).toBeLessThan(markup.indexOf('>Outputs<'))
   })
 
-  it('names the topmost agent in the header and marks its tile current, and no other', () => {
-    const markup = renderToStaticMarkup(<Shell projectPath="/p" snapshot={snapshot(3)} />)
+  it('names the current agent in the header and marks its tile current, and no other', () => {
+    const markup = renderToStaticMarkup(<Shell projectPath="/p" snapshot={snapshot(3)} currentId="bmad-agent-0" />)
     const header = markup.slice(markup.indexOf('class="chat-head"'), markup.indexOf('class="scroll"'))
 
     expect(header).toContain('>bmad-agent-0<')
@@ -294,6 +295,7 @@ describe('Shell, the team and the header', () => {
     const many = renderToStaticMarkup(
       <Shell
         projectPath="/p"
+        currentId="a"
         snapshot={snapshotOf([
           { ...agent('a'), module: 'bmm', team: 't1' },
           { ...agent('b'), module: 'gds' },
@@ -315,7 +317,7 @@ describe('Shell, the team and the header', () => {
       'b, Role, idle',
       'd, Role, idle'
     ])
-    // The topmost tile in display order is the current one and names the header.
+    // The tile chosen is the current one and names the header.
     expect(tiles(team)[0]).toContain('aria-current="true"')
   })
 
@@ -326,7 +328,7 @@ describe('Shell, the team and the header', () => {
       ['not-an-agent', 'error']
     ])
     const markup = renderToStaticMarkup(
-      <Shell projectPath="/p" snapshot={snapshot(3)} states={states} />
+      <Shell projectPath="/p" snapshot={snapshot(3)} states={states} currentId="bmad-agent-0" />
     )
     const header = markup.slice(markup.indexOf('class="chat-head"'), markup.indexOf('class="scroll"'))
 
@@ -354,7 +356,7 @@ describe('Shell, the team and the header', () => {
       ['bmad-agent-2', Date.now() - 5_000]
     ])
     const markup = renderToStaticMarkup(
-      <Shell projectPath="/p" snapshot={snapshot(3)} states={states} since={since} />
+      <Shell projectPath="/p" snapshot={snapshot(3)} states={states} since={since} currentId="bmad-agent-0" />
     )
     const header = markup.slice(markup.indexOf('class="chat-head"'), markup.indexOf('class="scroll"'))
 
@@ -399,10 +401,11 @@ describe('Shell, the team and the header', () => {
     expect(team).not.toContain('never shown')
   })
 
-  it('draws no header and no tiles when there are no agents', () => {
+  it('draws no persona header and no tiles when there are no agents: the New session chat is what the column holds', () => {
     const markup = renderToStaticMarkup(<Shell projectPath="/p" snapshot={snapshot(0)} />)
 
-    expect(markup).not.toContain('chat-head')
+    expect(markup).not.toContain('chat-close')
+    expect(markup).toContain('>New session<')
     expect(markup).not.toContain('persona-tile')
     expect(markup).not.toContain('aria-label="Team"')
   })
@@ -493,8 +496,8 @@ describe('Shell, the project files', () => {
     expect(count(outputs, /<button/g)).toBe(1 + 2 + 2)
     expect(count(outputs, /tabindex="0"/g)).toBe(1)
     expect(outputs.indexOf('change…')).toBeLessThan(outputs.indexOf('<li'))
-    // Three tiles, three switch buttons, `change…`, the two headings and the two rows.
-    expect(count(withRail, /<button/g)).toBe(3 + 3 + 1 + 2 + 2)
+    // Three tiles, the `Skill Session` button, three switch buttons, `change…`, the two headings and the two rows.
+    expect(count(withRail, /<button/g)).toBe(3 + 1 + 3 + 1 + 2 + 2)
   })
 
   it('shows the empty state for a snapshot with no rows, and the failure for a failed rail', () => {
@@ -601,7 +604,7 @@ describe('Shell, the project files', () => {
 
 describe('Shell, the composer slot', () => {
   const markup = (props: Partial<Parameters<typeof Shell>[0]> = {}): string =>
-    renderToStaticMarkup(<Shell projectPath="/work/falcon" snapshot={snapshot(2)} {...props} />)
+    renderToStaticMarkup(<Shell projectPath="/work/falcon" snapshot={snapshot(2)} currentId="bmad-agent-0" {...props} />)
 
   it('puts the composer in .chat after .scroll, built for the current persona', () => {
     const html = markup({
@@ -627,7 +630,7 @@ describe('Shell, the composer slot', () => {
 describe('Shell, the orphan headers', () => {
   const orphan = (id: string, name: string) => ({ ...agent(id), name })
   const markup = (props: Partial<Parameters<typeof Shell>[0]> = {}): string =>
-    renderToStaticMarkup(<Shell projectPath="/work/falcon" snapshot={snapshot(2)} {...props} />)
+    renderToStaticMarkup(<Shell projectPath="/work/falcon" snapshot={snapshot(2)} currentId="bmad-agent-0" {...props} />)
 
   it('draws none by default', () => {
     expect(markup()).not.toContain('orphan-head')
@@ -654,14 +657,15 @@ describe('Shell, the orphan headers', () => {
 
     expect(html).not.toContain('persona-tile" aria-label="Xena')
     expect(count(html, /class="persona-tile/g)).toBe(2)
-    // The chosen id is not in the roster, so the topmost tile is current.
-    expect(count(html, /aria-current="true"/g)).toBe(1)
+    // The chosen id is not in the roster, so nobody is current (Story 7.5): the column is the New session chat.
+    expect(count(html, /aria-current="true"/g)).toBe(0)
+    expect(html).toContain('>New session<')
   })
 })
 
 describe('Shell, the close control of an open session', () => {
   const markup = (props: Partial<Parameters<typeof Shell>[0]> = {}): string =>
-    renderToStaticMarkup(<Shell projectPath="/work/falcon" snapshot={snapshot(2)} {...props} />)
+    renderToStaticMarkup(<Shell projectPath="/work/falcon" snapshot={snapshot(2)} currentId="bmad-agent-0" {...props} />)
 
   it('draws none without an open session, or without a way to close one', () => {
     expect(markup()).not.toContain('chat-close')
@@ -687,7 +691,7 @@ describe('Shell, the close control of an open session', () => {
 
 describe('Shell, the pinned slot (Story 3.14)', () => {
   const markup = (props: Partial<Parameters<typeof Shell>[0]> = {}): string =>
-    renderToStaticMarkup(<Shell projectPath="/work/falcon" snapshot={snapshot(2)} {...props} />)
+    renderToStaticMarkup(<Shell projectPath="/work/falcon" snapshot={snapshot(2)} currentId="bmad-agent-0" {...props} />)
   const pinned = (): ReactNode => <section className="run-card" aria-busy="true">card</section>
 
   it('draws no slot without a pinned render prop, or when it returns nothing', () => {
@@ -728,5 +732,68 @@ describe('Shell, the pinned slot (Story 3.14)', () => {
     // The slot's own tag carries a class and nothing else: no tab stop, role or live attribute.
     expect(slot.startsWith('<div class="pinned">')).toBe(true)
     expect(slot).not.toMatch(/tabindex|role=/i)
+  })
+})
+
+describe('Shell, the New session chat, the `Skill Session` button and a skill-first session (Story 7.5)', () => {
+  const draw = (props: Partial<Parameters<typeof Shell>[0]> = {}): string =>
+    renderToStaticMarkup(<Shell projectPath="/p" snapshot={snapshot(2)} {...props} />)
+  const SEAT = { sessionId: 'sk1', skill: 'bmad-build', at: 1, state: 'live' as const, since: undefined }
+
+  it('opens on the New session chat when nobody is current: its header, its composer slot and no persona header', () => {
+    const html = draw({ newComposer: () => <i className="new-slot" />, composer: () => <i className="persona-slot" /> })
+
+    expect(html).toContain('>New session<')
+    expect(html).toContain('class="new-slot"')
+    expect(html).not.toContain('persona-slot')
+    expect(html).not.toContain('chat-close')
+    expect(count(html, /aria-current="true"/g)).toBe(0)
+  })
+
+  it('draws the `Skill Session` button once, in a Team-half row between the strip and the tiles, pressed only with the chat in view', () => {
+    const html = draw()
+    const sidebar = html.slice(html.indexOf('<div class="sidebar"'), html.indexOf('<div class="chat">'))
+
+    expect(count(sidebar, /Skill Session/g)).toBe(1)
+    expect(sidebar).toContain('<button type="button" class="skill-session-button" aria-pressed="true">Skill Session</button>')
+    expect(sidebar.indexOf('team-strip')).toBeLessThan(sidebar.indexOf('skill-session-button'))
+    expect(sidebar.indexOf('skill-session-button')).toBeLessThan(sidebar.indexOf('persona-tile'))
+    expect(draw({ currentId: 'bmad-agent-0' })).toContain('aria-pressed="false">Skill Session')
+    expect(draw({ chat: { skillSession: 'sk1' }, skillSeats: [SEAT] })).toContain('aria-pressed="false">Skill Session')
+  })
+
+  it('turns to a skill-first session’s header, thread and composer when it is asked for and held, and to the New session chat when it is gone', () => {
+    const html = draw({
+      chat: { skillSession: 'sk1' },
+      skillSeats: [SEAT],
+      skillComposer: (seat) => <i className="skill-slot" data-skill={seat.skill} />,
+      newComposer: () => <i className="new-slot" />,
+      children: <b className="turns" />
+    })
+
+    expect(html).toContain('chat-head-name chat-head-name--skill">bmad-build<')
+    expect(html).toContain('class="skill-slot"')
+    expect(html).not.toContain('new-slot')
+    expect(html).not.toContain('>New session<')
+    expect(html.indexOf('class="chat-head"')).toBeLessThan(html.indexOf('class="scroll"'))
+    expect(html.indexOf('class="turns"')).toBeLessThan(html.indexOf('class="skill-slot"'))
+
+    const gone = draw({ chat: { skillSession: 'sk-gone' }, skillSeats: [SEAT], newComposer: () => <i className="new-slot" /> })
+    expect(gone).toContain('>New session<')
+    expect(gone).toContain('class="new-slot"')
+  })
+
+  it('draws no persona intro, pinned slot or orphan state in a chat that is not a persona’s', () => {
+    const html = draw({ currentId: 'bmad-agent-0', chat: 'new', threadEmpty: true, pinned: () => <b className="pinned-card" /> })
+
+    expect(html).not.toContain('thread-intro')
+    expect(html).not.toContain('pinned-card')
+  })
+
+  it('reads the header’s Stop for a skill-first session in flight, from its own busy set', () => {
+    const busy = draw({ chat: { skillSession: 'sk1' }, skillSeats: [{ ...SEAT, state: 'work', since: 1 }], skillBusy: new Set(['sk1']), onStopSkill: () => {} })
+
+    expect(busy).toContain('aria-label="Stop · bmad-build"')
+    expect(draw({ chat: { skillSession: 'sk1' }, skillSeats: [SEAT], onCloseSkill: () => {} })).toContain('aria-label="close session · bmad-build"')
   })
 })

@@ -2,8 +2,10 @@ import type { JSX, KeyboardEvent } from 'react'
 
 import './team.css'
 import type { AgentView } from '../../../shared/install'
-import { Initials } from '../persona/initials'
-import { STATE_TEXT } from '../status/persona-state'
+import { Initials, SkillDisc } from '../persona/initials'
+import { formatTurnTime } from '../chat/format-turn-time'
+import type { SkillSeat } from '../status/skill-seat'
+import { ENDED_TEXT, STATE_TEXT } from '../status/persona-state'
 import type { PersonaState } from '../status/persona-state'
 import { StateLine } from '../status/status-dot'
 
@@ -77,6 +79,58 @@ export function PersonaTile({
             {hidden > 0 && <span className="code-tag">{`+${hidden}`}</span>}
           </span>
         )}
+      </span>
+    </button>
+  )
+}
+
+/**
+ * A skill-first session's seat (Story 7.5): the persona tile's own anatomy, a 44px row of a disc, a name and a
+ * state line, with the skill's `/` disc, its name in mono and no title or menu hint. Line two is `working` with its
+ * elapsed counter, `live`, or `ended` with no dot. It carries no control of its own: ending a session is the header's
+ * `close session`. The start time `HH:MM` stands after the name only while `timed` is set, which the group sets
+ * for two seats that share a name. A native button, as a persona's tile is: a click turns the chat to it.
+ */
+export function SkillSeatTile({
+  seat,
+  timed,
+  current,
+  tabStop,
+  onSelect,
+  onKeyDown,
+  tileRef
+}: {
+  seat: SkillSeat
+  /** Two seats share this name: the start time tells them apart. */
+  timed: boolean
+  current: boolean
+  tabStop: boolean
+  onSelect: (sessionId: string) => void
+  onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void
+  tileRef: (element: HTMLButtonElement | null) => void
+}): JSX.Element {
+  const { state } = seat
+  const stateText = state === 'ended' ? ENDED_TEXT : STATE_TEXT[state === 'work' ? 'work' : 'live']
+  return (
+    <button
+      type="button"
+      className="persona-tile focus-inset"
+      aria-label={`${seat.skill}${timed ? ` ${formatTurnTime(seat.at)}` : ''}, ${stateText}`}
+      aria-current={current ? 'true' : undefined}
+      tabIndex={tabStop ? 0 : -1}
+      ref={tileRef}
+      onClick={() => onSelect(seat.sessionId)}
+      onKeyDown={onKeyDown}
+    >
+      <SkillDisc size={26} />
+      <span className="tile-who">
+        <span className="tile-ident">
+          <span className="tile-name tile-name--skill">{seat.skill}</span>
+          {timed && <span className="tile-title">{formatTurnTime(seat.at)}</span>}
+        </span>
+        <span className="tile-state">
+          <StateLine state={seat.state} since={seat.since} />
+        </span>
       </span>
     </button>
   )

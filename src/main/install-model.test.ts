@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { InstallSnapshot } from '../shared/install'
-import { agentNameFor, forgetInstall, menuEntryFor, rememberInstall, rosterFor } from './install-model'
+import { agentNameFor, forgetInstall, menuEntryFor, rememberInstall, rosterFor, skillsFor } from './install-model'
 import type { InstallProjection } from './projections/install'
 
 const projection = (names: Record<string, string>): InstallProjection => ({
@@ -76,5 +76,28 @@ describe('the install model main shares between bridges', () => {
     expect(menuEntryFor(905, 'a', 'CP')).toEqual(entry)
     expect(menuEntryFor(905, 'a', 'XX')).toBeUndefined()
     expect(menuEntryFor(906, 'a', 'CP')).toBeUndefined()
+  })
+
+  it('answers the install’s skills in manifest order for a remembered window, and none for an unknown one (Story 7.5)', () => {
+    rememberInstall(911, {
+      ...projection({}),
+      snapshot: () => ({
+        revision: 1,
+        agents: [],
+        menus: {},
+        errors: [],
+        preflight: [],
+        skills: [
+          { name: 'bmad-build', description: 'Build' },
+          { name: 'bmad-agent-pm', description: 'John' }
+        ]
+      })
+    })
+
+    expect(skillsFor(911)).toEqual([
+      { name: 'bmad-build', description: 'Build' },
+      { name: 'bmad-agent-pm', description: 'John' }
+    ])
+    expect(skillsFor(912)).toEqual([])
   })
 })

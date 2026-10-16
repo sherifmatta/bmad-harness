@@ -195,6 +195,9 @@ describe('the collapsed line’s words (Story 3.5)', () => {
     const none = new Set<string>()
     expect(isCollapsed(card({ agentId: 'bmad-agent-ghost' }), 'bmad-agent-pm', none)).toBe(true)
     expect(isCollapsed(card({ agentId: undefined }), 'bmad-agent-pm', none)).toBe(true)
+    // A skill-first session's card (Story 7.5) is drawn in its own thread and never collapses to a persona-less line.
+    expect(isCollapsed(card({ agentId: undefined, skillSession: 's1' }), 'bmad-agent-pm', none)).toBe(false)
+    expect(isCollapsed(card({ agentId: undefined, skillSession: 's1' }), undefined, none)).toBe(false)
     expect(isCollapsed(card({ agentId: undefined }), undefined, none)).toBe(true)
     expect(isCollapsed(card(), undefined, none)).toBe(true)
   })

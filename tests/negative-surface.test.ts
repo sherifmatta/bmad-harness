@@ -1138,9 +1138,11 @@ describe("an orphaned session has one header and one control, and nothing else (
     expect(app).toMatch(/const closeSession = \(agentId: string\): void => \{\s*void conversation\.close\(/);
     expect(app).toMatch(/onCloseOrphan=\{closeSession\}/);
     expect(app).toMatch(/onCloseSession=\{closeSession\}/);
-    // The persona's close, and the room's own stop (Story 4.5), which only a button's handler calls.
-    expect(hook.match(/bridge\.closeSession\(/g)).toHaveLength(2);
+    // The persona's close, the room's own stop (Story 4.5) and a skill-first session's end (Story 7.5), which only a button's handler calls.
+    expect(hook.match(/bridge\.closeSession\(/g)).toHaveLength(3);
     expect(app.match(/conversation\.stopRoom\(/g)).toHaveLength(1);
+    expect(app.match(/conversation\.closeSkill\(/g)).toHaveLength(1);
+    expect(app).toMatch(/onCloseSkill=\{closeSkill\}/);
     expect(hook).not.toMatch(/useEffect\([^)]*close\(/);
   });
 });
@@ -1165,14 +1167,27 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
    * The only spellings of the word `skill` a chat source may hold besides the skill row
    * (Story 3.18): the run's recorded `skill`, which the card's head draws as text. Each is the
    * whole of what its file does with it, so any other use is left in the sweep and fails it.
+   * Story 7.5 adds the spelling of a skill-first session's imports and its record's kind, each said once.
    */
   const RECORDED_SKILL_SPELLINGS: Record<string, RegExp> = {
-    "src/renderer/ui/chat/transcript-entry.ts": /^  skill\?: string$/gm,
+    // Story 7.5: and the kind of what a skill said in a skill-first session, spelled once.
+    "src/renderer/ui/chat/transcript-entry.ts": /^  skill\?: string$|^  kind: 'skill'$/gm,
     "src/renderer/ui/chat/conversation-state.ts":
-      /\.\.\.\((?:card\.)?skill === undefined \? \{\} : \{ skill(?:: card\.skill)? \}\),|const \{ runId, sessionId, agentId, (?:code, )?skill, plan, at \}/g,
+      /\.\.\.\((?:card\.)?skill === undefined \? \{\} : \{ skill(?:: card\.skill)? \}\),|const \{ runId, sessionId, agentId, (?:code, )?skill, plan, at \}|^import [^\n]* from '(?:\.\.\/status\/skill-seat|\.\/skill-session-state)'$|record\.kind === 'skill'/gm,
     "src/renderer/ui/chat/run-card.tsx":
       /<RunHeadName skill=\{entry\.skill\} \/>|function RunHeadName\(\{ skill \}: \{ skill: string \| undefined \}\)|if \(skill === undefined\)|className="run-card-skill">\{skill\}/g
   };
+
+  /**
+   * Story 7.5: the files of chat/ that draw a skill-first session, whose speaker is the skill it was started with.
+   * They say `skill` for that and for nothing a persona's menu says.
+   */
+  const SKILL_FIRST_CHAT = [
+    "src/renderer/ui/chat/chat-header.tsx",
+    "src/renderer/ui/chat/skill-session-state.ts",
+    "src/renderer/ui/chat/transcript.tsx",
+    "src/renderer/ui/chat/use-conversation.ts",
+  ];
 
   /**
    * What a source says to a person: the contents of its string and template
@@ -1263,6 +1278,10 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
       // swept whole.
       const RECORDED = Object.keys(RECORDED_SKILL_SPELLINGS);
       const rest = CHAT_CODE.filter((path) => path !== ROW && !RECORDED.includes(path));
+      // Story 7.5: a skill-first session's thread names the skill it was started with, as its speaker and in its own
+      // state. These files say that and nothing of a persona's menu: the sweep takes out the word `skill` for them
+      // alone and keeps every other word of it, and `skills` (the install's list) stays out of them.
+      const SKILL_FIRST = SKILL_FIRST_CHAT;
       // Story 7.3: the composer is handed the `/` list's rows and imports its hook from `../skills/`, so the
       // directory's name is in its two import lines. Those two lines are taken out and the rest of the file is
       // swept whole, as is every other file: the composer still reads no skill, menu, code or description itself.
@@ -1271,10 +1290,11 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
       expect((code.get(COMPOSER_PATH) ?? "").match(SLASH_IMPORTS)).toHaveLength(2);
       expect(
         offenders(
-          rest.filter((path) => path !== COMPOSER_PATH),
+          rest.filter((path) => path !== COMPOSER_PATH && !SKILL_FIRST.includes(path)),
           /\bmenus?\b|\bskills?\b|\bMenuEntry\b|\bcodes\b/i,
         ),
       ).toEqual([]);
+      expect(offenders(SKILL_FIRST, /\bmenus?\b|\bskills\b|\bMenuEntry\b|\bcodes\b/i)).toEqual([]);
       expect((code.get(COMPOSER_PATH) ?? "").replace(SLASH_IMPORTS, "")).not.toMatch(
         /\bmenus?\b|\bskills?\b|\bMenuEntry\b|\bcodes\b/i,
       );
@@ -1301,6 +1321,11 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
       ).toEqual([
         "src/renderer/ui/chat/use-conversation.ts: asHarnessError(reason).code",
         "src/renderer/ui/chat/use-conversation.ts: asHarnessError(reason).code",
+        // Story 7.5: a first message is refused as naming no skill, or not.
+        "src/renderer/ui/chat/use-conversation.ts: error.code",
+        // Story 7.5: a send to a skill-first session is refused as ended, or not.
+        "src/renderer/ui/chat/use-conversation.ts: asHarnessError(reason).code",
+        "src/renderer/ui/chat/use-conversation.ts: asHarnessError(reason).code",
         "src/renderer/ui/chat/use-conversation.ts: asHarnessError(reason).code",
         // Story 4.2: the room's send is refused as busy or not, as a persona's is.
         "src/renderer/ui/chat/use-conversation.ts: asHarnessError(reason).code",
@@ -1323,7 +1348,9 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
       expect(code.has(PROCESS), PROCESS).toBe(true);
       const BETWEEN = [...CHAT_CODE, APP, BRIDGE, PROCESS];
 
-      expect(offenders(BETWEEN, SLASH)).toEqual([]);
+      // Story 7.5: the one reader of a leading `/` between the composer and the session is main's reading of a
+      // first message typed in the New session chat (`openFirst`), matched against the install's own skill list.
+      expect(offenders(BETWEEN, SLASH)).toEqual(["src/main/session-bridge.ts: startsWith('/"]);
       const composer = code.get("src/renderer/ui/chat/composer.tsx") ?? "";
       // The composer hands the trimmed draft on and looks at no character of it.
       expect(composer).toContain("onSend(text.trim())");
@@ -1360,6 +1387,8 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
       // The user's own words are what is recorded; a validated mention rides beside them (AD-25), and a room's never.
       expect(send).toContain("recordUserTurn(target.arg, at, undefined, named)");
       expect(send).toContain("recordUserTurn(target.arg, at, true)");
+      // Story 7.5: a skill-first session's turn is recorded as typed, flagged as its own thread's.
+      expect(send).toContain("recordUserTurn(target.arg, at, undefined, undefined, entry.sessionId)");
       expect(send).toContain("validMention(mention, ctx.nameOf(sender.id, entry.agentId))");
       // What the persona is handed is the text alone: the mention never reaches a write.
       expect(send).not.toMatch(/writeTurn\([^)]*mention/);
@@ -1413,7 +1442,8 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
 
     it("draws the run's recorded skill as text only: no tooltip, data or aria from it, no list, and no dispatch by it (Story 3.18, FR27)", () => {
       for (const path of Object.keys(RECORDED_SKILL_SPELLINGS)) {
-        const lines = (code.get(path) ?? "").split("\n").filter((line) => /\bskill\b/.test(line));
+        // A skill-first session's own lines (Story 7.5) are not the card's recorded field: they name the session.
+        const lines = (code.get(path) ?? "").split("\n").filter((line) => /\bskill\b/.test(line) && !/skillSession|SkillSession/.test(line));
         expect(lines.length, path).toBeGreaterThan(0);
         for (const line of lines) {
           expect(line, path).not.toMatch(/\btitle\b|data-|aria-|\bdispatch|runSkill|\.map\(|\.filter\(|\.find\(|\.includes\(|onClick|href|menu/i);
@@ -1431,7 +1461,8 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
         ),
       ).toEqual([]);
       expect(code.get(BRIDGE)).toContain("async (event: IpcMainInvokeEvent, sessionId: unknown, code: unknown): Promise<MenuDispatchReply>");
-      expect(offenders(["src/shared/commands.ts", "src/shared/channels.ts", "src/renderer/ui/chat/use-conversation.ts"], /\bskill\b/i)).toEqual([]);
+      // Story 7.5: the conversation hook now speaks of a skill-first session, which is no menu's skill.
+      expect(offenders(["src/shared/commands.ts", "src/shared/channels.ts"], /\bskill\b/i)).toEqual([]);
       const css = CHAT_ALL.filter((path) => path.endsWith(".css")).map((path) => code.get(path) ?? "").join("\n");
       expect(css).not.toMatch(/\[class[*^$~|]?=[^\]]*skill|\[data-/);
     });
@@ -1456,7 +1487,8 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
         );
 
         expect(imports.filter((from) => /team|menu|skill|install-state|use-install/.test(from)), path).toEqual([]);
-        expect(text, path).not.toMatch(/\bmenus?\b|\bskills?\b|\bMenuEntry\b|\.code\b|\.description\b/i);
+        // Story 7.5: the transcript tells what a skill said in a skill-first session by its entry's kind, spelled once.
+        expect(text.replace("entry.kind === 'skill'", ""), path).not.toMatch(/\bmenus?\b|\bskills?\b|\bMenuEntry\b|\.code\b|\.description\b/i);
       }
     });
 
@@ -1586,6 +1618,8 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
         "roomOpenedAt",
         "roomTopic",
         "roomReturned",
+        // Story 7.5: the skill-first sessions, live or ended: a seat each, and no state for a wait.
+        "skillSessions",
         "nextId",
       ]);
       for (const path of [
@@ -1599,8 +1633,10 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
       }
       // A transcript entry is a persona's, the user's, the harness's sysline or, from
       // Story 3.1, a run's card, born on `run:started`: no fifth kind, and no kind for a wait.
+      // Story 7.5 adds the fifth, a skill's words in a skill-first session; none is a kind for a wait.
       expect([...(code.get("src/renderer/ui/chat/transcript-entry.ts") ?? "").matchAll(/kind:\s*'(\w+)'/g)].map(([, kind]) => kind)).toEqual([
         "persona",
+        "skill",
         "user",
         "sysline",
         "run",
@@ -1700,12 +1736,24 @@ describe("the skill row knows nothing about what it runs (Story 3.1)", () => {
     expect(view.slice(0, view.indexOf("\n"))).toBe(
       "export type MenuEntryView = { code: string; description: string }",
     );
+    // Story 7.5: `'skill'` is also the kind of what a skill said in a skill-first session and the name of a first
+    // message's outcome; these files say it for that and for nothing a menu's action says.
+    const SKILL_FIRST_KIND = [
+      "src/renderer/ui/app.tsx",
+      "src/renderer/ui/chat/conversation-state.ts",
+      "src/renderer/ui/chat/skill-session-state.ts",
+      "src/renderer/ui/chat/transcript-entry.ts",
+      "src/renderer/ui/chat/transcript.tsx",
+      "src/renderer/ui/chat/use-conversation.ts",
+      "src/renderer/ui/shell/shell.tsx",
+    ];
     expect(
       offenders(
-        RENDERER_CODE,
+        RENDERER_CODE.filter((path) => !SKILL_FIRST_KIND.includes(path)),
         /\.action\b|['"]prompt['"]|['"]skill['"]|ResolvedMenuEntry/,
       ),
     ).toEqual([]);
+    expect(offenders(SKILL_FIRST_KIND, /\.action\b|['"]prompt['"]|ResolvedMenuEntry/)).toEqual([]);
   });
 
   it("owns one piece of local state and adds one interactive element, the toggle, which is no tooltip and no list", () => {
@@ -1956,7 +2004,9 @@ describe("the collapsed run card is one line, one expanding button and the stop 
           !line.includes("onStop={conversation.stopRun}") &&
           !line.includes("onStop={() => void conversation.stopRoom()}") &&
           // The chat header's own Stop (Story 3.19): it stops the turn of a session, which the card's does not.
-          !line.includes("onStopTurn={(agentId) => void conversation.stopTurn(agentId)}"),
+          !line.includes("onStopTurn={(agentId) => void conversation.stopTurn(agentId)}") &&
+          // And a skill-first session's own (Story 7.5): the same control, for that session's turn.
+          !line.includes("onStopSkill={(sessionId) => void conversation.stopSkill(sessionId)}"),
       ),
     ).toEqual([]);
     expect(stopLines(APP).length).toBeGreaterThanOrEqual(2);
@@ -2887,7 +2937,9 @@ describe("nothing this epic promised not to do: the audit's static half (Story 4
     expect(refusal.length).toBeGreaterThan(0);
     expect(refusal).not.toMatch(/sendTurn|setTimeout|retry|resend|queue|withQueue/i);
     const conversation = code.get(CONVERSATION) ?? "";
-    expect(conversation.match(/bridge\.sendTurn\(/g)).toHaveLength(2);
+    // The room's send, a queued turn's and, from Story 7.5, a send to a skill-first session main no longer holds (its
+    // refusal is the window's own line, `session ended`, drawn like the room's and never sent again).
+    expect(conversation.match(/bridge\.sendTurn\(/g)).toHaveLength(3);
     expect(wordsOf([CONVERSATION, STATE, COMPOSER, ...PARTY_TSX]).filter((text) => /try again|retry|resend|re-send/i.test(text))).toEqual([]);
     // The text goes back to the field and nowhere else: the composer takes it into its own draft and calls no handler.
     const composer = code.get(COMPOSER) ?? "";
@@ -3008,12 +3060,14 @@ describe("stopping a turn that is not a run (Story 3.19, FR125, AD-23)", () => {
 
   it("draws the header's one control as one native button, with no confirmation, cost, `stopping…`, title, disabled or pending state, and in the thread of no room or orphan", () => {
     const header = code.get(HEADER) ?? "";
-    expect(header.match(/<button\b/g)).toHaveLength(1);
+    // The persona's header and, from Story 7.5, a skill-first session's: each one native button, which is Stop or close session.
+    expect(header.match(/<button\b/g)).toHaveLength(2);
     expect(header).not.toMatch(/confirm|dialog|cost|stopping|pending|disabled|title=|aria-disabled|aria-busy|toast|tooltip|spinner/i);
     expect(offenders(["src/renderer/ui/chat/orphan-header.tsx", ...sources("src/renderer/ui/party/")], /\bStop\b|\bstopTurn\b|\bonStopTurn\b|\bturnInFlight\b/)).toEqual([]);
     // The one place that hands the header a way to stop is the shell, which hands it to the current persona's header only.
     expect(offenders(RENDERER_CODE, /<ChatHeader\b/)).toEqual(["src/renderer/ui/shell/shell.tsx: <ChatHeader"]);
-    expect(code.get("src/renderer/ui/shell/shell.tsx")?.match(/onStopTurn\(current\.id\)/g)).toHaveLength(1);
+    expect(offenders(RENDERER_CODE, /<SkillHeader\b/)).toEqual(["src/renderer/ui/shell/shell.tsx: <SkillHeader"]);
+    expect(code.get("src/renderer/ui/shell/shell.tsx")?.match(/onStopTurn\(persona\.id\)/g)).toHaveLength(1);
     // Its stylesheet is the close control's: nothing new is drawn for a stop.
     expect(offenders(sources("src/renderer/ui/chat/", [".css"]), /chat-stop|\.stop-turn/)).toEqual([]);
   });
@@ -3047,7 +3101,11 @@ describe("the `/` list is the only skill list in the product, and it launches no
     // The only reader of the snapshot's `skills` is the shell's owner, and it hands them to the persona composer alone.
     expect(offenders(RENDERER_CODE, /\.skills\b/).map((hit) => hit.split(":")[0])).toEqual([APP]);
     expect(offenders(RENDERER_CODE, /\bslashEntries\b/).map((hit) => hit.split(":")[0]).sort()).toEqual([APP, COMPOSER]);
-    expect(code.get(APP)?.match(/slashEntries=\{snapshot\.skills\}/g)).toHaveLength(1);
+    // Story 7.5: a persona's composer and the New session chat's, whose one job is typing a skill; the composer of a
+    // skill-first session has none, so nothing inside a session suggests starting another.
+    expect(code.get(APP)?.match(/slashEntries=\{snapshot\.skills\}/g)).toHaveLength(2);
+    const app = code.get(APP) ?? "";
+    expect(app.slice(app.indexOf("skillComposer="), app.indexOf("newComposer="))).not.toMatch(/slashEntries/);
     expect(offenders(sources("src/renderer/ui/party/"), /\bslashEntries\b|\bskills\b|SkillList|useSlashList/)).toEqual([]);
     // The list is drawn by the hook and by nothing else.
     expect(offenders(RENDERER_CODE, /<SkillList\b|\bcreateElement\(SkillList\b/).map((hit) => hit.split(":")[0])).toEqual([`${LIST_DIR}use-slash-list.ts`]);

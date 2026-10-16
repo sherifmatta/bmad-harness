@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { PersonaSaid } from '../../shared/events'
-import { EMPTY_TRANSCRIPT, foldPersonaSaid, foldSysline, foldUserTurn, transcriptFrom } from './transcript'
+import {
+  EMPTY_TRANSCRIPT,
+  foldPersonaSaid,
+  foldSysline,
+  foldUserTurn,
+  foldWithoutSkillSession,
+  transcriptFrom
+} from './transcript'
 import type { TranscriptState } from './transcript'
 
 const said = (messageId: string, text: string, at = 1, agentId: string | null = 'a'): PersonaSaid => ({
@@ -164,5 +171,53 @@ describe('a room’s sysline', () => {
       { kind: 'sysline', id: 'm-1', at: 6, text: 'handed to John' }
     ])
     expect('room' in state.entries[1]).toBe(false)
+  })
+})
+
+describe('a skill-first session in the transcript (Story 7.5)', () => {
+  const skillSaid = (messageId: string, text: string, skillSession = 's1', at = 1): PersonaSaid => ({
+    sessionId: skillSession,
+    messageId,
+    text,
+    at,
+    skillSession
+  })
+
+  it('records what a skill said as its own record, joined across pieces of one message, with its session', () => {
+    const state = [skillSaid('m1', 'Hel', 's1', 5), skillSaid('m1', 'lo', 's1', 6), skillSaid('m2', '!', 's1', 7)].reduce(foldPersonaSaid, EMPTY_TRANSCRIPT)
+
+    expect(state.entries).toEqual([
+      { kind: 'skill', id: 'm-0', at: 5, messageId: 'm1', text: 'Hello', skillSession: 's1' },
+      { kind: 'skill', id: 'm-1', at: 7, messageId: 'm2', text: '!', skillSession: 's1' }
+    ])
+  })
+
+  it('does not join the words of two sessions that share a message id, and records no agentless words without a session', () => {
+    const two = [skillSaid('m1', 'a', 's1'), skillSaid('m1', 'b', 's2')].reduce(foldPersonaSaid, EMPTY_TRANSCRIPT)
+    expect(two.entries.map((entry) => entry.text)).toEqual(['a', 'b'])
+    expect(foldPersonaSaid(EMPTY_TRANSCRIPT, said('m1', 'no one', 1, null))).toBe(EMPTY_TRANSCRIPT)
+  })
+
+  it('keeps the flag on the user’s turn and the harness’s line, and on nothing else', () => {
+    const state = foldSysline(foldUserTurn(EMPTY_TRANSCRIPT, 'go', 1, undefined, undefined, 's1'), 'ended', 2, undefined, 's1')
+
+    expect(state.entries).toEqual([
+      { kind: 'user', id: 'm-0', at: 1, text: 'go', skillSession: 's1' },
+      { kind: 'sysline', id: 'm-1', at: 2, text: 'ended', skillSession: 's1' }
+    ])
+    expect(foldUserTurn(EMPTY_TRANSCRIPT, 'plain', 1).entries[0]).not.toHaveProperty('skillSession')
+  })
+
+  it('takes one session’s records out and no other’s, and never reuses an id', () => {
+    let state = foldUserTurn(EMPTY_TRANSCRIPT, 'a', 1, undefined, undefined, 's1')
+    state = foldUserTurn(state, 'persona', 2)
+    state = foldPersonaSaid(state, skillSaid('m', 'said', 's2', 3))
+    state = foldUserTurn(state, 'b', 4, undefined, undefined, 's1')
+
+    const next = foldWithoutSkillSession(state, 's1')
+
+    expect(next.entries.map((entry) => entry.text)).toEqual(['persona', 'said'])
+    expect(next.nextId).toBe(state.nextId)
+    expect(foldWithoutSkillSession(next, 's1')).toBe(next)
   })
 })

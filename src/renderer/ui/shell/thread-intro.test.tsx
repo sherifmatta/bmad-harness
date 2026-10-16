@@ -50,7 +50,7 @@ describe('ThreadIntro', () => {
 describe('Shell, the thread before the first message', () => {
   const snapshot = { revision: 1, agents: [MARY], menus: { [MARY.id]: ITEMS }, errors: [], preflight: [], skills: [] }
   const render = (threadEmpty: boolean): string =>
-    renderToStaticMarkup(<Shell projectPath="/p" snapshot={snapshot} threadEmpty={threadEmpty} />)
+    renderToStaticMarkup(<Shell projectPath="/p" snapshot={snapshot} threadEmpty={threadEmpty} currentId={MARY.id} />)
 
   it('introduces the current persona in the thread while it is empty', () => {
     expect(render(true)).toContain('class="thread-intro"')

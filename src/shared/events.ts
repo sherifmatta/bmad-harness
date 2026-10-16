@@ -38,7 +38,13 @@ export type PersonaState = 'idle' | 'work' | 'live' | 'note' | 'error'
 export type SessionEnd = 'closed' | 'process-exited'
 
 /** A session came up and can take its first turn. */
-export type SessionOpened = { sessionId: SessionId; agentId?: AgentId; at: EpochMs }
+export type SessionOpened = {
+  sessionId: SessionId
+  agentId?: AgentId
+  /** Set for a skill-first session (Story 7.5): the skill's name, in place of an agent. */
+  skill?: string
+  at: EpochMs
+}
 
 /** The session is free for the next turn. Queued messages are sent on this. */
 export type SessionAwaitingTurn = { sessionId: SessionId; at: EpochMs }
@@ -47,6 +53,8 @@ export type SessionAwaitingTurn = { sessionId: SessionId; at: EpochMs }
 export type SessionClosed = {
   sessionId: SessionId
   agentId?: AgentId
+  /** Set for a skill-first session (Story 7.5). */
+  skill?: string
   reason: SessionEnd
   at: EpochMs
 }
@@ -67,6 +75,11 @@ export type PersonaSaid = {
    * named: the words belong to the party thread and never to the persona's 1:1 thread.
    */
   room?: true
+  /**
+   * Set on what a skill said in a skill-first session (Story 7.5), where `agentId` is absent: the
+   * words belong to that session's own thread alone.
+   */
+  skillSession?: SessionId
 }
 
 /**
@@ -82,6 +95,8 @@ export type HarnessSaid = {
   at: EpochMs
   /** Set on every harness line about a room: it belongs to the party thread (`SyslineRecord.room`). */
   room?: true
+  /** Set on every harness line about a skill-first session: it belongs to that session's thread (`SyslineRecord.skillSession`). */
+  skillSession?: SessionId
 }
 
 /** A persona's aggregated state changed. Keyed by `agentId`, never by name. */

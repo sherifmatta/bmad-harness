@@ -20,6 +20,24 @@ export type PersonaEntry = {
   messageId?: string
   /** Said in the room (Story 4.2): the party thread draws it and a 1:1 thread never does. */
   room?: true
+  /** A persona is never a skill-first session's speaker (Story 7.5): every entry kind answers which session's thread it is in. */
+  skillSession?: undefined
+}
+
+/**
+ * What a skill said in a skill-first session (Story 7.5): the speaker is the skill's name, read from the
+ * window's session of `skillSession`, never a persona. Drawn in that session's own thread alone.
+ */
+export type SkillEntry = {
+  kind: 'skill'
+  id: string
+  at: number
+  text: string
+  messageId?: string
+  /** The skill-first session this was said in. */
+  skillSession: string
+  /** A skill is never the room's: the room's filters read `room` on every entry kind. */
+  room?: undefined
 }
 
 export type UserEntry = {
@@ -40,6 +58,8 @@ export type UserEntry = {
   queuedFor?: string
   /** Sent into the room (Story 4.2): the party thread draws it and a 1:1 thread never does. */
   room?: true
+  /** Sent into a skill-first session (Story 7.5): only that session's thread draws it. */
+  skillSession?: string
 }
 
 /**
@@ -57,6 +77,8 @@ export type SyslineEntry = {
    * a persona's 1:1 thread never draws one.
    */
   room?: true
+  /** A line about a skill-first session (Story 7.5), main's or the window's own: only that session's thread draws it. */
+  skillSession?: string
 }
 
 /**
@@ -92,10 +114,12 @@ export type RunCardEntry = {
   plan?: readonly string[]
   /** The sections of each document the run confirmed a write to, by path. Its text is the prose store's. */
   documents: readonly RunCardEntryDocument[]
+  /** Set when the run is a skill-first session's (Story 7.5), to that session: its card is drawn in that thread and no other. */
+  skillSession?: string
 }
 
 /** One document's sections, as a card's entry holds them: those of the path's last confirmed write. */
 export type RunCardEntryDocument = { path: string; sections: readonly string[] }
 
-export type TranscriptEntry = PersonaEntry | UserEntry | SyslineEntry | RunCardEntry
+export type TranscriptEntry = PersonaEntry | SkillEntry | UserEntry | SyslineEntry | RunCardEntry
 

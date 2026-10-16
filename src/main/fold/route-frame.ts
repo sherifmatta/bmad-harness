@@ -49,6 +49,12 @@ import { FIELD_BUFFER_MAX, keepsHeadOfField, labelFieldOf, stepLabel } from './s
 export type RouteContext = {
   sessionId: SessionId
   agentId?: AgentId
+  /**
+   * Set for a skill-first session (Story 7.5), to its own session id: it has no persona and no room's
+   * markers, so its speech is the skill's and carries this flag. A session with neither this nor an
+   * `agentId` is the room.
+   */
+  skillSession?: SessionId
   /** Absent in a chat turn, which raises no document or note event. */
   runId?: RunId
   /** Absolute, as the CLI reports paths. */
@@ -57,7 +63,7 @@ export type RouteContext = {
   now: number
   /**
    * The window's resolved roster, which a room's markers are read against (Story 4.2).
-   * Read only when `agentId` is absent; a persona's session never looks at it.
+   * Read only by the room (no `agentId`, no `skillSession`); a persona's session and a skill's never look at it.
    */
   roster?: readonly { id: string; name: string }[]
 }
@@ -118,7 +124,7 @@ export type PendingWrite = { path: string; tool: string; text: string; old: stri
 
 /**
  * What the room's turn markers have told so far (Story 4.2). Held in every state and
- * touched only for a session with no `agentId`: a persona's session never changes it.
+ * touched only for the room (no `agentId`, no `skillSession`): a persona's session or a skill's never changes it.
  */
 export type PartyState = {
   /** The scan's memory: text held back at a line start, and whether the next character begins a line. */
@@ -425,12 +431,18 @@ function committedBy(
   }
 }
 
+/** Whether the session this context is for is the room: no persona of its own, and no skill's. */
+function isRoom(ctx: RouteContext): boolean {
+  return ctx.agentId === undefined && ctx.skillSession === undefined
+}
+
 function personaSaid(state: RouteState, text: string, ctx: RouteContext): ContractEvent {
   return {
     name: 'persona:said',
     payload: {
       sessionId: ctx.sessionId,
       ...(ctx.agentId === undefined ? {} : { agentId: ctx.agentId }),
+      ...(ctx.skillSession === undefined ? {} : { skillSession: ctx.skillSession }),
       messageId: state.messageId ?? '',
       text,
       at: ctx.now
@@ -480,7 +492,7 @@ function foldPieces(
 
 /** A room's held text is speech from here on: the block it belongs to ended, or a new message began. */
 function flushParty(state: RouteState, ctx: RouteContext): RouteResult {
-  if (ctx.agentId !== undefined || state.party.scan.held === '') return { state, events: [] }
+  if (!isRoom(ctx) || state.party.scan.held === '') return { state, events: [] }
   const flushed = flushScan(state.party.scan)
   const folded = foldPieces(state, state.party, flushed.pieces, ctx)
   return { state: { ...state, party: { ...folded.party, scan: flushed.scan } }, events: folded.events }
@@ -505,7 +517,7 @@ export function routeFrame(state: RouteState, frame: unknown, ctx: RouteContext)
       // A room's held text is the old message's; a new one has no speaker until its first marker.
       const flushed = flushParty(state, ctx)
       const party =
-        ctx.agentId === undefined
+        isRoom(ctx)
           ? { ...flushed.state.party, scan: initialScan, speaker: undefined }
           : state.party
       return { state: { ...flushed.state, messageId, blocks: {}, unnamed, party }, events: flushed.events }
@@ -524,7 +536,7 @@ export function routeFrame(state: RouteState, frame: unknown, ctx: RouteContext)
       if (head.type === 'text') {
         // A text block begins at the start of a line.
         const begun =
-          ctx.agentId === undefined ? { ...state, party: { ...state.party, scan: { ...state.party.scan, lineStart: true } } } : state
+          isRoom(ctx) ? { ...state, party: { ...state.party, scan: { ...state.party.scan, lineStart: true } } } : state
         return { state: withBlock(begun, input.index, { kind: 'text' }), events: [] }
       }
       if (head.type !== 'tool' || ctx.runId === undefined) {
@@ -564,7 +576,7 @@ export function routeFrame(state: RouteState, frame: unknown, ctx: RouteContext)
       if (block === undefined || block.kind !== 'text' || input.text === '') {
         return { state, events: [] }
       }
-      if (ctx.agentId !== undefined) return { state, events: [personaSaid(state, input.text, ctx)] }
+      if (!isRoom(ctx)) return { state, events: [personaSaid(state, input.text, ctx)] }
       // A room has no persona of its own: its text is read for the markers that name who speaks.
       // A name the roster does not have is a marker only behind an icon; a bold label is the speaker's own words.
       const roster = ctx.roster ?? []

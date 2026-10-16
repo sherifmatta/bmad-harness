@@ -21,8 +21,9 @@ type Ranked = { row: ActivityRow; runAt: number; order: number; end: boolean }
  * with an `agentId` is a persona's run and gives a start row at `at`, and, once
  * it is no longer `running` and has an `endedAt`, an end row at that time: a
  * terminal entry with no `endedAt` raises none, and a time is never invented.
- * An entry with no `agentId` (a party session) raises nothing. The persona is
- * named as the roster names it, else by its id as written.
+ * An entry with no `agentId` raises nothing, unless it is a skill-first session's
+ * (Story 7.5, `skillSession`): its rows name the skill where a persona's goes and say the
+ * bare verb with no code. The persona is named as the roster names it, else by its id as written.
  *
  * Newest event first; a tie goes to the newer run, and an end row sits above its
  * own start row. The first {@link ACTIVITY_LIMIT} are returned.
@@ -31,11 +32,17 @@ export function activityRowsOf(installed: readonly AgentView[], entries: readonl
   const names = new Map(installed.map((agent) => [agent.id, agent.name]))
   const ranked: Ranked[] = []
   entries.forEach((entry, order) => {
-    if (entry.kind !== 'run' || entry.agentId === undefined) {
+    if (entry.kind !== 'run') {
       return
     }
-    const name = names.get(entry.agentId) ?? entry.agentId
-    const said = (verb: string): string => (entry.code === undefined || entry.code === '' ? verb : `${verb} ${entry.code}`)
+    // A skill-first session's run is a skill's, not a persona's: named by the skill, with no menu code to say.
+    const skill = entry.agentId === undefined && entry.skillSession !== undefined ? entry.skill : undefined
+    if (entry.agentId === undefined && skill === undefined) {
+      return
+    }
+    const name = skill ?? names.get(entry.agentId ?? '') ?? entry.agentId ?? ''
+    const said = (verb: string): string =>
+      skill !== undefined || entry.code === undefined || entry.code === '' ? verb : `${verb} ${entry.code}`
     ranked.push({
       row: { key: `${entry.id}:start`, name, did: said('started'), at: entry.at, state: 'work', pulse: entry.status === 'running' },
       runAt: entry.at,

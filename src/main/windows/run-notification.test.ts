@@ -184,6 +184,16 @@ describe('the completion line, told when the window is elsewhere', () => {
     expect(posted[0].shown).toBe(1)
   })
 
+  it('names a skill-first session’s run by its skill, where a persona’s goes (Story 7.5)', () => {
+    const { told, posted } = notifier()
+    const agentless = card({ skill: 'bmad-build', status: 'finished' })
+    delete agentless.agentId
+
+    told(fakeSender(), FINISHED, agentless)
+
+    expect(posted.map((line) => line.options)).toEqual([{ body: 'bmad-build · prd.md · finished · 15 sections', silent: true }])
+  })
+
   it('reads a stop mid-Write as zero sections, stated plainly: the subject streamed but nothing was confirmed', () => {
     const { told, posted } = notifier()
 

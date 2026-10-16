@@ -743,3 +743,88 @@ describe('run cards kept with the transcript (Story 3.7)', () => {
     expect(readFileSync(fileOf(), 'utf8')).toBe('{not json')
   })
 })
+
+describe('the skill-first sessions a transcript lists (Story 7.5)', () => {
+  const card = (runId: string, sessionId: string): RunCardSnapshot => ({
+    runId,
+    sessionId,
+    code: 'bmad-build',
+    skill: 'bmad-build',
+    startedAt: 1,
+    status: 'running',
+    notes: [],
+    steps: [],
+    documents: []
+  })
+
+  it('lists each once, in start order, and writes the list with the transcript', () => {
+    const transcript = registry().forProject(project)
+    transcript.openSkillSession({ sessionId: 's1', skill: 'bmad-build', at: 1 })
+    transcript.openSkillSession({ sessionId: 's2', skill: 'bmad-build-auto', at: 2 })
+    transcript.openSkillSession({ sessionId: 's1', skill: 'bmad-build', at: 3 })
+    tick()
+
+    expect(transcript.skillSessions().map(({ sessionId }) => sessionId)).toEqual(['s1', 's2'])
+    expect(onDisk().skillSessions).toEqual([
+      { sessionId: 's1', skill: 'bmad-build', at: 1 },
+      { sessionId: 's2', skill: 'bmad-build-auto', at: 2 }
+    ])
+  })
+
+  it('takes one session’s records, stored cards and list item away, and no other’s, and keeps none of its late cards', () => {
+    const transcript = registry().forProject(project)
+    transcript.openSkillSession({ sessionId: 's1', skill: 'bmad-build', at: 1 })
+    transcript.openSkillSession({ sessionId: 's2', skill: 'bmad-build', at: 2 })
+    transcript.recordUserTurn('one', 1, undefined, undefined, 's1')
+    transcript.recordUserTurn('two', 2, undefined, undefined, 's2')
+    transcript.recordUserTurn('shared', 3)
+    transcript.recordRun(card('r1', 's1'), 1)
+    transcript.recordRun(card('r2', 's2'), 2)
+
+    expect(transcript.removeSkillSession('s1')).toBe(true)
+    transcript.recordRun({ ...card('r1', 's1'), status: 'failed' }, 5)
+
+    expect(transcript.entries().map((entry) => entry.text)).toEqual(['two', 'shared'])
+    expect(transcript.storedRuns().map(({ runId }) => runId)).toEqual(['r2'])
+    expect(transcript.skillSessions().map(({ sessionId }) => sessionId)).toEqual(['s2'])
+    expect(transcript.removeSkillSession('s1')).toBe(false)
+    tick()
+    expect(onDisk().entries.map((entry: { text: string }) => entry.text)).toEqual(['two', 'shared'])
+  })
+
+  it('keeps nothing that flags a session which is not listed: a late word, turn or line after it was ended', () => {
+    const transcript = registry().forProject(project)
+    transcript.openSkillSession({ sessionId: 's1', skill: 'bmad-build', at: 1 })
+    transcript.recordUserTurn('one', 1, undefined, undefined, 's1')
+    transcript.removeSkillSession('s1')
+
+    transcript.recordPersonaSaid({ sessionId: 's1', messageId: 'm', text: 'late', at: 2, skillSession: 's1' })
+    transcript.recordUserTurn('late', 3, undefined, undefined, 's1')
+    const line = transcript.recordSysline('late', 4, undefined, 's1')
+    transcript.recordUserTurn('never listed', 5, undefined, undefined, 'nobody')
+
+    expect(transcript.entries()).toEqual([])
+    expect(line).toMatchObject({ kind: 'sysline', text: 'late', skillSession: 's1' })
+    tick()
+    expect(timers).toEqual([])
+  })
+
+  it('lists the session before its first turn is kept, so that turn is kept with it', () => {
+    const transcript = registry().forProject(project)
+    transcript.openSkillSession({ sessionId: 's1', skill: 'bmad-build', at: 1 })
+    transcript.recordUserTurn('first', 1, undefined, undefined, 's1')
+
+    expect(transcript.entries()).toHaveLength(1)
+  })
+
+  it('is cleared with the transcript, and read back after a relaunch', () => {
+    const first = registry().forProject(project)
+    first.openSkillSession({ sessionId: 's1', skill: 'bmad-build', at: 1 })
+    first.flush()
+
+    expect(registry().forProject(project).skillSessions()).toEqual([{ sessionId: 's1', skill: 'bmad-build', at: 1 }])
+    expect(first.clear()).toEqual({ ok: true })
+    expect(first.skillSessions()).toEqual([])
+    expect(onDisk().skillSessions).toBeUndefined()
+  })
+})

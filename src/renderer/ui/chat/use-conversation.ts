@@ -32,6 +32,9 @@ import {
   withHandoff
 } from './conversation-state'
 import type { ConversationState, Delivery, PersonaStateEntry, TurnInFlight } from './conversation-state'
+import { skillRefused, skillRemoved, skillSeatsOf, skillStarted, skillTurnInFlight } from './skill-session-state'
+import { skillKey } from '../status/skill-seat'
+import type { SkillSeat } from '../status/skill-seat'
 import { createProseStore } from './prose-store'
 import type { ProseStore } from './prose-store'
 import { runLifecycleLine, subjectWritten } from './run-status'
@@ -50,9 +53,39 @@ export type ConversationBridge = {
   onSessionEvent(listener: (event: ContractEvent) => void): () => void
 }
 
+/**
+ * What came of a first message typed in the New session chat (Story 7.5), as main answered: `refused` (with the
+ * harness's line, `no skill named <word>`, when the word named no skill; with none, the failure line says why),
+ * a skill-first session, a persona's seat to turn to, or the room, the last two with the words after the name.
+ */
+export type StartOutcome =
+  | { kind: 'refused'; line?: string }
+  | { kind: 'skill'; sessionId: string }
+  | { kind: 'seat'; agentId: string; rest: string }
+  | { kind: 'room'; rest: string }
+
 export type Conversation = {
   /** Subscribe to main's events; returns the way to stop. */
   connect(): () => void
+  /**
+   * The user sent `text` as the first message of the New session chat, at `at` (Story 7.5): main reads it and answers
+   * with a skill-first session (held live, its first turn drawn at `at`), a seat or the room (both opened or found,
+   * and the words after the name for the caller to send), or refuses it (`refused`, nothing started or drawn). Never rejects.
+   */
+  startFrom(text: string, at: number): Promise<StartOutcome>
+  /**
+   * The user sent `text` into a skill-first session. A live one is sent to as a persona's is, queued while its turn is
+   * in flight (true). One this launch does not hold is asked all the same, and main's `session ended` is one line in
+   * its thread, with no turn drawn (false: the text is the user's still). Never rejects.
+   */
+  sendToSkill(sessionId: string, text: string): Promise<boolean>
+  /**
+   * The user ended a skill-first session: main kills it and removes its records, and on its reply so does the window.
+   * True when it did; false with the refusal shown as the failure line.
+   */
+  closeSkill(sessionId: string): Promise<boolean>
+  /** The user pressed Stop in a skill-first session's header: as `stopTurn` is for a persona. Never rejects. */
+  stopSkill(sessionId: string): Promise<void>
   /**
    * A persona was chosen, by tile or by `@<name>`: open its session, or find the
    * one already live. Always asks main, so a switch back to a persona that is
@@ -230,6 +263,12 @@ export function createConversation(deps: ConversationDeps): Conversation {
     })
   }
 
+  /** The name a queued message waits for: a persona's, or a skill-first session's skill, by the key it is queued under. */
+  function seatName(key: string): string {
+    const seat = skillSeatsOf(state).find(({ sessionId }) => skillKey(sessionId) === key)
+    return seat === undefined ? agentOf(key)?.name || key : seat.skill
+  }
+
   /** Write a turn to its session; a refusal means no turn is in flight on its account. */
   function transmit(delivery: Delivery | undefined): void {
     if (delivery === undefined) {
@@ -239,9 +278,7 @@ export function createConversation(deps: ConversationDeps): Conversation {
     const mention = delivery.mention === undefined ? [] : [delivery.mention]
     bridge.sendTurn(delivery.sessionId, delivery.text, ...mention).catch((reason: unknown) => {
       if (asHarnessError(reason).code === 'session/busy') {
-        commit(
-          dispatchRefusedBusy(state, delivery, agentOf(delivery.agentId)?.name || delivery.agentId)
-        )
+        commit(dispatchRefusedBusy(state, delivery, seatName(delivery.agentId)))
         return
       }
       commit(dispatchFailed(state, delivery.sessionId))
@@ -321,7 +358,9 @@ export function createConversation(deps: ConversationDeps): Conversation {
     }
     const agentId = card.agentId ?? ''
     const written = subjectWritten(card, prose.get(card.runId)?.path)
-    onLifecycle(runLifecycleLine(card, agentOf(agentId)?.name || agentId, written))
+    // A skill-first session's run is named for its skill, where a persona's is named for the persona (Story 7.5).
+    const name = card.skillSession === undefined ? agentOf(agentId)?.name || agentId : (state.skillSessions.get(card.skillSession)?.skill ?? '')
+    onLifecycle(runLifecycleLine(card, name, written))
   }
 
   function openTheRoom(cast: readonly string[]): Promise<void> {
@@ -360,7 +399,108 @@ export function createConversation(deps: ConversationDeps): Conversation {
     return attempt
   }
 
+  /** A first message (Story 7.5): asked of main once the window has taken its snapshot, so a refusal is read against what it holds. */
+  function startFirst(text: string, at: number): Promise<StartOutcome> {
+    onFailure(null)
+    if (!hydrated) {
+      return new Promise<StartOutcome>((settled) => {
+        afterSnapshot.push(() => void startFirst(text, at).then(settled))
+      })
+    }
+    const generation = endings
+    return bridge.openSession({ first: text }).then(
+      (opened): StartOutcome => {
+        // An open that outlived the conversation it began in found it ended.
+        if (generation !== endings) {
+          return { kind: 'refused' }
+        }
+        if (opened.skill !== undefined) {
+          commit(skillStarted(state, opened.sessionId, opened.skill, at, text))
+          return { kind: 'skill', sessionId: opened.sessionId }
+        }
+        if (opened.seat !== undefined) {
+          const ready = sessionReady(state, opened.seat, opened.sessionId)
+          commit(ready.state)
+          transmit(ready.deliver)
+          return { kind: 'seat', agentId: opened.seat, rest: opened.rest ?? '' }
+        }
+        if (opened.room !== undefined) {
+          commit(roomReady(state, opened.sessionId, opened.room.cast, opened.room.openedAt))
+          return { kind: 'room', rest: opened.rest ?? '' }
+        }
+        return { kind: 'refused' }
+      },
+      (reason: unknown): StartOutcome => {
+        const error = asHarnessError(reason)
+        if (error.code === 'session/no-skill') {
+          return { kind: 'refused', line: error.message }
+        }
+        fail(reason)
+        return { kind: 'refused' }
+      }
+    )
+  }
+
   return {
+    startFrom: startFirst,
+
+    async sendToSkill(sessionId, text) {
+      onFailure(null)
+      const held = state.skillSessions.get(sessionId)
+      if (held === undefined) {
+        return false
+      }
+      if (held.live) {
+        const sent = sendMessage(state, skillKey(sessionId), now(), text, held.skill)
+        commit(sent.state)
+        transmit(sent.deliver)
+        return true
+      }
+      // Not held this launch: main is asked all the same, and what it answers is the line; no turn is drawn.
+      try {
+        await bridge.sendTurn(sessionId, text)
+      } catch (reason) {
+        if (asHarnessError(reason).code === 'session/ended') {
+          const refused = skillRefused(state, sessionId, now())
+          commit(refused.state)
+          if (refused.said !== undefined && live) {
+            onHandoff?.(refused.said)
+          }
+        } else {
+          fail(reason)
+        }
+        return false
+      }
+      return true
+    },
+
+    async closeSkill(sessionId) {
+      onFailure(null)
+      try {
+        await bridge.closeSession(sessionId)
+      } catch (reason) {
+        // Already gone: its list item went with it, and there is nothing to report.
+        if (!state.skillSessions.has(sessionId)) {
+          return true
+        }
+        fail(reason)
+        return false
+      }
+      commit(skillRemoved(state, sessionId))
+      return true
+    },
+
+    async stopSkill(sessionId) {
+      try {
+        await bridge.stopTurn(sessionId)
+      } catch (reason) {
+        const code = asHarnessError(reason).code
+        if (code !== 'turn/not-found' && code !== 'session/not-found') {
+          fail(reason)
+        }
+      }
+    },
+
     connect() {
       // Subscribed first, so nothing is missed; what comes before the snapshot is in it.
       const unsubscribe = bridge.onSessionEvent((event) => {
@@ -635,6 +775,20 @@ export function useConversation(
   stopRun: (runId: string) => Promise<void>
   /** Stop the turn in flight in a persona's session, a run or a plain chat turn; one that is no longer in flight is left alone, without a word. */
   stopTurn: (agentId: string) => Promise<void>
+  /** The skill-first sessions as seats, in start order (Story 7.5): `work`, `live` or `ended`. */
+  skillSeats: readonly SkillSeat[]
+  /** The sessions with a turn in flight, by session id: the skill-first sessions' header reads it. */
+  busy: ReadonlySet<string>
+  /** A skill-first session's turn in flight, for its thread to draw. */
+  skillInFlight: (sessionId: string) => { since: number; entryId: string | undefined } | undefined
+  /** A first message of the New session chat, sent at `at` (Story 7.5). */
+  startFrom: (text: string, at: number) => Promise<StartOutcome>
+  /** Send text into a skill-first session; false when it was refused as ended and the text is the user's still. */
+  sendToSkill: (sessionId: string, text: string) => Promise<boolean>
+  /** End a skill-first session and take its thread away; true when it was ended. */
+  closeSkill: (sessionId: string) => Promise<boolean>
+  /** Stop the turn in flight in a skill-first session; one that is no longer in flight is left alone, without a word. */
+  stopSkill: (sessionId: string) => Promise<void>
   /** Each run's document text, which the run cards write from. */
   prose: ProseStore
 } {
@@ -714,6 +868,22 @@ export function useConversation(
     []
   )
   const stopRoom = useCallback(async () => (await conversation.current?.stopRoom()) ?? false, [])
+  const startFrom = useCallback(
+    async (text: string, at: number): Promise<StartOutcome> =>
+      (await conversation.current?.startFrom(text, at)) ?? { kind: 'refused' },
+    []
+  )
+  const sendToSkill = useCallback(
+    async (sessionId: string, text: string) => (await conversation.current?.sendToSkill(sessionId, text)) ?? false,
+    []
+  )
+  const closeSkill = useCallback(
+    async (sessionId: string) => (await conversation.current?.closeSkill(sessionId)) ?? false,
+    []
+  )
+  const stopSkill = useCallback(async (sessionId: string) => void (await conversation.current?.stopSkill(sessionId)), [])
+  const skillSeats = useMemo(() => skillSeatsOf(state), [state])
+  const skillInFlight = useCallback((sessionId: string) => skillTurnInFlight(state, sessionId), [state])
   const orphans = useMemo(() => orphansOf(state, agents), [state, agents])
   const live = useMemo(() => new Set(state.sessions.keys()), [state.sessions])
   const turnsInFlight = useMemo(() => personaTurnsInFlight(state), [state])
@@ -762,6 +932,13 @@ export function useConversation(
     runSkill,
     stopRun,
     stopTurn,
+    skillSeats,
+    busy: state.busy,
+    skillInFlight,
+    startFrom,
+    sendToSkill,
+    closeSkill,
+    stopSkill,
     prose
   }
 }

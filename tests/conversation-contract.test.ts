@@ -284,6 +284,8 @@ describe('the sources', () => {
     expect(app).toMatch(
       /<Turns entries=\{conversation\.entries\} onCancel=\{conversation\.cancel\} canAnswer=\{conversation\.canAnswer\} onChoose=\{answer\} prose=\{conversation\.prose\} pinnedRunId=\{pinnedEntry\?\.id\} collapse=\{collapse\} onStop=\{conversation\.stopRun\} inFlight=\{inFlight\} \/>/
     )
+    // Story 7.5: the shell is told the skill-first session's own thread by the window, which hands it only the turns.
+    expect(app).toMatch(/skillView=\{\{ sessionId: seat\.sessionId/)
     // The shell takes a render prop and a callback; it imports no conversation part.
     expect(shell).not.toMatch(/from '\.\.\/chat\/(?:composer|transcript|turn|use-conversation|conversation-state)'/)
   })

@@ -54,6 +54,22 @@ export function initialsOf(name: string): string {
 }
 
 /**
+ * The skill's disc (Story 7.5, DESIGN.md's initials skill variant): the same neutral disc holding `/` in
+ * mono, never the skill's first letter, since every `bmad-*` skill would read the same. 26px beside a turn and a
+ * seat, 22px in the header; decorative like every disc beside a name: `aria-hidden`, no tab stop.
+ */
+export function SkillDisc({ size }: { size: 22 | 26 }): JSX.Element {
+  return (
+    <span
+      className={`initials ${size === 26 ? 'initials--thread' : 'initials--header'} initials--skill`}
+      aria-hidden="true"
+    >
+      /
+    </span>
+  )
+}
+
+/**
  * One disc.
  *
  * At 20px, `role="img"` with an `aria-label` of `{name}, {title}` is what makes

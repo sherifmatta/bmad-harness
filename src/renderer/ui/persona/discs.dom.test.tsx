@@ -11,6 +11,7 @@ import { ThreadIntro } from '../shell/thread-intro'
 import { mount } from '../testing/render-hook'
 import type { Mounted } from '../testing/render-hook'
 import { Team } from '../team/team'
+import { SkillDisc } from './initials'
 import { Lanes } from '../welcome/lanes'
 
 /**
@@ -92,5 +93,22 @@ describe('a disc is neutral', () => {
     for (const disc of container.querySelectorAll<HTMLElement>('.initials')) {
       expect([...disc.classList].filter((name) => /bmad|agent|analyst|pm|architect|dev|ux/i.test(name))).toEqual([])
     }
+  })
+})
+
+describe('the skill’s disc (Story 7.5)', () => {
+  it.each([
+    [26, 'initials initials--thread initials--skill'],
+    [22, 'initials initials--header initials--skill']
+  ] as const)('holds `/` at %ipx, in the same neutral disc: no name, label, tab stop, image or style', (size, classes) => {
+    const [disc] = [...drawn(createElement(SkillDisc, { size })).querySelectorAll<HTMLElement>('.initials')]
+
+    expect(disc.className).toBe(classes)
+    expect(disc.textContent).toBe('/')
+    expect(disc.getAttribute('aria-hidden')).toBe('true')
+    for (const attribute of ['style', 'tabindex', 'role', 'aria-label', 'title']) {
+      expect(disc.hasAttribute(attribute)).toBe(false)
+    }
+    expect(disc.children).toHaveLength(0)
   })
 })

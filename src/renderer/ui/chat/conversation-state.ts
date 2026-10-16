@@ -6,13 +6,22 @@ import { isRoomSummaryTurn, roomSummaryTurn } from '../../../shared/room-summary
 import { isStoredMention } from '../../../shared/stored-mention'
 import { closeSteps, withStepEvent } from '../../../shared/run-steps'
 import { withPulled } from '../../../shared/section-plan'
+import { isSkillKey, skillIdOf, skillKey } from '../status/skill-seat'
+import type { SkillSeat } from '../status/skill-seat'
+import { dropQueued, isQueued, withBusy, withEntry, withQueue } from './conversation-core'
+import { skillClosed, skillEntryOf, skillOpened, skillSessionsOf, withSkillWords } from './skill-session-state'
+import type { SkillSessionState } from './skill-session-state'
 import type { RunCardEntry, TranscriptEntry, UserEntry } from './transcript-entry'
+
+export type { SkillSeat, SkillSessionState }
+export { dropQueued, skillKey }
 
 /** A message typed for a persona, waiting for its turn to come: the entry that shows it, and its words. */
 export type QueuedMessage = { entryId: string; text: string; mention?: string }
 
 /** What main last said of a persona's state, and when that state began. */
 export type PersonaStateEntry = { state: PersonaState; at: number }
+
 
 /**
  * The conversation as the window holds it: the transcript, which persona has a
@@ -62,6 +71,11 @@ export type ConversationState = {
    * for the user's own text, never for the summary ask; cleared where `roomCast` is. Never sent again.
    */
   roomReturned: { key: number; text: string } | undefined
+  /**
+   * The window's skill-first sessions (Story 7.5), in start order, by session id. Live or ended: an ended one
+   * stays until the user closes it. None is a persona's, the room's, or among `sessions`.
+   */
+  skillSessions: ReadonlyMap<string, SkillSessionState>
   /** The next entry's key. */
   nextId: number
 }
@@ -77,6 +91,7 @@ export const initialConversation: ConversationState = {
   roomOpenedAt: undefined,
   roomTopic: undefined,
   roomReturned: undefined,
+  skillSessions: new Map(),
   nextId: 0
 }
 
@@ -94,6 +109,15 @@ export function sessionOf(state: ConversationState, agentId: string): string | u
   return state.sessions.get(agentId)
 }
 
+/** The live session a queue key stands for: a persona's by agent id, a skill-first session's by its own key. */
+function sessionFor(state: ConversationState, key: string): string | undefined {
+  if (!isSkillKey(key)) {
+    return state.sessions.get(key)
+  }
+  const held = state.skillSessions.get(skillIdOf(key))
+  return held?.live === true ? held.sessionId : undefined
+}
+
 /**
  * Whether a persona can take a reply this moment: it has a live session and that
  * session has no turn in flight. The decision block is shown only while this holds.
@@ -101,14 +125,6 @@ export function sessionOf(state: ConversationState, agentId: string): string | u
 export function canAnswer(state: ConversationState, agentId: string): boolean {
   const sessionId = state.sessions.get(agentId)
   return sessionId !== undefined && !state.busy.has(sessionId)
-}
-
-function withEntry(state: ConversationState, entry: TranscriptEntry): ConversationState {
-  return {
-    ...state,
-    entries: [...state.entries, entry],
-    nextId: state.nextId + 1
-  }
 }
 
 /** Record a live session for a persona, idle: used for a session first met by the open's reply. */
@@ -121,37 +137,6 @@ export function withSession(
     ...state,
     sessions: new Map(state.sessions).set(agentId, sessionId)
   }
-}
-
-function withBusy(state: ConversationState, sessionId: string, busy: boolean): ConversationState {
-  if (state.busy.has(sessionId) === busy) {
-    return state
-  }
-  const next = new Set(state.busy)
-  if (busy) {
-    next.add(sessionId)
-  } else {
-    next.delete(sessionId)
-  }
-  return { ...state, busy: next }
-}
-
-function withQueue(
-  state: ConversationState,
-  agentId: string,
-  messages: readonly QueuedMessage[]
-): ConversationState {
-  const queue = new Map(state.queue)
-  if (messages.length === 0) {
-    queue.delete(agentId)
-  } else {
-    queue.set(agentId, messages)
-  }
-  return { ...state, queue }
-}
-
-function isQueued(entry: TranscriptEntry): boolean {
-  return entry.kind === 'user' && entry.queuedFor !== undefined
 }
 
 function withoutQueued(entry: UserEntry): UserEntry {
@@ -168,7 +153,7 @@ function drain(
   state: ConversationState,
   agentId: string
 ): { state: ConversationState; deliver?: Delivery } {
-  const sessionId = state.sessions.get(agentId)
+  const sessionId = sessionFor(state, agentId)
   const [first, ...rest] = state.queue.get(agentId) ?? []
   if (sessionId === undefined || state.busy.has(sessionId) || first === undefined) {
     return { state }
@@ -208,6 +193,8 @@ export function sendMessage(
   const entryId = `entry-${state.nextId}`
   const held = mention === undefined ? {} : { mention }
   const queued: QueuedMessage[] = [...(state.queue.get(agentId) ?? []), { entryId, text, ...held }]
+  // A skill-first session's key (`skillKey`) makes the turn that session's own (Story 7.5); `personaName` is its skill's name.
+  const scoped = isSkillKey(agentId) ? { skillSession: skillIdOf(agentId) } : {}
   const entered = withQueue(
     withEntry(state, {
       kind: 'user',
@@ -215,6 +202,7 @@ export function sendMessage(
       at,
       text,
       ...held,
+      ...scoped,
       queuedFor: personaName
     }),
     agentId,
@@ -238,18 +226,6 @@ export function cancelQueued(state: ConversationState, entryId: string): Convers
     }
   }
   return state
-}
-
-/** Drop everything queued for a persona, with its entries: the user closed its session. */
-export function dropQueued(state: ConversationState, agentId: string): ConversationState {
-  const dropped = new Set((state.queue.get(agentId) ?? []).map((message) => message.entryId))
-  if (dropped.size === 0) {
-    return state
-  }
-  return {
-    ...withQueue(state, agentId, []),
-    entries: state.entries.filter((entry) => !dropped.has(entry.id))
-  }
 }
 
 /**
@@ -293,7 +269,7 @@ export function dispatchRefusedBusy(
   delivery: Delivery,
   personaName: string
 ): ConversationState {
-  if (state.sessions.get(delivery.agentId) !== delivery.sessionId) {
+  if (sessionFor(state, delivery.agentId) !== delivery.sessionId) {
     return state
   }
   const entries = state.entries.map((entry) =>
@@ -333,7 +309,8 @@ export function ended(state: ConversationState): ConversationState {
     roomCast: [],
     roomOpenedAt: undefined,
     roomTopic: undefined,
-    roomReturned: undefined
+    roomReturned: undefined,
+    skillSessions: new Map()
   }
 }
 
@@ -588,12 +565,16 @@ export function withHandoff(state: ConversationState, record: SyslineRecord): Co
     id: record.id,
     at: record.at,
     text: record.text,
-    ...(record.room === true ? { room: true as const } : {})
+    ...(record.room === true ? { room: true as const } : {}),
+    ...(record.skillSession === undefined ? {} : { skillSession: record.skillSession })
   })
 }
 
-/** The card main held for a run, as the window keeps it; its prose goes to the prose store. */
-function runEntryOf(card: RunCardSnapshot): RunCardEntry {
+/**
+ * The card main held for a run, as the window keeps it; its prose goes to the prose store. A run of a
+ * skill-first session (one of `skillIds`, Story 7.5) is flagged as that session's own.
+ */
+function runEntryOf(card: RunCardSnapshot, skillIds: ReadonlySet<string> = new Set()): RunCardEntry {
   return {
     kind: 'run',
     id: card.runId,
@@ -609,7 +590,8 @@ function runEntryOf(card: RunCardSnapshot): RunCardEntry {
     notes: card.notes,
     steps: card.steps,
     ...(card.plan === undefined ? {} : { plan: card.plan }),
-    documents: card.documents.map(({ path, sections }) => ({ path, sections }))
+    documents: card.documents.map(({ path, sections }) => ({ path, sections })),
+    ...(skillIds.has(card.sessionId) ? { skillSession: card.sessionId } : {})
   }
 }
 
@@ -753,8 +735,10 @@ export function hydrate(
   snapshot: ConversationSnapshot,
   agentOf: (agentId: string) => AgentView | undefined
 ): { state: ConversationState; deliveries: Delivery[] } {
-  const stored: TranscriptEntry[] = snapshot.entries.map((record) =>
-    record.kind === 'persona'
+  const stored: TranscriptEntry[] = snapshot.entries.map((record): TranscriptEntry =>
+    record.kind === 'skill'
+      ? skillEntryOf(record)
+      : record.kind === 'persona'
       ? {
           kind: 'persona',
           id: record.id,
@@ -770,7 +754,8 @@ export function hydrate(
             id: record.id,
             at: record.at,
             text: record.text,
-            ...(record.room === true ? { room: true as const } : {})
+            ...(record.room === true ? { room: true as const } : {}),
+            ...(record.skillSession === undefined ? {} : { skillSession: record.skillSession })
           }
         : {
             kind: 'user',
@@ -778,10 +763,13 @@ export function hydrate(
             at: record.at,
             text: record.text,
             ...(isStoredMention(record, record.mention) ? { mention: record.mention } : {}),
-            ...(record.room === true ? { room: true as const } : {})
+            ...(record.room === true ? { room: true as const } : {}),
+            ...(record.skillSession === undefined ? {} : { skillSession: record.skillSession })
           }
   )
-  const cards = snapshot.runs.map(runEntryOf)
+  // The skill-first sessions main lists, in start order (Story 7.5).
+  const skillSessions = skillSessionsOf(snapshot, stored)
+  const cards = snapshot.runs.map((card) => runEntryOf(card, new Set(skillSessions.keys())))
   const room = snapshot.room
   let next: ConversationState = {
     ...state,
@@ -792,6 +780,7 @@ export function hydrate(
     roomCast: room === undefined ? [] : [...room.cast],
     roomOpenedAt: room?.openedAt,
     roomTopic: room === undefined ? undefined : storedTopicOf(stored, room.openedAt),
+    skillSessions,
     sessions: new Map(snapshot.sessions.map(({ agentId, sessionId }) => [agentId, sessionId])),
     busy: new Set(snapshot.busy),
     personas: new Map(
@@ -824,6 +813,11 @@ export function foldEvent(
   switch (event.name) {
     case 'session:opened': {
       const { agentId, sessionId, at } = event.payload
+      // A skill-first session (Story 7.5) has its own seat: neither a persona's session nor the room.
+      const skillOpen = skillOpened(state, event.payload)
+      if (skillOpen !== undefined) {
+        return { state: skillOpen }
+      }
       // The room has no agent id: it is the window's room, and only its cast and open time are kept (Stories 4.1, 4.3).
       // The activation turn of a persona is in flight until the session says it is awaiting.
       // The room's activation turn is in flight until the session says it is awaiting.
@@ -836,6 +830,10 @@ export function foldEvent(
 
     case 'session:closed': {
       const { sessionId, reason } = event.payload
+      const skillClose = skillClosed(state, event.payload)
+      if (skillClose !== undefined) {
+        return { state: skillClose }
+      }
       let next = withBusy(state, sessionId, false)
       if (next.room === sessionId) {
         next = {
@@ -862,8 +860,21 @@ export function foldEvent(
 
     case 'harness:said': {
       // The harness's own line, once and at the end; one already held (by its id) is not added again.
-      const { id, at, text, room } = event.payload
-      return { state: withHandoff(state, { kind: 'sysline', id, at, text, ...(room === true ? { room: true as const } : {}) }) }
+      const { id, at, text, room, skillSession } = event.payload
+      // A late line for a skill-first session the window no longer holds (it was ended) has no thread to join.
+      if (skillSession !== undefined && !state.skillSessions.has(skillSession)) {
+        return { state }
+      }
+      return {
+        state: withHandoff(state, {
+          kind: 'sysline',
+          id,
+          at,
+          text,
+          ...(room === true ? { room: true as const } : {}),
+          ...(skillSession === undefined ? {} : { skillSession })
+        })
+      }
     }
 
     case 'session:awaiting-turn': {
@@ -874,13 +885,14 @@ export function foldEvent(
           return drain(idle, agentId)
         }
       }
-      return { state: idle }
+      return idle.skillSessions.has(sessionId) ? drain(idle, skillKey(sessionId)) : { state: idle }
     }
 
     case 'persona:said': {
-      const { agentId, messageId, text, at: time, room } = event.payload
+      const { agentId, messageId, text, at: time, room, skillSession } = event.payload
       if (agentId === undefined) {
-        return { state }
+        // What a skill said in a skill-first session (Story 7.5): its own entry, in its own thread.
+        return { state: skillSession === undefined ? state : withSkillWords(state, skillSession, messageId, text, time) }
       }
       // A turn in the room nobody sent still has the room mid-turn.
       const held =
@@ -931,6 +943,7 @@ export function foldEvent(
         runId,
         sessionId,
         ...(agentId === undefined ? {} : { agentId }),
+        ...(state.skillSessions.has(sessionId) ? { skillSession: sessionId } : {}),
         ...(code === undefined || code === '' ? {} : { code }),
         ...(skill === undefined ? {} : { skill }),
         status: 'running',

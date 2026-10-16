@@ -89,6 +89,11 @@
   color: var(--text-strong);
 }
 
+/* A skill's name (Story 7.5): the same size and weight as a persona's, in mono. */
+.tile-name--skill {
+  font-family: var(--mono);
+}
+
 .tile-title {
   /* The title gives way first: a long role truncates before a name does ("Ame…" beside "Senior Software Engin…"). */
   flex-shrink: 100;

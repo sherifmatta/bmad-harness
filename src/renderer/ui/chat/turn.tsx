@@ -3,7 +3,7 @@ import type { JSX } from 'react'
 import './turn.css'
 import type { AgentView } from '../../../shared/install'
 import { MarkdownBody } from '../doc/markdown-body'
-import { Initials } from '../persona/initials'
+import { Initials, SkillDisc } from '../persona/initials'
 import { Caret } from './caret'
 import { DecisionBlock } from './decision-block'
 import type { Decision } from './decision'
@@ -77,12 +77,58 @@ export function PersonaWords({ text, writing }: { text: string; writing?: Writin
 /** A turn in flight: when it began, where that is known. */
 export type Writing = { since: number | undefined }
 
-export function Head({ name, ident, at }: { name: string; ident: string; at: number }): JSX.Element {
+export function Head({ name, ident, at, mono = false }: { name: string; ident?: string; at: number; mono?: boolean }): JSX.Element {
   return (
     <div className="turn-head">
-      <span className="turn-name">{name}</span>
-      <span className="turn-role">{ident}</span>
+      {mono ? <span className="turn-name turn-name--mono">{name}</span> : <span className="turn-name">{name}</span>}
+      {ident !== undefined && <span className="turn-role">{ident}</span>}
       <span className="turn-time">{formatTurnTime(at)}</span>
+    </div>
+  )
+}
+
+/**
+ * A skill-first session's turn (Story 7.5): the `/` disc, the skill's name in mono, the time, and its words, with no role or
+ * title slot. Read as a persona's are, as markdown once complete and plain text with the caret while in flight.
+ */
+export function SkillTurn({
+  name,
+  at,
+  text,
+  writing
+}: {
+  /** The speaker: the name of the skill the session was started with. */
+  name: string
+  at: number
+  text: string
+  writing?: Writing
+}): JSX.Element {
+  return (
+    <div className="turn turn--persona">
+      <div className="turn-av">
+        <SkillDisc size={26} />
+      </div>
+      <div className="turn-body">
+        <Head name={name} at={at} mono />
+        <PersonaWords text={text} writing={writing} />
+        {writing !== undefined && <TurnState since={writing.since} />}
+      </div>
+    </div>
+  )
+}
+
+/** A skill's turn in flight before its first word: the same disc and head, the caret as the body, hidden from a reader as a persona's pending turn is. */
+export function PendingSkillTurn({ name, since }: { name: string; since: number }): JSX.Element {
+  return (
+    <div className="turn turn--persona turn--pending" aria-hidden="true">
+      <div className="turn-av">
+        <SkillDisc size={26} />
+      </div>
+      <div className="turn-body">
+        <Head name={name} at={since} mono />
+        <Words text="" caret />
+        <TurnState since={since} />
+      </div>
     </div>
   )
 }

@@ -45,4 +45,16 @@ describe('the run projection', () => {
     runs.clear()
     expect(runs.snapshot()).toEqual([])
   })
+
+  it('takes one session’s cards away and no other’s (Story 7.5)', () => {
+    const runs = createRunProjection()
+    runs.apply({ name: 'run:started', payload: { runId: 'r1', sessionId: 's1', code: 'A', at: 1 } })
+    runs.apply({ name: 'run:started', payload: { runId: 'r2', sessionId: 's2', code: 'B', at: 2 } })
+    runs.apply({ name: 'run:started', payload: { runId: 'r3', sessionId: 's1', code: 'C', at: 3 } })
+
+    runs.removeSession('s1')
+
+    expect(runs.snapshot().map(({ runId }) => runId)).toEqual(['r2'])
+    expect(runs.card('r1')).toBeUndefined()
+  })
 })
