@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-25-2026 17:00
-last_updated: 10-14-2026 15:20
+last_updated: 10-16-2026 12:41
 project: bmad-harness
 project_key: NOKEY
 tracking_system: file-system
@@ -123,7 +123,7 @@ development_status:
   6-9-nothing-this-epic-promised-not-to-do: done
   epic-6-retrospective: optional
 
-  epic-7: in-progress
+  epic-7: done
   7-1-open-a-story-or-an-epic-from-the-board: done
   7-2-read-the-markdown-the-personas-write-in-the-chat: done
   7-3-find-a-skill-by-typing: done
@@ -132,7 +132,7 @@ development_status:
   7-4-a-seat-for-each-persona-that-stays-until-you-end-it: done
   7-5-start-a-chat-from-a-skill-with-no-persona: done
   7-6-nothing-this-epic-promised-not-to-do: done
-  epic-7-retrospective: optional
+  epic-7-retrospective: done
 action_items:
   - id: "epic-1-retro-item-1-make-the-packaged-app-find-claude-and-uv"
     epic: 1
@@ -140,7 +140,7 @@ action_items:
       main (login-shell PATH or known install dirs) and pass it to preflight and the
       resolvers, with a test on the env. Deferred: packaged app out of scope for now."
     owner: "dev"
-    status: open
+    status: done
     ref: "_bmad/implementation-artifacts/epic-1-retro-2026-09-30.md"
   - id: "epic-1-retro-item-2-let-preflight-recover-drop-the-cached-to"
     epic: 1
@@ -665,3 +665,89 @@ action_items:
     owner: "dev + UX"
     status: open
     ref: "_bmad/implementation-artifacts/epic-4-retro-2026-10-08.md"
+  - id: "epic-7-retro-item-60-fix-f1-make-a-persona-s-seat-show-live-w"
+    epic: 7
+    action: "Fix F1: make a persona's seat show live while its process holds context,
+      not only after a finished run (raise personas.attach on process-ready, or read
+      the dot from the held session); test through the real registry path with no
+      hand-built attach; correct the 7.4 evidence line."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-7-retro-10-16-2026.md"
+  - id: "epic-7-retro-item-61-fix-f2-gate-the-rest-of-a-first-message"
+    epic: 7
+    action: "Fix F2: gate the rest of a first message that opens the room on the activation
+      turn ending, or fold it into the room's first turn; test a first-message open
+      followed at once by a room send, including a refused interrupt."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-7-retro-10-16-2026.md"
+  - id: "epic-7-retro-item-62-fix-f3-and-f4-split-stop-and-close-sessi"
+    epic: 7
+    action: "Fix F3 and F4: split Stop and close session on the skill header into
+      two controls that never swap (or confirm before a skill thread is removed),
+      and return focus to a Board opener only when the Board is visible or when it
+      is next shown."
+    owner: "dev + UX; Sherif decides the F3 shape"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-7-retro-10-16-2026.md"
+  - id: "epic-7-retro-item-63-fix-f5-and-f6-one-skill-name-predicate-u"
+    epic: 7
+    action: "Fix F5 and F6: one skill-name predicate used by foldSkills, the / list
+      and openFirst (case rule, plain-name rule); Enter sends when the text is already
+      an exact listed name; run isAgentId in the first-message roster branch."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-7-retro-10-16-2026.md"
+  - id: "epic-7-retro-item-64-process-a-story-with-followup_review_rec"
+    epic: 7
+    action: "Process: a story with followup_review_recommended true stays out of done
+      until a decision is recorded; make bmad-build-auto write review or blocked,
+      or require a decision line (recurred in 7.5 and 7.6; reinforces Epic 3 item
+      47 and Epic 1 item 15)."
+    owner: "Sherif"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-7-retro-10-16-2026.md"
+  - id: "epic-7-retro-item-65-process-a-planning-commit-that-edits-a-f"
+    epic: 7
+    action: "Process: a planning commit that edits a file a test pins lands with the
+      story that makes it true, or the story is blocked (1aea17b and fe08523 turned
+      tokens.test.ts red; 7.1 and 7.2 were committed with --no-verify)."
+    owner: "Sherif"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-7-retro-10-16-2026.md"
+  - id: "epic-7-retro-item-66-one-live-judgement-of-epic-7-on-a-real-c"
+    epic: 7
+    action: "One live judgement of Epic 7 on a real claude: a skill-first first turn
+      (/bmad-build hi) reaching the CLI as a skill, markdown render of a real long
+      turn, a persona seat's dot after talking, /bmad-party-mode with words, Board
+      focus return from another view."
+    owner: "Sherif + dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-7-retro-10-16-2026.md"
+  - id: "epic-7-retro-item-67-deferred-bundle-f7-queue-drop-policy-for"
+    epic: 7
+    action: "Deferred bundle: F7 queue-drop policy for a skill session, F8 stored
+      skill-delta join shared with persona, F9 initialsOf surrogate and blank name,
+      F10 rename or remove onHandoff and fix its comment, F11 the stale .portrait
+      selector and the handed-to-Ada fixture. Do F8 and F10 with Epic 4 item 56's
+      split."
+    owner: "dev"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-7-retro-10-16-2026.md"
+  - id: "epic-7-retro-item-68-spec-reconciliation-proposed-not-applied"
+    epic: 7
+    action: "Spec reconciliation, proposed not applied: epic-7-context hostile HTML
+      renders as inert escaped text not nothing; ARCHITECTURE-SPINE.md:50 stale portrait
+      wording; epics.md CAP-10 and FR73 to FR80 marked retired where stated; record
+      the unbuilt Sprint board row."
+    owner: "PM + architect + UX"
+    status: open
+    ref: "_bmad/implementation-artifacts/epic-7-retro-10-16-2026.md"
+  - id: "epic-7-retro-item-69-tracking-set-epic-7-to-done-in-sprint-st"
+    epic: 7
+    action: "Tracking: set epic-7 to done in sprint-status.yaml through the sprint-planning
+      skill (the retro script moves only the retro key)."
+    owner: "dev"
+    status: done
+    ref: "_bmad/implementation-artifacts/epic-7-retro-10-16-2026.md"
