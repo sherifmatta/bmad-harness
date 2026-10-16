@@ -15,6 +15,12 @@ import type { ArtifactObservation } from '../shared/rail'
  * wrapped, not replaced), and the project's whole file tree compared before and after. The one file
  * that changes is changed by the test, which is the writer here, through the unwrapped module; what is
  * held is that nothing else is. A run's stored card is kept under `userData`, never the project.
+ *
+ * Story 7.6 adds the drill-in (Story 7.1): a Board card or epic row with a file asks main to open it, and that is
+ * the one thing the Board can now do. Every control the real Board snapshot carries is pressed through the real
+ * `registerDocBridge` (the real path check and the real read of the file, with the OS window and the watcher
+ * stood in for), beside the real `registerBoardBridge`, and the tree, `sprint-status.yaml`'s bytes and its mtime
+ * are as they were, every write made being under `userData`.
  */
 
 const { writes, counted } = vi.hoisted(() => {
@@ -76,7 +82,7 @@ const { writes, counted } = vi.hoisted(() => {
 vi.mock('node:fs', async (importOriginal) => counted(await importOriginal<typeof NodeFs>()))
 vi.mock('node:fs/promises', async (importOriginal) => counted(await importOriginal<typeof import('node:fs/promises')>()))
 
-type Handler = (event: { sender: FakeSender }) => Promise<unknown>
+type Handler = (event: { sender: FakeSender | FakeDocSender }, ...args: unknown[]) => Promise<unknown>
 const handlers = new Map<string, Handler>()
 
 vi.mock('electron', () => ({
@@ -95,7 +101,22 @@ class FakeSender {
   once() {}
 }
 
+/** A page of the app as the doc bridge sees it: an id, a way to be told, and whether it is gone. */
+class FakeDocSender {
+  sent: [string, unknown][] = []
+  constructor(readonly id: number) {}
+  send(channel: string, payload: unknown) {
+    this.sent.push([channel, payload])
+  }
+  isDestroyed() {
+    return false
+  }
+  once() {}
+}
+
 const { registerBoardBridge, BOARD_GET_CHANNEL } = await import('./board-bridge')
+const { registerDocBridge, DOC_OPEN_CHANNEL, DOC_GET_CHANNEL } = await import('./doc-bridge')
+const { readDocument } = await import('./sources/project/watch-document')
 const { createTranscriptRegistry } = await import('./projections/transcript')
 const { isInsideProject } = await import('./sources/persistence/transcript-file')
 // The test's own writes go through the real module: they are the file changing, not the harness.
@@ -199,6 +220,96 @@ describe('the Board’s life over a real project', () => {
     expect(treeOf(project)).toEqual(original)
     expect(readFileSync(join(project, SPRINT)).equals(sprint.bytes)).toBe(true)
     expect(statSync(join(project, SPRINT)).mtimeMs).toBe(sprint.mtimeMs)
+    expect(lines).toEqual([])
+  })
+
+  it('writes nothing when every control of the Board is pressed: a card or row with a file opens it through the real doc path, and sprint-status.yaml is byte- and mtime-identical (Story 7.6)', async () => {
+    const docs = join(base, 'project-docs')
+    const dir = join(docs, '_bmad/implementation-artifacts')
+    mkdirSync(dir, { recursive: true })
+    mkdirSync(join(docs, 'src'), { recursive: true })
+    // One story with exactly one spec, one with two (so none), one with none; an epic with a context.
+    real.writeFileSync(join(dir, 'sprint-status.yaml'), 'development_status:\n  epic-1: in-progress\n  1-1-a: review\n  1-2-b: in-progress\n  1-3-c: backlog\n')
+    real.writeFileSync(join(dir, 'spec-1-1-a.md'), '# a spec\n\nwords\n')
+    real.writeFileSync(join(dir, 'spec-1-2-b-one.md'), '# one\n')
+    real.writeFileSync(join(dir, 'spec-1-2-b-two.md'), '# two\n')
+    real.writeFileSync(join(dir, 'epic-1-context.md'), '# epic one\n')
+    real.writeFileSync(join(docs, 'src/index.ts'), 'export {}\n')
+    mkdirSync(userData, { recursive: true })
+
+    const lines: string[] = []
+    const window = new FakeDocSender(1)
+    const parent = { destroyed: false, focused: 0, webContents: new FakeDocSender(1), isDestroyed: () => false, focus() { this.focused += 1 } }
+    const opened: { sender: FakeDocSender; fullPath: string; onClosed: (reason: 'user' | 'replaced' | 'parent') => void }[] = []
+    registerBoardBridge({ projectPathFor: () => docs, quietMs: 5, writeDiagnostic: (line) => lines.push(line) })
+    registerDocBridge({
+      projectPathFor: (id) => (id === 1 ? docs : undefined),
+      folderFor: () => '_bmad/',
+      parentWindowFor: () => parent as never,
+      // The real reader of the file, once, as the watcher gives it: the OS window and the chokidar watch are the stand-ins.
+      watch: ({ fullPath, boundary, onRead, onError }) => {
+        void readDocument(fullPath, onError, boundary).then(onRead)
+        return { ready: Promise.resolve(), close: async () => {} }
+      },
+      openWindow: ({ fullPath, onClosed }) => {
+        const existing = opened.find((one) => one.fullPath === fullPath)
+        const made = existing ?? { sender: new FakeDocSender(100 + opened.length), fullPath, onClosed }
+        if (existing === undefined) opened.push(made)
+        return { handle: { sender: made.sender, fullPath, focus: () => {}, close: () => made.onClosed('user') }, reused: existing !== undefined }
+      },
+      reveal: () => {},
+      openInEditor: () => {},
+      writeDiagnostic: (line) => lines.push(line)
+    })
+
+    const reply = (await handlers.get(BOARD_GET_CHANNEL)!({ sender: new FakeSender(1) })) as { ok: boolean; snapshot: BoardSnapshot }
+    const controls =
+      reply.snapshot.kind === 'read'
+        ? [...reply.snapshot.epics.flatMap((epic) => [epic.file, ...epic.stories.map((story) => story.file)])].filter((file): file is string => file !== undefined)
+        : []
+    // The fold found exactly the epic and the story the Board would draw a button for: the story with two specs and the one with none have no file.
+    expect(controls).toEqual(['_bmad/implementation-artifacts/epic-1-context.md', '_bmad/implementation-artifacts/spec-1-1-a.md'])
+
+    const sprint = join(docs, '_bmad/implementation-artifacts/sprint-status.yaml')
+    const original = treeOf(docs)
+    const held = { bytes: readFileSync(sprint), mtimeMs: statSync(sprint).mtimeMs }
+    writes.length = 0
+
+    // Each press of a control is one `doc.open` of its path. Keyboard activation is the native button's own click (the mounted
+    // audit holds the element to a `button` whose only handler is `onClick`), so main sees the same call for every way of pressing.
+    for (const path of controls) {
+      for (let press = 0; press < 3; press += 1) {
+        expect(await handlers.get(DOC_OPEN_CHANNEL)!({ sender: window }, path)).toEqual({ ok: true })
+      }
+      const page = opened.find((one) => one.fullPath === join(docs, path))
+      expect(page).toBeDefined()
+      // The window reads the file it was asked for, and is told nothing more.
+      // The stand-in watcher reads asynchronously, so the window's ask is repeated until its first read has landed.
+      let read!: { ok: true; snapshot: { state: string; path: string; text: string } }
+      await vi.waitFor(async () => {
+        read = (await handlers.get(DOC_GET_CHANNEL)!({ sender: page!.sender })) as typeof read
+        expect(read.snapshot.state).toBe('present')
+      })
+      expect(read.snapshot).toMatchObject({ state: 'present', path })
+      expect(read.snapshot.text.startsWith('# ')).toBe(true)
+      page!.onClosed('user')
+    }
+    // Three presses of each reused the one window, and one window each was ever made.
+    expect(opened).toHaveLength(controls.length)
+    expect(parent.focused).toBe(controls.length)
+    // A path leading out of the output folder is refused by the same path check, whoever asks, and opens nothing.
+    for (const path of ['../sprint-status.yaml', '/etc/hosts']) {
+      expect(await handlers.get(DOC_OPEN_CHANNEL)!({ sender: window }, path)).toMatchObject({ ok: false, error: { code: 'doc/invalid-path' } })
+    }
+    expect(opened).toHaveLength(controls.length)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    // Nothing was written anywhere but under userData, and nothing at all inside the project.
+    expect(writes.filter((write) => isInsideProject(docs, write.path))).toEqual([])
+    expect(writes.filter((write) => !isInsideProject(userData, write.path))).toEqual([])
+    expect(treeOf(docs)).toEqual(original)
+    expect(readFileSync(sprint).equals(held.bytes)).toBe(true)
+    expect(statSync(sprint).mtimeMs).toBe(held.mtimeMs)
     expect(lines).toEqual([])
   })
 

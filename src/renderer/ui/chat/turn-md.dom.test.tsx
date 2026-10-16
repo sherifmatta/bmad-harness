@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentView } from '../../../shared/install'
 import { renderMarkdown } from '../doc/render-markdown'
 import { PartyTurn } from '../party/party-turn'
+import { HOSTILE_MARKDOWN } from '../testing/hostile-markdown'
 import '../testing/render-hook'
 import { Turns } from './transcript'
 import type { PersonaInFlight, TranscriptEntry } from './transcript'
@@ -106,21 +107,7 @@ describe('a persona’s completed turn', () => {
   })
 
   it('draws nothing hostile as an element, and a link as its text with no href', () => {
-    thread([
-      persona(
-        [
-          '<script>alert(1)</script>',
-          '',
-          '<style>p{display:none}</style>',
-          '',
-          '<img src=x onerror=alert(1)>',
-          '',
-          '[click](javascript:alert(1)) ![pic](http://example.com/x.png) <a href="http://x" onclick="y()">z</a>',
-          '',
-          '<p onclick="y()" style="color:red">raw</p>'
-        ].join('\n')
-      )
-    ])
+    thread([persona(HOSTILE_MARKDOWN)])
 
     const md = container.querySelector('.turn-md') as HTMLElement
     expect(md.querySelectorAll('style, script, img, a, [href], [src], [onclick], [onerror], [style]')).toHaveLength(0)

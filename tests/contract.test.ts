@@ -163,6 +163,77 @@ describe('the install’s skills (Story 7.3)', () => {
   })
 })
 
+describe('the skill-first session’s fields (Story 7.5, audited by Story 7.6)', () => {
+  const conversation = withoutComments(read('src/shared/conversation.ts'))
+  const events = withoutComments(read('src/shared/events.ts'))
+  const commands = withoutComments(read('src/shared/commands.ts'))
+
+  /** The fields a declared type holds at its own top level, in order, `?` kept: nested object types are one field each. */
+  function fieldsOf(source: string, name: string): string[] {
+    const start = source.indexOf(`export type ${name} = {`)
+    expect(start, `${name} is declared`).toBeGreaterThanOrEqual(0)
+    const body = source.slice(start, source.indexOf('\n}', start))
+    return [...body.matchAll(/^ {2}(\w+\??):/gm)].map(([, field]) => field)
+  }
+
+  it('is one `SkillRecord` of the transcript, carrying the session it was said in, beside the three records that were', () => {
+    expect(conversation.match(/export type SkillRecord = \{/g)).toHaveLength(1)
+    expect(fieldsOf(conversation, 'SkillRecord')).toEqual(['kind', 'id', 'at', 'messageId', 'text', 'skillSession'])
+    expect(conversation).toMatch(/export type TranscriptRecord = PersonaRecord \| UserRecord \| SyslineRecord \| SkillRecord\n/)
+    expect(conversation).toMatch(/kind: 'skill'/)
+  })
+
+  it('is `skillSession` required on the skill’s own record and optional on exactly the user record, the sysline record and the persona:said and harness:said events, and on no persona record or run card', () => {
+    // Five declarations in all: three in conversation.ts (the skill record’s required one, the user record’s and the sysline record’s) and two in events.ts.
+    expect(conversation.match(/\bskillSession\??:/g)).toHaveLength(3)
+    expect(events.match(/\bskillSession\??:/g)).toHaveLength(2)
+    expect(fieldsOf(conversation, 'UserRecord')).toContain('skillSession?')
+    expect(fieldsOf(conversation, 'SyslineRecord')).toContain('skillSession?')
+    expect(fieldsOf(events, 'PersonaSaid')).toContain('skillSession?')
+    expect(fieldsOf(events, 'HarnessSaid')).toContain('skillSession?')
+    for (const name of ['PersonaRecord', 'RunCardSnapshot']) {
+      expect(fieldsOf(conversation, name), name).not.toContain('skillSession')
+      expect(fieldsOf(conversation, name), name).not.toContain('skillSession?')
+    }
+    for (const name of ['SessionOpened', 'SessionClosed', 'RunStarted', 'RunFinished', 'RunStopped', 'RunFailed']) {
+      expect(fieldsOf(events, name), name).not.toContain('skillSession?')
+    }
+  })
+
+  it('is `skill` on the session opened and closed events, the open’s reply in both its forms, the run, and the two session listings', () => {
+    expect(fieldsOf(events, 'SessionOpened')).toEqual(['sessionId', 'agentId?', 'skill?', 'at'])
+    expect(fieldsOf(events, 'SessionClosed')).toEqual(['sessionId', 'agentId?', 'skill?', 'reason', 'at'])
+    expect(events.match(/\bskill\??:/g)).toHaveLength(3)
+    expect(fieldsOf(events, 'RunStarted')).toContain('skill?')
+    expect(conversation.match(/\bskill\??:/g)).toHaveLength(5)
+    expect(fieldsOf(conversation, 'OpenedSession')).toContain('skill?')
+    // `SessionOpenReply` is the envelope of the same reply: its one object declares the same optional field.
+    const reply = conversation.slice(conversation.indexOf('export type SessionOpenReply'), conversation.indexOf('export type OpenedSession'))
+    expect(reply.match(/^ {2}skill\?: string$/gm)).toHaveLength(1)
+    expect(conversation).toContain('export type StoredSkillSession = { sessionId: SessionId; skill: string; at: EpochMs }')
+    expect(conversation).toMatch(/skillSessions\?: \{ sessionId: SessionId; skill: string; live: boolean \}\[\]\n\}/)
+  })
+
+  it('is `skillSessions` on the conversation snapshot and the stored file, both optional, and the `{ first: string }` target of session.open once', () => {
+    expect(conversation.match(/\bskillSessions\??:/g)).toHaveLength(2)
+    expect(fieldsOf(conversation, 'ConversationSnapshot')).toEqual(['entries', 'sessions', 'room?', 'busy', 'personas', 'runs', 'skillSessions?'])
+    expect(fieldsOf(conversation, 'TranscriptFile')).toEqual(['version', 'projectPath', 'entries', 'runs?', 'skillSessions?'])
+    expect(commands.match(/\{ first: string \}/g)).toHaveLength(1)
+    expect(commands).toContain('export type SessionTarget = AgentId | { room: readonly AgentId[] } | { first: string }')
+  })
+
+  it('adds no command, event, channel or bridge method, and leaves the contract at version 1 with 8, 17, 36 and 24', () => {
+    expect(read('src/shared/events.ts')).toMatch(/export const CONTRACT_VERSION = 1\n/)
+    expect(COMMANDS).toHaveLength(8)
+    expect(EVENTS).toHaveLength(17)
+    expect(withoutComments(read('src/shared/channels.ts')).match(/export const \w+_CHANNEL\b/g)).toHaveLength(36)
+    expect([...withoutComments(read('src/preload/harness-api.d.ts')).matchAll(/^ {2}[a-zA-Z]+\(/gm)]).toHaveLength(24)
+    // The two earlier additive pins of this epic stand as they were: one `file` each on a story and an epic, one `skills` on the install.
+    expect(withoutComments(read('src/shared/board.ts')).match(/\bfile\??:/g)).toHaveLength(2)
+    expect(withoutComments(read('src/shared/install.ts')).match(/\bskills: SkillView\[\]/g)).toHaveLength(1)
+  })
+})
+
 describe('the commands in', () => {
   const body = mapBody(withoutComments(read('src/shared/commands.ts')), 'ContractCommands')
   const declared = entries(body)

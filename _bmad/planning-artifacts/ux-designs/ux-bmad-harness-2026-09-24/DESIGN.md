@@ -4,7 +4,7 @@ type: design-spine
 description: 'Dense, hairline-ruled desktop shell in two themes, dark and light, that spends its restraint budget on nothing: no portrait, no illustration, no identity device. A person or a skill is an initials disc and a name.'
 status: final
 created: '2026-09-24'
-updated: '2026-10-15'
+updated: '2026-10-16'
 sources:
   - ../../../specs/spec-bmad-visual-harness/SPEC.md
   - ../../../specs/spec-bmad-visual-harness/ui-surfaces.md
@@ -379,7 +379,7 @@ components:
     stateLine: '{typography.label} mono: `working · <elapsed>` with {components.status-dot} work, or `live` with {components.status-dot} live, or `ended` with no dot'
     group: 'the heading `Skill sessions` (the existing group-heading treatment), below the last persona tile; drawn only while a seat exists'
   skill-session-button:
-    # The entry to the empty chat, right-aligned in the Sprint board row. The same control as the chat header's Stop.
+    # The entry to the empty chat, right-aligned in a Team-half row of its own (the Sprint board row is not built in the code). The same control as the chat header's Stop.
     background: '{colors.panel-2}'
     border: '1px solid {colors.line}'
     radius: '{rounded.DEFAULT}'     # as chat-header.stop: a ghost button is DEFAULT in Shapes; see Open items 6
@@ -646,12 +646,12 @@ Two tonal rules govern everything below. **One accent, one friction colour.** Th
 
 **The ownership convention, stated once and used throughout.** Anatomy and appearance are specified here, in DESIGN.md. Triggers, transitions, data sources and keyboard behaviour are specified in EXPERIENCE.md. Where a state is named here, what drives it and when it changes live there; where a component is named there, what it looks like lives here. **Mockups illustrate; this spine wins** (stated once here). Four still draw what the chat look replaced (container turns, a tinted user turn, portraits in the thread): `follow-the-thread.html`, `rail-resize-collapse.html`, `light-a-shell.html` and the transcript box of `portrait.html`. Their turn rendering is superseded by *Layout, chat and Board → The chat look* in EXPERIENCE.md; the rest of each stands, **except every portrait they draw (Team tiles, cast cards, the Welcome team), removed 2026-10-15**; `portrait.html` is kept as history only. The Story 7.5 mocks, [`skill-session-entry.html`](mockups/skill-session-entry.html) (the button, the 44px seats, the Skill sessions group), [`new-session-landing.html`](mockups/new-session-landing.html) (the landing, two moments) and [`skill-session-entry-options.html`](mockups/skill-session-entry-options.html) (the record of the rejected placement A), illustrate the entry and its seats; where one draws a value this spine does not name, the spine's token wins.
 
-**Open items** (after the 2026-10-09 chat-look update; each is also tagged `[OPEN]` where it appears; the rest of `review-rubric.md` is in `validation-report.md`):
-1. `[OPEN]` **Stop vs `close session`.** Does the header's `Stop` replace `close session`, or take its slot only while a turn is in flight? The contract has `run.stop(runId)` and `session.close` only, so a plain chat turn has nothing to stop with.
+**Open items** (after the 2026-10-09 chat-look update, reconciled 2026-10-16 by the Story 7.6 audit, which settles items 1 and 5 (built by Stories 3.19 and 2.15) and adds none; items 6 and 7 were added by Story 7.5 and stay open; each open one is also tagged `[OPEN]` where it appears; the rest of `review-rubric.md` is in `validation-report.md`):
+1. `[SETTLED]` **Stop vs `close session`.** *Settled 2026-10-16; built by Story 3.19 (`turn.stop`).* The header's one control is the same element in both and takes the `Stop` slot only while a turn is in flight, reading `close session` otherwise. Nothing is open.
 2. `[OPEN]` **The room's live turn.** It keeps its accent edge and `party-live-ground` by assumption, the one turn row with either.
 3. `[OPEN]` **The skill-name source.** `handed to <persona> · <skill>` and the run card head show a name the renderer's events do not carry.
 4. `[OPEN]` **Register split under steps.** Steps and prose are both mono; structure, not typeface, tells them apart.
-5. `[OPEN]` **The `@Name` chip.** A handoff strips the `@name` from the turn, so the chip the screenshot draws needs a display text recorded beside the sent text in `turn.send`: a contract change, handed to `bmad-architecture`. Not built.
+5. `[SETTLED]` **The `@Name` chip.** *Built by Story 2.15 (AD-25).* The typed `@name` is recorded as `mention` beside the sent text and drawn as the chip before it (*Conversation turn*). Nothing is open.
 6. `[OPEN]` **Radius of the `Skill Session` button.** It is drawn as the header's `Stop` (a ghost button, `{rounded.DEFAULT}`, 5px, as the mock draws it). The Story 7.5 brief says `control` (4px); the two cannot both hold, and the spine follows the Stop and the mock.
 7. `[OPEN]` **An `ended` skill seat's presence.** Persona tiles dim at `{opacity.idle}` when idle; the mock draws skill seats at full opacity and says nothing of an ended one. Drawn undimmed until decided (*Components → Skill seat*).
 
@@ -803,7 +803,7 @@ AD-14 names layout literals as equal in force to the colours. These are the cont
 
 | Constant | Value | Surface |
 |---|---|---|
-| Team sidebar | **244px** by default, **resizable 200–400px**, `flex:0 0` | 1:1 view, left side: the state strip, the nav rows (the Sprint board row carries the `Skill Session` button at its right), the persona tiles, then the Skill sessions group |
+| Team sidebar | **244px** by default, **resizable 200–400px**, `flex:0 0` | 1:1 view, left side: the state strip, the nav rows (a row of its own carries the `Skill Session` button at its right; the Sprint board row it was drawn in is not built in the code), the persona tiles, then the Skill sessions group |
 | Rail | **300px** by default, **resizable 260–480px**, `flex:0 0`; the chat column keeps **420px** at least | 1:1 view, right side: the Outputs half (the context panel's other sections are proposed) |
 | Room panel | **240px** by default, **resizable 200–400px**; the party column keeps **480px** at least | Party view, right side; hidden at ≤1180px |
 | Topbar | **42px** | `chrome`, 1px `line` bottom rule, 14px gap |
@@ -1179,7 +1179,7 @@ Streaming prose arrives in frame-sized bursts, with the caret at the tail; a per
 | Part | Anatomy |
 |---|---|
 | State strip | *Built.* **counts personas only** (2026-10-15): a skill session adds to no cell, and the head's `5 agents` figure equals the personas. A four-cell grid (working, idle, error, changed), 1px `line-soft` between cells and below. Each cell, centred: the figure at `{typography.head}`, weight 600, tabular, `text-strong`; the label at `{typography.micro}` uppercase `faint`, tracked `.04em`, the state's own word in lower case in the markup. Cell padding `--team-strip-padding` (8px 4px), so the longest label fits at the default width. No cell takes colour, a fill or the accent: it is a count, not an alert |
-| Nav row (*Sprint board*; the *Inbox* row is deferred, not built, and holds no slot) | padding `6px 11px`, `{typography.control}` in `dim`, a 1px `line-soft` below, `panel-2` on hover; the current row takes `panel-2` and `text-strong`. A trailing key hint is a chip: `{typography.label}` in `faint`, 1px `line`, `{rounded.chip}`. **No count** on any row. *Added 2026-10-15:* the **`Skill Session` button** (*Components → Skill Session button*) sits at the row's right edge, after the key hint; it is not a second row |
+| Nav row (*Sprint board*; the *Inbox* row is deferred, not built, and holds no slot) | padding `6px 11px`, `{typography.control}` in `dim`, a 1px `line-soft` below, `panel-2` on hover; the current row takes `panel-2` and `text-strong`. A trailing key hint is a chip: `{typography.label}` in `faint`, 1px `line`, `{rounded.chip}`. **No count** on any row. *Added 2026-10-15:* the **`Skill Session` button** (*Components → Skill Session button*) sits at the row's right edge, after the key hint; it is not a second row. *Built 2026-10-16: the Sprint board row is not built in the code, so the button has a Team-half row of its own between the strip and the tiles (Components → Skill Session button).* |
 | Persona tile | the tile (*Persona tile*: 44px, a 26px initials disc, since 2026-10-15), in config order. Idle tiles dim at `{opacity.idle}`. No group heading by state |
 | Skill sessions group | *Added 2026-10-15.* The heading `Skill sessions` (the existing group-heading treatment) and the skill seats (*Skill seat*), below the last persona tile, in start order. Drawn only while a seat exists, with no empty state |
 
@@ -1259,3 +1259,17 @@ A field with no source is not drawn.
 | Name a skill-first turn by the skill, in mono, with no role | Give it a persona's letters, tint or role, or suggest who to talk to next when its run ends |
 | Say `no skill named <word>` and `session ended` as syslines: lower-case, mono, no full stop | Attribute them to a persona, add a suggestion, or colour them |
 | Count personas only in the state strip and the head | Add a skill session to a state count, the Agents panel or a Board column |
+
+## What Epic 7 did not build
+
+*Added 2026-10-16 by the Story 7.6 record; the mirror of `EXPERIENCE.md` → *What Epic 7 did not build*, which holds the behaviour. Nothing below has a token, a component or a measurement, because nothing below was drawn.*
+
+Epic 7 retired four prohibitions on purpose (a card or epic row with a file is a control; `/` lists skills in the one `/` list; a persona's live dot is on a seat that holds context; a chat may have no persona) and kept every other. It did **not** build:
+
+- **Resume across a relaunch.** No seat shows the live dot after one, and a skill seat reads `ended`; there is no state, dot or control that says a session can be brought back.
+- **A cap.** No count of seats, no limit and no state of the `Skill Session` button that says one was reached.
+- **A persona inferred from what is typed.** No tile, chip or disc is chosen, suggested or highlighted by the words in a composer.
+- **The `Sprint board` row.** The nav row, its label and its `g b` hint are not built; the `Skill Session` button is right-aligned in a Team-half row of its own between the strip and the tiles.
+- **A decision block in a skill session.** A skill's turn draws words only: no option, choice, key or button.
+
+It added no icon, count, badge, tooltip, accent fill or recommendation to a seat, a card, an epic row, the `/` list or the `Skill Session` button.

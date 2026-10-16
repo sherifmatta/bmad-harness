@@ -6,6 +6,9 @@ import type { SessionBridgeDeps } from './session-bridge'
 import type { ConversationReply } from '../shared/conversation'
 import type { ContractEvent } from '../shared/events'
 import { forgetInstall, rememberInstall } from './install-model'
+import { ownerAgentIdFor } from './fold/artifact-owner'
+import { createRailProjection } from './projections/rail'
+import type { RailProjection } from './projections/rail'
 import { railAnnotatorFor } from './rail-annotations'
 import type { InstallProjection } from './projections/install'
 import { createTranscriptRegistry } from './projections/transcript'
@@ -3081,6 +3084,145 @@ describe('skill-first sessions (Story 7.5)', () => {
     })
   })
 
+  describe('each of the three kinds ended as itself (Story 7.6)', () => {
+    type Kind = 'persona' | 'room' | 'skill'
+    const KINDS: Kind[] = ['persona', 'room', 'skill']
+    const file = () => JSON.parse(readFileSync(transcriptFilePath(userData, PROJECT), 'utf8')) as { entries: { kind: string; room?: true; skillSession?: string }[]; skillSessions?: unknown[]; runs?: unknown[] }
+
+    /** Which thread a record is in: the shared one, the room's, or a skill-first session's. */
+    const threadOf = (entry: { room?: true; skillSession?: string }): Kind => (entry.room === true ? 'room' : entry.skillSession !== undefined ? 'skill' : 'persona')
+
+    /** A seat, the room and a skill-first session, each live and idle, each with words in its own thread. */
+    async function allThree() {
+      const sender = new FakeSender(1)
+      const seat = await first(sender, '/bmad-agent-analyst')
+      const room = await first(sender, '/bmad-party-mode')
+      const skill = await first(sender, '/bmad-build make a thing')
+      for (const entry of [seat, room, skill]) entry.proc?.frame(result())
+      const ids = { persona: seat.reply.sessionId as string, room: room.reply.sessionId as string, skill: skill.reply.sessionId as string }
+      const procs = { persona: seat.proc as FakeProcess, room: room.proc as FakeProcess, skill: skill.proc as FakeProcess }
+      procs.persona.frame(messageStart('mary-1'))
+      procs.persona.frame(textStart)
+      procs.persona.frame(delta('a persona’s words'))
+      procs.skill.frame(messageStart('skill-1'))
+      procs.skill.frame(textStart)
+      procs.skill.frame(delta('a skill’s words'))
+      procs.persona.frame(result())
+      procs.skill.frame(result())
+      await send(sender, ids.persona, 'to mary', '@Mary')
+      await send(sender, ids.room, 'to the room')
+      await send(sender, ids.skill, 'to the skill')
+      for (const proc of Object.values(procs)) proc.frame(result())
+      registry.flushAll()
+      // Count what clears the transcript: only `conversation.end` may.
+      const project = registry.forProject(PROJECT)
+      const clears = { count: 0 }
+      const clear = project.clear.bind(project)
+      project.clear = () => {
+        clears.count += 1
+        return clear()
+      }
+      const stored = { skillSessions: structuredClone(file().skillSessions), runs: structuredClone(file().runs) }
+      return {
+        sender,
+        ids,
+        procs,
+        clears,
+        before: structuredClone(entries()),
+        fileBefore: structuredClone(file().entries),
+        stored,
+        listing: structuredClone(project.skillSessions()),
+        storedRuns: structuredClone(project.storedRuns()),
+        room: structuredClone(snapshotOf(sender).room)
+      }
+    }
+
+    it('starts with the three kinds live, each with records in its own thread and in the file', async () => {
+      const { sender, before, fileBefore } = await allThree()
+
+      expect(new Set(before.map(threadOf))).toEqual(new Set(KINDS))
+      expect(new Set(fileBefore.map(threadOf))).toEqual(new Set(KINDS))
+      const snapshot = snapshotOf(sender)
+      expect(snapshot.sessions).toHaveLength(1)
+      expect(snapshot.room).toBeDefined()
+      expect(snapshot.skillSessions).toHaveLength(1)
+    })
+
+    it.each(KINDS)('closing the %s by session.close kills that process and no other, leaves the other two kinds’ threads and file records, and clears nothing', async (closed) => {
+      const { sender, ids, procs, clears, before, fileBefore, stored, listing, storedRuns, room } = await allThree()
+      const others = KINDS.filter((kind) => kind !== closed)
+      expect(stored.skillSessions).toHaveLength(1)
+      expect(stored.runs).toHaveLength(1)
+
+      expect(closeSession(sender, ids[closed])).toEqual({ ok: true })
+      registry.flushAll()
+
+      expect(procs[closed].killed).toBe(true)
+      for (const other of others) {
+        expect(procs[other].killed, `${closed} closed, ${other}`).toBe(false)
+        // The other kind's thread: every record it had, as it was, in memory and in the file.
+        expect(entries().filter((entry) => threadOf(entry) === other), other).toEqual(before.filter((entry) => threadOf(entry) === other))
+        expect(file().entries.filter((entry) => threadOf(entry) === other), other).toEqual(fileBefore.filter((entry) => threadOf(entry) === other))
+      }
+      // The skill-first session's list item, stored run cards and file fields are its own: another kind's close leaves them as
+      // they were, and its own close removes them, with no other kind's record going with them.
+      const project = registry.forProject(PROJECT)
+      if (closed === 'skill') {
+        expect(project.skillSessions()).toEqual([])
+        expect(project.storedRuns()).toEqual([])
+        expect(file().skillSessions).toBeUndefined()
+        expect(file().runs).toBeUndefined()
+      } else {
+        expect(project.skillSessions()).toEqual(listing)
+        expect(project.storedRuns()).toEqual(storedRuns)
+        expect(file().skillSessions).toEqual(stored.skillSessions)
+        expect(file().runs).toEqual(stored.runs)
+      }
+      // The room, closed by neither the seat nor the skill, is the same room: its session, cast and opening, its process alive.
+      const snapshot = snapshotOf(sender)
+      if (closed !== 'room') {
+        expect(snapshot.room).toEqual(room)
+        expect(procs.room.killed).toBe(false)
+      }
+      // The listing keeps the other two: the seat, the room and the skill session are each present unless it was the one ended.
+      expect(snapshot.sessions.length).toBe(closed === 'persona' ? 0 : 1)
+      expect(snapshot.room !== undefined).toBe(closed !== 'room')
+      expect(snapshot.skillSessions).toEqual(closed === 'skill' ? undefined : [{ sessionId: ids.skill, skill: 'bmad-build', live: true }])
+      // Only the one ended is told it ended, and nothing clears the transcript.
+      expect(sender.events.filter((event) => event.name === 'session:closed').map((event) => (event.payload as { sessionId: string }).sessionId)).toEqual([ids[closed]])
+      expect(clears.count).toBe(0)
+      expect(entries().length).toBeGreaterThan(0)
+      // And the others still take a turn, which is what holding context is.
+      for (const other of others) {
+        expect(await send(sender, ids[other], 'still here'), other).toEqual({ ok: true })
+        expect(procs[other].writes.at(-1), other).toBe('still here')
+      }
+    })
+
+    it('ends all three by conversation.end, and it is the only thing that clears the transcript, once', async () => {
+      const { sender, procs, clears } = await allThree()
+
+      expect(endConversation(sender, PROJECT)).toEqual({ ok: true })
+
+      for (const kind of KINDS) {
+        expect(procs[kind].killed, kind).toBe(true)
+      }
+      expect(clears.count).toBe(1)
+      expect(entries()).toEqual([])
+      expect(registry.forProject(PROJECT).skillSessions()).toEqual([])
+      expect(!existsSync(transcriptFilePath(userData, PROJECT)) || file().entries.length === 0).toBe(true)
+      const closes = sender.events.filter((event) => event.name === 'session:closed').map((event) => event.payload as { agentId?: string; skill?: string })
+      expect(closes).toHaveLength(3)
+      expect(closes.filter((close) => close.agentId !== undefined)).toHaveLength(1)
+      expect(closes.filter((close) => close.skill !== undefined)).toHaveLength(1)
+      expect(closes.filter((close) => close.agentId === undefined && close.skill === undefined)).toHaveLength(1)
+      const snapshot = snapshotOf(sender)
+      expect(snapshot.sessions).toEqual([])
+      expect(snapshot.room).toBeUndefined()
+      expect(snapshot.skillSessions).toBeUndefined()
+    })
+  })
+
   describe('a write, and a stop', () => {
     let pending: { run: () => void; ms: number; cancelled: boolean }[]
     const timersLive = () => pending.filter((timer) => !timer.cancelled)
@@ -3135,6 +3277,79 @@ describe('skill-first sessions (Story 7.5)', () => {
       // Turning to a persona afterwards writes no line, and none names a file.
       await first(sender, '/bmad-agent-pm hello')
       expect(lines(sender).map(({ text }) => text)).toEqual(['room opened by you · present · Mary · John · Amelia'])
+    })
+
+    it('gives a document a skill-first run writes no owner and no persona’s name: the rail is told the stream’s `writing` with no owner, and no row is the room’s (Story 7.6)', async () => {
+      const sender = new FakeSender(1)
+      const told: [string, { text: string; owner?: unknown; owners?: unknown } | null][] = []
+      const marks: string[] = []
+      railAnnotatorFor(sender).bind({
+        annotate: (path, annotation) => void told.push([path, annotation]),
+        markRoom: (path) => void marks.push(path),
+        unmarkRoom: () => undefined,
+        clearRoom: () => undefined
+      })
+      const skill = await first(sender, '/bmad-build go')
+      // The document a persona's class would own, and one nobody's class owns: the writer is the same.
+      writeFile(skill.proc as FakeProcess, '/project-1/_bmad/planning-artifacts/prd.md')
+      writeFile(skill.proc as FakeProcess, '/project-1/_bmad/other.md', 3)
+
+      expect(told.map(([path]) => path)).toEqual(['_bmad/planning-artifacts/prd.md', '_bmad/other.md'])
+      for (const [, annotation] of told) {
+        expect(annotation).toEqual({ text: 'writing' })
+        expect(annotation).not.toHaveProperty('owner')
+        expect(annotation).not.toHaveProperty('owners')
+      }
+      expect(marks).toEqual([])
+      // The run that wrote them names no agent, and nothing of a persona's was touched by it.
+      expect(snapshotOf(sender).runs[0]).not.toHaveProperty('agentId')
+      expect(sender.events.filter((event) => event.name === 'persona:state')).toEqual([])
+      expect(sender.events.filter((event) => event.name === 'run:started').map((event) => event.payload)).toEqual([
+        expect.not.objectContaining({ agentId: expect.anything() })
+      ])
+    })
+
+    it('puts a skill-first write on the real rail row as the stream’s `writing` and nothing of the run: no owner, room mark or skill name, and the path’s class owner as it was (Story 7.6)', async () => {
+      const sender = new FakeSender(1)
+      const CLASSED = '_bmad/planning-artifacts/prd.md'
+      const UNCLASSED = '_bmad/other.md'
+      const watched = (): RailProjection => {
+        const projection = createRailProjection({ onChange: () => undefined, now: () => 1_000 })
+        for (const path of [CLASSED, UNCLASSED]) {
+          projection.observe({ type: 'artifact:found', path, size: 1, mtimeMs: 1 })
+        }
+        projection.ready()
+        return projection
+      }
+      // The control: the same rows with no stream at all, as a path nobody is writing reads.
+      const idle = watched()
+      const rail = watched()
+      railAnnotatorFor(sender).bind(rail)
+      const skill = await first(sender, '/bmad-build go')
+      writeFile(skill.proc as FakeProcess, `/project-1/${CLASSED}`)
+      writeFile(skill.proc as FakeProcess, `/project-1/${UNCLASSED}`, 3)
+
+      const rows = rail.snapshot().rows
+      const plain = idle.snapshot().rows
+      expect(rows.map((row) => row.path).sort()).toEqual([CLASSED, UNCLASSED].sort())
+      for (const row of rows) {
+        // The stream's note, with no owner: the run named no agent.
+        expect(row.annotation).toEqual({ text: 'writing' })
+        expect(row).not.toHaveProperty('room')
+        expect(JSON.stringify(row)).not.toMatch(/bmad-build/)
+      }
+      // The only owner a row has is the one its path's class gives, which is what it had before anything wrote it.
+      for (const row of rows) {
+        expect(row.owner?.agentId, row.path).toBe(ownerAgentIdFor(row.path))
+      }
+      expect(ownerAgentIdFor(CLASSED)).toBe('bmad-agent-pm')
+      expect(ownerAgentIdFor(UNCLASSED)).toBeUndefined()
+      expect(rows.map(({ annotation, ...row }) => (void annotation, row))).toEqual(plain)
+      // When the run ends the annotation goes and the rows are the control's again.
+      skill.proc?.frame(result())
+      expect(rail.snapshot().rows).toEqual(plain)
+      rail.dispose()
+      idle.dispose()
     })
 
     it('says one stopped line, flagged to its thread, when a plain turn the user stopped ends on a failed result', async () => {

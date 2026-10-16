@@ -131,7 +131,7 @@ development_status:
   7-7-every-person-is-an-initials-disc-and-the-portrait-is-gone: done
   7-4-a-seat-for-each-persona-that-stays-until-you-end-it: done
   7-5-start-a-chat-from-a-skill-with-no-persona: done
-  7-6-nothing-this-epic-promised-not-to-do: backlog
+  7-6-nothing-this-epic-promised-not-to-do: done
   epic-7-retrospective: optional
 action_items:
   - id: "epic-1-retro-item-1-make-the-packaged-app-find-claude-and-uv"

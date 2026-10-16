@@ -285,7 +285,8 @@ describe('a session outlives the install changing under it (Story 2.11)', () => 
 })
 
 describe('the run folds (Story 3.1)', () => {
-  const FOLDS = ['section-headings', 'coalesce', 'memlog-tail', 'run-card', 'route-frame', 'frame'].map((name) =>
+  // `skills` (Story 7.3, audited by 7.6) is the install's manifest as rows in and a list out: the same purity.
+  const FOLDS = ['section-headings', 'coalesce', 'memlog-tail', 'run-card', 'route-frame', 'frame', 'skills'].map((name) =>
     join(SRC, 'main/fold', `${name}.ts`)
   )
 
@@ -296,6 +297,26 @@ describe('the run folds (Story 3.1)', () => {
       expect(source, rel(path)).not.toMatch(/Date\.now|new Date\(|Math\.random|performance\.now|readFile|writeFile/)
       expect(source, rel(path)).not.toMatch(/from '\.\.\/(?:projections|sources|windows)\//)
     }
+  })
+
+  it('hold the install’s skills as a fold in `fold/` and their one reader in `sources/`, which nothing else of main reads (Story 7.6)', () => {
+    const READER = join(SRC, 'main/sources/install/skill-manifest.ts')
+    const FOLD = join(SRC, 'main/fold/skills.ts')
+    expect(rel(FOLD)).toBe('src/main/fold/skills.ts')
+    expect(readdirSync(join(SRC, 'main/fold'))).toContain('skills.ts')
+    expect(readdirSync(join(SRC, 'main/sources/install'))).toContain('skill-manifest.ts')
+    // The reader reads the file and says nothing of what it means; the fold says what it means and reads nothing.
+    expect(code(READER)).toMatch(/readFile/)
+    expect(code(FOLD)).not.toMatch(/readFile|from 'node:|skill-manifest/)
+    // Of everything shipped, the reader alone names the manifest file, and the fold alone reads its columns by name.
+    expect(shipping.filter((path) => /skill-manifest\.csv/.test(code(path))).map(rel)).toEqual([rel(READER)])
+    expect(code(FOLD)).toMatch(/header\.indexOf\('name'\)/)
+    expect(shipping.filter((path) => /\.indexOf\('(?:name|description)'\)/.test(code(path)) && /manifest|skill/i.test(path)).map(rel)).toEqual([rel(FOLD)])
+    // The reader is imported by the install's own sources and nowhere else: no fold, projection, bridge or window.
+    const importers = shipping.filter((path) => /from '[^']*skill-manifest'/.test(code(path))).map(rel)
+    expect(importers.length).toBeGreaterThan(0)
+    expect(importers.filter((path) => !path.startsWith('src/main/sources/install/'))).toEqual([])
+    expect(shipping.filter((path) => path.startsWith(join(SRC, 'renderer')) && /skill-manifest|foldSkills/.test(code(path)))).toEqual([])
   })
 
   it('leave reading the memlog to Sources and timing the prose to the run’s injected schedule', () => {

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
 import DOMPurify from 'dompurify'
+import { HOSTILE_MARKDOWN } from '../testing/hostile-markdown'
 import { PURIFY_CONFIG, markdownToHtml, renderMarkdown } from './render-markdown'
 
 /**
@@ -46,7 +47,7 @@ describe('renderMarkdown with the real sanitiser', () => {
   })
 
   it('turns raw HTML in the source into visible text, never an element', () => {
-    const html = renderMarkdown('<script>alert(1)</script>\n\n<img src=x onerror=alert(1)>')
+    const html = renderMarkdown(HOSTILE_MARKDOWN)
 
     expect(html).not.toContain('<script')
     expect(html).not.toContain('<img')
@@ -54,9 +55,7 @@ describe('renderMarkdown with the real sanitiser', () => {
   })
 
   it('has no link, no image, no URL and no event handler as an element or attribute', () => {
-    const html = renderMarkdown(
-      '[click](javascript:alert(1)) ![pic](http://example.com/x.png) <a href="http://x" onclick="y()">z</a>'
-    )
+    const html = renderMarkdown(HOSTILE_MARKDOWN)
     const page = document.createElement('div')
     page.innerHTML = html
 
