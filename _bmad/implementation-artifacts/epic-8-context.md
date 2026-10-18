@@ -19,7 +19,8 @@ Make switching personas feel like switching between colleagues in a chat app. Ea
 ## Requirements & Constraints
 
 - The chat shows only the viewed persona's thread: its turns, the user's turns to it, harness lines about that session, and its run cards. Switching adds, moves or removes nothing. The party room's and skill-first sessions' threads stay their own.
-- Selecting a persona (click, Enter, Space) opens its chat and does nothing else: no process, no `/<agentId>` write, no greeting, no record, no live dot. The first message, or a skill button pressed in that chat, starts the session.
+- Selecting a persona (click, Enter, Space) opens its chat and does nothing else: no process, no `/<agentId>` write, no greeting, no record, no live dot. The first message starts the session. The empty chat's skill row is drawn for that persona but disabled, and pressing a button starts nothing.
+- Whether a skill button pressed on an empty persona chat starts the seat is not decided here: it is Story 8.3's open decision (spawn with the skill as the first stdin turn and no activation; or activate, then dispatch, with the activation reply shown; hiding the reply is ruled out because a persona's words are never hidden). The owner picks before that criterion is built.
 - On first message: record the user's turn, spawn, write `/<agentId>` as the first stdin turn, then the message, never in flight together. The user turn shows as sent, not queued. Activation reply and answer draw as one persona turn, in arrival order, no word edited, hidden or reordered.
 - `close session` ends the persona's session and deletes its thread (records, stored runs, written-file bookkeeping, rail annotations, queued messages), writes nothing in its place, and touches no other persona, the room or a skill session. It is drawn only on a chat with a live session or a stored thread. `conversation.end` remains the only whole clear.
 - `@name` in a persona's composer writes the message, with its chip, as a user turn in the named persona's thread, turns the view there, and writes nothing in the originating chat and no `handed to` line. It never names a skill.
@@ -42,14 +43,14 @@ Make switching personas feel like switching between colleagues in a chat app. Ea
 ## UX & Interaction Patterns
 
 - Chat header: the viewed persona's 22px initials disc, name and title, with the header's existing state and `close session`, in every state of that chat.
-- An empty persona chat is the existing thread introduction (harness text, no button, handler or tab stop), the persona's skill row, and the composer. No greeting, no live dot, no process behind it.
+- An empty persona chat is the existing thread introduction (harness text, no button, handler or tab stop), the persona's skill row (disabled, starting nothing), and the composer. No greeting, no live dot, no process behind it.
 - The live dot appears only when the first message's session is attached.
 - No new colour, token, size or component.
-- Open items, default behaviour stands until the owner decides: `close session` deletes at once with no confirmation; an orphaned thread is not listed.
+- Open items, default behaviour stands until the owner decides (the skill-button start on an empty chat is the exception: no default, Story 8.3's owner decision): `close session` deletes at once with no confirmation; an orphaned thread is not listed.
 
 ## Cross-Story Dependencies
 
-- 8.1 is first and ships alone; 8.2 needs 8.1 (an "empty" chat exists only once other personas' turns stop showing); 8.3 follows 8.2.
+- 8.1 is first and ships alone; 8.2 needs 8.1 (an "empty" chat exists only once other personas' turns stop showing); 8.3 follows 8.2 and owns the first message plus the open skill-button-start decision (the activation turn and turn serialisation constrain it).
 - 8.4, 8.5 and 8.6 each follow 8.1 and are independent of each other; 8.7, the closing audit, is last.
 - Amends Epic 7's Story 7.4 seat behaviour and the one-thread test in the Epic 7 audit; builds on live background seats (FR132) and the existing `close session`.
 - The `@name` default (Story 8.6) is a decision to confirm with the owner.
