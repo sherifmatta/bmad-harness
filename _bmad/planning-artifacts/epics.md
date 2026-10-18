@@ -4132,8 +4132,7 @@ So that the persona does not speak until I do.
 **Then** it shows the harness's own orientation line (the existing thread introduction: it is harness text, names no persona's words, has no button, handler or tab stop), the skill row for that persona, and no greeting of any kind from the persona.
 
 **Given** the skill row of an empty chat
-**When** the user presses a skill button
-**Then** that persona's seat starts and the skill is dispatched as that persona's first action, and no greeting is waited on, spoken or shown before it (decision 7 below).
+**Then** it is drawn for that persona and its buttons are disabled, as for any chat with no session to dispatch into, and pressing one starts nothing (*amended 2026-10-18: what a skill button pressed on an empty chat does moved to Story 8.3, because "no greeting is waited on, spoken or shown" contradicts AD-30's activation turn and AD-11's serialisation; see `bmad-build-auto-result-8-2-select-a-persona-and-get-an-empty-chat.md`*).
 
 **Given** the window opens, or the project reloads
 **Then** it still opens on the New session chat with no current persona (Story 7.5), and a reload restores each persona's thread from the transcript and shows no persona as live unless its session is.
@@ -4141,7 +4140,7 @@ So that the persona does not speak until I do.
 **Given** every persona selected in turn
 **Then** a test finds zero `session.open` calls and zero processes, and the harness writes no line.
 
-**Decisions to confirm before build (defaults in brackets):** the introduction stays on an empty persona chat [yes: it is harness text and not a persona's words; it carries no greeting]; a skill button on an empty chat starts the seat and dispatches the skill as the first action [yes: the user pressed it; it is as deliberate as a first message].
+**Decisions to confirm before build (defaults in brackets):** the introduction stays on an empty persona chat [yes: it is harness text and not a persona's words; it carries no greeting]; the skill row of an empty chat is drawn and disabled [yes: the button that would start a seat is Story 8.3's, decided there].
 
 **Boundaries:** no change to what a tile shows, says or orders; no new state or colour; no change to the live dot's meaning (it holds context, FR132); no greeting suppressed after the first message (Story 8.3).
 
@@ -4180,6 +4179,10 @@ So that opening a chat feels like sending a message, not like waking someone and
 
 **Given** `FR95`
 **Then** the argv, the three load-bearing flags and the rule that `/<agentId>` is the first turn on stdin all stand; only the moment changes, from the open of a seat to the first message to it (`SESSION_ARGS` untouched).
+
+**Given** the skill row of an empty persona chat *(moved here from Story 8.2, 2026-10-18)*
+**When** the user presses a skill button
+**Then** that persona's seat starts and the skill is dispatched as its first action, and the buttons are enabled on an empty chat; how the persona's activation turn (`/<agentId>`, AD-18, AD-30) and the AD-11 serialisation are met is **an open decision for this story's spec**, with three readings: (1) spawn with the skill as the first stdin turn and no activation; (2) activate, then dispatch, the activation reply hidden; (3) activate, then dispatch, the activation reply shown as in the first-message path. FR21 forbids hiding a persona's words, which rules out reading 2; the owner chooses between 1 and 3 before this criterion is built.
 
 **Decisions to confirm before build (defaults in brackets):** the activation reply and the answer render as one persona turn [yes: the flagged activation turn and the turn after it, in order, nothing edited; two separate turns would show the greeting the owner asked not to see unprompted]; the user's first message shows as sent and not queued [yes: the dimmed marker would say the persona is busy with something the user never asked for]; whether the activation reply is shown at all [yes: hiding any of a persona's words would be the harness editing them, FR21].
 
