@@ -201,7 +201,7 @@ describe('what the first launch kept', () => {
     ])
     expect(file.runs?.[1].card.documents[0]).toMatchObject({ path: '_bmad/addendum.md', text: DOC })
     // No session, busy set, persona state or queue of the first launch is in the file.
-    expect(Object.keys(file).sort()).toEqual(['entries', 'projectPath', 'runs', 'version'])
+    expect(Object.keys(file).sort()).toEqual(['attributed', 'entries', 'projectPath', 'runs', 'version'])
   })
 })
 
@@ -339,7 +339,7 @@ describe('a launch after the app went away', () => {
     expect(next.call(CONVERSATION_END_CHANNEL, ROOT)).toEqual({ ok: true })
 
     expect(next.snapshot().runs).toEqual([])
-    expect(fileOnDisk()).toEqual({ version: 1, projectPath: ROOT, entries: [] })
+    expect(fileOnDisk()).toEqual({ version: 1, projectPath: ROOT, entries: [], attributed: true })
     next.transcripts.flushAll()
     expect(fileOnDisk().runs).toBeUndefined()
     expect(launch().snapshot().runs).toEqual([])
@@ -359,7 +359,7 @@ describe('ending the conversation with a run in flight', () => {
     expect(app.call(CONVERSATION_END_CHANNEL, ROOT)).toEqual({ ok: true })
     app.transcripts.flushAll()
 
-    expect(fileOnDisk()).toEqual({ version: 1, projectPath: ROOT, entries: [] })
+    expect(fileOnDisk()).toEqual({ version: 1, projectPath: ROOT, entries: [], attributed: true })
     expect(app.snapshot().runs).toEqual([])
     expect(launch().snapshot().runs).toEqual([])
   })

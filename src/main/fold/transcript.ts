@@ -78,7 +78,8 @@ export function foldUserTurn(
   at: number,
   room?: true,
   mention?: string,
-  skillSession?: string
+  skillSession?: string,
+  agentId?: string
 ): TranscriptState {
   return withRecord(state, {
     kind: 'user',
@@ -87,21 +88,24 @@ export function foldUserTurn(
     text,
     ...(mention !== undefined ? { mention } : {}),
     ...(room === true ? { room: true as const } : {}),
-    ...(skillSession !== undefined ? { skillSession } : {})
+    ...(skillSession !== undefined ? { skillSession } : {}),
+    ...(agentId !== undefined ? { agentId } : {})
   })
 }
 
 /**
  * The harness's own line, appended as a record that no persona message joins. `room`, set on every line about a room,
  * is kept on the record when set, and is absent otherwise; so is `skillSession`, set on every line about a
- * skill-first session (Story 7.5).
+ * skill-first session (Story 7.5). `agentId`, set on every line about a persona's session (Story 8.1), puts the line in
+ * that persona's thread and is absent otherwise; the same holds of `foldUserTurn`'s.
  */
 export function foldSysline(
   state: TranscriptState,
   text: string,
   at: number,
   room?: true,
-  skillSession?: string
+  skillSession?: string,
+  agentId?: string
 ): TranscriptState {
   return withRecord(state, {
     kind: 'sysline',
@@ -109,7 +113,8 @@ export function foldSysline(
     at,
     text,
     ...(room === true ? { room: true as const } : {}),
-    ...(skillSession !== undefined ? { skillSession } : {})
+    ...(skillSession !== undefined ? { skillSession } : {}),
+    ...(agentId !== undefined ? { agentId } : {})
   })
 }
 
@@ -120,6 +125,52 @@ export function foldSysline(
 export function foldWithoutSkillSession(state: TranscriptState, sessionId: string): TranscriptState {
   const entries = state.entries.filter((entry) => !('skillSession' in entry && entry.skillSession === sessionId))
   return entries.length === state.entries.length ? state : { ...state, entries }
+}
+
+/**
+ * Tags the records a transcript stored before Story 8.1 holds with no `agentId` (Story 8.1), once, from the
+ * persona turns around them. Only a user turn or a harness line with no `agentId`, no `room` and no
+ * `skillSession` is placed; every other record is kept as it is.
+ *
+ * A user turn takes the persona of the next persona turn after it that is not the room's, else of the one
+ * before it. A harness line takes the persona of the nearest such turn before it, else of the one after.
+ * A record with no persona turn on either side is left untagged: stored, in no thread, cleared only by
+ * `conversation.end`. Nothing is dropped or reordered, and a second run over its own output changes nothing.
+ * The same array comes back when nothing was placed.
+ */
+export function foldAttributeLegacy(entries: readonly TranscriptRecord[]): readonly TranscriptRecord[] {
+  const anchor = (entry: TranscriptRecord | undefined): string | undefined =>
+    entry !== undefined && entry.kind === 'persona' && entry.room !== true ? entry.agentId : undefined
+  const before: (string | undefined)[] = []
+  let last: string | undefined
+  for (const entry of entries) {
+    before.push(last)
+    last = anchor(entry) ?? last
+  }
+  const after: (string | undefined)[] = new Array<string | undefined>(entries.length)
+  let next: string | undefined
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    after[index] = next
+    next = anchor(entries[index]) ?? next
+  }
+  let changed = false
+  const placed = entries.map((entry, index) => {
+    if (
+      (entry.kind !== 'user' && entry.kind !== 'sysline') ||
+      entry.agentId !== undefined ||
+      entry.room === true ||
+      entry.skillSession !== undefined
+    ) {
+      return entry
+    }
+    const agentId = entry.kind === 'user' ? (after[index] ?? before[index]) : (before[index] ?? after[index])
+    if (agentId === undefined) {
+      return entry
+    }
+    changed = true
+    return { ...entry, agentId }
+  })
+  return changed ? placed : entries
 }
 
 /**

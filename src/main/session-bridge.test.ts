@@ -696,7 +696,7 @@ describe('what the harness says in its own voice', () => {
     proc.frame(result('error_during_execution', true))
 
     expect(lines(sender)).toEqual([
-      { sessionId: 's1', id: 'm-0', text: 'turn failed · error_during_execution', at: expect.any(Number) }
+      { sessionId: 's1', id: 'm-0', text: 'turn failed · error_during_execution', at: expect.any(Number), agentId: 'bmad-agent-analyst' }
     ])
     expect(states(sender)).toEqual(['work', 'error'])
     expect(sender.names.filter((name) => name === 'session:awaiting-turn')).toHaveLength(1)
@@ -1069,7 +1069,7 @@ describe('session.close', () => {
     expect(sender.events.filter((event) => event.name === 'harness:said')).toEqual([
       {
         name: 'harness:said',
-        payload: { sessionId: reply.sessionId, id: 'm-0', at: expect.any(Number), text: 'session closed · John starts fresh on the next message' }
+        payload: { sessionId: reply.sessionId, id: 'm-0', at: expect.any(Number), text: 'session closed · John starts fresh on the next message', agentId: 'bmad-agent-pm' }
       }
     ])
   })
@@ -1243,7 +1243,7 @@ describe('conversation:get', () => {
     await send(sender, reply.sessionId, 'unwritten')
 
     expect(snapshotOf(sender).entries).toEqual([
-      { kind: 'user', id: 'm-0', at: expect.any(Number), text: 'hello' }
+      { kind: 'user', id: 'm-0', at: expect.any(Number), text: 'hello', agentId: A }
     ])
   })
 
@@ -1388,6 +1388,31 @@ describe('a stored conversation that cannot be read', () => {
     expect(logs).toEqual(['persist/quarantined · unknown-version'])
   })
 
+  it('returns a transcript stored before Story 8.1 attributed to its personas, with the room’s turn untouched (Story 8.1)', () => {
+    plant(
+      JSON.stringify({
+        version: 1,
+        projectPath: '/project-1',
+        entries: [
+          { kind: 'user', id: 'm-0', at: 1, text: 'to Mary' },
+          { kind: 'persona', id: 'm-1', at: 2, agentId: 'bmad-agent-analyst', messageId: 'x', text: 'hi' },
+          { kind: 'sysline', id: 'm-2', at: 3, text: 'session closed · Mary' },
+          { kind: 'user', id: 'm-3', at: 4, text: 'the room', room: true }
+        ]
+      })
+    )
+
+    const reply = get(new FakeSender(1))
+
+    expect(reply.ok && reply.snapshot.entries.map((entry) => ('agentId' in entry ? entry.agentId : undefined))).toEqual([
+      'bmad-agent-analyst',
+      'bmad-agent-analyst',
+      'bmad-agent-analyst',
+      undefined
+    ])
+    expect(logs).toEqual([])
+  })
+
   it('says nothing for a conversation that was simply never stored', () => {
     const reply = get(new FakeSender(1))
 
@@ -1493,7 +1518,8 @@ describe('conversation.end', () => {
     expect(JSON.parse(readFileSync(fileOf('/project-1'), 'utf8'))).toEqual({
       version: 1,
       projectPath: '/project-1',
-      entries: []
+      entries: [],
+      attributed: true
     })
     expect(proc.killed).toBe(true)
     expect(closedEvents(sender)).toMatchObject([{ payload: { sessionId: 's1', agentId: A, reason: 'closed' } }])
@@ -1848,9 +1874,9 @@ describe('seats (Story 7.4)', () => {
       { name: 'session:closed', payload: { sessionId: a.reply.sessionId, agentId: A, reason: 'closed', at: expect.any(Number) } }
     ])
     expect(entriesOf(sender).slice(0, turns.length)).toEqual(turns)
-    expect(syslines(sender)).toEqual([{ kind: 'sysline', id: expect.any(String), at: expect.any(Number), text: SEAT('Mary') }])
-    // No persona's face or authorship, and no room flag: a plain harness line.
-    expect(Object.keys(syslines(sender)[0]).sort()).toEqual(['at', 'id', 'kind', 'text'])
+    expect(syslines(sender)).toEqual([{ kind: 'sysline', id: expect.any(String), at: expect.any(Number), text: SEAT('Mary'), agentId: A }])
+    // No persona's face, name or authorship and no room flag: a plain harness line, carrying only the persona it is about (Story 8.1).
+    expect(Object.keys(syslines(sender)[0]).sort()).toEqual(['agentId', 'at', 'id', 'kind', 'text'])
     const said = sender.events.slice(before).filter((event) => event.name === 'harness:said')
     expect(said).toHaveLength(1)
     expect(said[0].payload).not.toHaveProperty('room')
@@ -2668,7 +2694,7 @@ describe('a typed mention on turn.send (Story 2.15, AD-25)', () => {
     expect(proc.writes).toEqual(['/bmad-agent-dev', 'go'])
     expect(proc.writes.join('')).not.toMatch(/@amelia/i)
     expect(userTurns(sender)).toEqual([
-      { kind: 'user', id: expect.any(String), at: expect.any(Number), text: 'go', mention: '@Amelia' }
+      { kind: 'user', id: expect.any(String), at: expect.any(Number), text: 'go', mention: '@Amelia', agentId: 'bmad-agent-dev' }
     ])
   })
 

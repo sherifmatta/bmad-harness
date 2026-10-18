@@ -8,6 +8,7 @@ import { RunCardLine } from './run-card-line'
 import { isCollapsed } from './run-status'
 import { Sysline } from './sysline'
 import { PendingSkillTurn, PendingTurn, PersonaTurn, SkillTurn, UserTurn } from './turn'
+import { isEntryInPersonaThread } from './transcript-entry'
 import type { RunCardEntry, TranscriptEntry } from './transcript-entry'
 
 /**
@@ -128,7 +129,8 @@ export function Turns({
   collapse,
   onStop,
   inFlight = [],
-  skillView
+  skillView,
+  personaView
 }: {
   entries: readonly TranscriptEntry[]
   /** Take a queued message back, by its entry id. */
@@ -156,22 +158,33 @@ export function Turns({
    * that session's, spoken as the skill. Left out, no entry of any skill-first session is drawn.
    */
   skillView?: SkillView
+  /**
+   * Draw one persona's thread (Story 8.1): only the entries that are in it (`isEntryInPersonaThread`), and only
+   * that persona's turn in flight. This is the one filter of the persona chat: another persona's turns, the user's
+   * turns to it, harness lines about its session and its run cards are in the stored transcript and drawn in theirs.
+   * Left out (and no `skillView`), the entries of no skill-first session and of no room are drawn, as before.
+   */
+  personaView?: string
 }): JSX.Element {
   // What the room said, or the user said into it, belongs to the party thread (Stories 4.1, 4.2):
-  // a persona's thread never draws it. A run's card carries no room flag and stays. What a skill-first
-  // session made belongs to its own thread alone (Story 7.5): the shared one draws none of it, and its own draws nothing else.
+  // a persona's thread never draws it. What a skill-first session made belongs to its own thread alone (Story 7.5):
+  // the shared one draws none of it, and its own draws nothing else. A persona's chat draws its own thread alone (Story 8.1).
   const own = orderEntries(
-    entries.filter(
-      (entry) =>
-        entry.skillSession === skillView?.sessionId && (entry.kind === 'run' || entry.room !== true)
-    )
+    personaView !== undefined && skillView === undefined
+      ? entries.filter((entry) => isEntryInPersonaThread(entry, personaView))
+      : entries.filter(
+          (entry) =>
+            entry.skillSession === skillView?.sessionId && (entry.kind === 'run' || entry.room !== true)
+        )
   )
+  // Only the viewed persona's turn in flight: another persona's is drawn in its own chat.
+  const turns = personaView === undefined ? inFlight : inFlight.filter((turn) => turn.agent.id === personaView)
   // A message still queued is drawn after everything else, in its own order: it has not been sent, so
   // a reply that lands meanwhile goes above it, where the pending turn stood, and never jumps across it.
   const ordered = [...own.filter((entry) => !isQueuedEntry(entry)), ...own.filter(isQueuedEntry)]
   const last = ordered.length - 1
   const writing = new Map<string, number>()
-  for (const turn of inFlight) {
+  for (const turn of turns) {
     if (turn.entryId !== undefined) {
       writing.set(turn.entryId, turn.since)
     }
@@ -179,7 +192,7 @@ export function Turns({
   if (skillView?.inFlight?.entryId !== undefined) {
     writing.set(skillView.inFlight.entryId, skillView.inFlight.since)
   }
-  const unspoken = inFlight.filter((turn) => turn.entryId === undefined)
+  const unspoken = turns.filter((turn) => turn.entryId === undefined)
   // The pending turns sit after the last entry that is not a queued message of the user's.
   const foot = ordered.length - own.filter(isQueuedEntry).length
   const drawn = (entry: TranscriptEntry, index: number): JSX.Element | null => {

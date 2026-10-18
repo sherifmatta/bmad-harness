@@ -9,6 +9,7 @@ import type {
 import type { EpochMs } from '../../shared/ids'
 import {
   EMPTY_TRANSCRIPT,
+  foldAttributeLegacy,
   foldNoticeAtTop,
   foldPersonaSaid,
   foldSysline,
@@ -57,6 +58,11 @@ import type {
  * was still running is read as the run its session ended (`fold/stored-runs`).
  * Ending the conversation clears them with the entries.
  *
+ * Records stored before Story 8.1 carry no persona. A file that does not carry the `attributed` marker is
+ * attributed once, in memory, by `foldAttributeLegacy` when it is first read, before the set-aside line is
+ * added; the tags and the marker reach the file with the next write, and a file that carries the marker is
+ * never attributed again, so a record left unplaced and the set-aside line stay in no persona's thread.
+ *
  * The data directory is asked for on the first project, not at construction,
  * because Electron's `userData` is not to be read before the app is ready.
  */
@@ -74,14 +80,23 @@ export type ProjectTranscript = {
   /**
    * `room` marks what the user sent into the room (Story 4.2): it belongs to the party thread.
    * `skillSession` marks what the user sent into a skill-first session (Story 7.5): its own thread.
+   * `agentId` marks what the user sent to a persona's session (Story 8.1): that persona's thread.
    */
-  recordUserTurn(text: string, at: number, room?: true, mention?: string, skillSession?: string): void
+  recordUserTurn(
+    text: string,
+    at: number,
+    room?: true,
+    mention?: string,
+    skillSession?: string,
+    agentId?: string
+  ): void
   /**
    * Write the harness's own line into the transcript and return the record it became;
    * `room` marks a line about a room (it opened, its turns, its process); every such line belongs to the party thread.
    * `skillSession` marks a line about a skill-first session (Story 7.5): its own thread.
+   * `agentId` marks a line about a persona's session (Story 8.1), and a user turn sent to one: that persona's thread.
    */
-  recordSysline(text: string, at: number, room?: true, skillSession?: string): SyslineRecord
+  recordSysline(text: string, at: number, room?: true, skillSession?: string, agentId?: string): SyslineRecord
   /**
    * A run's card as it stands after the event at `at`, kept with the transcript:
    * replaces the run's earlier copy, if any. A run of a conversation that has
@@ -180,7 +195,16 @@ export function createTranscriptRegistry(deps: TranscriptRegistryDeps): Transcri
   function create(projectPath: string): ProjectTranscript {
     const filePath = transcriptFilePath(deps.userDataPath(), projectPath)
     const outcome = load(filePath, projectPath)
-    let state: TranscriptState = transcriptFrom(outcome.kind === 'loaded' ? outcome.entries : [])
+    // Only a file that was read whole and does not carry the marker has records to attribute (Story 8.1);
+    // one that is missing or cannot be used has nothing, and counts as attributed. The write is left to
+    // whatever changes next: this is not a change that dirties the transcript.
+    let state: TranscriptState = transcriptFrom(
+      outcome.kind === 'loaded'
+        ? outcome.attributed === true
+          ? outcome.entries
+          : foldAttributeLegacy(outcome.entries)
+        : []
+    )
     // What the file held, as this launch reads it, and then every run this launch kept.
     let runs: StoredRun[] = outcome.kind === 'loaded' ? outcome.runs.map(deadOf) : []
     /** The skill-first sessions the file listed, then those started since, in start order (Story 7.5). */
@@ -265,20 +289,26 @@ export function createTranscriptRegistry(deps: TranscriptRegistryDeps): Transcri
     const unlisted = (skillSession: string | undefined): boolean =>
       skillSession !== undefined && !skillSessions.some((held) => held.sessionId === skillSession)
 
-    function recordSysline(text: string, at: number, room?: true, skillSession?: string): SyslineRecord {
+    function recordSysline(
+      text: string,
+      at: number,
+      room?: true,
+      skillSession?: string,
+      agentId?: string
+    ): SyslineRecord {
       if (unlisted(skillSession)) {
         // Said to the window all the same, with the id it would have had, but never stored: nothing could remove it.
         return { kind: 'sysline', id: `m-${state.nextId}`, at, text, skillSession: skillSession as string }
       }
-      changed(foldSysline(state, text, at, room, skillSession))
+      changed(foldSysline(state, text, at, room, skillSession, agentId))
       return state.entries[state.entries.length - 1] as SyslineRecord
     }
 
     return {
       entries: () => state.entries,
       recordPersonaSaid: (said) => unlisted(said.skillSession) || changed(foldPersonaSaid(state, said)),
-      recordUserTurn: (text, at, room, mention, skillSession) =>
-        unlisted(skillSession) || changed(foldUserTurn(state, text, at, room, mention, skillSession)),
+      recordUserTurn: (text, at, room, mention, skillSession, agentId) =>
+        unlisted(skillSession) || changed(foldUserTurn(state, text, at, room, mention, skillSession, agentId)),
       recordSysline,
       recordRun(card, at) {
         if (ended.has(card.runId)) {

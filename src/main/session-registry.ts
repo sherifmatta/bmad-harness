@@ -509,6 +509,23 @@ function discard(service: Service, entry: Entry): void {
   }
 }
 
+/**
+ * The thread a harness line about this session is in, as the one field that says so. A room's (Story 4.1) is flagged
+ * as the party thread's: nothing a room says of itself lands in a persona's 1:1 thread. A skill-first session's
+ * (Story 7.5) is flagged as its own thread's, and lands in no other. A persona's (Story 8.1) carries that
+ * persona's id and lands in its thread alone.
+ */
+function threadTagOf(entry: Entry): { room: true } | { skillSession: SessionId } | { agentId: AgentId } | Record<never, never> {
+  switch (kindOf(entry)) {
+    case 'room':
+      return { room: true }
+    case 'skill':
+      return { skillSession: entry.sessionId }
+    default:
+      return entry.agentId === undefined ? {} : { agentId: entry.agentId }
+  }
+}
+
 /** A skill-first session is up (Story 7.5): its list item and the user's first turn, flagged, at one instant. */
 function keepSkillStart(transcripts: TranscriptRegistry, entry: Entry, firstTurn: string, at: number): void {
   const transcript = transcripts.forProject(entry.projectRoot)
@@ -531,16 +548,8 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
   }
 
   const sayLine = createVoice({ transcripts, now, emit })
-  // A line of the room's (Story 4.1) is flagged as the party thread's: nothing a room says of itself lands in a persona's 1:1 thread.
-  // A skill-first session's (Story 7.5) is flagged as its own thread's, and lands in no other.
   const say = (sender: Sender, entry: Entry, text: string): void =>
-    sayLine(sender, {
-      sessionId: entry.sessionId,
-      projectRoot: entry.projectRoot,
-      text,
-      ...(kindOf(entry) === 'room' ? { room: true as const } : {}),
-      ...(entry.skill === undefined ? {} : { skillSession: entry.sessionId })
-    })
+    sayLine(sender, { sessionId: entry.sessionId, projectRoot: entry.projectRoot, text, ...threadTagOf(entry) })
   const clock = createQuietClock<Sender, Entry>({
     schedule: deps.schedule ?? defaultSchedule,
     quietMs: deps.quietMs ?? QUIET_MS,

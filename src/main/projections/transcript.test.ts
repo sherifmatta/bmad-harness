@@ -250,7 +250,7 @@ describe('clearing a transcript', () => {
 
     expect(transcript.clear()).toEqual({ ok: true })
 
-    expect(onDisk()).toEqual({ version: 1, projectPath: project, entries: [] })
+    expect(onDisk()).toEqual({ version: 1, projectPath: project, entries: [], attributed: true })
     expect(transcript.entries()).toEqual([])
     expect(timers.every((timer) => timer.cancelled)).toBe(true)
     transcripts.flushAll()
@@ -534,7 +534,8 @@ describe('run cards kept with the transcript (Story 3.7)', () => {
       runs: [
         { card: card('r1', { notes: [{ text: '- (decision) x', at: 14 }] }), lastAt: 14 },
         { card: card('r2'), lastAt: 15 }
-      ]
+      ],
+      attributed: true
     })
   })
 
@@ -680,7 +681,7 @@ describe('run cards kept with the transcript (Story 3.7)', () => {
 
     expect(transcript.clear()).toEqual({ ok: true })
 
-    expect(onDisk()).toEqual({ version: 1, projectPath: project, entries: [] })
+    expect(onDisk()).toEqual({ version: 1, projectPath: project, entries: [], attributed: true })
     expect(transcript.storedRuns()).toEqual([])
     transcripts.flushAll()
     expect(onDisk().runs).toBeUndefined()
@@ -700,7 +701,7 @@ describe('run cards kept with the transcript (Story 3.7)', () => {
     tick()
 
     expect(timers.filter((timer) => !timer.cancelled)).toEqual([])
-    expect(onDisk()).toEqual({ version: 1, projectPath: project, entries: [] })
+    expect(onDisk()).toEqual({ version: 1, projectPath: project, entries: [], attributed: true })
     // A run begun in the new conversation is kept as any other.
     transcript.recordRun(card('r2'), 20)
     transcripts.flushAll()
@@ -826,5 +827,120 @@ describe('the skill-first sessions a transcript lists (Story 7.5)', () => {
     expect(first.clear()).toEqual({ ok: true })
     expect(first.skillSessions()).toEqual([])
     expect(onDisk().skillSessions).toBeUndefined()
+  })
+})
+
+describe('a persona thread’s tags and the one-time attribution (Story 8.1)', () => {
+  const plantFile = (file: object): void => {
+    mkdirSync(join(userData, 'conversations'), { recursive: true })
+    writeFileSync(fileOf(), JSON.stringify({ version: 1, projectPath: project, ...file }))
+  }
+  const persona = (id: string, agentId: string, at: number) => ({ kind: 'persona', id, at, agentId, messageId: `x-${id}`, text: id })
+  const legacy = [
+    { kind: 'user', id: 'm-0', at: 1, text: 'to john' },
+    persona('m-1', 'john', 2),
+    { kind: 'sysline', id: 'm-2', at: 3, text: 'session closed · John' },
+    { kind: 'user', id: 'm-3', at: 4, text: 'to mary' },
+    persona('m-4', 'mary', 5),
+    { kind: 'user', id: 'm-5', at: 6, text: 'the room', room: true }
+  ]
+  const tagsOf = (entries: readonly object[]) => entries.map((entry) => ('agentId' in entry ? entry.agentId : undefined))
+
+  it('keeps the agentId on a user turn and a harness line, none on a record recorded without one, and loads them again after a relaunch', () => {
+    const first = registry()
+    const transcript = first.forProject(project)
+    transcript.recordUserTurn('hi', 1, undefined, undefined, undefined, 'john')
+    transcript.recordUserTurn('room', 2, true)
+    transcript.recordUserTurn('plain', 3)
+    const line = transcript.recordSysline('quiet', 4, undefined, undefined, 'john')
+    first.flushAll()
+
+    expect(line).toEqual({ kind: 'sysline', id: 'm-3', at: 4, text: 'quiet', agentId: 'john' })
+    expect(tagsOf(onDisk().entries)).toEqual(['john', undefined, undefined, 'john'])
+    expect(registry().forProject(project).entries()).toEqual(onDisk().entries)
+  })
+
+  it('attributes a file without the marker once on first read, and changes nothing else', () => {
+    plantFile({ entries: legacy })
+
+    const transcript = registry().forProject(project)
+
+    expect(tagsOf(transcript.entries())).toEqual(['john', 'john', 'john', 'mary', 'mary', undefined])
+    expect(transcript.entries().map((entry) => entry.id)).toEqual(legacy.map((entry) => entry.id))
+    expect(transcript.entries()).toHaveLength(legacy.length)
+  })
+
+  it('does not mark the transcript dirty: the tags and the marker reach the file with the next write, at version 1', () => {
+    plantFile({ entries: legacy })
+    const transcripts = registry()
+    const transcript = transcripts.forProject(project)
+
+    expect(timers.filter((timer) => !timer.cancelled)).toHaveLength(0)
+    transcripts.flushAll()
+    expect(onDisk().entries).toEqual(legacy)
+    expect(onDisk().attributed).toBeUndefined()
+
+    transcript.recordSysline('later', 9, undefined, undefined, 'mary')
+    transcripts.flushAll()
+    expect(onDisk().version).toBe(1)
+    expect(onDisk().attributed).toBe(true)
+    expect(tagsOf(onDisk().entries)).toEqual(['john', 'john', 'john', 'mary', 'mary', undefined, 'mary'])
+  })
+
+  it('never attributes a file that carries the marker: an unplaced record stays in no thread after a persona has since spoken', () => {
+    plantFile({
+      attributed: true,
+      entries: [
+        { kind: 'user', id: 'm-0', at: 1, text: 'nobody had answered' },
+        { kind: 'sysline', id: 'm-1', at: 2, text: 'a line' },
+        persona('m-2', 'john', 3)
+      ]
+    })
+
+    const transcript = registry().forProject(project)
+
+    expect(tagsOf(transcript.entries())).toEqual([undefined, undefined, 'john'])
+  })
+
+  it('leaves a set-aside notice in no thread across a relaunch, even after a persona speaks', () => {
+    mkdirSync(join(userData, 'conversations'), { recursive: true })
+    writeFileSync(fileOf(), '{not json')
+    const first = registry({ now: () => 5 })
+    const transcript = first.forProject(project)
+    transcript.recordPersonaSaid(said('m1', 'hi', 7))
+    first.flushAll()
+    expect(onDisk().attributed).toBe(true)
+
+    const second = registry().forProject(project)
+    expect(tagsOf(second.entries())).toEqual([undefined, 'a'])
+    second.recordPersonaSaid({ ...said('m2', 'again', 9), agentId: 'b' })
+    const third = registry()
+    third.forProject(project)
+    expect(tagsOf(third.forProject(project).entries())).toEqual([undefined, 'a'])
+  })
+
+  it('attributes before the set-aside line is added, so the line is never tagged', () => {
+    plantFile({
+      entries: [
+        { kind: 'user', id: 'm-0', at: 1, text: 'hi' },
+        persona('m-1', 'john', 2),
+        { kind: 'user', id: 'm-2', at: 3, text: 'bad', room: 'yes' }
+      ]
+    })
+
+    const transcript = registry({ now: () => 77 }).forProject(project)
+
+    expect(transcript.entries()[0]).toEqual({ kind: 'sysline', id: 'm-2', at: 77, text: 'earlier conversation could not be read · kept aside' })
+    expect(tagsOf(transcript.entries())).toEqual([undefined, 'john', 'john'])
+  })
+
+  it('counts a missing file as attributed: a first record is tagged only by main, and nothing is attributed later', () => {
+    const transcripts = registry()
+    const transcript = transcripts.forProject(project)
+    transcript.recordUserTurn('hi', 1)
+    transcripts.flushAll()
+
+    expect(onDisk().attributed).toBe(true)
+    expect(tagsOf(registry().forProject(project).entries())).toEqual([undefined])
   })
 })

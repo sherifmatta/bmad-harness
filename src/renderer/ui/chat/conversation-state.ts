@@ -194,7 +194,8 @@ export function sendMessage(
   const held = mention === undefined ? {} : { mention }
   const queued: QueuedMessage[] = [...(state.queue.get(agentId) ?? []), { entryId, text, ...held }]
   // A skill-first session's key (`skillKey`) makes the turn that session's own (Story 7.5); `personaName` is its skill's name.
-  const scoped = isSkillKey(agentId) ? { skillSession: skillIdOf(agentId) } : {}
+  // A persona's own key tags the turn with the persona it was sent to (Story 8.1): the thread it is in.
+  const scoped = isSkillKey(agentId) ? { skillSession: skillIdOf(agentId) } : { agentId }
   const entered = withQueue(
     withEntry(state, {
       kind: 'user',
@@ -566,7 +567,8 @@ export function withHandoff(state: ConversationState, record: SyslineRecord): Co
     at: record.at,
     text: record.text,
     ...(record.room === true ? { room: true as const } : {}),
-    ...(record.skillSession === undefined ? {} : { skillSession: record.skillSession })
+    ...(record.skillSession === undefined ? {} : { skillSession: record.skillSession }),
+    ...(record.agentId === undefined ? {} : { agentId: record.agentId })
   })
 }
 
@@ -755,7 +757,8 @@ export function hydrate(
             at: record.at,
             text: record.text,
             ...(record.room === true ? { room: true as const } : {}),
-            ...(record.skillSession === undefined ? {} : { skillSession: record.skillSession })
+            ...(record.skillSession === undefined ? {} : { skillSession: record.skillSession }),
+            ...(record.agentId === undefined ? {} : { agentId: record.agentId })
           }
         : {
             kind: 'user',
@@ -764,7 +767,8 @@ export function hydrate(
             text: record.text,
             ...(isStoredMention(record, record.mention) ? { mention: record.mention } : {}),
             ...(record.room === true ? { room: true as const } : {}),
-            ...(record.skillSession === undefined ? {} : { skillSession: record.skillSession })
+            ...(record.skillSession === undefined ? {} : { skillSession: record.skillSession }),
+            ...(record.agentId === undefined ? {} : { agentId: record.agentId })
           }
   )
   // The skill-first sessions main lists, in start order (Story 7.5).
@@ -860,7 +864,7 @@ export function foldEvent(
 
     case 'harness:said': {
       // The harness's own line, once and at the end; one already held (by its id) is not added again.
-      const { id, at, text, room, skillSession } = event.payload
+      const { id, at, text, room, skillSession, agentId } = event.payload
       // A late line for a skill-first session the window no longer holds (it was ended) has no thread to join.
       if (skillSession !== undefined && !state.skillSessions.has(skillSession)) {
         return { state }
@@ -872,7 +876,8 @@ export function foldEvent(
           at,
           text,
           ...(room === true ? { room: true as const } : {}),
-          ...(skillSession === undefined ? {} : { skillSession })
+          ...(skillSession === undefined ? {} : { skillSession }),
+          ...(agentId === undefined ? {} : { agentId })
         })
       }
     }

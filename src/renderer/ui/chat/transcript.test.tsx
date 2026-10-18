@@ -316,3 +316,79 @@ describe('Turns, a skill-first session’s thread (Story 7.5)', () => {
     expect(pending.lastIndexOf('turn--pending')).toBeGreaterThan(pending.indexOf('session ended'))
   })
 })
+
+describe('Turns for one persona’s thread (Story 8.1)', () => {
+  const john = { id: 'bmad-agent-pm', module: 'bmm', name: 'John', title: 'PM', icon: 'i', description: 'd' }
+  const mary = { ...john, id: 'bmad-agent-analyst', name: 'Mary', title: 'Analyst' }
+  const entries: TranscriptEntry[] = [
+    { kind: 'user', id: 'u-j', at: 1, text: 'to john', agentId: john.id },
+    { kind: 'persona', id: 'p-j', at: 2, agent: john, text: 'john said' },
+    { kind: 'sysline', id: 'l-j', at: 3, text: 'john line', agentId: john.id },
+    { kind: 'user', id: 'u-m', at: 4, text: 'to mary', agentId: mary.id },
+    { kind: 'persona', id: 'p-m', at: 5, agent: mary, text: 'mary said' },
+    { kind: 'sysline', id: 'l-m', at: 6, text: 'mary line', agentId: mary.id },
+    { kind: 'user', id: 'u-q', at: 7, text: 'queued to john', agentId: john.id, queuedFor: 'John' },
+    { kind: 'user', id: 'u-none', at: 8, text: 'unplaced' },
+    { kind: 'sysline', id: 'l-none', at: 9, text: 'unplaced line' },
+    { kind: 'user', id: 'u-room', at: 10, text: 'room words', room: true, agentId: john.id },
+    { kind: 'persona', id: 'p-room', at: 11, agent: john, text: 'room said', room: true },
+    { kind: 'user', id: 'u-skill', at: 12, text: 'skill words', skillSession: 'sk1' },
+    { ...card('r-j', { agentId: john.id, status: 'finished' }), at: 13 },
+    { ...card('r-m', { agentId: mary.id, status: 'finished' }), at: 14 },
+    { ...card('r-none', { agentId: undefined, status: 'finished' }), at: 15 },
+    { ...card('r-sk', { agentId: john.id, status: 'finished', skillSession: 'sk1' }), at: 16 }
+  ]
+  const draw = (personaView: string | undefined, inFlight: Parameters<typeof Turns>[0]['inFlight'] = []): string =>
+    renderToStaticMarkup(<Turns entries={entries} prose={createProseStore({ raf: (run) => run() })} personaView={personaView} inFlight={inFlight} />)
+
+  it('draws only the viewed persona’s turns, the user’s turns to it, harness lines about it and its run cards, in time order', () => {
+    const markup = draw(john.id)
+
+    expect(markup).toContain('to john')
+    expect(markup).toContain('john said')
+    expect(markup).toContain('john line')
+    expect(markup).toContain('queued to john')
+    expect((markup.match(/class="run-card"/g) ?? []).length).toBe(1)
+    for (const hidden of ['to mary', 'mary said', 'mary line', 'unplaced', 'unplaced line', 'room words', 'room said', 'skill words']) {
+      expect(markup, hidden).not.toContain(hidden)
+    }
+    expect(markup.indexOf('to john')).toBeLessThan(markup.indexOf('john said'))
+    expect(markup.indexOf('john said')).toBeLessThan(markup.indexOf('john line'))
+    expect(markup.indexOf('john line')).toBeLessThan(markup.indexOf('queued to john'))
+  })
+
+  it('draws another persona’s thread from the same entries, and does not draw a queued message of the first in it', () => {
+    const markup = draw(mary.id)
+
+    expect(markup).toContain('to mary')
+    expect(markup).toContain('mary said')
+    expect(markup).toContain('mary line')
+    for (const hidden of ['to john', 'john said', 'john line', 'queued to john', 'unplaced']) {
+      expect(markup, hidden).not.toContain(hidden)
+    }
+    expect((markup.match(/class="run-card"/g) ?? []).length).toBe(1)
+  })
+
+  it('draws a persona with no records as nothing, however much the others have said', () => {
+    expect(draw('bmad-agent-nobody')).toBe('')
+  })
+
+  it('draws only the viewed persona’s turn in flight', () => {
+    const markup = draw(mary.id, [
+      { agent: john, since: 50, entryId: undefined },
+      { agent: mary, since: 60, entryId: undefined }
+    ])
+
+    expect((markup.match(/turn--pending/g) ?? []).length).toBe(1)
+    expect(markup).toContain('Mary')
+  })
+
+  it('draws the entries of no room and no skill-first session when no persona is viewed, as before', () => {
+    const markup = draw(undefined)
+
+    expect(markup).toContain('to john')
+    expect(markup).toContain('to mary')
+    expect(markup).not.toContain('room words')
+    expect(markup).not.toContain('skill words')
+  })
+})

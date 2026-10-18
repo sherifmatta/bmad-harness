@@ -282,7 +282,7 @@ describe('the sources', () => {
     expect(app).toMatch(/import \{ pinnedRun, Turns \} from '\.\/chat\/transcript'/)
     expect(app).toContain('<Composer')
     expect(app).toMatch(
-      /<Turns entries=\{conversation\.entries\} onCancel=\{conversation\.cancel\} canAnswer=\{conversation\.canAnswer\} onChoose=\{answer\} prose=\{conversation\.prose\} pinnedRunId=\{pinnedEntry\?\.id\} collapse=\{collapse\} onStop=\{conversation\.stopRun\} inFlight=\{inFlight\} \/>/
+      /<Turns entries=\{conversation\.entries\} onCancel=\{conversation\.cancel\} canAnswer=\{conversation\.canAnswer\} onChoose=\{answer\} prose=\{conversation\.prose\} pinnedRunId=\{pinnedEntry\?\.id\} collapse=\{collapse\} onStop=\{conversation\.stopRun\} inFlight=\{inFlight\} personaView=\{viewed\?\.id\} \/>/
     )
     // Story 7.5: the shell is told the skill-first session's own thread by the window, which hands it only the turns.
     expect(app).toMatch(/skillView=\{\{ sessionId: seat\.sessionId/)

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { PersonaSaid } from '../../shared/events'
+import type { TranscriptRecord } from '../../shared/conversation'
 import {
   EMPTY_TRANSCRIPT,
+  foldAttributeLegacy,
   foldPersonaSaid,
   foldSysline,
   foldUserTurn,
@@ -219,5 +221,99 @@ describe('a skill-first session in the transcript (Story 7.5)', () => {
     expect(next.entries.map((entry) => entry.text)).toEqual(['persona', 'said'])
     expect(next.nextId).toBe(state.nextId)
     expect(foldWithoutSkillSession(next, 's1')).toBe(next)
+  })
+})
+
+describe('a persona session’s tags (Story 8.1)', () => {
+  it('keeps the agentId on the user’s turn and the harness’s line, and a record without one has no such field', () => {
+    const state = foldSysline(foldUserTurn(EMPTY_TRANSCRIPT, 'hi', 1, undefined, undefined, undefined, 'john'), 'ended', 2, undefined, undefined, 'john')
+
+    expect(state.entries).toEqual([
+      { kind: 'user', id: 'm-0', at: 1, text: 'hi', agentId: 'john' },
+      { kind: 'sysline', id: 'm-1', at: 2, text: 'ended', agentId: 'john' }
+    ])
+    expect(foldUserTurn(EMPTY_TRANSCRIPT, 'plain', 1).entries[0]).not.toHaveProperty('agentId')
+    expect(foldSysline(EMPTY_TRANSCRIPT, 'plain', 1).entries[0]).not.toHaveProperty('agentId')
+  })
+})
+
+describe('attributing a legacy transcript (Story 8.1)', () => {
+  const persona = (id: string, agentId: string, room?: true): TranscriptRecord => ({
+    kind: 'persona',
+    id,
+    at: 1,
+    agentId,
+    messageId: `msg-${id}`,
+    text: id,
+    ...(room === true ? { room } : {})
+  })
+  const user = (id: string, extra: Partial<TranscriptRecord> = {}): TranscriptRecord =>
+    ({ kind: 'user', id, at: 1, text: id, ...extra }) as TranscriptRecord
+  const line = (id: string, extra: Partial<TranscriptRecord> = {}): TranscriptRecord =>
+    ({ kind: 'sysline', id, at: 1, text: id, ...extra }) as TranscriptRecord
+  const tags = (entries: readonly TranscriptRecord[]): (string | undefined)[] =>
+    entries.map((entry) => ('agentId' in entry ? entry.agentId : undefined))
+
+  it('gives a user turn the persona of the next persona turn after it, and a line the nearest one before', () => {
+    const out = foldAttributeLegacy([
+      user('u1'),
+      persona('p1', 'john'),
+      line('l1'),
+      user('u2'),
+      persona('p2', 'mary'),
+      line('l2')
+    ])
+
+    expect(tags(out)).toEqual(['john', 'john', 'john', 'mary', 'mary', 'mary'])
+  })
+
+  it('falls back symmetrically: a user turn to the nearest before, a line to the next after', () => {
+    const out = foldAttributeLegacy([line('l0'), persona('p1', 'john'), user('u1')])
+
+    expect(tags(out)).toEqual(['john', 'john', 'john'])
+  })
+
+  it('does not take a room’s persona turn as a persona’s', () => {
+    const out = foldAttributeLegacy([user('u1'), persona('r1', 'mary', true), line('l1'), persona('p1', 'john')])
+
+    expect(tags(out)).toEqual(['john', 'mary', 'john', 'john'])
+  })
+
+  it('leaves room and skill-first records, skill records and tagged records as they are', () => {
+    const entries: TranscriptRecord[] = [
+      user('u1', { room: true }),
+      line('l1', { room: true }),
+      user('u2', { skillSession: 's1' }),
+      line('l2', { skillSession: 's1' }),
+      { kind: 'skill', id: 'k1', at: 1, messageId: 'm', text: 'k', skillSession: 's1' },
+      user('u3', { agentId: 'mary' }),
+      persona('p1', 'john')
+    ]
+
+    expect(foldAttributeLegacy(entries)).toEqual(entries)
+    expect(foldAttributeLegacy(entries)).toBe(entries)
+  })
+
+  it('leaves a record with no persona turn on either side untagged, and drops nothing', () => {
+    const entries = [user('u1'), line('l1'), persona('r1', 'mary', true)]
+    const out = foldAttributeLegacy(entries)
+
+    expect(out).toBe(entries)
+    expect(out).toHaveLength(3)
+  })
+
+  it('is idempotent and keeps order and ids', () => {
+    const once = foldAttributeLegacy([user('u1'), persona('p1', 'john'), line('l1')])
+
+    expect(foldAttributeLegacy(once)).toBe(once)
+    expect(once.map((entry) => entry.id)).toEqual(['u1', 'p1', 'l1'])
+  })
+
+  it('does not change the entries it was given', () => {
+    const entries = [user('u1'), persona('p1', 'john')]
+    const frozen = JSON.stringify(entries)
+    foldAttributeLegacy(entries)
+
+    expect(JSON.stringify(entries)).toBe(frozen)
   })
 })

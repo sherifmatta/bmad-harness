@@ -23,10 +23,11 @@ import { errnoOf } from '../errno'
 
 /**
  * Where a project's transcript lives and how it is read and written. The one
- * thing persisted (FR16, FR100, NFR2): `{version, projectPath, entries, runs?}`
+ * thing persisted (FR16, FR100, NFR2): `{version, projectPath, entries, runs?, attributed?}`
  * JSON at `<userData>/conversations/<sha256(projectPath) hex>.json`, and nothing
  * else. `skillSessions` (Story 7.5) is the list of skill-first sessions, additive
- * in the same way: a file from before it loads as having none. `runs` are the run cards that stand beside the entries, each with the
+ * in the same way: a file from before it loads as having none. `attributed` (Story 8.1) is set by every write
+ * and tells a later read that the one-time attribution of records to personas has been done. `runs` are the run cards that stand beside the entries, each with the
  * moment of its last event (`StoredRun`); a file from before they were kept has
  * none, and loads as having none, at the same version.
  *
@@ -101,6 +102,15 @@ function isRecord(value: unknown): value is TranscriptRecord {
   if (record.room !== undefined && record.room !== true) return false
   // A skill-first session's flag is its session id or not there at all (Story 7.5).
   if (record.skillSession !== undefined && typeof record.skillSession !== 'string') return false
+  // A persona thread's tag is an agent id or not there at all (Story 8.1); on a user turn or a harness line,
+  // anything else is not a record this build wrote.
+  if (
+    (record.kind === 'user' || record.kind === 'sysline') &&
+    record.agentId !== undefined &&
+    typeof record.agentId !== 'string'
+  ) {
+    return false
+  }
   if (record.kind === 'user' || record.kind === 'sysline') return true
   if (record.kind === 'skill') {
     return typeof record.messageId === 'string' && typeof record.skillSession === 'string'
@@ -213,6 +223,11 @@ export type LoadOutcome =
       runs: StoredRun[]
       skillSessions: StoredSkillSession[]
       dropped: number
+      /**
+       * Set when the file carried the `attributed` marker (Story 8.1): its records were already attributed to
+       * their personas, once, and are never attributed again. Absent for a file written before it.
+       */
+      attributed?: true
     }
   /** The file could not be read: the errno code. */
   | { kind: 'unreadable'; errno: string }
@@ -272,6 +287,7 @@ export function loadTranscript(filePath: string, projectPath: string): LoadOutco
     entries,
     runs,
     skillSessions,
+    ...(file.attributed === true ? { attributed: true as const } : {}),
     dropped:
       file.entries.length -
       entries.length +
@@ -328,6 +344,8 @@ export function writeTranscript(
       version: TRANSCRIPT_VERSION,
       projectPath,
       entries: [...entries],
+      // Every write of this build says the records in it have been through attribution (Story 8.1).
+      attributed: true,
       // A file with no run cards is the file it always was.
       ...(runs.length === 0 ? {} : { runs: [...runs] }),
       // Nor does a file with no skill-first sessions hold the field.

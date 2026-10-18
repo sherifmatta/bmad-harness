@@ -338,7 +338,7 @@ describe('a stop the CLI acknowledged', () => {
     expect(fake.kills).toBe(1)
     expect(sender.names).toEqual(['run:stopped', 'harness:said', 'session:closed'])
     expect(sender.of('run:stopped')).toEqual([{ runId, sessionId, at: clock }])
-    expect(sender.of('harness:said')).toEqual([{ sessionId, id: expect.any(String), text: LINES.stopUnfinished, at: clock }])
+    expect(sender.of('harness:said')).toEqual([{ sessionId, id: expect.any(String), text: LINES.stopUnfinished, at: clock, agentId: A }])
     expect(sender.of('run:failed')).toEqual([])
     expect(snapshot(sender).runs[0].status).toBe('stopped')
   })
@@ -617,7 +617,7 @@ describe('a stop the CLI did not acknowledge', () => {
     expect(fake.kills).toBe(1)
     expect(sender.names).toEqual(['run:stopped', 'harness:said', 'session:closed'])
     expect(sender.of('run:stopped')).toEqual([{ runId, sessionId, at: clock }])
-    expect(sender.of('harness:said')).toEqual([{ sessionId, id: expect.any(String), text: LINES.stopEnded, at: clock }])
+    expect(sender.of('harness:said')).toEqual([{ sessionId, id: expect.any(String), text: LINES.stopEnded, at: clock, agentId: A }])
     expect(sender.of('session:closed')).toEqual([{ sessionId, agentId: A, reason: 'closed', at: clock }])
     expect(sender.of('run:failed')).toEqual([])
     expect(snapshot(sender)).toMatchObject({ sessions: [], busy: [], runs: [{ runId, status: 'stopped' }] })
@@ -792,7 +792,7 @@ describe('the work that carries on after a stop', () => {
     fake.feed(unsent())
 
     expect(sender.names).toEqual(['harness:said', 'run:started'])
-    expect(sender.of('harness:said')).toEqual([{ sessionId, id: expect.any(String), text: LINES.carriedOn, at: clock }])
+    expect(sender.of('harness:said')).toEqual([{ sessionId, id: expect.any(String), text: LINES.carriedOn, at: clock, agentId: A }])
     expect(sender.of('run:started')).toEqual([{ runId: 'r2', sessionId, agentId: A, code: 'CP', skill: 'bmad-prd', plan: ['Vision', 'Scope'], at: clock }])
     expect(snapshot(sender).runs.map((run) => [run.runId, run.status])).toEqual([
       ['r1', 'stopped'],
@@ -1320,7 +1320,7 @@ describe('stopping a plain chat turn (Story 3.19)', () => {
     fake.feed(result(true))
 
     expect(sender.names).toEqual(['harness:said', 'session:awaiting-turn'])
-    expect(sender.of('harness:said')).toEqual([{ sessionId, id: expect.any(String), text: LINES.stopped, at: clock }])
+    expect(sender.of('harness:said')).toEqual([{ sessionId, id: expect.any(String), text: LINES.stopped, at: clock, agentId: A }])
     expect(fake.kills).toBe(0)
     expect(snapshot(sender)).toMatchObject({ sessions: [{ agentId: A, sessionId }], busy: [], runs: [] })
     expect(snapshot(sender).entries.filter((entry) => entry.kind === 'sysline')).toEqual([expect.objectContaining({ text: LINES.stopped })])
@@ -1450,7 +1450,7 @@ describe('stopping a plain chat turn (Story 3.19)', () => {
     await expect(reply).resolves.toEqual({ ok: true })
     expect(fake.kills).toBe(1)
     expect(sender.names).toEqual(['harness:said', 'session:closed'])
-    expect(sender.of('harness:said')).toEqual([{ sessionId, id: expect.any(String), text: LINES.stopTurnEnded, at: clock }])
+    expect(sender.of('harness:said')).toEqual([{ sessionId, id: expect.any(String), text: LINES.stopTurnEnded, at: clock, agentId: A }])
     expect(sender.of('session:closed')).toEqual([{ sessionId, agentId: A, reason: 'closed', at: clock }])
   })
 
@@ -1476,7 +1476,7 @@ describe('stopping a plain chat turn (Story 3.19)', () => {
 
     expect(fake.kills).toBe(1)
     expect(sender.names).toEqual(['harness:said', 'session:closed'])
-    expect(sender.of('harness:said')).toEqual([{ sessionId, id: expect.any(String), text: LINES.stopTurnUnfinished, at: clock }])
+    expect(sender.of('harness:said')).toEqual([{ sessionId, id: expect.any(String), text: LINES.stopTurnUnfinished, at: clock, agentId: A }])
   })
 
   it('does not close the session a moment short of the deadlines', async () => {

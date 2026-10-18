@@ -654,6 +654,146 @@ describe('App, the conversation glue', () => {
   })
 })
 
+describe('App, a thread for each persona (Story 8.1)', () => {
+  const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
+  const thread = (): HTMLElement => mounted!.container.querySelector('.thread') as HTMLElement
+  const words = (): string => thread().textContent ?? ''
+  const stored = (): void => {
+    conversationNow = () => ({
+      entries: [
+        { kind: 'user', id: 'm-0', at: 1_700_000_000_001, text: 'ask-mary-one', agentId: mary.id },
+        { kind: 'persona', id: 'm-1', at: 1_700_000_000_002, agentId: mary.id, messageId: 'x1', text: 'mary-answer' },
+        { kind: 'sysline', id: 'm-2', at: 1_700_000_000_003, text: 'mary-line', agentId: mary.id },
+        { kind: 'user', id: 'm-3', at: 1_700_000_000_004, text: 'ask-john-one', agentId: john.id },
+        { kind: 'persona', id: 'm-4', at: 1_700_000_000_005, agentId: john.id, messageId: 'x2', text: 'john-answer' },
+        { kind: 'user', id: 'm-5', at: 1_700_000_000_006, text: 'unplaced-user' },
+        { kind: 'sysline', id: 'm-6', at: 1_700_000_000_007, text: 'unplaced-line' }
+      ],
+      sessions: [],
+      busy: [],
+      personas: [],
+      runs: []
+    })
+  }
+
+  it('draws each persona’s chat from its own records only, in both directions, and changes no stored record by switching', async () => {
+    stored()
+    await mountOnMary()
+    expect(words()).toContain('ask-mary-one')
+    expect(words()).toContain('mary-answer')
+    expect(words()).toContain('mary-line')
+    for (const other of ['ask-john-one', 'john-answer']) expect(words()).not.toContain(other)
+    const marys = thread().innerHTML
+
+    act(() => tile('John').click())
+    await settle()
+    expect(words()).toContain('ask-john-one')
+    expect(words()).toContain('john-answer')
+    for (const other of ['ask-mary-one', 'mary-answer', 'mary-line']) expect(words()).not.toContain(other)
+    const johns = thread().innerHTML
+
+    act(() => tile('Mary').click())
+    await settle()
+    act(() => tile('John').click())
+    await settle()
+    expect(thread().innerHTML).toBe(johns)
+    act(() => tile('Mary').click())
+    await settle()
+    expect(thread().innerHTML).toBe(marys)
+    // Switching sends nothing and ends nothing: the stored thread is the main process's, and it was not touched.
+    expect(sent).toEqual([])
+    expect(ended).toEqual([])
+  })
+
+  it('draws a record with no persona in no persona’s chat, however many others have spoken', async () => {
+    stored()
+    await mountOnMary()
+    for (const name of ['Mary', 'John']) {
+      act(() => tile(name).click())
+      await settle()
+      expect(words()).not.toContain('unplaced-user')
+      expect(words()).not.toContain('unplaced-line')
+    }
+  })
+
+  it('reads a persona whose others have turns but not itself as an empty chat that shows the thread introduction', async () => {
+    stored()
+    await mountOnMary()
+    act(() => tile('John').click())
+    await settle()
+    expect(mounted!.container.querySelector('.thread-intro')).toBeNull()
+
+    conversationNow = () => ({
+      entries: [{ kind: 'persona', id: 'm-1', at: 1_700_000_000_002, agentId: mary.id, messageId: 'x1', text: 'mary-answer' }],
+      sessions: [],
+      busy: [],
+      personas: [],
+      runs: []
+    })
+    mounted?.unmount()
+    mounted = null
+    await mountOn('John')
+    expect(mounted!.container.querySelector('.thread-intro')).not.toBeNull()
+    expect(words()).not.toContain('mary-answer')
+  })
+
+  it('keeps a message queued for one persona in that persona’s chat, and never drains it into another’s session', async () => {
+    // Mary's turn is in flight and John's seat is idle, both as main's snapshot says (the ids are those the fake bridge opens with).
+    const maryId = `session-of-${mary.id}`
+    const johnId = `session-of-${john.id}`
+    conversationNow = () => ({
+      entries: [],
+      sessions: [
+        { agentId: mary.id, sessionId: maryId },
+        { agentId: john.id, sessionId: johnId }
+      ],
+      busy: [maryId],
+      personas: [],
+      runs: []
+    })
+    await mountOnMary()
+    type(field(), 'for mary only')
+    act(() => {
+      field().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    })
+    await settle()
+    expect(thread().querySelector('.turn--queued')?.textContent).toContain('for mary only')
+
+    act(() => tile('John').click())
+    await settle()
+    expect(words()).not.toContain('for mary only')
+    expect(thread().querySelector('.turn--queued')).toBeNull()
+    // John's session is idle, and Mary's queued message is not drained into it.
+    push({ name: 'session:awaiting-turn', payload: { sessionId: johnId, at: 3 } })
+    expect(sent).toEqual([])
+
+    act(() => tile('Mary').click())
+    await settle()
+    expect(thread().querySelector('.turn--queued')?.textContent).toContain('for mary only')
+    push({ name: 'session:awaiting-turn', payload: { sessionId: maryId, at: 4 } })
+    expect(sent).toEqual([[maryId, 'for mary only']])
+    expect(thread().querySelector('.turn--queued')).toBeNull()
+  })
+
+  it('draws a message sent to John in John’s chat alone', async () => {
+    await mountOn('John')
+    push({ name: 'session:opened', payload: { sessionId: 's-john', agentId: john.id, at: 1 } })
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 's-john', at: 2 } })
+    type(field(), 'hello john')
+    act(() => {
+      field().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    })
+    await settle()
+    expect(words()).toContain('hello john')
+    expect(mounted!.container.querySelector('.thread-intro')).toBeNull()
+
+    act(() => tile('Mary').click())
+    await settle()
+    expect(words()).not.toContain('hello john')
+    expect(mounted!.container.querySelector('.thread-intro')).not.toBeNull()
+  })
+})
+
 describe('App, turning to the next persona', () => {
   const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
   const maryWords: ContractEvent = {
@@ -694,7 +834,8 @@ describe('App, turning to the next persona', () => {
     await settle()
 
     expect(opened).toEqual([mary.id, john.id])
-    expect(thread()).toEqual(['turn turn--persona'])
+    // John's chat holds none of Mary's words (Story 8.1): it is his own, and empty.
+    expect(thread()).toEqual(['thread-intro'])
     expect(mounted!.container.querySelector('.sysline')).toBeNull()
     // Focus stayed where the user put it, and aria-current followed.
     expect(document.activeElement).toBe(tile('John'))
@@ -704,6 +845,11 @@ describe('App, turning to the next persona', () => {
     expect(tile('Mary').tabIndex).toBe(-1)
     expect(field().getAttribute('aria-label')).toBe('Message John')
     expect(field().value).toBe('')
+    // Turning back finds Mary's words where they were, and writes nothing there either.
+    act(() => tile('Mary').click())
+    await settle()
+    expect(thread()).toEqual(['turn turn--persona'])
+    expect(mounted!.container.querySelector('.sysline')).toBeNull()
   })
 
   it('announces nothing for a switch, and keeps the one live region', async () => {
@@ -905,18 +1051,23 @@ describe('App, when a persona stops to ask', () => {
     expect(mounted!.container.querySelector('.decision')).toBeNull()
   })
 
-  it('answers the persona who asked even when another tile is current, and lands focus in that persona’s composer', async () => {
+  it('answers the persona who asked from her own chat, and lands focus in her composer', async () => {
     await asked()
     push({ name: 'session:awaiting-turn', payload: { sessionId: 's-mary', at: 3 } })
     act(() => tile('John').click())
     await settle()
     expect(field().getAttribute('aria-label')).toBe('Message John')
+    // Her question is in her own chat (Story 8.1): John's draws no options, and turning to Mary finds them.
+    expect(options()).toHaveLength(0)
+    act(() => tile('Mary').click())
+    await settle()
     expect(options()).toHaveLength(2)
 
     act(() => options()[0].click())
     await settle()
 
-    expect(sent).toEqual([['s-mary', 'Postgres']])
+    // Turning to her tile found her seat live: the fake bridge names it as the open's reply does.
+    expect(sent).toEqual([[`session-of-${mary.id}`, 'Postgres']])
     expect(field().getAttribute('aria-label')).toBe('Message Mary')
     expect(tile('Mary').getAttribute('aria-current')).toBe('true')
     expect(document.activeElement).toBe(field())
@@ -978,7 +1129,9 @@ describe('App, a session that outlives the install changing under it', () => {
 
     expect(tiles()).toEqual(['John'])
     expect(mounted!.container.querySelector('.thread')?.textContent).toBe(turnsBefore)
-    expect(mounted!.container.querySelector('.turn--persona .turn-name, .turn--persona')?.textContent).toContain('Mary')
+    // John is the viewed persona: Mary's words are in her own chat, which is not drawn here (Story 8.1).
+    expect(mounted!.container.querySelector('.turn--persona .turn-name, .turn--persona')?.textContent).toContain('John')
+    expect(mounted!.container.querySelector('.thread')?.textContent).not.toContain('Hello from Mary')
     expect(closedSessions).toEqual([])
     const [header] = headers()
     expect(headers()).toHaveLength(1)
@@ -1025,10 +1178,16 @@ describe('App, a session that outlives the install changing under it', () => {
     push({ name: 'session:closed', payload: { sessionId: 's-mary', agentId: mary.id, reason: 'closed', at: 5 } })
 
     expect(headers()).toHaveLength(0)
-    expect(mounted!.container.textContent).toContain('Hello from Mary')
+    expect(mounted!.container.textContent).toContain('Hello from John')
     expect(document.activeElement).toBe(field())
     expect(field().getAttribute('aria-label')).toBe('Message John')
     expect(closedSessions).toEqual(['s-mary'])
+    // Her thread is kept: it is in her own chat when the agent is back and she is turned to.
+    reinstall([mary, john])
+    act(() => tile('Mary').click())
+    await settle()
+    expect(mounted!.container.textContent).toContain('Hello from Mary')
+    expect(mounted!.container.textContent).not.toContain('Hello from John')
   })
 
   it('stacks one header per orphan in session order, each closing only its own', async () => {
@@ -1513,7 +1672,7 @@ describe('App, the running card stays in view (Story 3.14)', () => {
     expect(inThread()).toHaveLength(2)
   })
 
-  it('holds the same path, text and busy state in the slot as the card has in the thread', async () => {
+  it('holds the path, text, busy state and notes in the slot, and draws the card nowhere in another persona’s chat (Story 8.1)', async () => {
     await open()
     started('r1', 's-Mary', mary, 20)
     push({ name: 'run:note', payload: { runId: 'r1', sessionId: 's-Mary', text: '- (decision) Fast path', at: 25 } })
@@ -1529,22 +1688,12 @@ describe('App, the running card stays in view (Story 3.14)', () => {
     }
     expect(held).toEqual({ path: '_bmad/prd.md', text: '## Vision\nwords', busy: 'true', notes: 2 })
 
-    // John viewed: Mary's card, still running, is a line in the thread (Story 3.5); once the
-    // user expands it, it is the same card drawn full in the thread.
+    // John viewed: Mary's card, still running, is in Mary's chat alone (Story 8.1): no slot, no card, no line.
     act(() => tile('John').click())
     await settle()
     expect(slot()).toBeNull()
     expect(cards()).toHaveLength(0)
-    expect(root().querySelectorAll('.thread .run-card-line')).toHaveLength(1)
-    act(() => root().querySelector<HTMLButtonElement>('.run-card-line-button')?.click())
-    expect(cards()).toHaveLength(1)
-    const threaded = inThread()[0]
-    expect({
-      path: threaded.querySelector('.run-card-path')?.textContent,
-      text: threaded.querySelector('.run-card-text')?.textContent,
-      busy: threaded.getAttribute('aria-busy'),
-      notes: threaded.querySelectorAll('.run-note').length
-    }).toEqual(held)
+    expect(lines()).toHaveLength(0)
 
     act(() => tile('Mary').click())
     await settle()
@@ -1586,10 +1735,10 @@ describe('App, the running card stays in view (Story 3.14)', () => {
   it('draws no slot for another persona’s run, and moves the card with the switch, drawing it once either way', async () => {
     await open()
     started('r1', 's-John', john, 20)
-    // Mary is viewed: John's run is one line in the thread, and no card.
+    // Mary is viewed: John's run is in John's chat alone (Story 8.1), so no card and no line here.
     expect(slot()).toBeNull()
     expect(cards()).toHaveLength(0)
-    expect(lines()).toHaveLength(1)
+    expect(lines()).toHaveLength(0)
 
     act(() => tile('John').click())
     await settle()
@@ -1602,7 +1751,7 @@ describe('App, the running card stays in view (Story 3.14)', () => {
     await settle()
     expect(slot()).toBeNull()
     expect(cards()).toHaveLength(0)
-    expect(lines()).toHaveLength(1)
+    expect(lines()).toHaveLength(0)
   })
 
   it('pins the newest of two runs of the viewed persona and leaves the other in the thread', async () => {
@@ -1626,10 +1775,10 @@ describe('App, the running card stays in view (Story 3.14)', () => {
     await open()
     push({ name: 'run:started', payload: { runId: 'r1', sessionId: 's-Mary', code: 'CP', at: 20 } })
 
-    // Never a viewed persona's, so never pinned: a line in the thread (Story 3.5).
+    // Never a viewed persona's, so never pinned; and in no persona's thread, so drawn in none (Story 8.1).
     expect(slot()).toBeNull()
     expect(cards()).toHaveLength(0)
-    expect(lines()).toHaveLength(1)
+    expect(lines()).toHaveLength(0)
   })
 
   it('takes no focus when it pins or unpins, and is no live region', async () => {
@@ -1656,14 +1805,12 @@ describe('App, the running card stays in view (Story 3.14)', () => {
   })
 })
 
-describe('App, the run you are not looking at (Story 3.5)', () => {
+describe('App, the run you are not looking at (Story 3.5, drawn in its own chat only since Story 8.1)', () => {
   const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
   const root = (): HTMLElement => mounted!.container
   const cards = (): HTMLElement[] => [...root().querySelectorAll<HTMLElement>('.run-card')]
   const lines = (): HTMLElement[] => [...root().querySelectorAll<HTMLElement>('.run-card-line')]
   const slot = (): HTMLElement | null => root().querySelector<HTMLElement>('.chat > .pinned')
-  const lineButton = (): HTMLButtonElement => root().querySelector('.run-card-line-button') as HTMLButtonElement
-  const frame = (): Promise<void> => new Promise((resolve) => requestAnimationFrame(() => resolve()))
   const started = (runId: string, sessionId: string, agent: AgentView | undefined, at: number, agentId?: string): void =>
     push({ name: 'run:started', payload: { runId, sessionId, ...(agent === undefined && agentId === undefined ? {} : { agentId: agent?.id ?? agentId }), code: 'CP', at } })
   const note = (runId: string, sessionId: string, text: string, at: number): void =>
@@ -1683,90 +1830,21 @@ describe('App, the run you are not looking at (Story 3.5)', () => {
     push({ name: 'session:opened', payload: { sessionId: 's-John', agentId: john.id, at: 1 } })
   }
 
-  it('draws another persona’s run as one line: the persona, the dot, the elapsed time, a button, and no card, slot or stop', async () => {
+  // Story 8.1: a persona's run card is in that persona's thread alone. Another persona's running card is
+  // drawn in the viewed chat neither as a line nor as a card, nor in the slot; turning to its persona shows it.
+  it('draws another persona’s run nowhere in the viewed chat: no line, no card, no slot and no stop', async () => {
     await open()
     started('r1', 's-John', john, Date.now() - 65_000)
 
-    expect(lines()).toHaveLength(1)
+    expect(lines()).toHaveLength(0)
     expect(cards()).toHaveLength(0)
     expect(slot()).toBeNull()
-    const line = lines()[0]
-    expect(line.closest('.thread')).not.toBeNull()
-    expect(line.getAttribute('aria-busy')).toBe('true')
-    expect(line.querySelector('.status-dot--work')).not.toBeNull()
-    expect(line.querySelector('.run-card-line-name')?.textContent).toBe('John')
-    expect(line.querySelector('.run-card-elapsed')?.textContent).toMatch(/^1m 0[5-9]s$/)
-    // The expanding button, expanded=false, and the stop beside it, outside the button: its own tab stop.
-    expect([...line.querySelectorAll('button')].map((button) => button.className)).toEqual(['run-card-line-button', 'run-stop'])
-    expect(lineButton().getAttribute('aria-expanded')).toBe('false')
-    expect(lineButton().type).toBe('button')
-    expect(lineButton().textContent).not.toMatch(/stop/i)
-    expect(lineButton().querySelector('button')).toBeNull()
-    expect(line.querySelector<HTMLButtonElement>('.run-stop')?.parentElement).toBe(line)
-    // No reason yet: the field is absent, and nothing stands in for it.
-    expect(line.querySelector('.run-card-line-reason')).toBeNull()
-  })
+    expect(root().querySelectorAll('.run-stop')).toHaveLength(0)
 
-  it('reads the reason of the last note, and not the section name beside it', async () => {
-    await open()
-    started('r1', 's-John', john, Date.now())
-    prose('r1', 's-John', '## 1. Vision\n## 2. Context\n', Date.now())
-    await act(frame)
-    note('r1', 's-John', '- (decision) Fast path', Date.now())
-    expect(lines()[0].querySelector('.run-card-line-reason')?.textContent).toBe('Fast path')
-    note('r1', 's-John', '- (assumption) Two readers only', Date.now())
-    expect(lines()[0].querySelector('.run-card-line-reason')?.textContent).toBe('Two readers only')
-    expect(lines()[0].textContent).not.toContain('Context')
-    expect(lines()).toHaveLength(1)
-  })
-
-  it('reads the section the text has shown before any note, and nothing before either', async () => {
-    await open()
-    started('r1', 's-John', john, Date.now())
-    expect(lines()[0].querySelector('.run-card-line-reason')).toBeNull()
-
-    prose('r1', 's-John', '## 1. Vision\n## 2. Context\n', Date.now())
-    await act(frame)
-    expect(lines()[0].querySelector('.run-card-line-reason')?.textContent).toBe('§2 Context')
-
-    note('r1', 's-John', '- (decision) Fast path', Date.now())
-    expect(lines()[0].querySelector('.run-card-line-reason')?.textContent).toBe('Fast path')
-  })
-
-  it('expands on a click into the full card, with focus on its container and not on a control, and spends the request', async () => {
-    await open()
-    started('r1', 's-John', john, Date.now())
-    note('r1', 's-John', '- (decision) A long reason that the line cut off but the card keeps whole', Date.now())
-
-    act(() => lineButton().click())
+    act(() => tile('John').click())
+    await settle()
+    expect(slot()?.querySelectorAll('.run-card')).toHaveLength(1)
     expect(lines()).toHaveLength(0)
-    expect(cards()).toHaveLength(1)
-    const card = cards()[0]
-    expect(card.closest('.thread')).not.toBeNull()
-    expect(document.activeElement).toBe(card)
-    expect(card.getAttribute('tabindex')).toBe('-1')
-    expect(card.contains(document.activeElement) && document.activeElement?.tagName).toBe('SECTION')
-    expect(card.querySelectorAll('.run-note-reason')[1]?.textContent).toContain('A long reason that the line cut off but the card keeps whole')
-    expect(card.getAttribute('aria-busy')).toBe('true')
-
-    // The card stays expanded for its run, and a later event moves no focus off it or onto anything.
-    note('r1', 's-John', '- (note) Another', Date.now())
-    expect(cards()).toHaveLength(1)
-    expect(document.activeElement).toBe(cards()[0])
-  })
-
-  it('is one native button, so `Enter` and `Space` activate it as a click does: focused, it expands the same way', async () => {
-    await open()
-    started('r1', 's-John', john, Date.now())
-    const button = lineButton()
-    expect(button.tagName).toBe('BUTTON')
-    button.focus()
-    expect(document.activeElement).toBe(button)
-
-    // A browser turns `Enter` and `Space` on a focused button into this click; no key code is handled by the line.
-    act(() => button.click())
-    expect(cards()).toHaveLength(1)
-    expect(document.activeElement).toBe(cards()[0])
   })
 
   it('pins the card, full, when the persona is switched to, and moves no focus', async () => {
@@ -1783,7 +1861,7 @@ describe('App, the run you are not looking at (Story 3.5)', () => {
     expect(slot()?.querySelector('.run-card')?.hasAttribute('tabindex')).toBe(false)
   })
 
-  it('draws the card as a line again when the persona is switched away from, unless the user expanded it', async () => {
+  it('draws the card nowhere once the persona is switched away from, with focus left on the tile', async () => {
     await open()
     started('r1', 's-John', john, Date.now())
     started('r2', 's-John-2', john, Date.now())
@@ -1798,71 +1876,54 @@ describe('App, the run you are not looking at (Story 3.5)', () => {
     act(() => maryTile.click())
     await settle()
     expect(slot()).toBeNull()
-    expect(lines()).toHaveLength(2)
+    expect(lines()).toHaveLength(0)
     expect(cards()).toHaveLength(0)
     expect(document.activeElement).toBe(maryTile)
   })
 
-  it('keeps a card the user expanded full when the persona is switched to and away from, taking no focus when it returns', async () => {
-    await open()
-    started('r1', 's-John', john, Date.now())
-    act(() => lineButton().click())
-    expect(document.activeElement).toBe(cards()[0])
-
-    act(() => tile('John').click())
-    await settle()
-    expect(slot()?.querySelectorAll('.run-card')).toHaveLength(1)
-    expect(cards()).toHaveLength(1)
-
-    const maryTile = tile('Mary')
-    maryTile.focus()
-    act(() => maryTile.click())
-    await settle()
-    expect(slot()).toBeNull()
-    expect(lines()).toHaveLength(0)
-    expect(cards()).toHaveLength(1)
-    expect(cards()[0].closest('.thread')).not.toBeNull()
-    // The card is drawn anew in the thread, and the request that expanded it is long spent.
-    expect(document.activeElement).toBe(maryTile)
-  })
-
-  it('draws the terminal card in place of the line, with no focus moved, however the run ends', async () => {
+  it('draws the terminal card in its own persona’s thread only, with no focus moved, however the run ends', async () => {
     for (const name of ['run:finished', 'run:stopped', 'run:failed'] as const) {
       await open()
       started('r1', 's-John', john, Date.now())
       prose('r1', 's-John', '## 1. Vision\n', Date.now())
-      expect(lines()).toHaveLength(1)
       field().focus()
 
       ended(name, 'r1', 's-John', Date.now())
+      // Mary is viewed: John's ended card is not in her chat.
+      expect(lines()).toHaveLength(0)
+      expect(cards()).toHaveLength(0)
+      expect(document.activeElement).toBe(field())
+
+      act(() => tile('John').click())
+      await settle()
       expect(lines()).toHaveLength(0)
       expect(cards()).toHaveLength(1)
       expect(cards()[0].closest('.thread')).not.toBeNull()
       expect(cards()[0].hasAttribute('aria-busy')).toBe(false)
       expect(cards()[0].querySelector('.run-card-status')?.textContent).toMatch(name === 'run:finished' ? /^saved/ : name === 'run:stopped' ? /^stopped$/ : /^failed$/)
-      expect(document.activeElement).toBe(field())
       mounted?.unmount()
       mounted = null
       listeners = []
     }
   })
 
-  it('names an orphan’s run by the id and draws a run with no agent id as a line without a name', async () => {
+  it('draws an orphan’s run and a run with no agent id in no persona’s chat', async () => {
     await open()
     started('r1', 's-ghost', undefined, Date.now(), 'bmad-agent-ghost')
     started('r2', 's-none', undefined, Date.now())
     note('r2', 's-none', '- (note) Nobody’s run', Date.now())
 
-    expect(lines()).toHaveLength(2)
+    expect(lines()).toHaveLength(0)
     expect(cards()).toHaveLength(0)
-    expect(lines()[0].querySelector('.run-card-line-name')?.textContent).toBe('bmad-agent-ghost')
-    expect(lines()[1].querySelector('.run-card-line-name')).toBeNull()
-    expect(lines()[1].querySelector('.run-card-line-reason')?.textContent).toBe('Nobody’s run')
     // Never pinned, since an orphan is never the current persona.
     expect(slot()).toBeNull()
+    act(() => tile('John').click())
+    await settle()
+    expect(lines()).toHaveLength(0)
+    expect(cards()).toHaveLength(0)
   })
 
-  it('names the run of a persona the roster lost by the name the transcript knew, and not by its id', async () => {
+  it('keeps the run of a persona the roster lost out of the viewed chat, and the viewed persona’s own pinned', async () => {
     await open()
     push({
       name: 'persona:said',
@@ -1878,12 +1939,10 @@ describe('App, the run you are not looking at (Story 3.5)', () => {
     act(() => installListeners.forEach((listener) => listener({ ...snapshot, revision: 2, agents: [john] })))
     expect(slot()).toBeNull()
     expect(cards()).toHaveLength(0)
-    expect(lines()).toHaveLength(1)
-    expect(lines()[0].querySelector('.run-card-line-name')?.textContent).toBe('Mary')
-    expect(lines()[0].textContent).not.toContain(mary.id)
+    expect(lines()).toHaveLength(0)
   })
 
-  it('draws a run hydrated mid-flight as a line, or pinned, by the same rule', async () => {
+  it('draws a run hydrated mid-flight in its own persona’s chat only: pinned when viewed, nowhere else', async () => {
     const harness = window.harness as unknown as Record<string, unknown>
     harness.getConversation = async () => ({
       entries: [],
@@ -1906,9 +1965,7 @@ describe('App, the run you are not looking at (Story 3.5)', () => {
     })
     await mountOnMary()
 
-    expect(lines()).toHaveLength(1)
-    expect(lines()[0].querySelector('.run-card-line-name')?.textContent).toBe('John')
-    expect(lines()[0].querySelector('.run-card-line-reason')?.textContent).toBe('Hydrated reason')
+    expect(lines()).toHaveLength(0)
     expect(cards()).toHaveLength(0)
     expect(slot()).toBeNull()
 
@@ -1916,19 +1973,6 @@ describe('App, the run you are not looking at (Story 3.5)', () => {
     await settle()
     expect(slot()?.querySelectorAll('.run-card')).toHaveLength(1)
     expect(lines()).toHaveLength(0)
-  })
-
-  it('is no live region and carries no role, no title and no tooltip: its attributes are the section’s, the button’s and the hidden marks’', async () => {
-    await open()
-    started('r1', 's-John', john, Date.now())
-    note('r1', 's-John', '- (decision) Fast path', Date.now())
-    const line = lines()[0]
-    expect(line.getAttributeNames().sort()).toEqual(['aria-busy', 'class'])
-    const names = new Set([...line.querySelectorAll('*')].flatMap((element) => element.getAttributeNames()))
-    expect([...names].sort()).toEqual(['aria-expanded', 'aria-hidden', 'aria-label', 'class', 'type'])
-
-    act(() => lineButton().click())
-    expect(cards()[0].querySelector('[role], [title]')).toBeNull()
   })
 })
 
@@ -1946,7 +1990,7 @@ describe('App, stopping a run (Story 3.7)', () => {
     push({ name: 'session:opened', payload: { sessionId: 's-John', agentId: john.id, at: 1 } })
   }
 
-  it('draws one `stop` in the pinned card’s head and one on another persona’s line, each its own button named for what it stops', async () => {
+  it('draws one `stop` in the pinned card’s head, and none for another persona’s run, which is reached by turning to that persona (Story 8.1)', async () => {
     await open()
     started('r1', 's-Mary', mary, Date.now())
     started('r2', 's-John', john, Date.now())
@@ -1957,12 +2001,13 @@ describe('App, stopping a run (Story 3.7)', () => {
     expect(pinned[0].closest('.run-card-head')).not.toBeNull()
     expect(pinned[0].type).toBe('button')
     expect(pinned[0].disabled).toBe(false)
-    const line = root().querySelector<HTMLElement>('.run-card-line')!
-    expect(stops(line)).toHaveLength(1)
-    expect(stops(line)[0].getAttribute('aria-label')).toBe('stop · John')
-    // The line's stop is beside its expanding button, never inside it.
-    expect(line.querySelector('.run-card-line-button .run-stop')).toBeNull()
-    expect(stops()).toHaveLength(2)
+    expect(root().querySelector('.run-card-line')).toBeNull()
+    expect(stops()).toHaveLength(1)
+
+    act(() => tile('John').click())
+    await settle()
+    expect(stops(slot()!)).toHaveLength(1)
+    expect(stops()).toHaveLength(1)
   })
 
   it('names the card’s stop for its document once the card holds a path, and plain `stop` before', async () => {
@@ -1978,20 +2023,24 @@ describe('App, stopping a run (Story 3.7)', () => {
     expect(stops(slot()!)[0].getAttribute('aria-label')).toBe('stop · _bmad/prd.md')
   })
 
-  it('asks main to stop the run by its id from either control, and changes nothing on the screen', async () => {
+  it('asks main to stop the run by its id from the control of the chat it is in, and changes nothing on the screen', async () => {
     await open()
     started('r1', 's-Mary', mary, Date.now())
     started('r2', 's-John', john, Date.now())
     const before = root().innerHTML
 
     await act(async () => stops(slot()!)[0].click())
-    await act(async () => stops(root().querySelector<HTMLElement>('.run-card-line')!)[0].click())
-
-    expect(stopped).toEqual(['r1', 'r2'])
+    expect(stopped).toEqual(['r1'])
     // Nothing between the press and the run's own terminal event: no state, no line, no card change.
     expect(root().innerHTML).toBe(before)
-    // The line's stop did not expand the line.
-    expect(root().querySelectorAll('.run-card-line')).toHaveLength(1)
+
+    act(() => tile('John').click())
+    await settle()
+    const johns = root().innerHTML
+    await act(async () => stops(slot()!)[0].click())
+
+    expect(stopped).toEqual(['r1', 'r2'])
+    expect(root().innerHTML).toBe(johns)
     expect(sent).toEqual([])
   })
 
@@ -2012,14 +2061,20 @@ describe('App, stopping a run (Story 3.7)', () => {
     started('r1', 's-Mary', mary, Date.now())
     started('r2', 's-John', john, Date.now())
     started('r3', 's-Mary', mary, Date.now() + 1)
-    expect(stops()).toHaveLength(3)
+    // Mary is viewed: her two running cards have one each, and John's run is in John's chat (Story 8.1).
+    expect(stops()).toHaveLength(2)
 
     push({ name: 'run:stopped', payload: { runId: 'r2', sessionId: 's-John', at: Date.now() } })
+    expect(stops()).toHaveLength(2)
     push({ name: 'run:failed', payload: { runId: 'r1', sessionId: 's-Mary', error: { code: 'run/failed', message: 'failed' }, at: Date.now() } })
     expect(stops()).toHaveLength(1)
     push({ name: 'run:finished', payload: { runId: 'r3', sessionId: 's-Mary', at: Date.now() } })
     expect(stops()).toHaveLength(0)
-    expect(root().querySelectorAll('.run-card')).toHaveLength(3)
+    expect(root().querySelectorAll('.run-card')).toHaveLength(2)
+    act(() => tile('John').click())
+    await settle()
+    expect(root().querySelectorAll('.run-card')).toHaveLength(1)
+    expect(stops()).toHaveLength(0)
   })
 
   it('says nothing when main says the run is not in flight, and shows any other refusal as the failure line', async () => {
@@ -2037,7 +2092,7 @@ describe('App, stopping a run (Story 3.7)', () => {
     expect(root().querySelector('.error-line')?.textContent).toContain('something went wrong')
   })
 
-  it('offers the stop on an orphan’s collapsed line and on its expanded card, found by run id, and leaves its header and close control in place', async () => {
+  it('draws no stop for an orphan’s run in the viewed chat, leaves its header and close control in place, and offers the stop again when the agent returns', async () => {
     await open()
     push({
       name: 'persona:said',
@@ -2048,34 +2103,24 @@ describe('App, stopping a run (Story 3.7)', () => {
     act(() => tile('John').click())
     await settle()
     act(() => installListeners.forEach((listener) => listener({ ...snapshot, revision: 2, agents: [john] })))
-    const line = root().querySelector<HTMLElement>('.run-card-line')!
-    expect(line.querySelector('.run-card-line-name')?.textContent).toBe('Mary')
-    expect(stops(line)).toHaveLength(1)
-    expect(stops(line)[0].getAttribute('aria-label')).toBe('stop · Mary')
-
-    await act(async () => stops(line)[0].click())
-    expect(stopped).toEqual(['r1'])
-    // A stop closes nothing: the header and its close control stay, and the line is still a line.
+    // Her run is in her thread alone (Story 8.1): no line, no card and no stop in John's chat.
+    expect(root().querySelector('.run-card-line')).toBeNull()
+    expect(stops()).toHaveLength(0)
+    expect(stopped).toEqual([])
+    // Her header and its close control stay, and nothing was closed.
     expect(root().querySelectorAll('.orphan-head')).toHaveLength(1)
     expect(root().querySelectorAll('button.orphan-close')).toHaveLength(1)
     expect(closedSessions).toEqual([])
-    expect(root().querySelectorAll('.run-card-line')).toHaveLength(1)
 
-    // Expanded, the card carries it too, in its head, and it stops the same run.
-    act(() => root().querySelector<HTMLButtonElement>('.run-card-line-button')?.click())
-    expect(root().querySelectorAll('.run-card-line')).toHaveLength(0)
-    const card = root().querySelector<HTMLElement>('.thread .run-card')!
-    expect(stops(card)).toHaveLength(1)
-    expect(stops(card)[0].closest('.run-card-head')).not.toBeNull()
-    await act(async () => stops(card)[0].click())
-    expect(stopped).toEqual(['r1', 'r1'])
-    expect(root().querySelectorAll('.orphan-head')).toHaveLength(1)
-
-    // The agent returns: the same session and card, the same control, and nothing else changed.
+    // The agent returns: the same session and card, and turning to her draws the stop, which stops the same run.
     act(() => installListeners.forEach((listener) => listener({ ...snapshot, revision: 3, agents: [mary, john] })))
     expect(root().querySelectorAll('.orphan-head')).toHaveLength(0)
+    act(() => tile('Mary').click())
+    await settle()
     expect(root().querySelectorAll('.run-card')).toHaveLength(1)
     expect(stops()).toHaveLength(1)
+    await act(async () => stops(slot()!)[0].click())
+    expect(stopped).toEqual(['r1'])
     expect(closedSessions).toEqual([])
   })
 
@@ -2103,11 +2148,17 @@ describe('App, stopping a run (Story 3.7)', () => {
     })
     await mountOnMary()
 
-    expect(root().querySelectorAll('.run-card')).toHaveLength(3)
+    // Mary is viewed: her two cards, and John's is in John's chat (Story 8.1).
+    expect(root().querySelectorAll('.run-card')).toHaveLength(2)
     expect(stops()).toHaveLength(0)
     expect(root().querySelectorAll('.run-card-line')).toHaveLength(0)
     expect(root().querySelector('.chat > .pinned')).toBeNull()
-    expect([...root().querySelectorAll('.run-card-elapsed')].map((element) => element.textContent)).toEqual(['1m 05s', '1m 05s', '1m 05s'])
+    expect([...root().querySelectorAll('.run-card-elapsed')].map((element) => element.textContent)).toEqual(['1m 05s', '1m 05s'])
+
+    act(() => tile('John').click())
+    await settle()
+    expect(root().querySelectorAll('.run-card')).toHaveLength(1)
+    expect(stops()).toHaveLength(0)
   })
 })
 
@@ -2127,12 +2178,12 @@ describe('App, told once when elsewhere (Story 3.10)', () => {
     delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView
   })
 
-  /** Mary is current; John's run ran and ended, so its terminal card sits in the thread. */
+  /** Mary is current; her own run ran and ended, so its terminal card sits in her thread (another persona's is in hers alone, Story 8.1). */
   async function afterRun(runId = 'r1'): Promise<void> {
     await mountOnMary()
-    push({ name: 'session:opened', payload: { sessionId: 's-john', agentId: john.id, at: 1 } })
-    push({ name: 'run:started', payload: { runId, sessionId: 's-john', agentId: john.id, code: 'CP', at: 2 } })
-    push({ name: 'run:finished', payload: { runId, sessionId: 's-john', at: 3 } })
+    push({ name: 'session:opened', payload: { sessionId: 's-mary', agentId: mary.id, at: 1 } })
+    push({ name: 'run:started', payload: { runId, sessionId: 's-mary', agentId: mary.id, code: 'CP', at: 2 } })
+    push({ name: 'run:finished', payload: { runId, sessionId: 's-mary', at: 3 } })
   }
 
   it('subscribes once to what main reveals, through the bridge', async () => {
@@ -2180,16 +2231,29 @@ describe('App, told once when elsewhere (Story 3.10)', () => {
     expect(scrolled).toEqual([])
 
     // The run arrives afterwards: the dropped request does not wake for it.
-    push({ name: 'run:started', payload: { runId: 'r9', sessionId: 's-john', agentId: john.id, code: 'CP', at: 4 } })
-    push({ name: 'run:finished', payload: { runId: 'r9', sessionId: 's-john', at: 5 } })
+    push({ name: 'run:started', payload: { runId: 'r9', sessionId: 's-mary', agentId: mary.id, code: 'CP', at: 4 } })
+    push({ name: 'run:finished', payload: { runId: 'r9', sessionId: 's-mary', at: 5 } })
     expect(root().querySelectorAll('.thread .run-card')).toHaveLength(2)
     expect(scrolled).toEqual([])
   })
 
+  it('scrolls nothing for a run of another persona, which is in that persona’s thread alone (Story 8.1)', async () => {
+    await afterRun()
+    push({ name: 'session:opened', payload: { sessionId: 's-john', agentId: john.id, at: 1 } })
+    push({ name: 'run:started', payload: { runId: 'r5', sessionId: 's-john', agentId: john.id, code: 'CP', at: 4 } })
+    push({ name: 'run:finished', payload: { runId: 'r5', sessionId: 's-john', at: 5 } })
+    expect(root().querySelectorAll('.thread .run-card')).toHaveLength(1)
+
+    reveal('r5')
+
+    expect(scrolled).toEqual([])
+    expect(tile('Mary').getAttribute('aria-current')).toBe('true')
+  })
+
   it('scrolls the named card and no other when several have ended', async () => {
     await afterRun('r1')
-    push({ name: 'run:started', payload: { runId: 'r2', sessionId: 's-john', agentId: john.id, code: 'CP', at: 4 } })
-    push({ name: 'run:finished', payload: { runId: 'r2', sessionId: 's-john', at: 5 } })
+    push({ name: 'run:started', payload: { runId: 'r2', sessionId: 's-mary', agentId: mary.id, code: 'CP', at: 4 } })
+    push({ name: 'run:finished', payload: { runId: 'r2', sessionId: 's-mary', at: 5 } })
     const cards = [...root().querySelectorAll('.thread .run-card')]
     expect(cards).toHaveLength(2)
 
@@ -2589,9 +2653,10 @@ describe('following the thread, in the window (Story 5.3)', () => {
 
   it('pauses on a reveal, draws the control, and puts the user back at the bottom with focus in the composer only when they ask', async () => {
     await opened()
-    push({ name: 'session:opened', payload: { sessionId: 's-john', agentId: john.id, at: 1 } })
-    push({ name: 'run:started', payload: { runId: 'r1', sessionId: 's-john', agentId: john.id, code: 'CP', at: 2 } })
-    push({ name: 'run:finished', payload: { runId: 'r1', sessionId: 's-john', at: 3 } })
+    // Mary is viewed, so the card is her own: another persona's is in its own chat alone (Story 8.1).
+    push({ name: 'session:opened', payload: { sessionId: 's-mary', agentId: mary.id, at: 1 } })
+    push({ name: 'run:started', payload: { runId: 'r1', sessionId: 's-mary', agentId: mary.id, code: 'CP', at: 2 } })
+    push({ name: 'run:finished', payload: { runId: 'r1', sessionId: 's-mary', at: 3 } })
     expect(control('.view-conversation')).toBeNull()
 
     act(() => revealListeners.forEach((listener) => listener('r1')))
@@ -3322,7 +3387,7 @@ describe('App, the New session chat and a skill-first session (Story 7.5)', () =
         entries: [
           { kind: 'user', id: 'm-0', at: 1_700_000_000_000, text: '/bmad-build make a thing', skillSession: 'sk1' },
           { kind: 'skill', id: 'm-1', at: 1_700_000_001_000, messageId: 'x', text: 'It was done.', skillSession: 'sk1' },
-          { kind: 'user', id: 'm-2', at: 1_700_000_002_000, text: 'a shared message' }
+          { kind: 'user', id: 'm-2', at: 1_700_000_002_000, text: 'a shared message', agentId: mary.id }
         ],
         sessions: [],
         busy: [],

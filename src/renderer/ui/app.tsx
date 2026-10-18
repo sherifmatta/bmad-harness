@@ -9,6 +9,7 @@ import { handoffTarget } from './chat/handoff-target'
 import { SkillRow } from './chat/skill-row'
 import { RunCard } from './chat/run-card'
 import { pinnedRun, Turns } from './chat/transcript'
+import { isEntryInPersonaThread } from './chat/transcript-entry'
 import type { PersonaInFlight, RunCollapse } from './chat/transcript'
 import { useConversation } from './chat/use-conversation'
 import { connectRunRevealed } from './chat/use-reveal'
@@ -62,10 +63,12 @@ const NO_RUNS: ReadonlySet<string> = new Set()
  * of a message hands the conversation to that persona instead (Story 2.9). The
  * window holds which persona is current so both ways move it.
  *
- * A run in flight for a persona that is not viewed is a line in the thread (Story
- * 3.5). The window holds the ids of the runs the user expanded, and the one run whose
- * card, drawn just now in place of its line, takes focus as it mounts: that request
- * is made by the activation alone and is spent by the card taking it.
+ * Each persona's chat draws that persona's thread alone (Story 8.1): its turns, the user's turns to it, the
+ * harness's lines about its session and its run cards, by the one predicate in `shared/thread.ts`. A run in
+ * flight for a persona that is not viewed is in that persona's chat and not drawn here; the one-line form it
+ * had here (Story 3.5) stays declared, with no caller in a persona's chat, until Story 8.4. The window holds
+ * the ids of the runs the user expanded, and the one run whose card, drawn just now in place of its line,
+ * takes focus as it mounts: that request is made by the activation alone and is spent by the card taking it.
  *
  * Every card and line in flight carries the stop control (Story 3.7), the pinned
  * card too; they are all handed the conversation's one `stopRun`, which asks main
@@ -341,9 +344,12 @@ export function App(): JSX.Element | null {
   }))
   // The user's own turns in the thread in view, outside the room: a rise is a send, and the thread goes to its bottom (Story 5.3).
   // A skill-first session's thread counts its own, and the shared one none of them (Story 7.5).
+  // A persona's chat counts the user's turns in its own thread alone (Story 8.1).
   const scope = seat?.sessionId
-  const sends = conversation.entries.filter(
-    (entry) => entry.kind === 'user' && entry.room !== true && entry.skillSession === scope
+  const sends = conversation.entries.filter((entry) =>
+    viewed === null
+      ? entry.kind === 'user' && entry.room !== true && entry.skillSession === scope
+      : entry.kind === 'user' && isEntryInPersonaThread(entry, viewed.id)
   ).length
   // A card names its persona as the lifecycle line does: the roster's name, an orphan's, else the id.
   const collapse: RunCollapse = {
@@ -426,7 +432,11 @@ export function App(): JSX.Element | null {
           />
         }
         sends={sends}
-        threadEmpty={conversation.entries.every((entry) => entry.skillSession !== undefined)}
+        threadEmpty={
+          viewed === null
+            ? conversation.entries.every((entry) => entry.skillSession !== undefined)
+            : !conversation.entries.some((entry) => isEntryInPersonaThread(entry, viewed.id))
+        }
         chat={seat === undefined ? (mode === 'persona' ? 'persona' : 'new') : { skillSession: seat.sessionId }}
         skillSeats={conversation.skillSeats}
         onNewSession={landOnNew}
@@ -514,7 +524,7 @@ export function App(): JSX.Element | null {
           />
         )}
         {mode === 'persona' && (
-          <Turns entries={conversation.entries} onCancel={conversation.cancel} canAnswer={conversation.canAnswer} onChoose={answer} prose={conversation.prose} pinnedRunId={pinnedEntry?.id} collapse={collapse} onStop={conversation.stopRun} inFlight={inFlight} />
+          <Turns entries={conversation.entries} onCancel={conversation.cancel} canAnswer={conversation.canAnswer} onChoose={answer} prose={conversation.prose} pinnedRunId={pinnedEntry?.id} collapse={collapse} onStop={conversation.stopRun} inFlight={inFlight} personaView={viewed?.id} />
         )}
       </Shell>
       <LiveRegion key="live-region" announcer={announcer} />

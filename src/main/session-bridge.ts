@@ -459,7 +459,7 @@ function sendTurn(ctx: Context) {
     } else if (entry.agentId !== undefined) {
       // A mention is kept only if it names the persona that received the turn; otherwise it is dropped, silently.
       const named = validMention(mention, ctx.nameOf(sender.id, entry.agentId))
-      transcript.recordUserTurn(target.arg, at, undefined, named)
+      transcript.recordUserTurn(target.arg, at, undefined, named, undefined, entry.agentId)
     }
     // A finished run's `live` ends when the next turn starts.
     service.personas.detach(entry.sessionId)

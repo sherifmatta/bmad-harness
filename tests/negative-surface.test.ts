@@ -1385,7 +1385,7 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
 
       expect(send).toContain("writeTurn(entry, target.arg)");
       // The user's own words are what is recorded; a validated mention rides beside them (AD-25), and a room's never.
-      expect(send).toContain("recordUserTurn(target.arg, at, undefined, named)");
+      expect(send).toContain("recordUserTurn(target.arg, at, undefined, named, undefined, entry.agentId)");
       expect(send).toContain("recordUserTurn(target.arg, at, true)");
       // Story 7.5: a skill-first session's turn is recorded as typed, flagged as its own thread's.
       expect(send).toContain("recordUserTurn(target.arg, at, undefined, undefined, entry.sessionId)");

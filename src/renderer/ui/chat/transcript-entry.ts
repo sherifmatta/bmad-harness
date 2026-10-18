@@ -1,10 +1,12 @@
 import type { RunCardNote, RunCardStep, RunStatus } from '../../../shared/conversation'
 import type { AgentView, HarnessError } from '../../../shared/install'
+import { isInPersonaThread } from '../../../shared/thread'
 
 /**
  * What a transcript is made of — types only, apart from the components that
- * draw them, so the folds that build a transcript can be read (and run in
- * node) without a stylesheet or a component in reach.
+ * draw them and the one predicate that says whose thread an entry is in, so the
+ * folds that build a transcript can be read (and run in node) without a
+ * stylesheet or a component in reach.
  */
 
 /** Who the user is to the transcript: a name, and what it says under it. */
@@ -60,6 +62,11 @@ export type UserEntry = {
   room?: true
   /** Sent into a skill-first session (Story 7.5): only that session's thread draws it. */
   skillSession?: string
+  /**
+   * The persona this was sent to (Story 8.1): with no `room` and no `skillSession`, only that persona's thread
+   * draws it. Copied from what main's record carries; the window's own entry carries the persona it was sent to.
+   */
+  agentId?: string
 }
 
 /**
@@ -79,6 +86,8 @@ export type SyslineEntry = {
   room?: true
   /** A line about a skill-first session (Story 7.5), main's or the window's own: only that session's thread draws it. */
   skillSession?: string
+  /** The persona the line is about (Story 8.1), as main tagged it: with no `room` and no `skillSession`, only that persona's thread draws it. */
+  agentId?: string
 }
 
 /**
@@ -122,4 +131,16 @@ export type RunCardEntry = {
 export type RunCardEntryDocument = { path: string; sections: readonly string[] }
 
 export type TranscriptEntry = PersonaEntry | SkillEntry | UserEntry | SyslineEntry | RunCardEntry
+
+/**
+ * Whether an entry is in the thread of the persona `agentId` (Story 8.1): the shared predicate
+ * (`shared/thread.ts`) read off each kind of entry. A persona entry is its `agent.id`'s; a user turn or a harness
+ * line is the `agentId` main tagged it with, a run card the `agentId` of its run; a skill's words and anything
+ * flagged for the room or a skill-first session are in no persona's thread. An entry with no tag is in none.
+ */
+export function isEntryInPersonaThread(entry: TranscriptEntry, agentId: string): boolean {
+  return entry.kind === 'persona'
+    ? isInPersonaThread({ agentId: entry.agent.id, room: entry.room, skillSession: entry.skillSession }, agentId)
+    : isInPersonaThread(entry, agentId)
+}
 

@@ -322,12 +322,16 @@ development_status:
 const T0 = NOW - 3_600_000
 const record = <T extends TranscriptRecord>(one: T): T => one
 
-/** What each thread says, each with a word no other thread has: a thread drawing another's shows the word. */
-const SHARED = ['sharedmark-user', 'sharedmark-mary', 'sharedmark-john', 'sharedmark-sysline']
+/**
+ * What each thread says, each with a word no other thread has: a thread drawing another's shows the word. Since
+ * Story 8.1 each persona has a thread of its own (records tagged by `agentId`), where Epic 7 had one shared thread.
+ */
+const MARYS = ['marymark-user', 'marymark-said', 'marymark-sysline']
+const JOHNS = ['johnmark-user', 'johnmark-said', 'johnmark-sysline']
 const ROOMED = ['roommark-user', 'roommark-john', 'roommark-sysline']
 const SKILL_A = ['skillamark-user', 'skillamark-said', 'skillamark-sysline']
 const SKILL_B = ['skillbmark-user', 'skillbmark-said', 'skillbmark-sysline']
-const THREADS = { shared: SHARED, room: ROOMED, a: SKILL_A, b: SKILL_B }
+const THREADS = { mary: MARYS, john: JOHNS, room: ROOMED, a: SKILL_A, b: SKILL_B }
 
 const card = (over: Partial<RunCardSnapshot>): RunCardSnapshot => ({
   runId: 'run',
@@ -346,10 +350,12 @@ const card = (over: Partial<RunCardSnapshot>): RunCardSnapshot => ({
 function world(over: Partial<ConversationSnapshot> = {}): ConversationSnapshot {
   return {
     entries: [
-      record({ kind: 'user', id: 'm-0', at: T0 + 1, text: SHARED[0] }),
-      record({ kind: 'persona', id: 'm-1', at: T0 + 2, agentId: MARY.id, messageId: 'x1', text: SHARED[1] }),
-      record({ kind: 'persona', id: 'm-2', at: T0 + 3, agentId: JOHN.id, messageId: 'x2', text: SHARED[2] }),
-      record({ kind: 'sysline', id: 'm-3', at: T0 + 4, text: SHARED[3] }),
+      record({ kind: 'user', id: 'm-0', at: T0 + 1, text: MARYS[0], agentId: MARY.id }),
+      record({ kind: 'persona', id: 'm-1', at: T0 + 2, agentId: MARY.id, messageId: 'x1', text: MARYS[1] }),
+      record({ kind: 'sysline', id: 'm-3', at: T0 + 4, text: MARYS[2], agentId: MARY.id }),
+      record({ kind: 'user', id: 'm-14', at: T0 + 5, text: JOHNS[0], agentId: JOHN.id }),
+      record({ kind: 'persona', id: 'm-2', at: T0 + 6, agentId: JOHN.id, messageId: 'x2', text: JOHNS[1] }),
+      record({ kind: 'sysline', id: 'm-15', at: T0 + 7, text: JOHNS[2], agentId: JOHN.id }),
       record({ kind: 'user', id: 'm-4', at: T0 + 10, text: ROOMED[0], room: true }),
       record({ kind: 'persona', id: 'm-5', at: T0 + 11, agentId: JOHN.id, messageId: 'x3', text: ROOMED[1], room: true }),
       record({ kind: 'sysline', id: 'm-6', at: T0 + 12, text: ROOMED[2], room: true }),
@@ -691,7 +697,9 @@ describe('the seat rail, in the whole App (Stories 7.4 and 7.5)', () => {
     expect(seats().map((seat) => stateOf(seat))).toEqual(['working', 'live', 'ended'])
     expect(stateOf(tile('John'))).toBe('working')
     // Her turns stay in the thread, and the seats' threads are as they were.
-    expect(text(thread())).toContain(SHARED[1])
+    await chooseTile('Mary')
+    expect(text(thread())).toContain(MARYS[1])
+    expect(text(thread())).not.toContain(JOHNS[1])
     await chooseSeat(0)
     expect(text(thread())).toContain(SKILL_A[1])
     expect(text(thread())).toContain('bmad-build run')
@@ -767,9 +775,14 @@ describe('the three kinds of thread, in the whole App (Stories 7.4 and 7.5)', ()
     await start()
 
     await chooseTile('Mary')
-    const shared = text(thread())
-    drawn(own(SHARED), shared)
-    absent(others('shared'), shared, 'the shared thread')
+    const marys = text(thread())
+    drawn(own(MARYS), marys)
+    absent(others('mary'), marys, 'Mary’s thread')
+
+    await chooseTile('John')
+    const johns = text(thread())
+    drawn(own(JOHNS), johns)
+    absent(others('john'), johns, 'John’s thread')
 
     const party = text(root().querySelector('.view-party .party-thread'))
     drawn(ROOMED, party)
@@ -788,21 +801,36 @@ describe('the three kinds of thread, in the whole App (Stories 7.4 and 7.5)', ()
     // The seat that ended carries its own record and no other's, and the New session chat draws none of them.
     await chooseSeat(2)
     expect(text(thread())).toContain('skillcmark-user')
-    absent([...SHARED, ...ROOMED, ...SKILL_A, ...SKILL_B], text(thread()), 'the ended seat')
+    absent([...MARYS, ...JOHNS, ...ROOMED, ...SKILL_A, ...SKILL_B], text(thread()), 'the ended seat')
     act(() => void all('.skill-session-button', root())[0].click())
     await settle()
     expect(text(thread())).toBe('')
   })
 
-  it('adds no record to the shared thread for a persona switch, by tile or by `@name`', async () => {
+  it('draws in a persona’s thread only its own records, and a persona with none draws an empty chat (Story 8.1)', async () => {
     await start()
-    await chooseTile('Mary')
-    const records = (): number => all('.turn, .sysline, .run-card, .run-card-line', thread()).length
-    const before = records()
-    const html = thread().innerHTML
 
-    await chooseTile('John')
     await chooseTile('Sally')
+    expect(all('.turn, .sysline, .run-card', thread())).toEqual([])
+    expect(all('.thread-intro', thread())).toHaveLength(1)
+    await chooseTile('John')
+    expect(all('.thread-intro', thread())).toEqual([])
+    // John is working, so a pending turn stands at the foot of his chat; every record in it is his.
+    expect(all('.sysline', thread()).map(text)).toEqual([JOHNS[2]])
+    expect(all('.turn--user', thread())).toHaveLength(1)
+    expect(text(thread())).toContain(JOHNS[0])
+    expect(text(thread())).toContain(JOHNS[1])
+    absent([...MARYS, ...ROOMED, ...SKILL_A, ...SKILL_B], text(thread()), 'John’s thread')
+  })
+
+  it('adds no record to any persona’s thread for a persona switch, by tile or by `@name`', async () => {
+    await start()
+    const htmlOf = async (name: string): Promise<string> => {
+      await chooseTile(name)
+      return thread().innerHTML
+    }
+    const before = { Mary: await htmlOf('Mary'), John: await htmlOf('John'), Sally: await htmlOf('Sally') }
+
     await chooseTile('Mary')
     type(chatField(), '@John')
     key(chatField(), 'Enter')
@@ -812,20 +840,24 @@ describe('the three kinds of thread, in the whole App (Stories 7.4 and 7.5)', ()
     await settle()
 
     expect(header().querySelector('h2')?.textContent).toBe('Sally')
-    expect(records()).toBe(before)
-    // The thread is the project's one thread: switching writes nothing, and nothing says a hand-off happened.
-    expect(thread().innerHTML).toBe(html)
+    // Switching writes nothing, in any persona's thread, and nothing says a hand-off happened.
+    expect(thread().innerHTML).toBe(before.Sally)
+    expect(await htmlOf('Mary')).toBe(before.Mary)
+    expect(await htmlOf('John')).toBe(before.John)
     expect(text(thread())).not.toMatch(/handed to/i)
     expect(bridge.sent).toEqual([])
-    // An `@name` with words sends those words and adds the user's own turn alone, never a line.
+    // An `@name` with words sends those words and adds the user's own turn alone, never a line: in the named persona's thread.
     await chooseTile('Mary')
     type(chatField(), '@Sally what next')
     key(chatField(), 'Enter')
     await settle()
     await settle()
     expect(bridge.sent.map(([, words, mention]) => [words, mention])).toEqual([['what next', '@Sally']])
-    expect(all('.sysline', thread()).map(text)).toEqual([SHARED[3]])
-    expect(all('.turn--user', thread())).toHaveLength(2)
+    expect(header().querySelector('h2')?.textContent).toBe('Sally')
+    expect(all('.sysline', thread())).toEqual([])
+    expect(all('.turn--user', thread())).toHaveLength(1)
+    // Mary's own thread is as it was: the turn is Sally's.
+    expect(await htmlOf('Mary')).toBe(before.Mary)
   })
 
   it('has no record, line or run card of a skill-first session that carries a persona’s initials, name or role', async () => {
@@ -848,11 +880,13 @@ describe('the three kinds of thread, in the whole App (Stories 7.4 and 7.5)', ()
     expect(all('.run-card', thread()).map((one) => text(one.querySelector('.run-card-head')))).toEqual([expect.stringMatching(/^bmad-build run/)])
   })
 
-  it('draws a persona’s run card in the shared thread as the persona’s, and no run of a persona in a skill’s thread or of a skill in the shared one', async () => {
+  it('draws a persona’s run card in that persona’s thread alone, and no run of a persona in a skill’s thread or of a skill in a persona’s', async () => {
     await start()
-    // Seen from another persona's chat, Mary's run is a line that names her.
+    // Seen from another persona's chat, Mary's run is drawn nowhere (Story 8.1).
     await chooseTile('John')
+    expect(all('.run-card, .run-card-line', thread())).toEqual([])
 
+    await chooseTile('Mary')
     const cards = all('.run-card, .run-card-line', thread())
     expect(cards).toHaveLength(1)
     // A persona's run is no skill's: nothing in it names a skill of the manifest, and it carries no skill session.

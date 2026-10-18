@@ -29,6 +29,7 @@ import {
   sessionOf,
   sessionReady,
   speakerOf,
+  skillKey,
   withHandoff
 } from './conversation-state'
 import type { ConversationState, Delivery } from './conversation-state'
@@ -302,7 +303,7 @@ describe('sending', () => {
 
     expect(sent.deliver).toMatchObject({ sessionId: 's1', text: ' hi\nthere ' })
     expect(sent.state.entries).toEqual([
-      { kind: 'user', id: 'entry-0', at: 42, text: ' hi\nthere ' }
+      { kind: 'user', id: 'entry-0', at: 42, text: ' hi\nthere ', agentId: mary.id }
     ])
     expect(sent.state.busy.has('s1')).toBe(true)
     expect(sent.state.queue.size).toBe(0)
@@ -313,8 +314,8 @@ describe('sending', () => {
 
     expect(sent.deliver).toBeUndefined()
     expect(sent.state.entries).toEqual([
-      { kind: 'user', id: 'entry-0', at: 50, text: 'one' },
-      { kind: 'user', id: 'entry-1', at: 51, text: 'two', queuedFor: 'Mary' }
+      { kind: 'user', id: 'entry-0', at: 50, text: 'one', agentId: mary.id },
+      { kind: 'user', id: 'entry-1', at: 51, text: 'two', agentId: mary.id, queuedFor: 'Mary' }
     ])
     expect(sent.state.queue.get(mary.id)).toEqual([{ entryId: 'entry-1', text: 'two' }])
   })
@@ -340,9 +341,9 @@ describe('sending', () => {
     expect(first.deliver).toMatchObject({ sessionId: 's1', text: 'one' })
     expect(first.state.busy.has('s1')).toBe(true)
     expect(first.state.entries).toEqual([
-      { kind: 'user', id: 'entry-0', at: 50, text: 'zero' },
-      { kind: 'user', id: 'entry-1', at: 51, text: 'one' },
-      { kind: 'user', id: 'entry-2', at: 52, text: 'two', queuedFor: 'Mary' }
+      { kind: 'user', id: 'entry-0', at: 50, text: 'zero', agentId: mary.id },
+      { kind: 'user', id: 'entry-1', at: 51, text: 'one', agentId: mary.id },
+      { kind: 'user', id: 'entry-2', at: 52, text: 'two', agentId: mary.id, queuedFor: 'Mary' }
     ])
     expect(first.state.entries[1]).not.toHaveProperty('queuedFor')
 
@@ -396,7 +397,7 @@ describe('a typed mention (Story 2.15)', () => {
     const sent = typed(idle, 'go', '@Mary')
 
     expect(sent.deliver).toEqual({ sessionId: 's1', agentId: mary.id, entryId: 'entry-0', text: 'go', mention: '@Mary' })
-    expect(sent.state.entries).toEqual([{ kind: 'user', id: 'entry-0', at: 50, text: 'go', mention: '@Mary' }])
+    expect(sent.state.entries).toEqual([{ kind: 'user', id: 'entry-0', at: 50, text: 'go', mention: '@Mary', agentId: mary.id }])
   })
 
   it('sends a plain turn with no mention at all', () => {
@@ -411,13 +412,13 @@ describe('a typed mention (Story 2.15)', () => {
 
     expect(queued.deliver).toBeUndefined()
     expect(queued.state.entries).toEqual([
-      { kind: 'user', id: 'entry-0', at: 50, text: 'go', mention: '@Mary', queuedFor: 'Mary' }
+      { kind: 'user', id: 'entry-0', at: 50, text: 'go', mention: '@Mary', agentId: mary.id, queuedFor: 'Mary' }
     ])
     expect(queued.state.queue.get(mary.id)).toEqual([{ entryId: 'entry-0', text: 'go', mention: '@Mary' }])
 
     const freed = foldEvent(queued.state, awaitingTurn('s1'), agentOf)
     expect(freed.deliver).toMatchObject({ text: 'go', mention: '@Mary' })
-    expect(freed.state.entries[0]).toEqual({ kind: 'user', id: 'entry-0', at: 50, text: 'go', mention: '@Mary' })
+    expect(freed.state.entries[0]).toEqual({ kind: 'user', id: 'entry-0', at: 50, text: 'go', mention: '@Mary', agentId: mary.id })
   })
 
   it('sends it when the session was not up at all, once it comes up', () => {
@@ -1783,5 +1784,65 @@ describe('a turn in flight, as the thread draws it', () => {
 
       expect(roomTurnInFlight(state)).toEqual({ since: 110, entryId: undefined })
     })
+  })
+})
+
+describe('a persona’s own thread (Story 8.1)', () => {
+  const snapshotOf = (entries: ConversationSnapshot['entries']): ConversationSnapshot => ({
+    entries,
+    sessions: [],
+    busy: [],
+    personas: [],
+    runs: []
+  })
+
+  it('tags the user’s own entry with the persona it was sent to, and a skill-first session’s with none', () => {
+    const sent = sendMessage(initialConversation, john.id, 5, 'to John', 'John')
+    expect(sent.state.entries).toEqual([{ kind: 'user', id: 'entry-0', at: 5, text: 'to John', agentId: john.id, queuedFor: 'John' }])
+
+    const skill = sendMessage(initialConversation, skillKey('s9'), 5, 'to the skill', 'bmad-build')
+    expect(skill.state.entries[0]).toMatchObject({ skillSession: 's9' })
+    expect(skill.state.entries[0]).not.toHaveProperty('agentId')
+  })
+
+  it('copies the agentId a stored user turn and harness line carry, and invents none', () => {
+    const { state } = hydrate(
+      initialConversation,
+      snapshotOf([
+        { kind: 'user', id: 'm-0', at: 1, text: 'to John', agentId: john.id },
+        { kind: 'sysline', id: 'm-1', at: 2, text: 'session closed · John', agentId: john.id },
+        { kind: 'user', id: 'm-2', at: 3, text: 'untagged' },
+        { kind: 'sysline', id: 'm-3', at: 4, text: 'untagged line' },
+        { kind: 'user', id: 'm-4', at: 5, text: 'the room', room: true }
+      ]),
+      agentOf
+    )
+
+    expect(state.entries).toEqual([
+      { kind: 'user', id: 'm-0', at: 1, text: 'to John', agentId: john.id },
+      { kind: 'sysline', id: 'm-1', at: 2, text: 'session closed · John', agentId: john.id },
+      { kind: 'user', id: 'm-2', at: 3, text: 'untagged' },
+      { kind: 'sysline', id: 'm-3', at: 4, text: 'untagged line' },
+      { kind: 'user', id: 'm-4', at: 5, text: 'the room', room: true }
+    ])
+  })
+
+  it('copies the agentId a live harness line carries, and none when it carries none', () => {
+    const line = (id: string, agentId?: string): ContractEvent => ({
+      name: 'harness:said',
+      payload: { sessionId: 's1', id, text: id, at: 9, ...(agentId === undefined ? {} : { agentId }) }
+    })
+    const { state } = foldEvent(foldEvent(initialConversation, line('m-1', john.id), agentOf).state, line('m-2'), agentOf)
+
+    expect(state.entries).toEqual([
+      { kind: 'sysline', id: 'm-1', at: 9, text: 'm-1', agentId: john.id },
+      { kind: 'sysline', id: 'm-2', at: 9, text: 'm-2' }
+    ])
+  })
+
+  it('copies the agentId of a returned handoff line', () => {
+    const record: SyslineRecord = { kind: 'sysline', id: 'm-8', at: 3, text: 'x', agentId: john.id }
+
+    expect(withHandoff(initialConversation, record).entries).toEqual([{ kind: 'sysline', id: 'm-8', at: 3, text: 'x', agentId: john.id }])
   })
 })

@@ -1,5 +1,5 @@
 import type { ContractEvent } from '../shared/events'
-import type { SessionId } from '../shared/ids'
+import type { AgentId, SessionId } from '../shared/ids'
 import type { Sender } from './bridge-kit'
 import type { TranscriptRegistry } from './projections/transcript'
 
@@ -60,10 +60,20 @@ export function createVoice(deps: {
   emit: (sender: Sender, event: ContractEvent) => void
 }): (
   sender: Sender,
-  line: { sessionId: SessionId; projectRoot: string; text: string; room?: true; skillSession?: SessionId }
+  line: {
+    sessionId: SessionId
+    projectRoot: string
+    text: string
+    room?: true
+    skillSession?: SessionId
+    /** The persona the line is about (Story 8.1): kept on the record and told on `harness:said`. */
+    agentId?: AgentId
+  }
 ) => void {
-  return (sender, { sessionId, projectRoot, text, room, skillSession }) => {
-    const record = deps.transcripts.forProject(projectRoot).recordSysline(text, deps.now(), room, skillSession)
+  return (sender, { sessionId, projectRoot, text, room, skillSession, agentId }) => {
+    const record = deps.transcripts
+      .forProject(projectRoot)
+      .recordSysline(text, deps.now(), room, skillSession, agentId)
     deps.emit(sender, {
       name: 'harness:said',
       payload: {
@@ -72,7 +82,8 @@ export function createVoice(deps: {
         text: record.text,
         at: record.at,
         ...(record.room === true ? { room: true } : {}),
-        ...(record.skillSession === undefined ? {} : { skillSession: record.skillSession })
+        ...(record.skillSession === undefined ? {} : { skillSession: record.skillSession }),
+        ...(record.agentId === undefined ? {} : { agentId: record.agentId })
       }
     })
   }

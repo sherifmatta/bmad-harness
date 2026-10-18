@@ -232,7 +232,7 @@ describe('a stop of the plain turn the recording’s CLI acknowledged', () => {
     await reply
 
     expect(scene.sender.names.filter((name) => name !== 'persona:said')).toEqual(['harness:said', 'session:awaiting-turn'])
-    expect(scene.events('harness:said')).toEqual([{ sessionId: 's1', id: expect.any(String), text: LINES.stopped, at: clock }])
+    expect(scene.events('harness:said')).toEqual([{ sessionId: 's1', id: expect.any(String), text: LINES.stopped, at: clock, agentId: A }])
     expect(scene.sender.names.filter((name) => /^run:/.test(name))).toEqual([])
     expect(scene.sender.sent.some((event) => event.name === 'harness:said' && /turn failed/.test(event.payload.text))).toBe(false)
     expect(scene.events('session:closed')).toEqual([])
@@ -340,7 +340,7 @@ describe('a stop of the plain turn the recording’s CLI did not acknowledge', (
     await expect(reply).resolves.toEqual({ ok: true })
     expect(scene.killed).toEqual([4242])
     expect(scene.sender.names).toEqual(['harness:said', 'session:closed'])
-    expect(scene.events('harness:said')).toEqual([{ sessionId: 's1', id: expect.any(String), text: line, at: clock }])
+    expect(scene.events('harness:said')).toEqual([{ sessionId: 's1', id: expect.any(String), text: line, at: clock, agentId: A }])
     expect(scene.events('session:closed')).toEqual([{ sessionId: 's1', agentId: A, reason: 'closed', at: clock }])
     expect(scene.snapshot().sessions).toEqual([])
     expect(scene.sender.names.filter((name) => /^run:/.test(name))).toEqual([])
@@ -381,7 +381,7 @@ describe('a stop of the plain turn the recording’s CLI did not acknowledge', (
 
     expect(scene.killed).toEqual([4242])
     expect(scene.sender.names).toEqual(['harness:said', 'session:closed'])
-    expect(scene.events('harness:said')).toEqual([{ sessionId: 's1', id: expect.any(String), text: LINES.stopTurnUnfinished, at: clock }])
+    expect(scene.events('harness:said')).toEqual([{ sessionId: 's1', id: expect.any(String), text: LINES.stopTurnUnfinished, at: clock, agentId: A }])
   })
 
   it('says it in lower case, `·`-separated and without terminal punctuation, never in a persona’s voice', () => {

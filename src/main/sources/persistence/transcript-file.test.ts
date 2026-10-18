@@ -55,16 +55,17 @@ describe('transcriptFilePath', () => {
 })
 
 describe('writeTranscript and loadTranscript', () => {
-  it('round-trips the records as {version, projectPath, entries} JSON', () => {
+  it('round-trips the records as {version, projectPath, entries, attributed} JSON', () => {
     const file = transcriptFilePath(userData, project)
 
     expect(writeTranscript(file, project, entries)).toEqual({ ok: true })
     expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({
       version: TRANSCRIPT_VERSION,
       projectPath: project,
-      entries
+      entries,
+      attributed: true
     })
-    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', skillSessions: [], entries, runs: [], dropped: 0 })
+    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', skillSessions: [], entries, runs: [], dropped: 0, attributed: true })
   })
 
   it('leaves no temporary file behind, and replaces what was there', () => {
@@ -73,7 +74,7 @@ describe('writeTranscript and loadTranscript', () => {
     writeTranscript(file, project, entries.slice(0, 1))
 
     expect(readdirSync(join(userData, 'conversations'))).toEqual([`${file.split('/').pop()}`])
-    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', skillSessions: [], entries: entries.slice(0, 1), runs: [], dropped: 0 })
+    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', skillSessions: [], entries: entries.slice(0, 1), runs: [], dropped: 0, attributed: true })
   })
 
   it('keeps every earlier record when a sysline sits among them, at version 1', () => {
@@ -99,7 +100,7 @@ describe('writeTranscript and loadTranscript', () => {
     writeTranscript(file, project, held)
 
     const loaded = loadTranscript(file, project)
-    expect(loaded).toEqual({ kind: 'loaded', skillSessions: [], entries: held, runs: [], dropped: 0 })
+    expect(loaded).toEqual({ kind: 'loaded', skillSessions: [], entries: held, runs: [], dropped: 0, attributed: true })
     expect(loaded.kind === 'loaded' && 'room' in loaded.entries[1]).toBe(false)
   })
 
@@ -113,7 +114,7 @@ describe('writeTranscript and loadTranscript', () => {
     writeTranscript(file, project, held)
 
     const loaded = loadTranscript(file, project)
-    expect(loaded).toEqual({ kind: 'loaded', skillSessions: [], entries: held, runs: [], dropped: 0 })
+    expect(loaded).toEqual({ kind: 'loaded', skillSessions: [], entries: held, runs: [], dropped: 0, attributed: true })
     expect(loaded.kind === 'loaded' && 'room' in loaded.entries[2]).toBe(false)
   })
 
@@ -126,7 +127,7 @@ describe('writeTranscript and loadTranscript', () => {
     writeTranscript(file, project, held)
 
     const loaded = loadTranscript(file, project)
-    expect(loaded).toEqual({ kind: 'loaded', skillSessions: [], entries: held, runs: [], dropped: 0 })
+    expect(loaded).toEqual({ kind: 'loaded', skillSessions: [], entries: held, runs: [], dropped: 0, attributed: true })
     expect(loaded.kind === 'loaded' && 'mention' in loaded.entries[1]).toBe(false)
   })
 
@@ -180,6 +181,51 @@ describe('writeTranscript and loadTranscript', () => {
       dropped: 0
     })
   })
+
+  it('writes the `attributed` marker with every write, and reports whether a file carried it (Story 8.1)', () => {
+    const marked = transcriptFilePath(userData, project)
+    writeTranscript(marked, project, [])
+    expect(JSON.parse(readFileSync(marked, 'utf8')).attributed).toBe(true)
+    expect(loadTranscript(marked, project)).toMatchObject({ kind: 'loaded', attributed: true })
+
+    const old = join(userData, 'before-attribution.json')
+    writeFileSync(old, JSON.stringify({ version: 1, projectPath: project, entries }))
+    const loaded = loadTranscript(old, project)
+    expect(loaded).toMatchObject({ kind: 'loaded', dropped: 0 })
+    expect(loaded.kind === 'loaded' && 'attributed' in loaded).toBe(false)
+  })
+
+  it('keeps an `agentId` on a user turn and a harness line through a write and a read (Story 8.1)', () => {
+    const file = transcriptFilePath(userData, project)
+    const held: TranscriptRecord[] = [
+      { kind: 'user', id: 'm-0', at: 1, text: 'hi', agentId: 'john' },
+      { kind: 'sysline', id: 'm-1', at: 2, text: 'session closed', agentId: 'john' },
+      { kind: 'user', id: 'm-2', at: 3, text: 'plain' }
+    ]
+    writeTranscript(file, project, held)
+
+    const loaded = loadTranscript(file, project)
+    expect(loaded).toMatchObject({ kind: 'loaded', entries: held, dropped: 0 })
+    expect(loaded.kind === 'loaded' && 'agentId' in loaded.entries[2]).toBe(false)
+  })
+
+  it.each([[3], [null], [{}], [true], [['john']]])(
+    'leaves out a user turn and a harness line whose `agentId` is %j, and counts them (Story 8.1)',
+    (bad) => {
+      const file = join(userData, 'bad-agent.json')
+      const good = { kind: 'user', id: 'm-0', at: 1, text: 'kept', agentId: 'john' }
+      writeFileSync(
+        file,
+        JSON.stringify({
+          version: 1,
+          projectPath: project,
+          entries: [good, { ...good, id: 'm-1', agentId: bad }, { kind: 'sysline', id: 'm-2', at: 2, text: 'x', agentId: bad }]
+        })
+      )
+
+      expect(loadTranscript(file, project)).toMatchObject({ kind: 'loaded', entries: [good], dropped: 2 })
+    }
+  )
 
   it('counts a record whose `room` is anything but true as left out', () => {
     const file = join(userData, 'odd-room.json')
@@ -334,15 +380,15 @@ describe('the run cards stored beside the entries', () => {
 
     expect(writeTranscript(file, project, entries, runs)).toEqual({ ok: true })
     const written = JSON.parse(readFileSync(file, 'utf8'))
-    expect(written).toEqual({ version: 1, projectPath: project, entries, runs })
-    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', skillSessions: [], entries, runs, dropped: 0 })
+    expect(written).toEqual({ version: 1, projectPath: project, entries, runs, attributed: true })
+    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', skillSessions: [], entries, runs, dropped: 0, attributed: true })
   })
 
-  it('leave a file with no run cards the file it always was, and a file without them loads with none', () => {
+  it('leave a file with no run cards without the field, and a file without them loads with none', () => {
     const file = transcriptFilePath(userData, project)
     writeTranscript(file, project, entries, [])
 
-    expect(Object.keys(JSON.parse(readFileSync(file, 'utf8')))).toEqual(['version', 'projectPath', 'entries'])
+    expect(Object.keys(JSON.parse(readFileSync(file, 'utf8')))).toEqual(['version', 'projectPath', 'entries', 'attributed'])
     expect(loadTranscript(file, project)).toMatchObject({ kind: 'loaded', skillSessions: [], runs: [], dropped: 0 })
   })
 
@@ -397,7 +443,7 @@ describe('the run cards stored beside the entries', () => {
       const runs = [withSteps([step('a'), step('b', { status: 'running', endedAt: undefined, notesBefore: 2 })])]
       writeTranscript(file, project, entries, runs)
 
-      expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', skillSessions: [], entries, runs: [{ ...runs[0], card: { ...runs[0].card, steps: [step('a'), { ...step('b', { status: 'running', notesBefore: 2 }), endedAt: undefined }] } }], dropped: 0 })
+      expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', skillSessions: [], entries, runs: [{ ...runs[0], card: { ...runs[0].card, steps: [step('a'), { ...step('b', { status: 'running', notesBefore: 2 }), endedAt: undefined }] } }], dropped: 0, attributed: true })
     })
 
     it('load as none from a card written before steps, counting nothing left out', () => {
@@ -452,7 +498,7 @@ describe('the run cards stored beside the entries', () => {
       const runs = [withSkill('bmad-build')]
       writeTranscript(file, project, entries, runs)
 
-      expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', skillSessions: [], entries, runs, dropped: 0 })
+      expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', skillSessions: [], entries, runs, dropped: 0, attributed: true })
     })
 
     it('loads from a card written before it with no key, nothing counted as left out', () => {
@@ -552,15 +598,15 @@ describe('the skill-first sessions beside the entries (Story 7.5)', () => {
 
     expect(writeTranscript(file, project, kept, [], sessions)).toEqual({ ok: true })
 
-    expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ version: 1, projectPath: project, entries: kept, skillSessions: sessions })
-    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', entries: kept, runs: [], skillSessions: sessions, dropped: 0 })
+    expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ version: 1, projectPath: project, entries: kept, skillSessions: sessions, attributed: true })
+    expect(loadTranscript(file, project)).toEqual({ kind: 'loaded', entries: kept, runs: [], skillSessions: sessions, dropped: 0, attributed: true })
   })
 
-  it('leave a file with none as the file it always was, and load as having none', () => {
+  it('leave a file with none without the field, and load as having none', () => {
     const file = transcriptFilePath(userData, project)
     writeTranscript(file, project, entries)
 
-    expect(Object.keys(JSON.parse(readFileSync(file, 'utf8')))).toEqual(['version', 'projectPath', 'entries'])
+    expect(Object.keys(JSON.parse(readFileSync(file, 'utf8')))).toEqual(['version', 'projectPath', 'entries', 'attributed'])
     expect(loadTranscript(file, project)).toMatchObject({ kind: 'loaded', skillSessions: [], dropped: 0 })
   })
 

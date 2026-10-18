@@ -217,7 +217,7 @@ describe('the skill-first session’s fields (Story 7.5, audited by Story 7.6)',
   it('is `skillSessions` on the conversation snapshot and the stored file, both optional, and the `{ first: string }` target of session.open once', () => {
     expect(conversation.match(/\bskillSessions\??:/g)).toHaveLength(2)
     expect(fieldsOf(conversation, 'ConversationSnapshot')).toEqual(['entries', 'sessions', 'room?', 'busy', 'personas', 'runs', 'skillSessions?'])
-    expect(fieldsOf(conversation, 'TranscriptFile')).toEqual(['version', 'projectPath', 'entries', 'runs?', 'skillSessions?'])
+    expect(fieldsOf(conversation, 'TranscriptFile')).toEqual(['version', 'projectPath', 'entries', 'runs?', 'skillSessions?', 'attributed?'])
     expect(commands.match(/\{ first: string \}/g)).toHaveLength(1)
     expect(commands).toContain('export type SessionTarget = AgentId | { room: readonly AgentId[] } | { first: string }')
   })

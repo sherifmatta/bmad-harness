@@ -378,7 +378,7 @@ describe('a stop the recording’s CLI did not acknowledge', () => {
     expect(scene.sender.names.slice(-3)).toEqual(['run:stopped', 'harness:said', 'session:closed'])
     expect(scene.events('run:stopped')).toEqual([{ runId: 'run-1', sessionId: 's1', at: clock }])
     expect(scene.events('run:failed')).toEqual([])
-    expect(scene.events('harness:said')).toEqual([{ sessionId: 's1', id: expect.any(String), text: LINES.stopEnded, at: clock }])
+    expect(scene.events('harness:said')).toEqual([{ sessionId: 's1', id: expect.any(String), text: LINES.stopEnded, at: clock, agentId: A }])
     expect(scene.events('session:closed')).toEqual([{ sessionId: 's1', agentId: A, reason: 'closed', at: clock }])
     expect(scene.snapshot().sessions).toEqual([])
     expect(scene.snapshot().runs[0].status).toBe('stopped')

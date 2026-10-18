@@ -58,6 +58,12 @@ export type UserRecord = {
   room?: true
   /** Set on what the user sent into a skill-first session (Story 7.5): it belongs to that session's thread alone. */
   skillSession?: SessionId
+  /**
+   * The persona session this was sent into (Story 8.1), set by main at record time. With no `room` and no
+   * `skillSession` it puts the turn in that persona's thread alone. Absent on a room's and a skill session's,
+   * and on one not yet attributed.
+   */
+  agentId?: AgentId
 }
 
 /**
@@ -79,6 +85,11 @@ export type SyslineRecord = {
   room?: true
   /** Set on every harness line about a skill-first session (Story 7.5): it belongs to that session's thread alone. */
   skillSession?: SessionId
+  /**
+   * The persona session this line is about (Story 8.1), set by main at record time. With no `room` and no
+   * `skillSession` it puts the line in that persona's thread alone. Absent on a room's and a skill session's.
+   */
+  agentId?: AgentId
 }
 
 export type TranscriptRecord = PersonaRecord | UserRecord | SyslineRecord | SkillRecord
@@ -140,6 +151,12 @@ export type TranscriptFile = {
   runs?: StoredRun[]
   /** Additive (Story 7.5): the skill-first sessions, in start order. A file from before them loads with none. */
   skillSessions?: StoredSkillSession[]
+  /**
+   * Additive (Story 8.1): set by every write of this build. A file that carries it has been through the
+   * one-time attribution of untagged records to a persona and is never attributed again; a file without it
+   * is read once, attributed, and written back with it.
+   */
+  attributed?: true
 }
 
 /** Where a run stands: in flight, or the terminal event it ended on. */

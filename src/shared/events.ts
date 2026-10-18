@@ -97,6 +97,8 @@ export type HarnessSaid = {
   room?: true
   /** Set on every harness line about a skill-first session: it belongs to that session's thread (`SyslineRecord.skillSession`). */
   skillSession?: SessionId
+  /** Set on every harness line about a persona's session (Story 8.1): it belongs to that persona's thread (`SyslineRecord.agentId`). */
+  agentId?: AgentId
 }
 
 /** A persona's aggregated state changed. Keyed by `agentId`, never by name. */

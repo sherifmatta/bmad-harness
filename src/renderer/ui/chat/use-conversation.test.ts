@@ -393,7 +393,7 @@ describe('send to a persona whose session is idle', () => {
     bridge.push(awaiting('s1'))
     conversation.send(mary.id, 'hello')
 
-    expect(last().entries).toEqual([{ kind: 'user', id: 'entry-0', at: 101, text: 'hello' }])
+    expect(last().entries).toEqual([{ kind: 'user', id: 'entry-0', at: 101, text: 'hello', agentId: mary.id }])
     expect(bridge.sends).toEqual([['s1', 'hello']])
     expect(bridge.opens).toEqual([])
 
@@ -439,7 +439,7 @@ describe('send with a typed mention (Story 2.15)', () => {
     bridge.push(awaiting('s1'))
     conversation.send(mary.id, 'go', '@Mary')
 
-    expect(last().entries).toEqual([{ kind: 'user', id: 'entry-0', at: 101, text: 'go', mention: '@Mary' }])
+    expect(last().entries).toEqual([{ kind: 'user', id: 'entry-0', at: 101, text: 'go', mention: '@Mary', agentId: mary.id }])
     expect(bridge.sends).toEqual([['s1', 'go', '@Mary']])
   })
 
@@ -513,6 +513,7 @@ describe('send while a turn is in flight', () => {
         id: 'entry-0',
         at: 101,
         text: 'too soon',
+        agentId: mary.id,
         queuedFor: 'Mary'
       }
     ])
