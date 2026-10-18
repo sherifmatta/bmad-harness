@@ -31,6 +31,8 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 
 **Amended 2026-10-15 (Epic 7, Story 7.7, from the `bmad-ux` run for Story 7.5).** The owner removed illustrated portraits from the whole product: the Team tiles, the party cast cards and the Welcome team join the chat in drawing a person as an initials disc and a name, and **nothing replaces the portrait**. One requirement is added (FR136), one UX design requirement (UX-DR55) and one story (7.7, which sits beside 7.3 and is built before 7.4). FR73 to FR81 are retired (FR80 stands), and FR18, FR79, FR109, FR111, FR121, FR128, NFR28 and UX-DR13, UX-DR14, UX-DR15, UX-DR17 and UX-DR26 carry dated notes where they are stated. Existing numbers do not move.
 
+**Amended 2026-10-17 (Epic 8, from a request by the owner to John).** The harness is to work like a chat app: each persona has a chat and a thread of its own, selecting a persona opens an empty chat that says nothing until the user does, and closing a chat deletes it. `SPEC.md` is amended first (CAP-15 added, CAP-8 rewritten, the multiple-threads non-goal reworded); this document follows. Five requirements are added (FR137 to FR141), one UX design requirement (UX-DR56) and seven stories (8.1 to 8.7, the last the closing audit). It reverses on purpose the line Epic 7 kept, that the thread is the project's one conversation (FR14, FR60, AD-7), and carries dated notes on FR14, FR20, FR60, FR61, FR62, FR95, FR100, FR127, FR132 and FR133, on UX-DR53, and on Stories 2.4, 2.8, 2.9, 3.5, 3.10 and 7.4. The new capability is `SPEC.md` CAP-15; this document's *CAP-13* and *CAP-14* headings are its own groupings and are not the spec's. Existing numbers do not move.
+
 ## Requirements Inventory
 
 ### Functional Requirements
@@ -53,7 +55,7 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **FR11:** The shell presents three mutually exclusive top-level views behind a single switch — **1:1 Conversation**, **Party Mode** and **Board**. There is no fourth view. A **Help** entry point is reserved in the topbar layout but does not render in v1. *Amended 2026-10-10 by FR117 and Story 6.3: the Board is the third view, and the switch is one control of three. It read "two mutually exclusive top-level views … There is no third view" and held for Epics 1 to 5. Help is still not a view.*
 - **FR12:** The 1:1 view is a chat column on the left and a fixed-width right rail split 50/50: the **Team half** (persona tiles) above, the **Outputs half** (file rows) below. Chat and rail are simultaneously visible for the full length of a session running from PRD through build.
 - **FR13:** The topbar carries brand, project path, install chip, branch chip, and the view switch.
-- **FR14:** The chat column holds conversation entries in time order — persona turns, user turns, syslines, and document cards — plus the skill button row and the composer.
+- **FR14:** The chat column holds conversation entries in time order — persona turns, user turns, syslines, and document cards — plus the skill button row and the composer. *(Amended 2026-10-17, Epic 8; FR137: the chat column holds the viewed persona's thread, not every persona's; the entries, their order and the skill row and composer are otherwise unchanged.)*
 - **FR15:** An explicit end-session control dispatches `conversation.end(projectId)` and is the only way to clear a persisted conversation. It is a lifecycle control, never presented as a next-step suggestion.
 - **FR16:** The conversation transcript, session state and install model live in Electron main. The transcript is persisted per project under `userData`; session state and the install model are not — sessions are not held across restarts (FR100) and the install model is re-derived from disk on each launch (NFR2). The renderer is a pure projection: a window reload loses nothing, **including a run in flight**, because the card is a main-held projection re-emitted on reconnect rather than reconstructed from renderer memory. (`ARCHITECTURE-SPINE.md` AD-7.)
 - **FR17:** One project per window.
@@ -62,7 +64,7 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 
 - **FR18:** A persona tile renders portrait, name, title and a state line. The current persona is marked `aria-current="true"` with an accent left edge. *(Amended 2026-10-15, Epic 7, Story 7.7: the tile renders a 26px initials disc in a 44px row and no portrait; the rest stands.)*
 - **FR19:** The chat header renders the current persona's portrait, name, title and state. *Amended 2026-10-09 by FR128 and Story 2.14: the header is one line carrying the persona's 22px initials disc, name, `title · story <id>` (the story reference only when a source exists) and the state pill, with the Stop / `close session` slot of FR125. The portrait left the chat header; it stays on the tiles, cast cards, cast chooser and Welcome (AD-16).*
-- **FR20:** `identity` and `communication_style` are never harness-injected. The persona session activates the agent's own skill, which loads them itself.
+- **FR20:** `identity` and `communication_style` are never harness-injected. The persona session activates the agent's own skill, which loads them itself. *(Amended 2026-10-17, Epic 8; Story 8.3: the activation, `/<agentId>` as the first stdin turn, happens when the user sends a persona's first message and not when the tile is selected; nothing about what is or is not injected changes.)*
 - **FR21:** The harness never authors words attributed to a persona. Only main-thread `text_delta` may render as a persona turn; the UI never styles, frames, prefixes, summarises or classifies a persona's words.
 - **FR22:** Persona tiles are grouped by the agent's `module` and by `team` where present; within each group, the order is the order agents appear in the resolved config. There is no relevance sort, recency sort, pinning or highlighting.
 
@@ -117,9 +119,9 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 
 #### CAP-8 — Persona handoff mid-session
 
-- **FR60:** Clicking another persona's tile opens that persona's session, rebuilds the skill row, and expands that persona's card — within one unbroken conversation. No handoff presents as a restart, a new thread or a cleared history.
-- **FR61:** `@<name>` in the composer hands off to that persona in the 1:1 view, and directs the question at that persona in party mode. It addresses a **persona** and never names a skill; it is the product's only text-driven navigation.
-- **FR62:** A handoff writes a sysline naming the artifacts that carry the continuity — `handed off · John -> Amelia · picking up from PRD.md, epics.md` — and never claims that context continues, which under the session model would be false. *Amended 2026-10-09 (built on `chat-look`; user's wording): the line reads `handed to <Name>` and nothing more, with no files and no arrow. A skill name is not part of it: a tile click or `@name` never names one, so `handed to <persona> · <skill>` has no v1 producer and stays unbuilt (AD-24). Story 2.9's file clause is superseded.* *(Amended 2026-10-13, Epic 7, Story 7.4: the line is no longer written for a tile click or an `@name`, because a persona whose seat is live is turned to and not handed to; FR63's other syslines are unchanged.)*
+- **FR60:** Clicking another persona's tile opens that persona's session, rebuilds the skill row, and expands that persona's card — within one unbroken conversation. No handoff presents as a restart, a new thread or a cleared history. *(Amended 2026-10-17, Epic 8; FR137, FR138: "within one unbroken conversation" is retired. Clicking a persona's tile opens that persona's own chat, rebuilds the skill row and shows only that persona's thread; it opens no session.)*
+- **FR61:** `@<name>` in the composer hands off to that persona in the 1:1 view, and directs the question at that persona in party mode. It addresses a **persona** and never names a skill; it is the product's only text-driven navigation. *(Amended 2026-10-17, Epic 8; FR141: a message typed `@name` is a user turn in the named persona's thread and the view turns to that chat; nothing is written in the chat it was typed in. The room is unchanged.)*
+- **FR62:** A handoff writes a sysline naming the artifacts that carry the continuity — `handed off · John -> Amelia · picking up from PRD.md, epics.md` — and never claims that context continues, which under the session model would be false. *Amended 2026-10-09 (built on `chat-look`; user's wording): the line reads `handed to <Name>` and nothing more, with no files and no arrow. A skill name is not part of it: a tile click or `@name` never names one, so `handed to <persona> · <skill>` has no v1 producer and stays unbuilt (AD-24). Story 2.9's file clause is superseded.* *(Amended 2026-10-13, Epic 7, Story 7.4: the line is no longer written for a tile click or an `@name`, because a persona whose seat is live is turned to and not handed to; FR63's other syslines are unchanged.)* *(Amended 2026-10-17, Epic 8; there is no handoff line and no thread to write one in: each persona has its own chat, and what carries the work between personas is the artifacts on disk.)*
 - **FR63:** A sysline is a harness-authored transcript entry in the harness's own register. It is never styled as, or attributed to, a persona. Syslines carry session-resumed, handoff and room-opened notices.
 
 #### CAP-9 — Party mode
@@ -167,12 +169,12 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 
 #### Runtime, session and bridge
 
-- **FR95:** A persona session is a long-lived subprocess: `claude -p --input-format stream-json --output-format stream-json --include-partial-messages --verbose --setting-sources project,local`, with `/bmad-agent-<x>` sent as the **first turn on stdin**, not as a positional prompt. One session per active persona, not one per run.
+- **FR95:** A persona session is a long-lived subprocess: `claude -p --input-format stream-json --output-format stream-json --include-partial-messages --verbose --setting-sources project,local`, with `/bmad-agent-<x>` sent as the **first turn on stdin**, not as a positional prompt. One session per active persona, not one per run. *(Amended 2026-10-17, Epic 8; Story 8.3: "the first turn on stdin" is the first turn of the session, which main now starts at the user's first message to the persona, not at the open of a seat; the argv and `SESSION_ARGS` are untouched.)*
 - **FR96:** Three flags are load-bearing and may not be dropped: `--include-partial-messages` (without it there is no `input_json_delta` to stream), `--setting-sources project,local` (excludes the `user` source, so the subprocess sees only the target project's configuration), and `--input-format stream-json` (keeps the session alive across turns). `--forward-subagent-text` is not passed.
 - **FR97:** Chat turns and skill invocations are both turns into the same session; there is no second run kind. A **run** is a turn dispatched from a menu entry, bounded by `run:started` and a terminal run event.
 - **FR98:** Turns the harness sends are strictly serialised — at most one in flight, chat or run — so a queued message is sent only after the turn before it is over. A session can also take turns nobody sent (a background subagent finishing wakes the main thread and produces its own `result` row), so a `result` row ends *a* turn and not necessarily the one the harness sent. Different sessions run concurrently. (`ARCHITECTURE-SPINE.md` AD-11; `fixtures/runs/README.md`, "A session takes turns nobody sent".)
 - **FR99:** A message typed during a run lands in the transcript **immediately**, in the user-turn treatment, dimmed and marked `queued · sends when <Persona> finishes`. It is cancellable. It sends on `session:awaiting-turn`, and the dim and marker are removed **in place** — the entry never moves, re-renders or reappears lower in the thread.
-- **FR100:** Sessions are reclaimed when the persona is closed or the session ended, and are **not** held across app restarts. After a restart the transcript is present, every persona reads `idle`, every card renders dead with no elapsed ticking and no stop control, and nothing is offered to resume.
+- **FR100:** Sessions are reclaimed when the persona is closed or the session ended, and are **not** held across app restarts. After a restart the transcript is present, every persona reads `idle`, every card renders dead with no elapsed ticking and no stop control, and nothing is offered to resume. *(Amended 2026-10-17, Epic 8; FR140: closing a persona's chat also deletes that persona's thread; after a restart the stored threads are present and no persona reads as live.)*
 - **FR101:** One contract crosses the bridge — events out, commands in — declared once in `src/shared/` with an explicit payload type and a stated cardinality. Events: `session:opened`, `session:awaiting-turn`, `session:closed`, `persona:said`, `persona:state`, `run:started`, `run:note`, `doc:section-opened`, `doc:prose`, `doc:committed`, `run:finished`, `run:stopped`, `run:failed`, `rail:changed`. Commands: `session.open(agentId)`, `session.close(sessionId)`, `turn.send(sessionId, text)`, `menu.dispatch(sessionId, code)`, `run.stop(runId)`, `doc.open(path)`, `conversation.end(projectId)`. *Amended 2026-10-09: the list omitted `harness:said`, which `src/shared/events.ts` already declares, so the contract held fifteen events and not fourteen; `run:step` (FR124) makes sixteen. `turn.stop(sessionId)` (FR125) makes eight commands, and `turn.send` takes an optional third argument, `mention` (FR127). The additions are additive and `CONTRACT_VERSION` is unchanged.* *Amended 2026-10-10 by Story 6.2: `board:changed` makes seventeen events, and the read `board.get` is carried with `rail.get`'s kind, as a channel and a bridge method and not a command; the Board adds two channels (thirty-six) and two methods, `getBoard` and `onBoardChanged` (twenty-four). Additive, and `CONTRACT_VERSION` is unchanged.* Main folds raw `stream-json` into domain events; the renderer never parses a raw frame.
 - **FR102:** Stream routing is fixed so the same bytes are never rendered twice or lost: main-thread `text_delta` outside a tool call is `persona:said`; prose inside a document write comes from `input_json_delta` on that call and is `doc:prose`; writes to `.memlog.md` are `run:note` and **never** `doc:prose`, so memlog text can never enter the document buffer or its section parser; anything with `parent_tool_use_id` is subagent activity.
 - **FR103:** Persona state is a projection with exactly one source each: `idle` (no session, or nothing running), `work` (any turn in flight, persisting through quiet subagent phases), `live` (a long-running attached process the session started), `note` (the watcher saw a change to a file this persona owns **that its own run did not make: a change observed while one of its runs is in flight, or within the watcher's settle window after that run's terminal event, is the run's own and raises no `note`**), `error` (this persona's last run failed or was stopped). Five states, four colours.
@@ -212,7 +214,7 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **FR124:** A run's tool calls are shown as steps. Main folds every main-thread tool call of a run into `run:step`, keyed by `callId`: exactly one `running` carrying a short label when the call's input has finished streaming, then exactly one `done` or `failed` on its `tool_result`. A plain chat turn, a call aimed at `.memlog.md` and any subagent frame raise none; a document `Write` or `Edit` raises one beside its `doc:*` events. The label is verb plus target, built in main from an allow-listed field (never an argument or a raw input), and nothing else about a call's input reaches the renderer. A step left running when its run ends is closed as failed on the card. Steps live in the run's card, interleave with its notes by fold order, number at most 300, and survive a reload and a relaunch with the card. The card body in run-list mode is one time-ordered list of steps and run notes, with no pending step and no `n of m`. (AD-22.)
 - **FR125:** Any turn in flight, a chat turn or a run, can be stopped. `turn.stop(sessionId)` interrupts it by the in-band path of FR83; a run it stops ends `run:stopped`, never `run:failed`, and a stopped plain chat turn is not an error: the session stays, the persona does not read `error`, and one line of the harness's own says so in the transcript. The chat header's slot reads `Stop` while a turn is in flight and `close session` otherwise. Queued messages are untouched. (AD-23.)
 - **FR126:** `run:started` carries an optional `skill`, the name of the skill main invoked, set only for a menu entry that resolved to a skill and kept on the run's card so a stored run reads as it did live. It is a record and never an input: the renderer still sends only `code`. With none, the card head reads `run` alone. The handoff sysline names no skill. (AD-24.) *(Amended 2026-10-13, Epic 7, Story 7.5: for a session started from `/<name>` (FR134), main resolves the typed name against the install's skill list and records it as `skill`; the renderer still sends only the text the user typed, and no skill is dispatched by the name main recorded.)*
-- **FR127:** A handoff typed as `@name text` keeps its `@name` in the user's turn. `turn.send` takes an optional `mention`, the literal token typed; the turn records it beside the text sent and displays as the mention in a chip followed by that text, so what is shown is always what was typed plus what was sent. The persona receives only the text. Main drops a mention that does not name the receiving persona. The field survives a queue, a reload and a relaunch. (AD-25.)
+- **FR127:** A handoff typed as `@name text` keeps its `@name` in the user's turn. `turn.send` takes an optional `mention`, the literal token typed; the turn records it beside the text sent and displays as the mention in a chip followed by that text, so what is shown is always what was typed plus what was sent. The persona receives only the text. Main drops a mention that does not name the receiving persona. The field survives a queue, a reload and a relaunch. (AD-25.) *(Amended 2026-10-17, Epic 8; FR141: the `@name` chip is on the user turn in the named persona's thread.)*
 - **FR128:** The chat thread and the chat header carry initials discs and no portrait: a 26px disc beside every turn and a 22px disc in the header, for a persona and for the user (tinted). A turn is a flat row with no container, the clock time inline after the role, and the header is one line. Portraits stay on the Team tiles, cast cards, cast chooser and Welcome. (AD-16 as amended.) *(Amended 2026-10-15, Epic 7, Story 7.7: the chat's initials discs are no longer an exception: no surface carries a portrait (FR136), and the sentence "Portraits stay on the Team tiles, cast cards, cast chooser and Welcome" no longer holds.)*
 
 #### Working in the conversation
@@ -222,11 +224,22 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **FR129:** An epic row or a story card on the Board opens that epic's or story's markdown file in the document window of FR55 to FR59, with the same title bar and its three escapes, *Reveal in Finder*, *Open in editor* and *Close*. A story's file is the one file in `implementation-artifacts/` (beside `sprint-status.yaml`) whose name begins `spec-<epic>-<story>-`; an epic's file is its `epic-<n>-context.md`. The story's key in `sprint-status.yaml` is not its file name (key `5-2-…the-system-s-theme` has file `spec-5-2-…the-systems-theme.md`, and Story 2.14's file is `spec-chat-look-flat-rows-and-initials.md`), so the number is what is matched, and zero or more than one match is no file. When no file exists the row or card is plain text, as it is today, and says nothing about why. A card or row that opens a file is a control; one that does not is not. Nothing else about the Board becomes a control, and the Board still writes nothing.
 - **FR130:** Persona and skill output in the chat renders as markdown through the one pipeline Story 1.12 built (`markdown-it` with HTML disabled, then DOMPurify), at the chat's own type and measure, never the document window's. A fixture with raw HTML, a `<style>`, a `<script>` and an image-by-markup renders none of them. A turn streams as text and is rendered once complete; a turn still streaming is never half-parsed into broken markup. The user's own turn stays plain text.
 - **FR131:** Typing `/` as the first character of the composer opens a list of every skill the install declares: all of them, none hidden, none ranked, none recommended, in the install's own order. It is read in main from the install, never listed from the renderer or hard-coded, and carries each skill's name and its one-line description. Typing narrows it by prefix, `Esc` closes it, and choosing one puts `/<name> ` in the composer and sends nothing.
-- **FR132:** Every persona has its own live session. Activating a persona's tile switches the conversation to that persona's seat and does not end, replace or re-brief any other; a seat that is already live resumes with its context, and one that is not is opened on first use. A live seat stays live in the background while another is shown, with no cap on how many. The thread stays the project's one conversation (FR14, FR60): switching adds nothing to it, and no `handed to <Name>` line is written for a tile click or an `@name`. A seat shows a live dot on its face in the rail, and the dot means only that the seat holds context, so after a relaunch, which ends every process, no seat shows one.
-- **FR133:** The user ends one seat deliberately and nothing ends it otherwise. Ending a seat closes that session and clears that seat's context, so the next message to that persona starts fresh; it touches no other seat and removes nothing from the thread, and the harness writes one line in its own register saying that persona's session ended. `conversation.end(projectId)` stays: it ends every seat and clears the transcript, and is still the only thing that clears it. The control is a lifecycle action: never a suggestion, never highlighted, never badged.
+- **FR132:** Every persona has its own live session. Activating a persona's tile switches the conversation to that persona's seat and does not end, replace or re-brief any other; a seat that is already live resumes with its context, and one that is not is opened on first use. A live seat stays live in the background while another is shown, with no cap on how many. The thread stays the project's one conversation (FR14, FR60): switching adds nothing to it, and no `handed to <Name>` line is written for a tile click or an `@name`. A seat shows a live dot on its face in the rail, and the dot means only that the seat holds context, so after a relaunch, which ends every process, no seat shows one. *(Amended 2026-10-17, Epic 8; FR137, FR138: the thread no longer stays the project's one conversation; each persona's chat is its own. A seat is still opened on first use, and "first use" is now the first message, not a tile click. Everything else stands: no cap, background seats stay live, the live dot.)*
+- **FR133:** The user ends one seat deliberately and nothing ends it otherwise. Ending a seat closes that session and clears that seat's context, so the next message to that persona starts fresh; it touches no other seat and removes nothing from the thread, and the harness writes one line in its own register saying that persona's session ended. `conversation.end(projectId)` stays: it ends every seat and clears the transcript, and is still the only thing that clears it. The control is a lifecycle action: never a suggestion, never highlighted, never badged. *(Amended 2026-10-17, Epic 8; FR140: ending a seat from the header now deletes that persona's thread, writes no `session closed` line, and removes it from the transcript; `conversation.end(projectId)` still ends every seat and clears everything.)*
 - **FR134:** A chat can start with no persona. A message that begins with `/<name>` and names an installed skill starts a **skill-first session** and runs that skill. The speaker of every line the session produces is the skill's name, never a persona's initials or face, and the session is never presented as a persona's. Plain messages typed afterward go to the same session, which stays live. After a run the thread suggests nothing about who to talk to next: what to do next is the user's (decided 2026-10-14; the room's idea of a `continue with <persona>?` offer is dropped).
 - **FR135:** A skill-first session sits in the rail under the skill's name, with the live dot of FR132 and the per-seat end of FR133, and survives a reload as a live session; a relaunch ends its process (FR100), so after one its row is listed with its own thread and no live dot, and a message to it starts nothing until the user begins a new session (the CLI is not started with a resume flag, `SESSION_ARGS` in `src/main/sources/session/session-process.ts`). A run in a skill-first session appears in Recent activity and has no story: it is never placed in a Board column, and no story owner is derived for it (FR123 stands). A skill that is itself a persona (`bmad-agent-*`) opens that persona's seat of FR132; `bmad-party-mode` opens the room of Epic 4; nothing else about either changes. 
 - **FR136:** No illustrated portrait, illustration or other identity device is drawn anywhere in the product. A person, a persona or the user alike, is an initials disc and a name: 26px on a Team tile, a cast card, a Welcome row, the cast chooser, an Agents-panel row and the empty thread's introduction, beside a chat turn and on a skill seat; 22px in the chat header only; 20px for small references (stacked faces, the handoff chip). The disc is neutral (`initials-bg`, `initials-line`, `initials-ink`, with light twins), never a persona's colour, and a persona's letters are `initialsOf` of the name, one letter for a one-word name. The roster's `icon` is still never drawn (FR80). The Team tile is a 44px row. The speaking cast card keeps its lit border and equaliser and has no ring. The portrait module, its parameter module, its stylesheet, its tokens and its pinned tests are removed together with the `DESIGN.md` keys they read. *(Added 2026-10-15, Epic 7, Story 7.7; `DESIGN.md` → *Initials*, *Persona tile*, *Cast card*, *Portrait (removed)*.)*
+
+#### A chat per persona
+
+*Added 2026-10-17 from a request by the owner (Sherif), carried into `SPEC.md` as CAP-15 (with CAP-8 rewritten and the multiple-threads non-goal reworded) before this epic was written. Decided with the owner: one thread per persona; selecting a persona opens an empty chat that spawns nothing; closing a chat deletes its thread. Three further defaults, and three the code evidence raised, are decisions to confirm in the stories.*
+
+- **FR137:** Every persona has a chat of its own. The conversation the user sees is the viewed persona's thread only: that persona's turns, the user's turns to them, the harness's lines about that session and that persona's run cards, in time order. Switching shows another persona's thread and adds, moves or removes nothing in either. The party room's thread and a skill-first session's thread stay their own (FR64, FR134). A user turn or harness line that belongs to a persona's session carries that persona's id as an optional field, set by main. No unread mark, count or badge is drawn on a persona whose chat is in the background.
+- **FR138:** Selecting a persona, by click or by `Enter` or `Space` on its tile, opens that persona's chat with their name in the header, and does nothing else. A persona with no live session shows an empty chat: no process is spawned, no `/<agentId>` is written, the persona says nothing, no record is added to any thread and no live dot is drawn. Selecting never starts a session; the first message (or a skill button pressed in that chat) does.
+- **FR139:** A persona's first message starts their session. Main records the user's turn, spawns the process, writes `/<agentId>` as the first turn on stdin and then the message as the next turn, never in flight together (FR98). The user's turn shows as sent and not queued. The persona's activation reply and their answer are drawn as one persona turn, in the order they arrived, with no word edited, hidden or reordered (FR21). A persona whose session is live is unchanged.
+- **FR140:** The header's `close session` on a persona's chat ends that persona's session and deletes that persona's thread: its records, stored runs, written-file bookkeeping, rail annotations and queued messages. Nothing is written in its place, and the next selection opens an empty chat. It touches no other persona, the room or a skill-first session. `conversation.end(projectId)` ends every session and deletes every thread, and is still the only whole clear. The control is a lifecycle action: never a suggestion, never highlighted, never badged.
+- **FR141:** `@<name>` typed in a persona's composer turns to the named persona's own chat: the message, with its `@name` chip, is a user turn in that persona's thread, the view moves to that chat, and nothing is written in the chat it was typed in. It addresses a persona and never a skill, and writes no `handed to` line.
+
 
 ### NonFunctional Requirements
 
@@ -343,13 +356,14 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **UX-DR50 — Chat header** (`DESIGN.md` → *Chat header*): 46px, `chrome`, 1px `line` below, `0 16px`, 10px gaps, one line: the 22px initials disc, the name at `name`, `title · story <id>` in `dim` (the story reference only with a source), the status pill, then a ghost button that reads `Stop` while a turn is in flight and `close session` otherwise; name and line truncate with an ellipsis.
 - **UX-DR51 — Conversation turn** (`DESIGN.md` → *Conversation turn*, *Initials*): a flat row, with a 26px initials disc (the user's tinted) and a head of name, role and clock time on one baseline, 8px apart, the words below at `base`, turns 16px apart, no container, radius, ground or rule; the room's live turn alone keeps its accent edge `[OPEN]`; the user's `@name` of a handoff renders as a chip before the sent text (Story 2.15), its anatomy to be added to `DESIGN.md`.
 - **UX-DR52 — The `/` skill list** (`DESIGN.md` → *Components → `/` list* and `EXPERIENCE.md` → *Component Patterns → `/` list, in detail*, amended and built by Story 7.3, 2026-10-15): a list anchored above the composer on `panel-2` with a 1px `line` border and `control` radius, one row per skill, name in `name` mono and the description in `dim` at `base`, one row focused with the shared focus ring and never an accent fill, `↑`/`↓` move, `Enter` or `Tab` choose, `Esc` closes. It never shows a count, a recommended skill, a group heading that ranks, or an icon; it is silent to the live region. It opens only on `/` as the first character, so it cannot interfere with `@name` (Story 2.9).
-- **UX-DR53 — A seat in the rail** (`DESIGN.md` → *Team tile*, *Initials*; `EXPERIENCE.md` → Layout, chat and Board; amended by Story 7.4, built: a persona's seat is its tile's own `live` dot and word, and ending one writes one `session closed · <Name> starts fresh on the next message` line): a seat is the persona's existing tile with one more fact, the live dot, which uses the tile's own dot vocabulary (AD-20) and no new colour; a skill-first seat has no portrait and carries the skill's name in `name` mono where a persona has name and title. The dot carries no count and nothing pulses for being live, only for working (AD-20).
+- **UX-DR53 — A seat in the rail** (`DESIGN.md` → *Team tile*, *Initials*; `EXPERIENCE.md` → Layout, chat and Board; amended by Story 7.4, built: a persona's seat is its tile's own `live` dot and word, and ending one writes one `session closed · <Name> starts fresh on the next message` line): a seat is the persona's existing tile with one more fact, the live dot, which uses the tile's own dot vocabulary (AD-20) and no new colour; a skill-first seat has no portrait and carries the skill's name in `name` mono where a persona has name and title. The dot carries no count and nothing pulses for being live, only for working (AD-20). *(Amended 2026-10-17, Epic 8; Story 8.5: ending a persona's seat no longer writes the `session closed` line; it deletes that persona's thread. The live dot and its vocabulary are unchanged, and it now appears when the first message's session is attached, not on selection.)*
 - **UX-DR54 — A Board card that opens a file** (`EXPERIENCE.md` → *Layout, chat and Board* → Accessibility, Banned here; amended by Story 7.1): a card or epic row with a file is a native button in the tab order (the Board has no roving group) with the shared focus ring and a pointer cursor; one without is text as before. It carries no icon, no count, no hover reveal and no colour of its own, and opening returns focus to it on close.
 - **UX-DR55 — One disc for every person** (`DESIGN.md` → *Initials*, *Persona tile*, *Cast card*, *Welcome*, *Portrait (removed)*; `EXPERIENCE.md` → the *Portrait* row; added by Story 7.7): every persona is the neutral initials disc and a name, 26px on a tile, a cast card, a Welcome row, the cast chooser, an Agents-panel row, the empty thread's introduction and a seat, 22px in the chat header only, 20px for small references; the tile is a 44px row; the disc is `aria-hidden` beside its name and has no tab stop at 26 and 22px; no persona has a colour, tint, icon or image of their own, and no identity device replaces the portrait (`DESIGN.md` → *Brand and Style*).
+- **UX-DR56 — A chat per persona** (`EXPERIENCE.md` → *Layout, chat and Board*, *1:1 Conversation*; `DESIGN.md` → *Chat header*, *Persona tile*, *Thread introduction*; added by Epic 8, 2026-10-17): the chat shows one persona's thread, headed by that persona's 22px initials disc, name and title with the header's existing state and `close session`; an empty persona chat is the existing thread introduction (harness text, no button, handler or tab stop), the skill row and the composer, with no greeting, no live dot and no process behind it; a persona whose chat is in the background shows only the tile's own dot and word, with no unread mark, count, badge, preview or ordering by recency; `close session` is drawn only on a chat that has a live session or a stored thread; the activation reply and the answer are one persona turn in one flat row; no new colour, token, size or component.
 
 ### FR Coverage Map
 
-Every one of the 136 FRs maps to exactly one epic.
+Every one of the 141 FRs maps to exactly one epic.
 
 | FR | Epic | Covers |
 |---|---|---|
@@ -489,8 +503,13 @@ Every one of the 136 FRs maps to exactly one epic.
 | FR134 | Epic 7 | A chat with no persona starts from `/<skill>`; the skill's name is the speaker; follow-ups continue it |
 | FR135 | Epic 7 | A skill-first seat in the rail; its runs in Recent activity only, never a column |
 | FR136 | Epic 7 | No portrait or identity device anywhere; every person an initials disc and a name; the tile a 44px row |
+| FR137 | Epic 8 | One thread per persona; the chat shows only the viewed persona's records; no unread marks |
+| FR138 | Epic 8 | Selecting a persona opens an empty chat; no process, no `/<agentId>`, no greeting, no live dot |
+| FR139 | Epic 8 | The first message starts the seat; the activation reply and the answer read as one persona turn |
+| FR140 | Epic 8 | `close session` ends the seat and deletes that persona's thread; `conversation.end` still clears all |
+| FR141 | Epic 8 | `@name` turns to the named persona's own chat and writes nothing in the chat it was typed in |
 
-**Coverage by epic:** Epic 1 — 42 FRs · Epic 2 — 22 FRs · Epic 3 — 37 FRs · Epic 4 — 9 FRs · Epic 5 — 11 FRs · Epic 6 — 7 FRs · Epic 7 — 8 FRs · **Total 136.**
+**Coverage by epic:** Epic 1 — 42 FRs · Epic 2 — 22 FRs · Epic 3 — 37 FRs · Epic 4 — 9 FRs · Epic 5 — 11 FRs · Epic 6 — 7 FRs · Epic 7 — 8 FRs · Epic 8 — 5 FRs · **Total 141.**
 
 ## Standing Constraint on Story Creation
 
@@ -659,6 +678,26 @@ The conversation stops being something the user works around. A story or epic on
 - **The spine records this epic (2026-10-14):** AD-26 (a session has a kind: persona, room or skill-first), AD-27 (the skill list is read once from the manifest in main), AD-28 (the Board's file is resolved in main by number), with AD-3, AD-7, AD-13, AD-16, AD-18, AD-19, AD-21, AD-24 and AD-25 amended in place. Left open there and in Story 7.5's spec: the command that starts a skill-first session, the run code printed for one, and the empty-chat entry.
 - **The skill list is not read by anything yet.** `_bmad/_config/skill-manifest.csv` has the columns `canonicalId,name,description,module,path` and 29 rows in this install, including the five `bmad-agent-*` personas and `bmad-party-mode`; no file under `src/` reads it. Story 7.3 reads it and cites it.
 - **Sequencing:** 7.1 and 7.2 in either order, then 7.3, then 7.4, then 7.5, then 7.6 last.
+
+### Epic 8: A chat per persona
+
+Switching between personas feels like switching between colleagues in a chat app. Each persona has a chat and a thread of its own; selecting one opens an empty chat that says nothing until the user does; the first message starts them, and their greeting and answer read as one reply; chats stay alive in the background while another is open; closing a chat ends the session and deletes that conversation; and `@name` takes the user to that persona's own chat.
+
+**Standalone:** Story 8.1 changes what is kept and drawn per persona, not when a session starts, and ships alone. Story 8.2 is only an "empty" chat once 8.1 has stopped showing the other personas' turns, so it follows 8.1; 8.3 follows 8.2; 8.4, 8.5 and 8.6 each follow 8.1 and are independent of one another; 8.7 is last.
+
+**FRs covered:** FR137, FR138, FR139, FR140, FR141 (FR14, FR20, FR60, FR61, FR62, FR95, FR100, FR127, FR132 and FR133 amended; Stories 2.4, 2.8, 2.9, 3.5, 3.10 and 7.4 amended)
+
+**NFRs addressed:** NFR12, NFR17, NFR18, NFR19, NFR20, NFR21, NFR22, NFR28
+
+**UX-DRs addressed:** UX-DR56 (UX-DR53 amended; UX-DR38, UX-DR48, UX-DR52 and UX-DR54 as constraints)
+
+**Implementation notes:**
+- **Decided with the owner, 2026-10-16:** each persona has its own thread; selecting a persona spawns nothing and says nothing; the first message starts the seat, and the activation reply and the answer read as one reply; closing a chat deletes its thread. The owner did not answer the `@name` question, so its default (Story 8.6) is a decision to confirm.
+- **This epic reverses one line of Epic 7, on purpose.** Epic 7 kept the thread as the project's one conversation (FR14, FR60, AD-7, decided 2026-10-13), and Story 7.4 listed "no per-seat thread" among its boundaries and gave its reason: removing one persona's records would need every user turn to name its persona, a change to `UserRecord` and to stored transcripts. The owner has now asked for exactly that. Story 8.1 makes the change as an additive optional `agentId` on `UserRecord` and `SyslineRecord`, and attributes the records already stored.
+- **The spec moved first.** `SPEC.md` now carries CAP-15 and a rewritten CAP-8, and its non-goal reads "chat-app information architecture beyond one thread per persona". `SPEC.md` was not touched for Epic 7's thread rule; this epic closes that drift. The Architecture Spine carries it: AD-7 is amended and AD-30 added (2026-10-17), with dated notes on AD-3, AD-11, AD-18, AD-21, AD-25, AD-26 and AD-29.
+- **Most of what the owner described is already built.** Background seats stay live (FR132, Story 7.4) and `close session` ends one seat alone. The code evidence found only the tile click spawning a session, which wrote the persona's activation turn at open (`session-process.ts:383`); a first message to a persona who is not live already opens the session on first use.
+- **Three consequences the owner did not name, raised by reading Stories 3.5 and 3.10:** another persona's running card no longer collapses to a line in the viewed chat, since that chat holds only its own persona's records, so its stop control is reached by turning to that persona; a notification click turns the view to that persona's chat, since it names a card the user could not otherwise see; and `conversation.end` still ends everything. Story 8.4 states the first two.
+- **Sequencing:** 8.1, then 8.2, then 8.3; 8.4, 8.5 and 8.6 in any order after 8.1; 8.7 last.
 
 ---
 
@@ -1413,6 +1452,8 @@ So that the room contains people rather than a chat surface with portraits attac
 **Given** one session per active persona
 **Then** a session is not opened per run, and the same session serves every subsequent turn.
 
+*Amended 2026-10-17 (Epic 8, Stories 8.2 and 8.3; FR138, FR139).* "Activating a tile opens that persona's session" no longer holds: selecting a tile opens the persona's chat and spawns nothing; the session opens at the first message, which writes `/<agentId>` as its first stdin turn and then the message. Everything else here stands (the argv, one session per persona, the serialised turn, the error codes).*
+
 ### Story 2.5: Type while they work
 
 As someone who thinks of something mid-turn,
@@ -1540,6 +1581,8 @@ So that ending a conversation is something I choose rather than something that h
 
 *Amended 2026-10-13 (Epic 7, Story 7.4; FR133).* `conversation.end(projectId)` stays the only thing that clears a transcript. A seat can now also be ended alone, by the header's `close session`, which closes that persona's session and clears its context and removes nothing from the transcript; the harness writes one line saying so. The lifecycle rules above, no suggestion, no highlight, no badge, hold for both.
 
+*Amended 2026-10-17 (Epic 8, Story 8.5; FR140).* "Ending a conversation" is now two things: the header's `close session` ends one persona's session and deletes that persona's thread, and `conversation.end(projectId)` ends every session and deletes every thread, as it clears everything today. `conversation.end` is no longer the only thing that clears any of a transcript; it is still the only whole clear.*
+
 ### Story 2.9: Hand the work to the next persona
 
 As someone moving through the pipeline,
@@ -1603,6 +1646,8 @@ So that planning and building happen in one window without a restart or a re-bri
 The file list, `service.written` and `fold/written-paths` no longer feed the line and wait for a cleanup story; transcripts stored before the change keep the old wording. The skill half of `handed to <persona> · <skill>` has no producer in v1 (AD-24).
 
 *Amended 2026-10-13 (Epic 7, Stories 7.3 to 7.5).* Two things above no longer hold. A handoff to a persona whose seat is live **resumes that seat** and does not start a new session (Story 7.4); one whose seat is not live is opened as before. **No `handed to <Name>` sysline is written for a tile click or an `@<name>` any more** (Story 7.4: turning to a seat that was already there is not a handoff); the `@name` chip of Story 2.15 stays, and an `@<name>` with no text after it sends no turn and shows nothing, the window turning to that persona's seat. And the line that the composer "never names or invokes a skill" is retired for one narrow case: `/<name>` at the start of the composer lists and starts a skill (Stories 7.3 and 7.5). `@<name>` is unchanged: it addresses only a persona and parses no skill name.
+
+*Amended 2026-10-17 (Epic 8, Stories 8.1, 8.2 and 8.6; FR137, FR141).* There is no handoff within one conversation: a persona's tile opens that persona's own chat, `@name` turns to it and puts the message in its thread, and what carries the work between personas is the artifacts on disk (CAP-8 as rewritten). The `@name` chip of Story 2.15 stands.*
 
 ### Story 2.10: When a persona stops to ask
 
@@ -2071,6 +2116,8 @@ So that stepping away never costs me the state of the work.
 **Then** it expands to the full form
 **And** focus lands on the card container, **never** on the stop control, which interrupts a running turn when activated.
 
+*Amended 2026-10-17 (Epic 8, Story 8.4; FR137).* A card belonging to a persona the user is not viewing no longer collapses to one line in the viewed chat: that chat holds only its own persona's records, so the card lives in that persona's chat, with its stop control, and the persona's tile `work` dot and the rail say it is running. Turning to the persona shows the card full and live.*
+
 ### Story 3.6: The rail learns who is writing
 
 As someone watching files change,
@@ -2267,6 +2314,8 @@ So that completion reaches me without the product ever nagging.
 
 **Given** the whole product
 **Then** no Dock badge is ever set and no sound is ever played.
+
+*Amended 2026-10-17 (Epic 8, Story 8.4).* Activating a notification raises the window and shows the chat of the persona it names with that run's card in view; it no longer "does not switch persona", because the card is in that persona's own chat. It still starts nothing and opens no document window.*
 
 ### Story 3.11: Nothing this epic promised not to do
 
@@ -3910,6 +3959,8 @@ So that clicking a name turns to someone who was already there, and ending a sea
 
 **Boundaries:** no cap and no automatic ending of any seat; no resume across a relaunch; no per-seat thread, no change to `UserRecord`, `SyslineRecord` or the stored transcript; no change to the room (Epic 4); no message passing between personas; `conversation.end` keeps ending everything and clearing the transcript.
 
+*Amended 2026-10-17 (Epic 8, Stories 8.1 to 8.6; FR133 as amended).* The Boundaries line "no per-seat thread, no change to `UserRecord`, `SyslineRecord` or the stored transcript" is lifted on purpose (Epic 8 adds `agentId` to both records). Ending a seat from the header now deletes that persona's thread and writes no `session closed` line. Everything else here stands: no cap, no automatic ending, no resume across a relaunch, `conversation.end` the only whole clear, and the live dot, now shown when the first message's session is attached and not on selection.*
+
 ### Story 7.5: Start a chat from a skill, with no persona
 
 As someone who wants to run a skill and not talk to anyone first,
@@ -4002,5 +4053,269 @@ So that a later change cannot add a launcher, an owner or an unsanitised page wi
 **Then** `EXPERIENCE.md` and `DESIGN.md` describe the drill-in, the chat's markdown, the `/` list, the seat and its dot, the empty chat and the skill-first turn as built, and say what the epic did not build (resume across a relaunch, a cap, a persona inferred from what is typed).
 
 **Decisions to confirm before build (defaults in brackets):** this story also performs the document amendments above, as Stories 1.13 and 6.9 did [yes].
+
+**Boundaries:** no feature work; no change to any surface beyond what a failing prohibition requires.
+
+---
+
+## Epic 8: A chat per persona
+
+*Added 2026-10-17 from a request by the owner (Sherif), made to John (PM) and carried into `SPEC.md` (CAP-15, CAP-8 rewritten, the non-goal reworded) before this epic was written. Evidence below was read from the code at HEAD `c0529ec`; each story's spec re-reads it.*
+
+### Story 8.1: A thread for each persona
+
+As someone who talks to more than one persona,
+I want each persona's conversation kept apart from the others',
+So that opening John shows what John and I said and nothing Mary said.
+
+**Implements:** FR137 · UX-DR56 · NFR12, NFR17, NFR18, NFR22, NFR28 (FR14 and FR60 amended where they stand)
+
+**Evidence:** read from the code: `PersonaRecord` already carries `agentId`; `UserRecord` and `SyslineRecord` carry none (`src/shared/conversation.ts:16-27, 46-59, 68-84`), so a persona's user turns and harness lines cannot be told apart from another's. A room's records and a skill-first session's are kept apart by flags on each record (`room`, `skillSession`), and `removeSkillSession` (`src/main/fold/transcript.ts:96-101`) is the existing template for taking one thread out. The persona view draws every non-room, non-skill entry of every persona: `Turns` in `src/renderer/ui/chat/transcript.tsx:160-170` is the only filter. The store is one JSON file per project (`TranscriptFile`, version 1, `sources/persistence/transcript-file.ts:50-53`). `RunCardSnapshot.agentId` is optional. `tests/epic-7-audit.dom.test.tsx:766-851` pins "the thread is the project's one thread".
+
+**Acceptance Criteria:**
+
+**Given** main records a user turn, a persona's speech or a harness line that belongs to a persona's session
+**Then** each carries that persona's id: `UserRecord` and `SyslineRecord` gain an optional `agentId`, set by main when it records them and never by the renderer, and `PersonaRecord` is unchanged (FR137)
+**And** a record is in a persona's thread when it has an `agentId`, no `room` flag and no `skillSession`: that predicate is declared once in `src/shared/` and used by the renderer's filter, main's removal and the empty-thread test (a room's persona speech carries an `agentId` and `room`, and is the room's)
+**And** the live `harness:said` event carries the same optional `agentId`, so a live line and its stored record agree, and the renderer copies the id an event carries and never infers one.
+
+**Given** two personas who each have turns
+**When** the user views one
+**Then** the thread draws only that persona's records and that persona's run cards, in time order, and none of the other's
+**And** switching from one to the other adds, moves or removes no record in the stored transcript, and a thread switched to lands at its bottom (FR112).
+
+**Given** the room's thread and a skill-first session's thread
+**Then** they are unchanged, no record of either appears in a persona's thread, and no persona's record appears in theirs.
+
+**Given** a transcript stored before this story, whose user turns and harness lines carry no `agentId`
+**Then** main attributes each **once, on the first read after this change**, by one pure fold, and persists the tags with the next write, so a later deletion by tag is exact: a user turn to the persona of the next persona turn after it, a harness line to the persona of the nearest persona turn before it (or after it, when none precedes), and a record with a persona turn on neither side stays stored and is drawn in no thread, and is cleared by `conversation.end`
+**And** no record is ever dropped by the attribution, the file's `version` is unchanged, and the renderer never does it.
+
+**Given** the renderer's per-conversation state
+**Then** the queued messages, the sent-message record and the empty-thread test are per persona, so one persona's queue never drains into another's session and a persona with turns elsewhere still reads as empty here.
+
+**Given** `conversation.get`
+**Then** it returns the entries with their `agentId`, as an additive optional field; no command or event is added or re-typed, `CONTRACT_VERSION` is unchanged, and the pinned 17 events and 8 commands stand.
+
+**Given** the project's architecture
+**Then** AD-7 is amended and AD-30 is added to the Architecture Spine (done 2026-10-17), and this story builds to them, and `tests/epic-7-audit.dom.test.tsx`'s "one thread" pin is replaced by one that finds a persona's thread holding only its own records.
+
+**Decisions to confirm before build (defaults in brackets):** how a stored transcript's untagged turns and lines are attributed [the rule above, done once and persisted: a user turn to the answerer, a line to the persona before it, an unplaceable record stored and undrawn; measure it on a real stored transcript before the fold is pinned, since a line such as `failed` may sit beside the wrong persona's turn]; whether the transcript stays one file per project [yes: a tag, not a second file, keeps `TranscriptFile` version 1 and `conversation.end` one clear]; AD-7 and AD-30 [done 2026-10-17].
+
+**Boundaries:** no per-persona file; no change to the room, to a skill-first session or to the Board; no cross-persona view and no merged timeline; no unread mark, count or badge on any persona; no change to what a persona says.
+
+### Story 8.2: Select a persona and get an empty chat
+
+As someone choosing who to talk to,
+I want selecting a persona to open their chat and nothing else,
+So that the persona does not speak until I do.
+
+**Implements:** FR138 · UX-DR56 · NFR20, NFR21, NFR22, NFR28 (FR20's timing and Story 2.4 amended where they stand)
+
+**Evidence:** read from the code: a tile click or `Enter`/`Space` on a tile goes Team `select` to Shell `select` to `onActivate` to `conversation.activate` to `ensureSession(agentId, true)` to `bridge.openSession` (`src/renderer/ui/team/team.tsx:97-100`, `shell/shell.tsx:289-296`, `chat/use-conversation.ts:297-325`, `app.tsx:380-389`); arrow keys only move focus (`team.tsx:80-95`). `/<agentId>` is written as the first stdin turn on `spawn` (`src/main/sources/session/session-process.ts:383`), so opening is what greets. On `session:opened` the renderer marks the session live and busy (`chat/conversation-state.ts:814-829`). The renderer-only New session chat is the pattern: one kept per window, no process, registry entry, transcript or persistence (`app.tsx:96-101, 262-292`, `chat-header.tsx:119-133`, Story 7.5). `ThreadIntro` is drawn when a persona is current and the thread is empty (`shell/shell.tsx:386`, `shell/thread-intro.tsx:37`).
+
+**Acceptance Criteria:**
+
+**Given** a persona with no live session
+**When** the user selects their tile, by click or by `Enter` or `Space`
+**Then** the chat opens with that persona's name, initials disc and title in the header and an empty thread, and the composer takes typing
+**And** no process is spawned, `session.open` is not called, nothing is written to any stdin, the persona says nothing, no record of any kind is added to any thread, and the tile shows no live dot and keeps its state (FR138).
+
+**Given** a persona with a live session
+**When** the user selects their tile
+**Then** their existing thread and live dot show as they do now, and no session is opened.
+
+**Given** the arrow keys on the tile list
+**Then** they still only move focus, and focus stays on an activated tile and is not taken by the chat (NFR21).
+
+**Given** an empty persona chat
+**Then** it shows the harness's own orientation line (the existing thread introduction: it is harness text, names no persona's words, has no button, handler or tab stop), the skill row for that persona, and no greeting of any kind from the persona.
+
+**Given** the skill row of an empty chat
+**When** the user presses a skill button
+**Then** that persona's seat starts and the skill is dispatched as that persona's first action, and no greeting is waited on, spoken or shown before it (decision 7 below).
+
+**Given** the window opens, or the project reloads
+**Then** it still opens on the New session chat with no current persona (Story 7.5), and a reload restores each persona's thread from the transcript and shows no persona as live unless its session is.
+
+**Given** every persona selected in turn
+**Then** a test finds zero `session.open` calls and zero processes, and the harness writes no line.
+
+**Decisions to confirm before build (defaults in brackets):** the introduction stays on an empty persona chat [yes: it is harness text and not a persona's words; it carries no greeting]; a skill button on an empty chat starts the seat and dispatches the skill as the first action [yes: the user pressed it; it is as deliberate as a first message].
+
+**Boundaries:** no change to what a tile shows, says or orders; no new state or colour; no change to the live dot's meaning (it holds context, FR132); no greeting suppressed after the first message (Story 8.3).
+
+### Story 8.3: The first message starts the seat
+
+As someone who has just said something to a persona,
+I want them to answer me as one reply,
+So that opening a chat feels like sending a message, not like waking someone and waiting.
+
+**Implements:** FR139 · FR95 and Story 2.4 amended · NFR12, NFR17, NFR19, NFR22
+
+**Evidence:** read from the code: a first message to a persona who is not live is shown as queued, `ensureSession(agentId, false)` opens the session, which writes `/<agentId>` and runs the greeting turn, `session:opened` makes the session busy, and the message is delivered on `session:awaiting-turn` (`chat/use-conversation.ts:597-603`, `conversation-state.ts:185-213, 814, 880-889`). Main refuses a direct send while a turn is in flight (`session/busy`, `session-bridge.ts:350-352`). Spec 2.4 records that a session opens on first use because an activation turn costs model tokens. The pieces of one `messageId` already join into one persona turn.
+
+**Acceptance Criteria:**
+
+**Given** an empty chat for a persona with no live session
+**When** the user sends the first message
+**Then** the user's turn appears in that persona's thread at once as sent, with no dim and no `queued · sends when <Name> finishes` marker (FR139)
+**And** main records the user's turn first, then spawns the session, writes `/<agentId>` as the first stdin turn and then the user's message as the next turn, the two never in flight together (FR98), so the stored order is the user's turn, the activation reply, the answer, and the seat's live dot appears when its process is attached and not before.
+
+**Given** the activation reply and the answer to the message
+**Then** the chat draws them as one persona turn, in the order they arrived, and the persona's words are never edited, reordered, summarised or hidden (FR21, CAP-3)
+**And** main marks the activation reply's pieces with an optional `activation` flag on `PersonaRecord` (AD-30, additive), only a turn so marked is joined with the persona turn that follows it, and adjacency alone joins nothing: a persona's consecutive turns, such as a background subagent waking the main thread, stay separate.
+
+**Given** a second message typed while the activation turn or the answer is still streaming
+**Then** it is queued, dimmed and marked as every later message is (FR99), and sent when the turn before it ends.
+
+**Given** the process fails to start
+**Then** the refusal is one line in that persona's thread, the user's turn stays, nothing is written in any other thread, and nothing is retried (Story 2.4's error handling, unchanged).
+
+**Given** a persona whose session is already live
+**Then** sending is unchanged: no activation turn, no join beyond the one the thread already does.
+
+**Given** a persona chat in the background, whose session is working
+**Then** its turns land in its own thread and in no other, and the viewed chat shows nothing of them.
+
+**Given** `FR95`
+**Then** the argv, the three load-bearing flags and the rule that `/<agentId>` is the first turn on stdin all stand; only the moment changes, from the open of a seat to the first message to it (`SESSION_ARGS` untouched).
+
+**Decisions to confirm before build (defaults in brackets):** the activation reply and the answer render as one persona turn [yes: the flagged activation turn and the turn after it, in order, nothing edited; two separate turns would show the greeting the owner asked not to see unprompted]; the user's first message shows as sent and not queued [yes: the dimmed marker would say the persona is busy with something the user never asked for]; whether the activation reply is shown at all [yes: hiding any of a persona's words would be the harness editing them, FR21].
+
+**Boundaries:** no change to the argv, to `CONTRACT_VERSION`'s rule or to the turn serialisation; no persona turn the user did not cause; the only stored addition is the `activation` flag, and no word is stored differently.
+
+### Story 8.4: A run in a chat you are not looking at stays in its own chat
+
+As someone who started a skill and turned to another persona,
+I want the run to stay in the chat it belongs to,
+So that each chat holds only its own work.
+
+**Implements:** FR137 · UX-DR56 · NFR12, NFR22 (Stories 3.5 and 3.10 amended where they stand)
+
+**Evidence:** read from the code: `pinnedRun(entries, agentId)` and `collapse.viewedId` treat the viewed persona specially for run cards only, so another persona's in-flight run draws as one line in whichever chat is open (`chat/transcript.tsx:53`, Story 3.5, FR33); `RunCardSnapshot.agentId` is optional; the tile's `work` dot, the Agents panel and Recent activity already report a run (FR121, FR122); Story 3.10's notification, once activated, "scrolls the thread to that run's card" and "does not switch persona".
+
+**Acceptance Criteria:**
+
+**Given** John running a skill while the user views Mary
+**Then** Mary's thread shows nothing of the run, neither a card nor the collapsed line, and John's tile keeps its `work` dot, the rail's output row keeps its state and the Agents panel and Recent activity list the run, all as they do now
+**And** the stop control of the run is in John's chat, reachable by turning to him, and is no longer drawn in Mary's.
+
+**Given** the user turns back to John
+**Then** his thread shows the run's card full, live and in place, exactly as if the user had never left, because the card is fed by the run's event stream and not by the view.
+
+**Given** a run that finishes, fails or is stopped while another persona's chat is open
+**Then** the one quiet notification of Story 3.10 is posted as it is now (unfocused window only) and nothing is written into the thread being viewed.
+
+**Given** a notification is activated
+**Then** it raises the window, shows the chat of the persona it names with that run's card in view, and starts nothing (Story 3.10 amended: it now turns the view to that persona's chat, which is the only way to see the card).
+
+**Given** a skill-first session's run or the room
+**Then** neither changes: the run is in the skill session's thread and in Recent activity, and the room keeps its own thread.
+
+**Decisions to confirm before build (defaults in brackets):** another persona's run card stays in that persona's chat only, with the tile's work dot as the signal [yes: it keeps every chat one persona's own]; the notification's activation turns the view to the persona's chat [yes: otherwise it names a card the user cannot see]; whether a one-line pointer to a running persona belongs in the viewed chat [no: it would put another persona's state inside a thread that is not theirs, and the dot already says it].
+
+**Boundaries:** no new badge, count, pulse or colour; the tile's dot vocabulary unchanged; no unread mark on a background chat; no change to how a run is dispatched, stopped or recorded.
+
+### Story 8.5: Close a chat and its history goes with it
+
+As someone who is done with a conversation,
+I want closing a persona's chat to end it and remove it,
+So that the next time I open them the chat is blank.
+
+**Implements:** FR140 · UX-DR56 · NFR12, NFR17, NFR18, NFR19, NFR22 (FR133, FR100 and Stories 2.8 and 7.4 amended where they stand)
+
+**Evidence:** read from the code: `closeSession` for a persona says one `session closed · <Name> starts fresh on the next message` line through `LINES.seatEnded` (`session-voice.ts:47`), kills the process and touches no record (`session-bridge.ts:572-595`). `conversation.end(projectId)` clears the transcript first, then closes every session and clears written files, annotations and runs (`session-bridge.ts:670-700`), and is called from the topbar's End session (`app.tsx:390-396`). `ProjectTranscript` has no per-persona removal; `removeSkillSession` is the template. A persona's stored runs (`StoredRun`), `service.runs`, `service.written[agentId]` and its rail annotations are also held. A queued message for a closed session is dropped on a user close (`conversation-state.ts:831-853`).
+
+**Acceptance Criteria:**
+
+**Given** the header's `close session` on a persona's chat
+**Then** main kills that persona's process, if there is one, and deletes that persona's thread: its records, its stored runs, and whatever main holds keyed to it (written-file bookkeeping, rail annotations, its derived state, so no `error` or `note` dot outlives its thread) (FR140)
+**And** the renderer drops that persona's queued messages and composer draft on the close command's reply, not on a `session:closed` event, because a close with no session emits none
+**And** nothing is written in its place, not the `session closed` line either, because the thread it would sit in is gone
+**And** no other persona's session, thread or file, the room's thread or a skill-first session's is touched.
+
+**Given** the chat after it is closed
+**Then** it shows the empty chat of Story 8.2, the tile reads as a persona with no session, and the next message starts the seat as in Story 8.3.
+
+**Given** a persona whose session ended with a relaunch, so that its thread is stored and nothing is live
+**Then** `close session` is still offered and deletes the thread, and a persona with neither a live session nor a thread offers no `close session`.
+
+**Given** the control
+**Then** it keeps its words, its place and its rules: a lifecycle action, never suggested, highlighted or badged, reachable from the keyboard with the shared focus treatment, and an orphaned persona's chat (Story 2.11) is closed by the same control.
+
+**Given** the topbar's End session, `conversation.end(projectId)`
+**Then** it ends every session and deletes every thread, persona, room and skill-first alike, as it clears the whole transcript today, still fails without changing anything when the clear fails, and remains the only whole clear.
+
+**Given** the contract
+**Then** `session.close` gains an additive `{ agentId }` target beside its `sessionId`, so a persona's thread is closed when it has no live session, and both forms run the same one removal in main; `conversation.end` keeps its declaration, `conversation.get` no longer lists the deleted thread, and `CONTRACT_VERSION` is unchanged (AD-3, AD-30).
+
+**Decisions to confirm before build (defaults in brackets):** a persona removed from the roster keeps a stored thread [yes: it stays stored and undrawn, cleared only by `conversation.end`, while an orphaned session keeps its end control (Story 2.11); listing orphaned threads with their own `close session` is the alternative and the owner's to choose]; `close session` deletes the thread without a confirmation step [yes: the owner asked for delete; Story 2.8's rule that the lifecycle control is never a suggestion stands; a confirm dialog is not added, and the owner may ask for one]; `conversation.end` ends every seat and deletes every persona's, the room's and each skill session's thread [yes: it is the one whole clear and its meaning does not change]; `session closed · <Name> starts fresh` is no longer written for a persona [yes: the thread is deleted, so there is nothing for it to explain].
+
+**Boundaries:** no undo, no archive and no export of a deleted thread; no automatic close of any chat; no cap; nothing in the project's files is touched, since the thread lives under `userData` (the writes-nothing constraint).
+
+### Story 8.6: `@name` turns to another persona's own chat
+
+As someone mid-conversation who wants another persona,
+I want `@name` to take me to their chat,
+So that what I say reaches them and nothing is written into the chat I left.
+
+**Implements:** FR141 · NFR20, NFR21, NFR22 (FR61, FR127 and Story 2.15 amended where they stand)
+
+**Evidence:** read from the code: `@name` goes through `handoffTarget` in the composer, which sets the current persona, activates it and sends with the mention (`app.tsx:481-495`); main records the user's turn with `mention` and no persona id; the `@name` chip is Story 2.15's.
+
+**Acceptance Criteria:**
+
+**Given** `@John hi` typed in Mary's composer
+**Then** the view turns to John's chat, the message is a user turn in John's thread with its `@John` chip, and nothing is written in Mary's thread, which is unchanged (FR141)
+**And** if John has no live session the message is his first message and Story 8.3 applies; if he has one it is a turn to it.
+
+**Given** `@` and a name that is no persona
+**Then** it is a plain message in the chat it was typed in, as today (`@` addresses a persona and never a skill, FR61).
+
+**Given** the room's composer
+**Then** `@name` directs a question at that persona in the room, as FR61 says, and is unchanged.
+
+**Given** Mary's composer after the turn
+**Then** the text she was typing is not carried to John's chat beyond the message sent, and a draft left in either chat stays in that chat.
+
+**Decisions to confirm before build (defaults in brackets):** a message typed as `@name` lands in the named persona's thread [yes: it is addressed to them and would be unreadable in the chat of someone who never saw it]; the view turns to that persona [yes: the user addressed them and expects the answer where they are].
+
+**Boundaries:** `@name` addresses only a persona and is still the only text-driven navigation (FR61); no `handed to` line (Story 7.4 stands); no copy of the message into the chat it was typed in.
+
+### Story 8.7: Nothing this epic promised not to do
+
+As a developer on the harness,
+I want the prohibitions this epic kept, and the thread rule it retired, as tests,
+So that a later change cannot merge the threads, greet unprompted or leak a thread into another without a test saying so.
+
+**Implements:** UX-DR56 · NFR12, NFR17, NFR18, NFR22, NFR28 (the closing audit; Stories 2.13 and 7.6 are the pattern)
+
+**Evidence:** every earlier epic closed with this story (1.14, 2.13, 3.11, 4.6, 6.9, 7.6); the pattern is a mounted-surface audit built from the real projection (`tests/epic-7-audit.dom.test.tsx`, `src/renderer/ui/chat/negative-surface.test.tsx`). This epic changes assertions on purpose: a persona has a thread of its own (replacing "the project's one thread", `epic-7-audit.dom.test.tsx:797`), selecting a persona writes nothing and spawns nothing (replacing the tile-click-opens-a-session pins in `app.test.tsx:451-498` and the first-line pin in `tests/session-contract.test.ts:92`), and closing a chat deletes its thread (replacing the seat-ended line in `session-bridge.test.ts:1703-2000`).
+
+**Acceptance Criteria:**
+
+**Given** every persona selected in turn on a mounted shell
+**Then** a test finds no `session.open`, no process, no stdin write and no record added, and a live dot on no tile.
+
+**Given** the first message to a persona
+**Then** a test finds `/<agentId>` written once, as the first stdin turn and only after that message was sent, and the persona's pieces joined into one turn without an edited word.
+
+**Given** two or three personas with turns, the room and a skill-first session
+**Then** a test finds each thread holding only its own records and run cards, no record in two threads, and the stored transcript byte-identical after any number of switches.
+
+**Given** a persona's chat closed
+**Then** a test finds its records, runs, bookkeeping and annotations gone, nothing written in their place, every other thread and session untouched, and `conversation.end` still clearing everything.
+
+**Given** the shell
+**Then** a test finds no unread mark, count, badge or recommendation on any persona, no `handed to` line from any producer, and no persona suggested as next.
+
+**Given** the contract
+**Then** a test pins `agentId` on `UserRecord`, `SyslineRecord` and `harness:said`, `activation` on `PersonaRecord` and `{ agentId }` as `session.close`'s second target as additive and optional by name and cardinality, `CONTRACT_VERSION` unchanged, and the 17 events and 8 commands as they stand, and finds the one shared membership predicate used by the renderer's filter, main's removal and the empty-thread test.
+
+**Given** the epic's record
+**Then** `EXPERIENCE.md` and `DESIGN.md` describe the persona chat, the empty chat, the first message and the close as built, flag `handed to`, the shared thread and the seat-ended line as superseded where they stood, and say what the epic did not build (a merged timeline, unread marks, undo of a close, a cap); the Architecture Spine carries AD-7 amended; and Stories 2.4, 2.8, 2.9, 3.5, 3.10 and 7.4 carry their notes.
+
+**Decisions to confirm before build (defaults in brackets):** this story also performs the document amendments above, as Stories 1.13, 6.9 and 7.6 did [yes].
 
 **Boundaries:** no feature work; no change to any surface beyond what a failing prohibition requires.

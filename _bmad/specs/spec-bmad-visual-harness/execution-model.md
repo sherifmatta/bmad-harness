@@ -19,6 +19,13 @@ claude -p --input-format stream-json --output-format stream-json \
 `--input-format` is only valid alongside `--print`, so the prompt arrives on the stream.
 Party mode is a session of the same kind, opened with `/bmad-party-mode`.
 
+**The session starts at the user's first message, not at selection (2026-10-16, CAP-15).**
+Selecting a persona spawns nothing and writes nothing; the process is spawned, and
+`/bmad-agent-<x>` written as the first stdin turn, when the user sends that persona's first
+message, which follows as the next turn. The persona's activation reply and its answer to that
+message are one reply in the chat. How the two turns are presented without editing the persona's
+words is left to architecture and its story (`SPEC.md` Open Questions).
+
 Three flags are load-bearing and may not be dropped:
 
 - `--include-partial-messages` is what makes `input_json_delta` exist at all. Without it CAP-5
@@ -33,8 +40,8 @@ A **run** is a turn dispatched from a menu entry; a plain chat turn is not a run
 card. A menu entry carrying a `prompt` rather than a `skill` dispatches its text verbatim as a
 turn — the same path (`bmad-install-contract.md`).
 
-Sessions are reclaimed when the persona is closed or the session ended. They are not held across
-app restarts; the transcript is.
+Sessions are reclaimed when the persona's chat is closed. They are not held across app restarts;
+the persona's thread is. Closing a persona's chat deletes that persona's thread with the session.
 
 **Not the Agent SDK.** The SDK runs the same binary as a library and emits the same events, with
 `interrupt()`, `canUseTool` and hooks as typed callbacks instead of signals and flags. It was

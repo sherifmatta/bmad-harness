@@ -14,8 +14,14 @@ legibility floor).
 Two top-level views behind a single switch — **1:1 Conversation** and **Party Mode** — plus a
 Help entry point. One project per window.
 
-An explicit **end-session** control exists and is the only way to clear a persisted conversation.
-It is a lifecycle control, not a next-step suggestion.
+Each persona has its own chat and thread (CAP-15). Selecting a persona opens their chat with
+their name in the header; one with no conversation is an empty chat that says nothing until the
+user does. Other personas' chats stay live in the background.
+
+An explicit **close-session** control sits in each chat's header and is the only way to clear a
+persisted conversation; it ends that persona's session and deletes that persona's thread, and
+touches no other chat. It is a lifecycle control, not a next-step suggestion. (What the
+all-sessions `conversation.end` becomes is an open question in `SPEC.md`.)
 
 ## 1:1 Conversation
 

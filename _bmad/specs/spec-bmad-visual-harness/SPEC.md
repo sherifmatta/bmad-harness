@@ -58,9 +58,10 @@ pushing back on you, and a face attached to him.
   - **intent:** The user reviews a finished document at full size without losing the conversation.
   - **success:** Clicking a rail entry opens a separate window rendering that file read-only, reloading when the file changes on disk, with routes out to Finder and the user's editor.
 
-- **CAP-8** — persona handoff mid-session
-  - **intent:** One conversation moves across personas as the work moves through the pipeline.
-  - **success:** A single unbroken conversation runs John for PRD, epics and sprint planning, then hands to Amelia to build. No handoff presents as a restart, a new thread or a cleared history. Continuity across a handoff is carried by the artifacts the previous persona wrote, not by transplanting context — the receiving persona can pick up the work from what is on disk.
+- **CAP-8** — work moves between personas through their artifacts
+  - **intent:** The work moves across personas as it moves through the pipeline, each persona in its own chat.
+  - **success:** John writes the PRD, epics and sprint plan in his chat; the user turns to Amelia's chat and she builds from what John left on disk. Nothing is carried between chats but the artifacts the previous persona wrote — no context is transplanted, and no chat shows another persona's conversation. The receiving persona picks up the work from the files.
+  - **note (2026-10-16):** rewritten by the owner's decision (CAP-15). It replaces "a single unbroken conversation runs John … then hands to Amelia", which assumed one thread shared by every persona. The artifact-carried mechanism is unchanged; the one-conversation promise is retired.
 
 - **CAP-9** — party mode
   - **intent:** The user convenes a room of personas in one conversation they participate in, before the pipeline starts.
@@ -79,12 +80,17 @@ pushing back on you, and a face attached to him.
   - **intent:** The user learns that a run ended early, how far it got, and what to do next, without reading logs.
   - **success:** An error state renders on the persona tile and the document card; the persona states in conversation which section it reached and what failed, and offers to resume; the partial file remains on disk and the rail row reports the section reached. The section reached is taken from the last confirmed write, never from an announced one — see `execution-model.md`.
 
+- **CAP-15** — a chat per persona
+  - **intent:** The user switches between team members as in a chat app: each persona has their own conversation, and turning to one does not wake, interrupt or share a thread with another.
+  - **success:** Selecting a persona — by tile, keyboard cycling or `@name` — opens that persona's own chat with their name in the header and shows only that persona's conversation. A persona with no conversation yet opens an empty chat that spawns no process, writes no activation turn, shows no greeting and carries no live dot; nothing is said until the user sends a first message, and the first message starts the persona's session, whose activation reply arrives as the answer to it. Selecting another persona leaves the first chat and its session alive in the background, with no cap. The header's `close session` ends that persona's session and deletes that persona's thread; the next selection opens a blank chat; no other chat is touched. `@name` opens the named persona's own chat and writes nothing into the chat it was typed in. Identity and style are still never harness-injected, and the harness still authors none of a persona's words (CAP-3).
+  - **note (2026-10-16):** added by the owner's decision, amending the one-thread rule recorded in `epics.md` (FR14, FR60, FR132, FR133, Story 7.4's "no per-seat thread" boundary). What `conversation.end` becomes is open (see Open Questions).
+
 ## Constraints
 
 - Do not redesign the BMad method. The waterfall pipeline is good and stays — brief → PRD → epics and stories → build → review → launch. Only the surface is replaced. The serialism of the *method* is binding; the serialism of the *interaction* is not, and personas may run concurrently (`ARCHITECTURE-SPINE.md` AD-11).
 - It must not read as a chat box with a portrait glued on. If it does, it has failed regardless of feature completeness.
 - No second source of truth. The rail reflects the filesystem; the harness never maintains its own model of project state. The live document card is the one thing that renders ahead of disk, because it shows a write still in flight — it is a view of the running skill, never a claim about what the project contains.
-- The harness writes nothing into the project. Every byte under `_bmad/` got there because the runtime wrote it; the harness's own transcripts, logs, caches and window state live outside the project root, persisted per project. This is what makes the previous constraint structural rather than a matter of discipline. A conversation survives a restart; the running sessions behind it do not, and an explicit end-session control is the only thing that clears one.
+- The harness writes nothing into the project. Every byte under `_bmad/` got there because the runtime wrote it; the harness's own transcripts, logs, caches and window state live outside the project root, persisted per project. This is what makes the previous constraint structural rather than a matter of discipline. A persona's conversation survives a restart; the running session behind it does not, and an explicit close-session control is the only thing that clears one — it clears that persona's conversation and no other (CAP-15).
 - Effective BMad configuration comes only from BMad's own resolvers, never from reading its config files directly — raw files omit the project's overrides (`ARCHITECTURE-SPINE.md` AD-8). The harness implements no configuration layering of its own. This is what stops it rotting when BMad updates.
 - The harness reads the BMad install; it never grows its own model of how BMad runs. A skill is executed by handing it to the installed runtime, not by reimplementing its steps.
 - Zero configuration is not zero prerequisites. Launch verifies its prerequisites and reports the specific one that is missing with its remedy; it never opens to an empty room with no explanation (`ARCHITECTURE-SPINE.md` AD-17).
@@ -99,7 +105,7 @@ pushing back on you, and a face attached to him.
 
 ## Non-goals
 
-- Chat-app information architecture — channels, multiple simultaneous threads, group workspaces. Cut as overbuild; this is not a chat app rebuild.
+- Chat-app information architecture beyond one thread per persona — channels, cross-persona threads, group workspaces. Cut as overbuild; this is not a chat app rebuild. (Reworded 2026-10-16: it previously cut every multiple-thread arrangement; one thread per persona is now in scope, CAP-15.)
 - Async or overnight autonomous work.
 - Agents picking up unstarted work unprompted.
 - Opinionated next-step guidance. Explicitly rejected by the user, not merely deferred.
@@ -112,10 +118,10 @@ Everything on this list was cut for the same reason: it was autonomy. Deferred-b
 
 An engineer who had gone back to the terminal runs a session in the harness — presses
 *Create PRD*, watches John write it section by section, argues with him about a requirement,
-sees the file settle in the rail, then hands off to Amelia to build — and keeps using the
-harness for the next project instead of returning to the terminal. The demonstrable form is
-that continuous cross-persona session; the failing form is the engineer who tries it twice and
-goes back.
+sees the file settle in the rail, then turns to Amelia's own chat and has her build from what
+John wrote — and keeps using the harness for the next project instead of returning to the
+terminal. The demonstrable form is that pipeline run across persona chats, carried by the
+artifacts on disk; the failing form is the engineer who tries it twice and goes back.
 
 ## Assumptions
 
@@ -129,5 +135,8 @@ goes back.
 ## Open Questions
 
 - **Closed.** Can a run be stopped without also ending the persona's session? Yes: an in-band interrupt on the session's stdin stops the turn and leaves the session alive, while `SIGINT` ends it (`execution-model.md` *Stop and failure*; `../../spikes/spike-stop-semantics.md`).
-- Does a conversation that is continuous in transcript and artifacts, but not in process, satisfy the demonstrable form of the success signal and CAP-8? Needs confirming before the build commits.
+- **Superseded 2026-10-16.** Does a conversation that is continuous in transcript and artifacts, but not in process, satisfy CAP-8? Per-persona chats (CAP-15) make cross-persona continuity artifact-only by design, so the question no longer applies.
+- What does `conversation.end` — today ends every session and clears the whole transcript — become under per-persona threads: end every session and delete every persona's thread, or give way to the per-chat `close session`? Settle before the story that touches it.
+- On a persona's first message the harness writes `/bmad-agent-<x>` and then the message, so the persona answers twice: an activation reply, then the answer. The owner accepted that both read as one reply; how they are presented without the harness editing a persona's words (CAP-3) is for architecture.
+- `@name` typed in one persona's chat opens the named persona's own chat and writes nothing into the current one. Taken as the default; the owner has not confirmed it.
 - Does a composer that queues a message typed during a twelve-minute run read as honest, or as broken? Queued-and-visible is the intent; only real use decides.
