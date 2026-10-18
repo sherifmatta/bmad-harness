@@ -57,8 +57,9 @@ const NO_RUNS: ReadonlySet<string> = new Set()
  *
  * The thread holds the install's errors, then the conversation's turns: a
  * persona's own words as they arrive and the user's own sends, and the sysline
- * main writes when the work is handed on. Selecting a tile opens that persona's
- * session, and leaves focus on the tile; the composer under the thread is keyed
+ * main writes when the work is handed on. Selecting a tile turns the chat to that
+ * persona and nothing else (Story 8.2): no session opens until the first message,
+ * and focus stays on the tile; the composer under the thread is keyed
  * by the current persona and sends to theirs, except that `@<name>` at the start
  * of a message hands the conversation to that persona instead (Story 2.9). The
  * window holds which persona is current so both ways move it.
@@ -388,10 +389,10 @@ export function App(): JSX.Element | null {
           // A tile turns the chat to its persona; the New session chat is left kept, as it was.
           setChat('persona')
         }}
-        onActivate={(agentId) => {
-          // A tile never moves focus, so nothing is waiting to take it.
+        onActivate={() => {
+          // Selecting a tile is renderer-only (Story 8.2): `onCurrentChange` turned the chat, and nothing
+          // is called in main. A tile never moves focus, so nothing is waiting to take it.
           setComposerFocus(null)
-          void conversation.activate(agentId)
         }}
         onEndSession={() => {
           void conversation.end(projectPath).then((ended) => {
@@ -473,13 +474,15 @@ export function App(): JSX.Element | null {
             key={`composer-${agent.id}`}
             agentName={agent.name}
             head={
-              // The persona's skills, once it has a live session to run them in. The
-              // row sends a code and nothing else; it is held while a turn is in flight.
-              conversation.sessionOf(agent.id) === undefined ? undefined : (
+              // The persona's skills: drawn when it has a live session to run them in, or its thread holds
+              // none of its records (the empty chat, Story 8.2). The row sends a code and nothing else; it is
+              // held while a turn is in flight and until a session exists, so on an empty chat it starts nothing.
+              conversation.sessionOf(agent.id) === undefined &&
+              conversation.entries.some((entry) => isEntryInPersonaThread(entry, agent.id)) ? undefined : (
                 <SkillRow
                   name={agent.name}
                   items={items}
-                  disabled={!conversation.canAnswer(agent.id)}
+                  disabled={conversation.sessionOf(agent.id) === undefined || !conversation.canAnswer(agent.id)}
                   onRun={(code) => conversation.runSkill(agent.id, code)}
                 />
               )

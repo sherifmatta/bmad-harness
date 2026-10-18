@@ -660,7 +660,15 @@ describe('the seat rail, in the whole App (Stories 7.4 and 7.5)', () => {
 
     const seatsToEnd: [string, () => Promise<void>, string][] = [
       ['Mary', () => chooseTile('Mary'), 'close session · Mary'],
-      ['Sally, whose seat the click opens', () => chooseTile('Sally'), 'close session · Sally'],
+      [
+        'Sally, whose seat a first message opened',
+        async () => {
+          await chooseTile('Sally')
+          act(() => bridge.push({ name: 'session:opened', payload: { sessionId: 's-sally', agentId: SALLY.id, at: NOW } }))
+          act(() => bridge.push({ name: 'session:awaiting-turn', payload: { sessionId: 's-sally', at: NOW } }))
+        },
+        'close session · Sally'
+      ],
       ['a live skill seat', () => chooseSeat(1), 'close session · bmad-build'],
       ['an ended skill seat', () => chooseSeat(2), 'close session · bmad-code-review']
     ]

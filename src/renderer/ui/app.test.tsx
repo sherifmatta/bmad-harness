@@ -448,7 +448,7 @@ describe('App, the Board', () => {
 })
 
 describe('App, the conversation glue', () => {
-  it('opens the selected persona’s session, remounts the composer for them, and sends their text to their session', async () => {
+  it('turns to the selected persona without opening a session, remounts the composer for them, and a first message opens theirs', async () => {
     await mountOnMary()
 
     // The window opens on the topmost persona with a composer and no session.
@@ -459,7 +459,7 @@ describe('App, the conversation glue', () => {
     act(() => tile('John').click())
     await settle()
 
-    expect(opened).toEqual([john.id])
+    expect(opened).toEqual([])
     expect(tile('John').getAttribute('aria-current')).toBe('true')
     // Keyed by agent id: the other persona's draft did not come along.
     expect(field().value).toBe('')
@@ -475,7 +475,7 @@ describe('App, the conversation glue', () => {
     expect(sent).toEqual([[`session-of-${john.id}`, 'hello john']])
   })
 
-  it('opens no session until a persona is chosen, and a send to the one chosen opens no other (Story 7.5)', async () => {
+  it('opens no session until a first message, and a send to the persona chosen opens no other (Story 7.5)', async () => {
     mounted = mount(createElement(App))
     await settle()
     await settle()
@@ -485,7 +485,7 @@ describe('App, the conversation glue', () => {
 
     act(() => tile('Mary').click())
     await settle()
-    expect(opened).toEqual([mary.id])
+    expect(opened).toEqual([])
 
     type(field(), 'hello mary')
     act(() => {
@@ -833,7 +833,7 @@ describe('App, turning to the next persona', () => {
     act(() => tile('John').click())
     await settle()
 
-    expect(opened).toEqual([mary.id, john.id])
+    expect(opened).toEqual([])
     // John's chat holds none of Mary's words (Story 8.1): it is his own, and empty.
     expect(thread()).toEqual(['thread-intro'])
     expect(mounted!.container.querySelector('.sysline')).toBeNull()
@@ -864,7 +864,7 @@ describe('App, turning to the next persona', () => {
     expect(mounted!.container.querySelectorAll('.visually-hidden')).toHaveLength(1)
   })
 
-  it('writes and announces nothing when the current tile is activated again, though main is asked', async () => {
+  it('writes and announces nothing when the current tile is activated again, and asks nothing of main', async () => {
     await start()
     act(() => tile('Mary').click())
     await settle()
@@ -872,7 +872,7 @@ describe('App, turning to the next persona', () => {
     act(() => tile('Mary').click())
     await settle()
 
-    expect(opened).toEqual([mary.id, mary.id])
+    expect(opened).toEqual([])
     expect(mounted!.container.querySelector('.sysline')).toBeNull()
     expect(await announced()).toBe('')
   })
@@ -920,8 +920,8 @@ describe('App, turning to the next persona', () => {
     await start()
     await say(text)
 
-    // Mary's seat was opened by turning to her tile, in the setup; the text asks for no other.
-    expect(opened).toEqual([])
+    // The first message opens Mary's seat (turning to her tile did not); the text asks for no other.
+    expect(opened).toEqual([mary.id])
     expect(sent).toEqual([[`session-of-${mary.id}`, text]])
     expect(mounted!.container.querySelector('.sysline')).toBeNull()
     expect(mounted!.container.querySelector('.turn--user')?.textContent).toContain(text)
@@ -1066,8 +1066,9 @@ describe('App, when a persona stops to ask', () => {
     act(() => options()[0].click())
     await settle()
 
-    // Turning to her tile found her seat live: the fake bridge names it as the open's reply does.
-    expect(sent).toEqual([[`session-of-${mary.id}`, 'Postgres']])
+    // Her seat was live from session:opened, and turning to her tile opened nothing more.
+    expect(sent).toEqual([['s-mary', 'Postgres']])
+    expect(opened).toEqual([])
     expect(field().getAttribute('aria-label')).toBe('Message Mary')
     expect(tile('Mary').getAttribute('aria-current')).toBe('true')
     expect(document.activeElement).toBe(field())
@@ -1194,12 +1195,12 @@ describe('App, a session that outlives the install changing under it', () => {
     await live()
     reinstall([agent('bmad-agent-dev', 'Amelia')])
 
-    // In the order their sessions were opened: John's tile was the window's first.
-    expect(headers().map((header) => header.querySelector('.chat-head-name')?.textContent)).toEqual(['John', 'Mary'])
+    // In the order their sessions were opened: Mary's was the first.
+    expect(headers().map((header) => header.querySelector('.chat-head-name')?.textContent)).toEqual(['Mary', 'John'])
 
     act(() => closeButtons()[1].click())
     await settle()
-    expect(closedSessions).toEqual(['s-mary'])
+    expect(closedSessions).toEqual(['s-john'])
   })
 
   it('keeps a header, and its failure line off the orphan, when main refuses the close', async () => {
@@ -1404,15 +1405,24 @@ describe('App, pressing a skill button (Story 3.1)', () => {
     }
   })
 
-  it('shows the row once the persona is live, sends the code alone, and draws the run’s card as it writes', async () => {
+  it('draws the row disabled on an empty chat, enables it once the persona is live, sends the code alone, and draws the run’s card as it writes', async () => {
     mounted = mount(createElement(App))
     await settle()
     await settle()
-    // No session yet: no row.
+    // The New session chat: no persona, no row.
     expect(buttons()).toEqual([])
 
     act(() => tile('Mary').click())
     await settle()
+    // An empty chat with no session: the row is drawn and held, and pressing a button starts nothing (Story 8.2).
+    expect(buttons().every((button) => button.disabled)).toBe(true)
+    act(() => buttons()[0].click())
+    await settle()
+    expect(dispatched).toEqual([])
+    expect(opened).toEqual([])
+
+    push({ name: 'session:opened', payload: { sessionId: `session-of-${mary.id}`, agentId: mary.id, at: 1 } })
+    push({ name: 'session:awaiting-turn', payload: { sessionId: `session-of-${mary.id}`, at: 2 } })
     const row = mounted.container.querySelector('.skill-row')
     expect(row?.querySelector('.skill-row-label')?.textContent).toBe('Mary can')
     expect(buttons().map((button) => button.textContent)).toEqual(['CPCreate the PRD', 'VPValidate a PRD'])
@@ -1537,6 +1547,7 @@ describe('App, the whole menu and only the menu (Story 3.2)', () => {
   it('holds every skill button for a turn in flight and not the toggle or the composer, and not for a live persona', async () => {
     await openMary()
     const session = sessionOf(mary.id)
+    push({ name: 'session:opened', payload: { sessionId: session, agentId: mary.id, at: 0 } })
     push({ name: 'session:awaiting-turn', payload: { sessionId: session, at: 1 } })
     push({ name: 'persona:state', payload: { agentId: mary.id, state: 'live', at: 2 } })
     expect(buttons().every((button) => !button.disabled)).toBe(true)
@@ -2943,7 +2954,8 @@ describe('App, the `/` list (Story 7.3)', () => {
     await settle()
 
     expect(mounted!.container.querySelector('[role="listbox"]')).toBeNull()
-    expect(opened).toEqual([mary.id, john.id])
+    // Choosing Mary's tile opened nothing; the `@John` handoff opened John's.
+    expect(opened).toEqual([john.id])
     expect(sent).toEqual([['session-of-bmad-agent-pm', 'hello', '@John']])
   })
 })
@@ -3508,5 +3520,207 @@ describe('App, the New session chat and a skill-first session (Story 7.5)', () =
       expect(field().value).toBe('')
       expect(thread().textContent).toBe('')
     })
+  })
+})
+
+describe('App, selecting a persona gives an empty chat (Story 8.2)', () => {
+  const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
+  const thread = (): string[] => [...mounted!.container.querySelectorAll('.thread > *')].map((node) => node.className)
+  const buttons = (): HTMLButtonElement[] => [...mounted!.container.querySelectorAll<HTMLButtonElement>('button.skill-button')]
+  const arrow = (key: string): void =>
+    act(() => void document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })))
+  const sysline = (): Element | null => mounted!.container.querySelector('.sysline')
+
+  /** A click, or the native button's own activation by a key: `Enter` or `Space` fires the click the key down was not stopped from. */
+  function choose(name: string, how: 'click' | 'Enter' | 'Space'): void {
+    const target = tile(name)
+    target.focus()
+    act(() => {
+      if (how === 'click') {
+        target.click()
+        return
+      }
+      const down = new KeyboardEvent('keydown', { key: how === 'Space' ? ' ' : 'Enter', bubbles: true, cancelable: true })
+      target.dispatchEvent(down)
+      if (!down.defaultPrevented) target.click()
+    })
+  }
+
+  beforeEach(() => {
+    const harness = window.harness as unknown as Record<string, unknown>
+    harness.getInstall = async () => ({
+      ...snapshot,
+      menus: { [mary.id]: [{ code: 'CP', description: 'Create the PRD' }], [john.id]: [{ code: 'CP', description: 'Create the PRD' }] }
+    })
+  })
+
+  async function mountApp(): Promise<void> {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+  }
+
+  it('opens on the New session chat with no persona current and nothing open', async () => {
+    await mountApp()
+
+    expect(mounted!.container.querySelector('.chat-head-name')?.textContent).toBe('New session')
+    expect(mounted!.container.querySelector('button.persona-tile[aria-current]')).toBeNull()
+    expect(opened).toEqual([])
+  })
+
+  it.each(['click', 'Enter', 'Space'] as const)(
+    'selecting every persona by %s opens nothing, writes nothing and shows no live dot',
+    async (how) => {
+      await mountApp()
+      const before = mounted!.container.querySelectorAll('.thread .turn, .thread .sysline').length
+
+      for (const [name, title] of [['Mary', 'Role'], ['John', 'Role']] as const) {
+        choose(name, how)
+        await settle()
+
+        expect(tile(name).getAttribute('aria-current')).toBe('true')
+        expect(tile(name).getAttribute('aria-label')).toBe(`${name}, ${title}, idle`)
+        expect(mounted!.container.querySelector('.chat-head-name')?.textContent).toBe(name)
+        expect(mounted!.container.querySelector('.chat-head-title')?.textContent).toBe(title)
+        expect(mounted!.container.querySelector('.chat-head .initials')).not.toBeNull()
+        // The introduction alone: no turn, no greeting, no line.
+        expect(thread()).toEqual(['thread-intro'])
+        expect(sysline()).toBeNull()
+        expect(mounted!.container.querySelectorAll('.thread .turn, .thread .sysline')).toHaveLength(before)
+        // The introduction carries no button, and the chat has no close control (no session, no thread).
+        expect(mounted!.container.querySelector('.thread-intro button, .thread-intro [tabindex], .thread-intro a')).toBeNull()
+        expect(mounted!.container.querySelector('.chat-head button.chat-close')).toBeNull()
+        // The skill row is drawn and held; the composer is not.
+        expect(buttons()).toHaveLength(1)
+        expect(buttons().every((button) => button.disabled)).toBe(true)
+        expect(field().disabled).toBe(false)
+        expect(field().getAttribute('aria-label')).toBe(`Message ${name}`)
+        // Focus stays on the tile that was activated.
+        expect(document.activeElement).toBe(tile(name))
+      }
+
+      expect(opened).toEqual([])
+      expect(sent).toEqual([])
+      expect(dispatchedMenus).toEqual([])
+      expect(roomCasts).toEqual([])
+      expect(firsts).toEqual([])
+      expect(mounted!.container.querySelectorAll('.visually-hidden')).toHaveLength(1)
+      expect(mounted!.container.querySelector('.visually-hidden')?.textContent).toBe('')
+    }
+  )
+
+  it('does nothing when a held skill button is pressed, and the composer takes typing without taking focus', async () => {
+    await mountApp()
+    choose('Mary', 'click')
+    await settle()
+
+    act(() => buttons()[0].click())
+    await settle()
+    expect(dispatchedMenus).toEqual([])
+    expect(opened).toEqual([])
+    expect(sent).toEqual([])
+    expect(thread()).toEqual(['thread-intro'])
+
+    tile('Mary').focus()
+    type(field(), 'a draft')
+    expect(field().value).toBe('a draft')
+    expect(document.activeElement).toBe(tile('Mary'))
+    expect(opened).toEqual([])
+  })
+
+  it('leaves focus on the tile when a composer focus request for that persona is still pending', async () => {
+    await mountApp()
+    choose('Mary', 'click')
+    await settle()
+    // An `@John` handoff from Mary's chat leaves a focus request pending for John's composer.
+    type(field(), '@John')
+    act(() => {
+      field().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    })
+    await settle()
+
+    choose('Mary', 'click')
+    await settle()
+    choose('John', 'click')
+    await settle()
+
+    expect(document.activeElement).toBe(tile('John'))
+    expect(document.activeElement).not.toBe(field())
+  })
+
+  it('moves focus alone on the arrow keys, selecting nothing', async () => {
+    await mountApp()
+    choose('Mary', 'click')
+    await settle()
+    tile('Mary').focus()
+
+    arrow(['Arrow', 'Down'].join(''))
+    await settle()
+
+    expect(document.activeElement).toBe(tile('John'))
+    expect(tile('Mary').getAttribute('aria-current')).toBe('true')
+    expect(tile('John').hasAttribute('aria-current')).toBe(false)
+    expect(mounted!.container.querySelector('.chat-head-name')?.textContent).toBe('Mary')
+    expect(opened).toEqual([])
+  })
+
+  it('shows a live persona’s existing thread and dot on selection, with no second open and the row enabled', async () => {
+    await mountApp()
+    push({ name: 'session:opened', payload: { sessionId: 's-mary', agentId: mary.id, at: 1 } })
+    push({
+      name: 'persona:said',
+      payload: { sessionId: 's-mary', agentId: mary.id, messageId: 'm1', text: 'Hello from Mary', at: 2 }
+    })
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 's-mary', at: 3 } })
+    push({ name: 'persona:state', payload: { agentId: mary.id, state: 'live', at: 4 } })
+
+    choose('John', 'click')
+    await settle()
+    expect(thread()).toEqual(['thread-intro'])
+    choose('Mary', 'click')
+    await settle()
+
+    expect(opened).toEqual([])
+    expect(tile('Mary').getAttribute('aria-label')).toBe('Mary, Role, live')
+    expect(mounted!.container.querySelector('.thread')?.textContent).toContain('Hello from Mary')
+    expect(mounted!.container.querySelector('.thread-intro')).toBeNull()
+    expect(buttons()).toHaveLength(1)
+    expect(buttons().every((button) => !button.disabled)).toBe(true)
+  })
+
+  it('draws a stored thread with no introduction, no live dot and no skill row when there is no session', async () => {
+    conversationNow = () => ({
+      entries: [{ kind: 'persona', id: 'e1', agentId: mary.id, messageId: 'm1', text: 'From before', at: 1 }],
+      sessions: [],
+      busy: [],
+      personas: [],
+      runs: []
+    })
+    await mountApp()
+
+    choose('Mary', 'click')
+    await settle()
+
+    expect(opened).toEqual([])
+    expect(mounted!.container.querySelector('.thread')?.textContent).toContain('From before')
+    expect(mounted!.container.querySelector('.thread-intro')).toBeNull()
+    expect(tile('Mary').getAttribute('aria-label')).toBe('Mary, Role, idle')
+    expect(buttons()).toEqual([])
+  })
+
+  it('still opens the seat on a first message and delivers it', async () => {
+    await mountApp()
+    choose('Mary', 'click')
+    await settle()
+    expect(opened).toEqual([])
+
+    type(field(), 'hello mary')
+    act(() => {
+      field().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    })
+    await settle()
+
+    expect(opened).toEqual([mary.id])
+    expect(sent).toEqual([[`session-of-${mary.id}`, 'hello mary']])
   })
 })

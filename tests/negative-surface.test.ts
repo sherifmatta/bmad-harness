@@ -1508,15 +1508,15 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
       ).toEqual([]);
     });
 
-    it("resolves a handoff in `App` alone, and opens a session for it from the user's send or tile only", () => {
+    it("resolves a handoff in `App` alone, and opens a session for it from the user's send only", () => {
       const app = code.get(APP) ?? "";
       expect(app.match(/\bhandoffTarget\(/g)).toHaveLength(1);
       // The call sits inside the composer's `onSend`, which only the user's send runs.
       const send = app.slice(app.indexOf("onSend={"));
       expect(send.indexOf("handoffTarget(")).toBeGreaterThan(-1);
       expect(app.slice(0, app.indexOf("onSend={"))).not.toContain("handoffTarget(");
-      // `activate` is called from the tile, from the composer's `@` and from nowhere else.
-      expect(app.match(/conversation\.activate\(/g)).toHaveLength(2);
+      // `activate` is called from the composer's `@` and from nowhere else: a tile only turns the chat (Story 8.2).
+      expect(app.match(/conversation\.activate\(/g)).toHaveLength(1);
       for (const path of RENDERER_CODE.filter((p) => p !== APP && p !== "src/renderer/ui/chat/use-conversation.ts")) {
         expect(code.get(path) ?? "", path).not.toMatch(/\.activate\(/);
       }

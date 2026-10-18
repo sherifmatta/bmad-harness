@@ -184,7 +184,8 @@ export function Shell({
   currentId?: string | null
   /** Called with the agent's id when a tile selection makes it current. */
   onCurrentChange?: (agentId: string) => void
-  /** Called with the agent's id on every tile selection, the current tile's too. */
+  /** Called with the agent's id on every tile selection, the current tile's too. Selecting opens no
+      session (Story 8.2); a caller uses this only to settle UI state such as pending composer focus. */
   onActivate?: (agentId: string) => void
   /** Called when the end-session control is activated. Without it the control is not rendered. */
   onEndSession?: () => void

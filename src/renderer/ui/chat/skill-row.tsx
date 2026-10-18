@@ -18,8 +18,8 @@ const VISIBLE = 5
  * any skill name, is here. No tooltip and no preview.
  *
  * The buttons are disabled while the persona's session has a turn in flight,
- * and only then; the composer below is never disabled. A persona with no
- * entries has no row.
+ * or while it has no session yet (an empty chat, Story 8.2), and only then; the
+ * composer below is never disabled. A persona with no entries has no row.
  *
  * Only the first `VISIBLE` entries show. A longer menu ends in a `+N more`
  * button that opens the row in place to every entry and then reads `fewer`.
@@ -35,7 +35,7 @@ export function SkillRow({
 }: {
   name: string
   items: readonly MenuEntryView[]
-  /** A turn is in flight in the persona's session. */
+  /** A turn is in flight in the persona's session, or the persona has no session yet. */
   disabled: boolean
   onRun: (code: string) => void
 }): JSX.Element | null {

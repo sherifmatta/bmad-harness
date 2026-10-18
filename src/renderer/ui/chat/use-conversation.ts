@@ -87,7 +87,7 @@ export type Conversation = {
   /** The user pressed Stop in a skill-first session's header: as `stopTurn` is for a persona. Never rejects. */
   stopSkill(sessionId: string): Promise<void>
   /**
-   * A persona was chosen, by tile or by `@<name>`: open its session, or find the
+   * A persona was named by `@<name>` (selecting a tile does not call this, Story 8.2): open its session, or find the
    * one already live. Always asks main, so a switch back to a persona that is
    * already live is seen by it. Main writes no line for a switch (Story 7.4); a
    * reply that carried a handoff line would still be folded in. Resolves when
@@ -192,9 +192,9 @@ type ConversationDeps = {
  * not opened; both wait for the snapshot, so a send into a session that is busy
  * is queued and one into a session that is idle is sent, in the order typed.
  *
- * A persona's session is opened whenever its tile is activated, the current
- * persona's too, and for a message typed to a persona that has none, on that
- * first send: the composer is never disabled, and a window that opened on a
+ * A persona's session is opened when `@<name>` turns to it (selecting a tile
+ * opens nothing, Story 8.2), and for a message typed to a persona that has none,
+ * on that first send: the composer is never disabled, and a window that opened on a
  * default persona nobody activated must still take a message. An activation the
  * session is already live for is still an open, which main answers with the same
  * session; a switch writes no line (Story 7.4). A session has one turn in flight at a time, so a
