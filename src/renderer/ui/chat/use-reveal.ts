@@ -9,8 +9,9 @@ import { useFollowPause } from '../follow/follow-context'
  * elsewhere and pushed the run's id; the window holds that id as it holds a
  * focus request, the card named spends it, and the one scroll call the
  * renderer has brings the card's root into view. The scroll is instant, moves
- * no focus, switches no persona, opens nothing and sends no command. It takes
- * the user somewhere that is not the bottom, so it pauses the thread's
+ * no focus, opens nothing and sends no command; it switches nothing either: the
+ * window turns the chat to the card's persona (Story 8.4) before it asks for
+ * the scroll. It takes the user somewhere that is not the bottom, so it pauses the thread's
  * following (Story 5.3); only the user resumes it.
  */
 

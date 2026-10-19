@@ -2495,7 +2495,7 @@ describe("told once, quietly, when you are elsewhere: one silent banner, one scr
     expect(notifier()).not.toMatch(/\bsetAlwaysOnTop\b|\bmoveTop\b|\bopenDocWindow\b|\bcreateProjectWindow\b|\bnew BrowserWindow\b|\bloadURL\b|\bloadFile\b/);
   });
 
-  it("scrolls in the reveal hook, the follow hook and the `/` list's current row alone, instantly, and moves no focus, switches no persona, opens nothing and sends no command there", () => {
+  it("scrolls in the reveal hook, the follow hook and the `/` list's current row alone, instantly, and moves no focus, opens nothing and sends no command there", () => {
     expect(offenders(RENDERER_CODE, /\bscrollIntoView\b|\.scroll(?:Top|To|By)\b/).map((hit) => hit.split(":")[0])).toEqual([REVEAL, "src/renderer/ui/follow/use-follow.ts", "src/renderer/ui/skills/skill-list.tsx"]);
     expect(reveal()).toMatch(/scrollIntoView\(\{ block: 'start' \}\)/);
     expect(reveal()).not.toMatch(/smooth|behavior|\.focus\(|\bfocus\(|setCurrentId|openDoc|dispatchMenu|sendTurn|openSession|stopRun|closeSession|ipcRenderer/);
@@ -2503,11 +2503,14 @@ describe("told once, quietly, when you are elsewhere: one silent banner, one scr
     expect(reveal()).not.toMatch(/querySelector|getElementById|data-|dataset|setAttribute|\bdocument\./);
     // The hook is the card's: it is mounted in `RunCard` and nowhere else.
     expect(RENDERER_CODE.filter((path) => /\buseReveal\(/.test(code.get(path) ?? "") && path !== REVEAL)).toEqual(["src/renderer/ui/chat/run-card.tsx"]);
-    // The window spends the request as it spends a focus request, by run id, and touches the current persona on no path of it.
+    // The window spends the request as it spends a focus request, by run id, and turns to the persona of a persona's run (Story 8.4) and touches the composer on no path of it.
     const app = code.get("src/renderer/ui/app.tsx") ?? "";
     const revealing = app.slice(app.indexOf("const [revealRunId"), app.indexOf("const revealed = useCallback"));
     expect(revealing).toContain("connectRunRevealed(window.harness");
-    expect(revealing).not.toMatch(/setCurrentId|setComposerFocus|openDoc|activate\(|send\(|runSkill|stopRun|close\(/);
+    expect(revealing).toContain("setCurrentId(");
+    expect(revealing).toContain("setChat('persona')");
+    expect(revealing).toContain("setShowView(");
+    expect(revealing).not.toMatch(/setComposerFocus|openDoc|activate\(|send\(|runSkill|stopRun|close\(/);
   });
 
   it("gives the preload and the shared contract no word of it, and no new command or event: eight, seventeen, thirty-six channels, twenty-four methods", () => {

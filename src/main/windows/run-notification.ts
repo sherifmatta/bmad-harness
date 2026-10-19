@@ -33,8 +33,9 @@ import type { RunKit } from '../session-run'
  *   debounced or held across a quit. Concurrent sessions each post their own.
  * - **Activation.** The project window is restored if minimized, shown and
  *   focused, and the run's id goes to that window alone on `run:revealed`, so
- *   the thread scrolls to the run's card. Nothing else: no persona switch, no
- *   document window, no command. A window that has since closed means nothing.
+ *   the window turns to the run's persona's chat (a skill-first session's run
+ *   turns to none) and scrolls to the run's card (Story 8.4). Nothing else: no
+ *   document window, no command, no focus move. A window that has since closed means nothing.
  *
  * Everything that touches Electron is injectable and touched only when a
  * terminal event is told or the banner is activated, never at construction:

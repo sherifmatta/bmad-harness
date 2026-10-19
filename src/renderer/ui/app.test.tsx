@@ -2264,17 +2264,219 @@ describe('App, told once when elsewhere (Story 3.10)', () => {
     expect(scrolled).toEqual([])
   })
 
-  it('scrolls nothing for a run of another persona, which is in that persona’s thread alone (Story 8.1)', async () => {
+  /** John's run, ended, while Mary is viewed: his card is in his thread alone (Story 8.1). */
+  async function johnEnded(runId = 'r5'): Promise<void> {
     await afterRun()
     push({ name: 'session:opened', payload: { sessionId: 's-john', agentId: john.id, at: 1 } })
-    push({ name: 'run:started', payload: { runId: 'r5', sessionId: 's-john', agentId: john.id, code: 'CP', at: 4 } })
-    push({ name: 'run:finished', payload: { runId: 'r5', sessionId: 's-john', at: 5 } })
+    push({ name: 'run:started', payload: { runId, sessionId: 's-john', agentId: john.id, code: 'CP', at: 4 } })
+    push({ name: 'run:finished', payload: { runId, sessionId: 's-john', at: 5 } })
+  }
+  const unchanged = () => ({ opened: [...opened], sent: [...sent], docs: [...docsOpened], dispatched: [...dispatchedMenus], closed: [...closedSessions], stopped: [...stopped], ended: [...ended] })
+  const now = () => ({ opened, sent, docs: docsOpened, dispatched: dispatchedMenus, closed: closedSessions, stopped, ended })
+
+  it('turns to the run’s persona when it is another persona’s, scrolls that card once to its start, pauses following, and moves nothing else (Story 8.4)', async () => {
+    await johnEnded()
     expect(root().querySelectorAll('.thread .run-card')).toHaveLength(1)
+    tile('Mary').focus()
+    const before = unchanged()
+    const sysBefore = root().querySelectorAll('.sysline').length
 
     reveal('r5')
+    await settle()
+
+    expect(tile('John').getAttribute('aria-current')).toBe('true')
+    expect(tile('Mary').hasAttribute('aria-current')).toBe(false)
+    expect(field().getAttribute('aria-label')).toBe('Message John')
+    const card = root().querySelector('.thread .run-card') as Element
+    expect(card).not.toBeNull()
+    expect(scrolled).toEqual([[card, [{ block: 'start' }]]])
+    expect(root().querySelector('.follow-latest')).not.toBeNull()
+    expect(document.activeElement).not.toBe(field())
+    expect(document.activeElement).toBe(tile('Mary'))
+    expect(now()).toEqual(before)
+    expect(root().querySelectorAll('.sysline')).toHaveLength(sysBefore)
+  })
+
+  it('brings the conversation view back when the window is on the Board, then turns as above', async () => {
+    await johnEnded()
+    act(() =>
+      [...root().querySelectorAll<HTMLButtonElement>('.view-switch button')].find((button) => button.textContent === 'Board')?.click()
+    )
+    expect((root().querySelector('.view-conversation') as HTMLElement).hidden).toBe(true)
+
+    reveal('r5')
+    await settle()
+
+    expect((root().querySelector('.view-conversation') as HTMLElement).hidden).toBe(false)
+    expect((root().querySelector('.view-board') as HTMLElement).hidden).toBe(true)
+    expect(tile('John').getAttribute('aria-current')).toBe('true')
+    expect(scrolled).toHaveLength(1)
+  })
+
+  it('drops a reveal for a persona off the roster, and for a run not held, and holds neither for later', async () => {
+    await afterRun()
+    push({ name: 'session:opened', payload: { sessionId: 's-ghost', agentId: 'bmad-agent-ghost', at: 1 } })
+    push({ name: 'run:started', payload: { runId: 'r7', sessionId: 's-ghost', agentId: 'bmad-agent-ghost', code: 'CP', at: 4 } })
+    push({ name: 'run:finished', payload: { runId: 'r7', sessionId: 's-ghost', at: 5 } })
+    const before = unchanged()
+
+    reveal('r7')
+    reveal('r-none')
+    await settle()
 
     expect(scrolled).toEqual([])
     expect(tile('Mary').getAttribute('aria-current')).toBe('true')
+    expect(tile('John').hasAttribute('aria-current')).toBe(false)
+    expect(now()).toEqual(before)
+
+    // Turning to John later does not wake a held request.
+    act(() => tile('John').click())
+    await settle()
+    expect(scrolled).toEqual([])
+  })
+
+  const skillRun = {
+    runId: 'rs',
+    sessionId: 'sk1',
+    code: 'bmad-build',
+    startedAt: 1_000,
+    status: 'finished',
+    endedAt: 2_000,
+    notes: [],
+    steps: [],
+    documents: []
+  }
+  const withSkillSeat = (): void => {
+    conversationNow = () => ({
+      entries: [],
+      sessions: [],
+      busy: [],
+      personas: [],
+      runs: [skillRun],
+      skillSessions: [{ sessionId: 'sk1', skill: 'bmad-build', live: false }]
+    })
+  }
+  const seatTile = (): HTMLButtonElement =>
+    [...root().querySelectorAll<HTMLButtonElement>('button.persona-tile')].find((candidate) => candidate.querySelector('.initials--skill') !== null)!
+  const skillSessionButton = (): HTMLButtonElement =>
+    [...root().querySelectorAll<HTMLButtonElement>('button')].find((candidate) => candidate.textContent === 'Skill Session')!
+
+  it('turns to no persona for a skill-first session’s run while another chat is viewed: nothing scrolls, and the room is untouched', async () => {
+    withSkillSeat()
+    await mountOnMary()
+    const before = unchanged()
+
+    reveal('rs')
+    await settle()
+
+    expect(scrolled).toEqual([])
+    expect(tile('Mary').getAttribute('aria-current')).toBe('true')
+    expect(now()).toEqual(before)
+    expect((root().querySelector('.view-party') as HTMLElement).hidden).toBe(true)
+  })
+
+  it('scrolls a skill-first session’s card once when its seat is the viewed chat, and turns to no persona', async () => {
+    withSkillSeat()
+    await mountOnMary()
+    act(() => seatTile().click())
+    await settle()
+    const before = unchanged()
+    const card = root().querySelector('.thread .run-card') as Element
+    expect(card).not.toBeNull()
+    expect(scrolled).toEqual([])
+
+    reveal('rs')
+    await settle()
+
+    expect(root().querySelector('.persona-tile[aria-current="true"]')).toBe(seatTile())
+    expect(scrolled).toEqual([[card, [{ block: 'start' }]]])
+    expect(now()).toEqual(before)
+  })
+
+  it('turns the chat to the persona when it is already current but the column is on the New session chat or a skill seat', async () => {
+    withSkillSeat()
+    await johnEnded()
+    act(() => tile('John').click())
+    await settle()
+    const card = root().querySelector('.thread .run-card') as Element
+    expect(card).not.toBeNull()
+
+    for (const away of [(): void => skillSessionButton().click(), (): void => seatTile().click()]) {
+      scrolled.length = 0
+      act(away)
+      await settle()
+      expect(tile('John').hasAttribute('aria-current')).toBe(false)
+
+      reveal('r5')
+      await settle()
+
+      expect(tile('John').getAttribute('aria-current')).toBe('true')
+      expect(field().getAttribute('aria-label')).toBe('Message John')
+      expect(scrolled).toHaveLength(1)
+      expect(scrolled[0][1]).toEqual([{ block: 'start' }])
+      expect(scrolled[0][0].classList.contains('run-card')).toBe(true)
+    }
+  })
+
+  it('shows the conversation view for the already-viewed persona’s run when the Board is showing, and scrolls its card once', async () => {
+    await afterRun()
+    act(() =>
+      [...root().querySelectorAll<HTMLButtonElement>('.view-switch button')].find((button) => button.textContent === 'Board')?.click()
+    )
+    expect((root().querySelector('.view-conversation') as HTMLElement).hidden).toBe(true)
+
+    reveal('r1')
+    await settle()
+
+    expect((root().querySelector('.view-conversation') as HTMLElement).hidden).toBe(false)
+    expect(tile('Mary').getAttribute('aria-current')).toBe('true')
+    expect(scrolled).toHaveLength(1)
+    expect(scrolled[0][0]).toBe(root().querySelector('.thread .run-card'))
+  })
+
+  it('draws nothing of John’s running skill in Mary’s chat, and John’s own chat holds his card live and in place when the user turns back (Story 8.4)', async () => {
+    await afterRun()
+    push({ name: 'session:opened', payload: { sessionId: 's-john', agentId: john.id, at: 1 } })
+    push({ name: 'run:started', payload: { runId: 'r6', sessionId: 's-john', agentId: john.id, code: 'CP', at: 4 } })
+    push({ name: 'run:note', payload: { runId: 'r6', sessionId: 's-john', text: '- (decision) Fast path', at: 5 } })
+    push({ name: 'persona:state', payload: { agentId: john.id, state: 'work', at: 5 } })
+
+    // Mary is viewed: her own ended card only; nothing of John's, no line, no stop, nothing pinned.
+    expect(root().querySelectorAll('.thread .run-card')).toHaveLength(1)
+    expect(root().querySelector('.run-card-line')).toBeNull()
+    expect(root().querySelector('.run-stop')).toBeNull()
+    expect(root().querySelector('.chat > .pinned')).toBeNull()
+    expect(tile('John').querySelector('.tile-state')?.textContent).toMatch(/work/)
+
+    act(() => tile('John').click())
+    await settle()
+    expect(tile('John').getAttribute('aria-current')).toBe('true')
+    const pinned = root().querySelector('.chat > .pinned') as HTMLElement
+    expect(pinned.querySelector('.run-card')).not.toBeNull()
+    expect(pinned.querySelector('.run-stop')).not.toBeNull()
+    const notes = pinned.querySelectorAll('.run-note').length
+    expect(notes).toBeGreaterThan(0)
+
+    act(() => tile('Mary').click())
+    await settle()
+    expect(root().querySelector('.chat > .pinned')).toBeNull()
+    expect(root().querySelector('.run-stop')).toBeNull()
+
+    push({ name: 'run:note', payload: { runId: 'r6', sessionId: 's-john', text: '- (decision) Second', at: 6 } })
+    act(() => tile('John').click())
+    await settle()
+    // The same card, fed by the run's events meanwhile, not rebuilt from stored state.
+    expect((root().querySelector('.chat > .pinned') as HTMLElement).querySelectorAll('.run-note')).toHaveLength(notes + 1)
+  })
+
+  it('writes nothing into the viewed chat when John’s run finishes while Mary is viewed', async () => {
+    await johnEnded()
+    const before = root().querySelector('.thread')?.innerHTML
+    push({ name: 'run:started', payload: { runId: 'r8', sessionId: 's-john', agentId: john.id, code: 'CP', at: 6 } })
+    push({ name: 'run:failed', payload: { runId: 'r8', sessionId: 's-john', error: { code: 'run/failed', message: 'failed' }, at: 7 } })
+
+    expect(root().querySelector('.thread')?.innerHTML).toBe(before)
+    expect(root().querySelector('.thread .sysline')).toBeNull()
   })
 
   it('scrolls the named card and no other when several have ended', async () => {

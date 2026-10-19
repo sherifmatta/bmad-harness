@@ -30,6 +30,7 @@ import type { SyslineRecord } from '../../shared/conversation'
 import type { ViewId } from './shell/view'
 import type { AgentView } from '../../shared/install'
 import { refusalLine } from '../../shared/output-folder'
+import { threadAgentOf } from '../../shared/thread'
 
 /** No roster yet: the conversation is mounted before the install has answered. */
 const NO_AGENTS: readonly AgentView[] = []
@@ -67,7 +68,7 @@ const NO_RUNS: ReadonlySet<string> = new Set()
  * Each persona's chat draws that persona's thread alone (Story 8.1): its turns, the user's turns to it, the
  * harness's lines about its session and its run cards, by the one predicate in `shared/thread.ts`. A run in
  * flight for a persona that is not viewed is in that persona's chat and not drawn here; the one-line form it
- * had here (Story 3.5) stays declared, with no caller in a persona's chat, until Story 8.4. The window holds
+ * had here (Story 3.5) stays declared, with no caller in a persona's chat (its removal is Story 8.7's). The window holds
  * the ids of the runs the user expanded, and the one run whose card, drawn just now in place of its line,
  * takes focus as it mounts: that request is made by the activation alone and is spent by the card taking it.
  *
@@ -79,8 +80,10 @@ const NO_RUNS: ReadonlySet<string> = new Set()
  * activating it raises this window (Story 3.10): main then pushes the run's id, and
  * the window holds it as it holds a focus request, for the one card named to scroll
  * into view and spend. A request for a run the conversation does not hold (it
- * ended) is dropped on arrival. The current persona, the documents and the
- * sessions are not touched on this path.
+ * ended) is dropped on arrival. A persona's run turns the window to that persona's 1:1 chat first (Story 8.4:
+ * current persona, chat column and view), and the scroll is requested once that chat is drawn; a skill-first
+ * session's run scrolls only where its seat is the one viewed. The documents, the sessions, the composer and
+ * focus are not touched on this path.
  *
  * A window opens on the New session chat (Story 7.5): no persona is current until a tile is chosen. The chat column
  * is turned to that chat, a persona or a skill-first session's seat, and `ChatMode` says which. A first message typed
@@ -154,22 +157,66 @@ export function App(): JSX.Element | null {
   // card (the pinned slot, the thread again) takes none.
   const focusSpent = useCallback(() => setFocusRunId(undefined), [])
   const [revealRunId, setRevealRunId] = useState<string | undefined>(undefined)
-  // The entries as they stand when a reveal arrives, so the subscription is made once.
+  // A reveal for another persona's run, waiting for the view to show that persona (Story 8.4).
+  const [pendingReveal, setPendingReveal] = useState<{ runId: string; agentId: string } | undefined>(undefined)
+  // The entries, the roster and what the chat column shows, as they stand when a reveal arrives, so the subscription is made once.
   const entriesRef = useRef(conversation.entries)
+  const rosterRef = useRef<readonly AgentView[]>(snapshot?.agents ?? NO_AGENTS)
+  const viewRef = useRef({ currentId, chat })
   useEffect(() => {
     entriesRef.current = conversation.entries
-  }, [conversation.entries])
-  // Main raised this window for a run: its card scrolls into view, when the thread
-  // holds it. An id no entry holds is dropped here and nothing is held for later.
+    rosterRef.current = snapshot?.agents ?? NO_AGENTS
+    viewRef.current = { currentId, chat }
+  }, [conversation.entries, snapshot, currentId, chat])
+  // Main raised this window for a run (Story 3.10). An id no entry holds is dropped here and nothing is held for
+  // later. A persona's run turns the window to that persona's 1:1 chat first (Story 8.4); the card scrolls once the
+  // view shows it. A skill-first session's run keeps the plain path, and a persona off the roster has no chat to
+  // turn to: dropped. Nothing is focused, opened, started or sent on this path.
   useEffect(
     () =>
       connectRunRevealed(window.harness, (runId) => {
-        if (entriesRef.current.some((entry) => entry.kind === 'run' && entry.runId === runId)) {
-          setRevealRunId(runId)
+        const card = entriesRef.current.find((entry) => entry.kind === 'run' && entry.runId === runId)
+        if (card === undefined || card.kind !== 'run') {
+          return
         }
+        const owner = threadAgentOf(card)
+        if (owner === undefined) {
+          setRevealRunId(runId)
+          return
+        }
+        if (!rosterRef.current.some((agent) => agent.id === owner)) {
+          return
+        }
+        setShowView((held) => ({ view: 'conversation', n: (held?.n ?? 0) + 1 }))
+        if (viewRef.current.currentId === owner && viewRef.current.chat === 'persona') {
+          // Already viewing that persona: the card is drawn, so this is the reveal as it always was.
+          setRevealRunId(runId)
+          return
+        }
+        setCurrentId(owner)
+        setChat('persona')
+        setPendingReveal({ runId, agentId: owner })
       }),
     []
   )
+  // The thread's reset to its bottom lands, in a layout effect, when the persona's chat is first drawn; the card's
+  // scroll, which pauses following, has to come after it. So the request is made from here, once the view shows that
+  // persona and the commit that drew it is over, and not in the commit that turned the view.
+  useEffect(() => {
+    if (pendingReveal === undefined || chat !== 'persona' || currentId !== pendingReveal.agentId) {
+      return
+    }
+    let live = true
+    queueMicrotask(() => {
+      if (live) {
+        setRevealRunId(pendingReveal.runId)
+        setPendingReveal(undefined)
+      }
+    })
+    return () => {
+      live = false
+    }
+  }, [pendingReveal, chat, currentId])
   // The card scrolled into view, which spends the request.
   const revealed = useCallback(() => setRevealRunId(undefined), [])
 

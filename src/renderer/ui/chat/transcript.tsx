@@ -72,7 +72,9 @@ export function pinnedRun(entries: readonly TranscriptEntry[], agentId: string |
 /**
  * How the window has the run cards of personas that are not viewed (Story 3.5):
  * a card in flight for another persona is drawn as one line, unless the user
- * expanded its run. Without it every card is drawn full.
+ * expanded its run. Without it every card is drawn full. Since Story 8.1 a persona's
+ * chat filters another persona's cards out, so nothing in a persona's chat reaches
+ * the line form; it stays declared and its removal is Story 8.7's.
  */
 export type RunCollapse = {
   /** The viewed persona's id: its running card is the pinned one, never a line. */
