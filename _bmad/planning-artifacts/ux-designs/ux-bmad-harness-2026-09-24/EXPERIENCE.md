@@ -1200,11 +1200,11 @@ Selecting a tile, by click or by `Enter` or `Space`, opens the chat and **nothin
 |---|---|
 | Header | that persona's initials disc at `{components.initials.sizeHeader}`, name, and title, with the header's existing state pill and `close session` where it is drawn (*Closing a chat*); the same header as any persona's (`{components.chat-header}`) |
 | Thread | **empty**, but for the existing **thread introduction**: the harness's own orientation text, drawn only while the persona's thread holds no record. It is harness text and names no persona's words; it is **read-only: no button, no handler, no tab stop**. **No greeting of any kind from the persona**, no line and no suggestion of what to say. What it draws is as built (the persona's disc, name and title, the roster's description, the codes of their menu and one hint line); this spine adds nothing to it **[ASSUMPTION]**: the introduction was never described in either spine, and it is taken from the code at the commit Epic 8 was written against. Its hint line was written when a session was opened by selecting a tile and now reads wrong; re-reading it is Story 8.2's |
-| Skill row | that persona's menu entries as the skill buttons, `+N more` and all, built as for any persona and **enabled**: there is no turn in flight in a session that does not exist |
+| Skill row | that persona's menu entries as the skill buttons, `+N more` and all, built as for any persona. **Story 8.2 draws it disabled** (no session exists to dispatch into) and **Story 8.3 enables it**: there is no turn in flight in a session that does not exist |
 | Composer | enabled, takes typing; its hint and the `/` list are as in any persona's composer. Focus is **not** moved into it (below) |
 | The tile | becomes current (accent edge, `aria-current`) and **keeps the state it had**: no `live` dot, no `work`, no other word (*State Patterns → Persona tile*). Focus stays on it |
 | What does not happen | no process is spawned, `session.open` is not called, nothing is written to any stdin, no record of any kind is added to any thread, no line is written, nobody speaks. A test finds this for every persona in turn (Story 8.7) |
-| A skill button pressed | **starts that persona's seat and dispatches the skill as its first action** (the epic's default: the user pressed it, so it is as deliberate as a first message). The run card is born in this chat's thread as any run's is; no greeting is waited on, spoken or shown before it |
+| A skill button pressed | **starts that persona's seat with the skill as the session's first stdin turn** (the owner's decision, 2026-10-19: the user pressed it, so it is as deliberate as a first message; no `/bmad-agent-<x>` is written for this seat, so there is no activation turn). The run card is born in this chat's thread as any run's is; no greeting is waited on, spoken or shown before it, because none exists |
 | A persona with a live session | their existing thread and `live` dot show as they do now; no session is opened by selecting them |
 | A persona with a stored thread and no live session | the thread is drawn, not the introduction; the tile has no `live` dot; the next message starts a seat (*After a relaunch*) |
 
@@ -1223,7 +1223,7 @@ The first message to a persona with no live session is what starts the seat. It 
 | The seat fails to start | one harness line **in that persona's thread**, the user's turn stays, nothing is written in any other thread and nothing is retried |
 | A persona whose session is already live | sending is as it always was: no activation turn, no join |
 
-**A skill button on an empty chat** is the first action in place of a first message (*The empty chat*). A message typed to a persona with a stored thread and no live session is treated as the first message **[ASSUMPTION]**: the seat starts the same way, so the same treatment applies; Story 8.3 states the rule for an empty chat.
+**A skill button on an empty chat** is the first action in place of a first message (*The empty chat*). A message typed to a persona with a stored thread and no live session is treated as the first message **[ASSUMPTION]**: the seat starts the same way, so the same treatment applies; Story 8.3 states the rule for an empty chat. **Decided 2026-10-19 (owner): a skill button starts the seat with the skill as its first stdin turn and no persona activation**, so a seat so started has no greeting to join or hide, and the persona's own activation has not run in it (*ARCHITECTURE-SPINE.md* Open Items).
 
 ### Background chats
 
