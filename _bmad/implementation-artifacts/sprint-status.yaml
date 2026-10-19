@@ -138,7 +138,7 @@ development_status:
   # Added 2026-10-17. Build order: 8-1, then 8-2, then 8-3; 8-4, 8-5 and 8-6 in any order after 8-1; 8-7 last. 8-6's key drops the @ of its title.
   8-1-a-thread-for-each-persona: done
   8-2-select-a-persona-and-get-an-empty-chat: done
-  8-3-the-first-message-starts-the-seat: backlog
+  8-3-the-first-message-starts-the-seat: done
   8-4-a-run-in-a-chat-you-are-not-looking-at-stays-in-its-own-chat: backlog
   8-5-close-a-chat-and-its-history-goes-with-it: backlog
   8-6-name-turns-to-another-persona-s-own-chat: backlog
