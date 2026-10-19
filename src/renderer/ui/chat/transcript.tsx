@@ -9,7 +9,7 @@ import { isCollapsed } from './run-status'
 import { Sysline } from './sysline'
 import { PendingSkillTurn, PendingTurn, PersonaTurn, SkillTurn, UserTurn } from './turn'
 import { isEntryInPersonaThread } from './transcript-entry'
-import type { RunCardEntry, TranscriptEntry } from './transcript-entry'
+import type { PersonaEntry, RunCardEntry, TranscriptEntry } from './transcript-entry'
 
 /**
  * The transcript — a thread of turns in time order (UX-DR25).
@@ -195,7 +195,24 @@ export function Turns({
   const unspoken = turns.filter((turn) => turn.entryId === undefined)
   // The pending turns sit after the last entry that is not a queued message of the user's.
   const foot = ordered.length - own.filter(isQueuedEntry).length
+  // The activation reply and the persona turn directly after it are one turn (Story 8.3): only an entry main flagged
+  // `activation` joins, and only the next entry of the same persona that is not itself flagged. Adjacency alone joins nothing.
+  const joinedTo = (index: number): PersonaEntry | undefined => {
+    const first = ordered[index]
+    const next = ordered[index + 1]
+    return first?.kind === 'persona' &&
+      first.activation === true &&
+      next?.kind === 'persona' &&
+      next.activation !== true &&
+      next.agent.id === first.agent.id
+      ? next
+      : undefined
+  }
+  const consumed = (index: number): boolean => index > 0 && joinedTo(index - 1) !== undefined
   const drawn = (entry: TranscriptEntry, index: number): JSX.Element | null => {
+    if (consumed(index)) {
+      return null
+    }
     if (entry.kind === 'sysline') {
       return <Sysline key={entry.id} text={entry.text} />
     }
@@ -246,18 +263,23 @@ export function Turns({
       // A decision is read only from the last entry, and only while its persona can
       // take a reply: any later entry, a turn in flight or no session removes it.
       const agentId = entry.agent.id
+      const answer = joinedTo(index)
+      // Joined, the words and the decision are the answer's; the turn is in flight if either part is, and keeps the reply's key.
+      const spoken = answer ?? entry
       const decision =
-        index === last && onChoose !== undefined && canAnswer?.(agentId) === true
-          ? decisionOf(entry.text)
+        index + (answer === undefined ? 0 : 1) === last && onChoose !== undefined && canAnswer?.(agentId) === true
+          ? decisionOf(spoken.text)
           : null
-      const since = writing.get(entry.id)
+      const writer = writing.has(spoken.id) ? spoken.id : entry.id
+      const since = writing.get(writer)
       return (
         <PersonaTurn
           key={entry.id}
           agent={entry.agent}
           at={entry.at}
-          text={entry.text}
-          writing={writing.has(entry.id) ? { since } : undefined}
+          {...(answer === undefined ? {} : { lead: entry.text })}
+          text={spoken.text}
+          writing={writing.has(writer) ? { since } : undefined}
           decision={decision ?? undefined}
           onChoose={onChoose === undefined ? undefined : (text) => onChoose(agentId, text)}
         />

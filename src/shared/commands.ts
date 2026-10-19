@@ -26,9 +26,11 @@ export type CommandSpec<Args extends unknown[], Cardinality extends string, Repl
  * (Story 4.1), a party session of the cast named, in the order given, or a
  * first message (Story 7.5): the text as typed, which main reads (`/<skill>`)
  * and answers with a seat, the room or a skill-first session. The room has no
- * agent id of its own.
+ * agent id of its own. Two forms open a persona's seat with its first turn (Story 8.3): `{ seat, message,
+ * mention? }`, the user's first chat message (main records it, activates the persona, then writes it), and
+ * `{ seat, code }`, a skill button on an empty chat (main spawns the seat with the entry as its first turn).
  */
-export type SessionTarget = AgentId | { room: readonly AgentId[] } | { first: string }
+export type SessionTarget = AgentId | { room: readonly AgentId[] } | { first: string } | { seat: AgentId; message: string; mention?: string } | { seat: AgentId; code: string }
 
 /** The eight commands in, by name. */
 export type ContractCommands = {

@@ -43,7 +43,7 @@ import type { ResolvedMenuEntry } from './sources/install/schema'
 import { readText } from './sources/project/read-text'
 import { readPlan } from './sources/skill/read-plan'
 import { canonicalPath } from './sources/session/canonical-path'
-import { ROOM_SKILL, isAgentId, roomActivationTurn, spawnSession } from './sources/session/session-process'
+import { ROOM_SKILL, activationTurn, isAgentId, roomActivationTurn, spawnSession } from './sources/session/session-process'
 import type { SpawnOutcome, SpawnSessionOptions } from './sources/session/session-process'
 
 /**
@@ -166,6 +166,11 @@ function asksForRoom(target: unknown): target is { room: unknown } {
 /** The argument that carries a first message: an object carrying `first` (Story 7.5). */
 function asksForFirst(target: unknown): target is { first: unknown } {
   return typeof target === 'object' && target !== null && !Array.isArray(target) && 'first' in target
+}
+
+/** The argument that opens a persona's seat with its first turn (Story 8.3): an object carrying `seat`. */
+function asksForSeat(target: unknown): target is { seat: unknown; message?: unknown; mention?: unknown; code?: unknown } {
+  return typeof target === 'object' && target !== null && !Array.isArray(target) && 'seat' in target
 }
 
 const INVALID_CAST = failure({
@@ -296,6 +301,72 @@ async function openFirst(ctx: Context, sender: Sender, projectRoot: string, firs
   return ctx.registry.openSkill(sender, service, projectRoot, name, text).ready
 }
 
+const INVALID_AGENT = failure({ code: 'session/invalid-agent', message: 'session · not a valid agent id' })
+
+/**
+ * The user's first message to a persona with no session (Story 8.3). The refusal `session/busy` when main already
+ * holds the persona's seat: the window had missed it, and re-queues the message. Otherwise main records the user's
+ * turn (with the persona's `agentId`, and the mention only if it names the persona) before anything is spawned, and
+ * it stays whether or not the spawn works; then spawns the seat with the message held behind `/<agentId>`, which the
+ * registry writes when the activation turn has ended without failing (never together).
+ */
+async function openSeatMessage(
+  ctx: Context,
+  sender: Sender,
+  projectRoot: string,
+  agentId: string,
+  message: unknown,
+  mention: unknown
+): Promise<OpenReply> {
+  if (typeof message !== 'string') {
+    return failure({ code: 'session/invalid-turn', message: 'session · a turn is text' })
+  }
+  const service = ctx.registry.serviceFor(sender, projectRoot)
+  if (service.byAgent.has(agentId)) {
+    return BUSY
+  }
+  const named = validMention(mention, ctx.nameOf(sender.id, agentId))
+  ctx.transcripts.forProject(projectRoot).recordUserTurn(message, ctx.now(), undefined, named, undefined, agentId)
+  return ctx.registry.open(sender, service, projectRoot, agentId, message).ready
+}
+
+/**
+ * A skill button pressed on an empty persona chat (Story 8.3): the entry is resolved against the persona's menu
+ * (`menu/unknown-entry` when there is none), and the seat is spawned with the skill (or the prompt) as its first
+ * stdin turn and no `/<agentId>`. Its run begins once it is up, so the card is born in that persona's thread; no
+ * user turn and no greeting are recorded. `session/busy` when main already holds the persona's seat.
+ */
+async function openSeatCode(
+  ctx: Context,
+  sender: Sender,
+  projectRoot: string,
+  agentId: string,
+  code: unknown
+): Promise<OpenReply> {
+  if (typeof code !== 'string') {
+    return failure({ code: 'menu/unknown-entry', message: 'menu · this persona has no such entry' })
+  }
+  const service = ctx.registry.serviceFor(sender, projectRoot)
+  if (service.byAgent.has(agentId)) {
+    return BUSY
+  }
+  const resolved = ctx.menuEntryFor(sender.id, agentId, code)
+  if (resolved === undefined) {
+    return failure({ code: 'menu/unknown-entry', message: 'menu · this persona has no such entry' })
+  }
+  const plan = resolved.action.kind === 'skill' ? await readPlanOf(ctx, projectRoot, resolved.action.skill) : undefined
+  // The read can take a moment and the seat is not yet held: checked again, so two presses cannot both open one.
+  if (service.byAgent.has(agentId)) {
+    return BUSY
+  }
+  const skill = resolved.action.kind === 'skill' ? skillOf(resolved.action.skill) : undefined
+  return ctx.registry.openSeatWith(sender, service, projectRoot, agentId, turnOf(resolved), {
+    code: resolved.code,
+    ...(plan === undefined ? {} : { plan }),
+    ...(skill === undefined ? {} : { skill })
+  }).ready
+}
+
 function openSession(ctx: Context) {
   return async (event: IpcMainInvokeEvent, agentId: unknown): Promise<OpenReply> => {
     const sender = senderOf(event)
@@ -306,6 +377,19 @@ function openSession(ctx: Context) {
     if (asksForFirst(agentId)) {
       try {
         return await openFirst(ctx, sender, projectRoot, agentId.first)
+      } catch (error) {
+        return unexpected('session', error, ctx.writeDiagnostic)
+      }
+    }
+    if (asksForSeat(agentId)) {
+      if (!isAgentId(agentId.seat)) {
+        return INVALID_AGENT
+      }
+      const seat = agentId.seat
+      try {
+        return 'code' in agentId
+          ? await openSeatCode(ctx, sender, projectRoot, seat, agentId.code)
+          : await openSeatMessage(ctx, sender, projectRoot, seat, agentId.message, agentId.mention)
       } catch (error) {
         return unexpected('session', error, ctx.writeDiagnostic)
       }
@@ -382,6 +466,30 @@ async function writeTurn(entry: Entry, text: string): Promise<{ ok: true } | Ref
 }
 
 /**
+ * A send into a seat a skill button started, which was never activated (Story 8.3): the persona is activated first, by
+ * `/<agentId>`, and the message is held and written when that turn ends, never together with it. `undefined` when the
+ * session is not such a seat, and nothing is written; otherwise what writing `/<agentId>` came to, the seat left
+ * as it was if the write failed.
+ */
+function activateFirst(entry: Entry, text: string): Promise<{ ok: true } | Refusal> | undefined {
+  if (kindOf(entry) !== 'persona' || entry.agentId === undefined || entry.activated) {
+    return undefined
+  }
+  entry.activated = true
+  entry.activating = true
+  entry.pending = text
+  // Not awaited before the write begins: the session is busy from this instant, as any send's is.
+  return writeTurn(entry, activationTurn(entry.agentId)).then((reply) => {
+    if (!reply.ok) {
+      entry.activated = false
+      entry.activating = false
+      entry.pending = undefined
+    }
+    return reply
+  })
+}
+
+/**
  * A send into a room whose turn is in flight: the room's speaker is interrupted and, once the turn has
  * ended, the session is writable. `undefined` when this is not that case (refused for another reason,
  * or a persona's or a skill-first session, whose busy refusal is unchanged); a refusal when the interrupt was not
@@ -443,7 +551,7 @@ function sendTurn(ctx: Context) {
       target = room
     }
     const { service, entry } = target
-    const reply = await writeTurn(entry, target.arg)
+    const reply = await (activateFirst(entry, target.arg) ?? writeTurn(entry, target.arg))
     if (!reply.ok) {
       return reply
     }

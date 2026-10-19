@@ -219,7 +219,7 @@ describe('the skill-first session’s fields (Story 7.5, audited by Story 7.6)',
     expect(fieldsOf(conversation, 'ConversationSnapshot')).toEqual(['entries', 'sessions', 'room?', 'busy', 'personas', 'runs', 'skillSessions?'])
     expect(fieldsOf(conversation, 'TranscriptFile')).toEqual(['version', 'projectPath', 'entries', 'runs?', 'skillSessions?', 'attributed?'])
     expect(commands.match(/\{ first: string \}/g)).toHaveLength(1)
-    expect(commands).toContain('export type SessionTarget = AgentId | { room: readonly AgentId[] } | { first: string }')
+    expect(commands).toContain('export type SessionTarget = AgentId | { room: readonly AgentId[] } | { first: string } | { seat: AgentId; message: string; mention?: string } | { seat: AgentId; code: string }')
   })
 
   it('adds no command, event, channel or bridge method, and leaves the contract at version 1 with 8, 17, 36 and 24', () => {

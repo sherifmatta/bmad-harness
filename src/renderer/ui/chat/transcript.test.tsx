@@ -392,3 +392,93 @@ describe('Turns for one persona’s thread (Story 8.1)', () => {
     expect(markup).not.toContain('skill words')
   })
 })
+
+describe('the activation reply and the answer, drawn as one turn (Story 8.3)', () => {
+  const mary = { id: 'bmad-agent-analyst', module: 'bmm', name: 'Mary', title: 'Analyst', icon: 'i', description: 'd' }
+  const john = { ...mary, id: 'bmad-agent-pm', name: 'John', title: 'PM' }
+  const said = (id: string, at: number, text: string, over: Partial<Extract<TranscriptEntry, { kind: 'persona' }>> = {}, agent = mary): TranscriptEntry => ({
+    kind: 'persona',
+    id,
+    at,
+    agent,
+    text,
+    messageId: id,
+    ...over
+  })
+  const asked = (id: string, at: number, text: string): TranscriptEntry => ({ kind: 'user', id, at, text, agentId: mary.id })
+  const draw = (entries: readonly TranscriptEntry[], inFlight: Parameters<typeof Turns>[0]['inFlight'] = [], canAnswer?: (agentId: string) => boolean): string =>
+    renderToStaticMarkup(
+      <Turns
+        entries={entries}
+        prose={createProseStore({ raf: (run) => run() })}
+        personaView={mary.id}
+        inFlight={inFlight}
+        canAnswer={canAnswer}
+        onChoose={() => undefined}
+      />
+    )
+  const heads = (markup: string): number => (markup.match(/class="turn-head"/g) ?? []).length
+
+  it('draws a flagged greeting and the persona turn after it under one head, each part’s words whole and in order', () => {
+    const markup = draw([asked('u', 1, 'hello'), said('g', 2, 'Hi, I am Mary.', { activation: true }), said('a', 3, 'Here is the answer.')])
+
+    expect(heads(markup)).toBe(2)
+    expect(markup.match(/class="turn turn--persona"/g)).toHaveLength(1)
+    expect(markup.indexOf('hello')).toBeLessThan(markup.indexOf('Hi, I am Mary.'))
+    expect(markup.indexOf('Hi, I am Mary.')).toBeLessThan(markup.indexOf('Here is the answer.'))
+    expect(markup).toContain('Mary')
+  })
+
+  it('joins nothing by adjacency alone: two unflagged persona turns stay two turns', () => {
+    const markup = draw([asked('u', 1, 'hello'), said('g', 2, 'Hi, I am Mary.'), said('a', 3, 'Here is the answer.')])
+
+    expect(heads(markup)).toBe(3)
+    expect(markup.match(/class="turn turn--persona"/g)).toHaveLength(2)
+  })
+
+  it('does not join across a user turn, or to a persona turn that is itself flagged', () => {
+    const across = draw([said('g', 2, 'Hi.', { activation: true }), asked('u', 3, 'and you?'), said('a', 4, 'Answer.')])
+    expect(across.match(/class="turn turn--persona"/g)).toHaveLength(2)
+
+    const flagged = draw([said('g', 2, 'Hi.', { activation: true }), said('h', 3, 'Hi again.', { activation: true })])
+    expect(flagged.match(/class="turn turn--persona"/g)).toHaveLength(2)
+  })
+
+  it('draws a greeting alone while no answer has come, and does not join another persona’s turn', () => {
+    const alone = draw([asked('u', 1, 'hello'), said('g', 2, 'Hi.', { activation: true })])
+    expect(alone.match(/class="turn turn--persona"/g)).toHaveLength(1)
+
+    const other = renderToStaticMarkup(
+      <Turns
+        entries={[said('g', 2, 'Hi.', { activation: true }), said('a', 3, 'John here.', {}, john)]}
+        prose={createProseStore({ raf: (run) => run() })}
+      />
+    )
+    expect(other.match(/class="turn turn--persona"/g)).toHaveLength(2)
+  })
+
+  it('writes the caret into the answer while it streams, with the greeting’s words whole above it', () => {
+    const markup = draw(
+      [asked('u', 1, 'hello'), said('g', 2, 'Hi, I am Mary.', { activation: true }), said('a', 3, 'Partial')],
+      [{ agent: mary, since: 1, entryId: 'a' }]
+    )
+
+    expect(markup.match(/class="turn turn--persona"/g)).toHaveLength(1)
+    expect(markup.indexOf('Hi, I am Mary.')).toBeLessThan(markup.indexOf('Partial'))
+    expect(markup).toContain('Partial')
+    expect(markup.match(/class="caret"/g)).toHaveLength(1)
+  })
+
+  it('reads a decision from the answer, the last entry, and from nothing else', () => {
+    const options = 'Which way?\n\n1. Left\n2. Right'
+    const joined = draw([said('g', 2, 'Hi.', { activation: true }), said('a', 3, options)], [], () => true)
+    expect(joined).toContain('decision')
+    expect(joined.match(/class="turn turn--persona"/g)).toHaveLength(1)
+
+    // A greeting that asks nothing and an answer that asks nothing draw no block.
+    const none = draw([said('g', 2, 'Hi.', { activation: true }), said('a', 3, 'Plain answer.')], [], () => true)
+    expect(none).not.toContain('decision')
+    // Not while the persona cannot take a reply.
+    expect(draw([said('g', 2, 'Hi.', { activation: true }), said('a', 3, options)], [], () => false)).not.toContain('decision')
+  })
+})

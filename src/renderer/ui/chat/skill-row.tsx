@@ -17,9 +17,10 @@ const VISIBLE = 5
  * Main alone decides whether the code is a skill or a prompt; neither word, nor
  * any skill name, is here. No tooltip and no preview.
  *
- * The buttons are disabled while the persona's session has a turn in flight,
- * or while it has no session yet (an empty chat, Story 8.2), and only then; the
- * composer below is never disabled. A persona with no entries has no row.
+ * The buttons are disabled while the persona's session has a turn in flight, and
+ * only then; on an empty chat, with no session yet, they are enabled and a press
+ * starts the seat with the skill as its first turn (Story 8.3). The composer
+ * below is never disabled. A persona with no entries has no row.
  *
  * Only the first `VISIBLE` entries show. A longer menu ends in a `+N more`
  * button that opens the row in place to every entry and then reads `fewer`.

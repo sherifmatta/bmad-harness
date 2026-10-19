@@ -387,9 +387,9 @@ describe('speech', () => {
 
     const said = sender.events.filter((event) => event.name === 'persona:said')
     expect(said.map((event) => event.payload)).toEqual([
-      { sessionId: 's1', agentId: 'bmad-agent-analyst', messageId: 'msg_1', text: 'Hel', at: expect.any(Number) },
-      { sessionId: 's1', agentId: 'bmad-agent-analyst', messageId: 'msg_1', text: 'lo ', at: expect.any(Number) },
-      { sessionId: 's1', agentId: 'bmad-agent-analyst', messageId: 'msg_1', text: 'there', at: expect.any(Number) }
+      { sessionId: 's1', agentId: 'bmad-agent-analyst', messageId: 'msg_1', text: 'Hel', at: expect.any(Number), activation: true },
+      { sessionId: 's1', agentId: 'bmad-agent-analyst', messageId: 'msg_1', text: 'lo ', at: expect.any(Number), activation: true },
+      { sessionId: 's1', agentId: 'bmad-agent-analyst', messageId: 'msg_1', text: 'there', at: expect.any(Number), activation: true }
     ])
     expect(sender.sent.every(([channel]) => channel === SESSION_EVENT_CHANNEL)).toBe(true)
   })
@@ -1196,7 +1196,7 @@ describe('conversation:get', () => {
     for (const frame of [messageStart('msg_1'), textStart, delta('Hel')]) proc.frame(frame)
 
     expect(snapshotOf(sender)).toEqual({
-      entries: [{ kind: 'persona', id: 'm-0', at: expect.any(Number), agentId: A, messageId: 'msg_1', text: 'Hel' }],
+      entries: [{ kind: 'persona', id: 'm-0', at: expect.any(Number), agentId: A, messageId: 'msg_1', text: 'Hel', activation: true }],
       sessions: [{ agentId: A, sessionId: 's1' }],
       busy: ['s1'],
       personas: [{ agentId: A, state: 'work', at: 1001 }],
@@ -3549,6 +3549,299 @@ describe('skill-first sessions (Story 7.5)', () => {
 
       expect(snapshotOf(sender).skillSessions).toEqual([{ sessionId, skill: 'bmad-build', live: false }])
       expect(await send(sender, sessionId, 'hello?')).toMatchObject({ ok: false, error: { code: 'session/ended' } })
+    })
+  })
+})
+
+describe('the first message starts the seat (Story 8.3)', () => {
+  const A = 'bmad-agent-analyst'
+  const PROJECT = '/project-1'
+  const entries = () => registry.forProject(PROJECT).entries()
+  const get = (sender: FakeSender): ConversationReply =>
+    (handlers.get(CONVERSATION_GET_CHANNEL) as unknown as (e: { sender: FakeSender }) => ConversationReply)({ sender })
+  const snapshotOf = (sender: FakeSender) => {
+    const reply = get(sender)
+    if (!reply.ok) throw new Error('no snapshot')
+    return reply.snapshot
+  }
+  const dispatchStop = (sender: FakeSender, sessionId: unknown) =>
+    (handlers.get('turn:stop') as unknown as (e: { sender: FakeSender }, id: unknown) => Promise<unknown>)({ sender }, sessionId)
+  const said = (sender: FakeSender) => sender.events.flatMap((event) => (event.name === 'persona:said' ? [event.payload] : []))
+  const harness = (sender: FakeSender) => sender.events.flatMap((event) => (event.name === 'harness:said' ? [event.payload.text] : []))
+  const reading = (id: string, ...words: string[]) => [messageStart(id), textStart, ...words.map((word) => delta(word))]
+  /** `{ seat, message }` asked and the process brought up: what the window would do. */
+  async function start(message = 'hello', mention?: string, sender = new FakeSender(1)) {
+    const pending = open(sender, { seat: A, message, ...(mention === undefined ? {} : { mention }) })
+    const proc = processes[processes.length - 1]
+    await proc.up()
+    return { sender, proc, reply: (await pending) as { ok: true; sessionId: string } }
+  }
+
+  describe('{ seat, message }', () => {
+    it('records the user turn before it spawns, with the persona and a mention that names it', async () => {
+      const sender = new FakeSender(1)
+      const pending = open(sender, { seat: A, message: 'hello', mention: '@Mary' })
+
+      expect(entries()).toEqual([
+        { kind: 'user', id: 'm-0', at: expect.any(Number), text: 'hello', mention: '@Mary', agentId: A }
+      ])
+      await processes[0].up()
+      expect(await pending).toMatchObject({ ok: true, sessionId: 's1' })
+      expect(processes[0].options.agentId).toBe(A)
+    })
+
+    it('drops a mention that does not name the persona', async () => {
+      const { proc } = await start('hello', '@John')
+
+      expect(proc.writes).toEqual([`/${A}`])
+      expect(entries()).toMatchObject([{ kind: 'user', text: 'hello', agentId: A }])
+      expect(entries()[0]).not.toHaveProperty('mention')
+    })
+
+    it('writes /<agentId>, and the message only when the activation turn has ended, with nothing announced between', async () => {
+      const { sender, proc, reply } = await start()
+      expect(proc.writes).toEqual([`/${A}`])
+
+      for (const frame of reading('msg_1', 'Hi, ', 'I am Mary')) proc.frame(frame)
+      expect(proc.writes).toEqual([`/${A}`])
+      proc.frame(result())
+
+      expect(proc.writes).toEqual([`/${A}`, 'hello'])
+      expect(sender.names).not.toContain('session:awaiting-turn')
+      expect(snapshotOf(sender).busy).toEqual([reply.sessionId])
+      expect(sender.events.filter((event) => event.name === 'persona:state').map((event) => event.payload.state)).toEqual(['work'])
+      // The user's own turn is not written again, and nothing is recorded for the held message's write.
+      expect(entries().filter((entry) => entry.kind === 'user')).toHaveLength(1)
+    })
+
+    it('flags only what the persona said during the activation, and keeps the order user turn, greeting, answer', async () => {
+      const { sender, proc } = await start()
+      for (const frame of reading('msg_1', 'Hi ', 'there')) proc.frame(frame)
+      proc.frame(result())
+      for (const frame of reading('msg_2', 'The ', 'answer')) proc.frame(frame)
+      proc.frame(result())
+
+      expect(said(sender).map(({ messageId, text, activation }) => [messageId, text, activation])).toEqual([
+        ['msg_1', 'Hi ', true],
+        ['msg_1', 'there', true],
+        ['msg_2', 'The ', undefined],
+        ['msg_2', 'answer', undefined]
+      ])
+      expect(entries().map((entry) => [entry.kind, entry.text, entry.kind === 'persona' ? entry.activation : undefined])).toEqual([
+        ['user', 'hello', undefined],
+        ['persona', 'Hi there', true],
+        ['persona', 'The answer', undefined]
+      ])
+      // The awaiting-turn that ends the answer is the only one, and the session is free then.
+      expect(sender.names.filter((name) => name === 'session:awaiting-turn')).toHaveLength(1)
+      expect(snapshotOf(sender).busy).toEqual([])
+    })
+
+    it('reads work from the open until the answer ends', async () => {
+      const { sender, proc } = await start()
+      proc.frame(result())
+      expect(sender.events.filter((event) => event.name === 'persona:state').map((event) => event.payload.state)).toEqual(['work'])
+      proc.frame(result())
+      expect(sender.events.filter((event) => event.name === 'persona:state').map((event) => event.payload.state)).toEqual(['work', 'idle'])
+    })
+
+    it('says the failure once and writes nothing when the activation fails, leaving the session idle and activated', async () => {
+      const { sender, proc, reply } = await start()
+      proc.frame(result('error_during_execution', true))
+
+      expect(proc.writes).toEqual([`/${A}`])
+      expect(harness(sender)).toEqual([LINES.failed('error_during_execution')])
+      expect(snapshotOf(sender).busy).toEqual([])
+      expect(entries().filter((entry) => entry.kind === 'user')).toHaveLength(1)
+      // The seat is activated: the next message is a plain send.
+      expect(await send(sender, reply.sessionId, 'again')).toEqual({ ok: true })
+      expect(proc.writes).toEqual([`/${A}`, 'again'])
+    })
+
+    it('writes nothing when the user stops the activation, and says it was stopped', async () => {
+      const { sender, proc, reply } = await start()
+      const stopping = dispatchStop(sender, reply.sessionId)
+      await Promise.resolve()
+      proc.frame(result('error_during_execution', true))
+      await stopping
+
+      expect(proc.writes).toEqual([`/${A}`])
+      expect(harness(sender)).toEqual([LINES.stopped])
+      expect(entries()[0]).toMatchObject({ kind: 'user', text: 'hello' })
+    })
+
+    it('frees the seat with one failure line, announced once, when writing the held message fails', async () => {
+      const { sender, proc, reply } = await start()
+      proc.session.write = () => Promise.resolve(false)
+      proc.frame(result())
+      await Promise.resolve()
+      await Promise.resolve()
+
+      expect(harness(sender)).toEqual([LINES.failed(undefined)])
+      expect(sender.names.filter((name) => name === 'session:awaiting-turn')).toHaveLength(1)
+      expect(snapshotOf(sender).busy).toEqual([])
+      expect(sender.events.filter((event) => event.name === 'persona:state').map((event) => event.payload.state)).toEqual(['work', 'error'])
+      // The user's turn stays, and the seat takes the next message.
+      expect(entries().filter((entry) => entry.kind === 'user')).toHaveLength(1)
+      proc.session.write = (text) => {
+        proc.writes.push(text)
+        return Promise.resolve(true)
+      }
+      expect(await send(sender, reply.sessionId, 'again')).toEqual({ ok: true })
+      expect(proc.writes).toEqual([`/${A}`, 'again'])
+    })
+
+    it('drops the held message when the process exits during the activation, keeping the user turn', async () => {
+      const { sender, proc } = await start()
+      proc.exit()
+
+      expect(proc.writes).toEqual([`/${A}`])
+      expect(harness(sender)).toEqual([LINES.exited])
+      expect(entries().map((entry) => entry.kind)).toEqual(['user', 'sysline'])
+    })
+
+    it('keeps the user turn when the spawn fails, with one failure and no seat left to retry on', async () => {
+      const sender = new FakeSender(1)
+      const pending = open(sender, { seat: A, message: 'hello' })
+      processes[0].fail('ENOENT')
+
+      expect(await pending).toMatchObject({ ok: false, error: { code: 'session/spawn-failed' } })
+      expect(entries()).toMatchObject([{ kind: 'user', text: 'hello', agentId: A }])
+      expect(processes).toHaveLength(1)
+      expect(sender.names).toEqual([])
+    })
+
+    it('answers session/busy for a persona main already holds, recording and spawning nothing', async () => {
+      const { sender } = await opened()
+      const before = entries().length
+
+      expect(await open(sender, { seat: A, message: 'hello' })).toMatchObject({ ok: false, error: { code: 'session/busy' } })
+      expect(processes).toHaveLength(1)
+      expect(entries()).toHaveLength(before)
+    })
+
+    it('refuses an agent id that is not one and a message that is not text', async () => {
+      const sender = new FakeSender(1)
+      expect(await open(sender, { seat: '../x', message: 'hi' })).toMatchObject({ ok: false, error: { code: 'session/invalid-agent' } })
+      expect(await open(sender, { seat: A, message: 7 })).toMatchObject({ ok: false, error: { code: 'session/invalid-turn' } })
+      expect(processes).toHaveLength(0)
+      expect(entries()).toEqual([])
+    })
+
+    it('leaves the argv alone and a live activated seat sending exactly as before', async () => {
+      const { sender, reply, proc } = await opened()
+      proc.frame(result())
+
+      expect(await send(sender, reply.sessionId, 'plain')).toEqual({ ok: true })
+      expect(proc.writes).toEqual([`/${A}`, 'plain'])
+      proc.frame(result())
+      expect(sender.names.filter((name) => name === 'session:awaiting-turn')).toHaveLength(2)
+      expect(said(sender).every((event) => event.activation === undefined)).toBe(true)
+    })
+  })
+
+  describe('{ seat, code }', () => {
+    const entry = (action: { kind: 'skill'; skill: string } | { kind: 'prompt'; prompt: string }) => ({ code: 'BP', description: 'x', action })
+    let resolved: ReturnType<typeof entry> | undefined
+
+    beforeEach(() => {
+      resolved = entry({ kind: 'skill', skill: 'bmad-brainstorming' })
+      launch({}, false, {
+        menuEntryFor: (_id, _agent, code) => (code === 'BP' ? resolved : undefined),
+        readPlan: () => Promise.resolve({ spine: ['Goals'], menu: [] })
+      })
+    })
+
+    async function pressed(code = 'BP', sender = new FakeSender(1)) {
+      const pending = open(sender, { seat: A, code })
+      await Promise.resolve()
+      await Promise.resolve()
+      const proc = processes[processes.length - 1]
+      await proc?.up()
+      return { sender, proc, reply: (await pending) as { ok: true; sessionId: string } }
+    }
+
+    it('spawns the seat with the skill as its first turn and no /<agentId>, and begins its run in that persona’s thread', async () => {
+      const { sender, proc, reply } = await pressed()
+
+      expect(reply).toMatchObject({ ok: true, sessionId: 's1' })
+      expect(proc.options).toMatchObject({ agentId: A, firstTurn: '/bmad-brainstorming' })
+      expect(proc.writes).toEqual(['/bmad-brainstorming'])
+      expect(sender.events.filter((event) => event.name === 'run:started').map((event) => event.payload)).toMatchObject([
+        { agentId: A, sessionId: 's1', code: 'BP', skill: 'bmad-brainstorming', plan: ['Goals'] }
+      ])
+      expect(entries()).toEqual([])
+    })
+
+    it('says what the persona says as its own, with no activation flag, no greeting and no record of an activation', async () => {
+      const { sender, proc } = await pressed()
+      for (const frame of reading('msg_1', 'Let us begin')) proc.frame(frame)
+      proc.frame(result())
+
+      expect(said(sender).map((event) => event.activation)).toEqual([undefined])
+      expect(entries().map((held) => [held.kind, held.kind === 'persona' ? held.activation : undefined])).toEqual([['persona', undefined]])
+      expect(sender.names).toContain('session:awaiting-turn')
+    })
+
+    it('starts a prompt entry the same way, with the prompt as the first turn', async () => {
+      resolved = entry({ kind: 'prompt', prompt: 'Tell me a story' })
+      const { proc } = await pressed()
+      expect(proc.writes).toEqual(['Tell me a story'])
+    })
+
+    it('answers menu/unknown-entry for a code the persona has none of, and spawns nothing', async () => {
+      const sender = new FakeSender(1)
+      expect(await open(sender, { seat: A, code: 'ZZ' })).toMatchObject({ ok: false, error: { code: 'menu/unknown-entry' } })
+      expect(processes).toHaveLength(0)
+    })
+
+    it('opens one seat for two presses: the second is session/busy', async () => {
+      const sender = new FakeSender(1)
+      const first = open(sender, { seat: A, code: 'BP' })
+      const second = open(sender, { seat: A, code: 'BP' })
+      await Promise.resolve()
+      await Promise.resolve()
+      await processes[0].up()
+
+      expect(await first).toMatchObject({ ok: true })
+      expect(await second).toMatchObject({ ok: false, error: { code: 'session/busy' } })
+      expect(processes).toHaveLength(1)
+    })
+
+    it('writes /<agentId> first when the user later sends a chat message, and the message after it ends; the reply is flagged only for the greeting', async () => {
+      const { sender, proc, reply } = await pressed()
+      proc.frame(result())
+
+      expect(await send(sender, reply.sessionId, 'who are you', '@Mary')).toEqual({ ok: true })
+      expect(proc.writes).toEqual(['/bmad-brainstorming', `/${A}`])
+      expect(entries()).toMatchObject([{ kind: 'user', text: 'who are you', mention: '@Mary', agentId: A }])
+      for (const frame of reading('msg_1', 'Mary here')) proc.frame(frame)
+      proc.frame(result())
+      expect(proc.writes).toEqual(['/bmad-brainstorming', `/${A}`, 'who are you'])
+      for (const frame of reading('msg_2', 'About me')) proc.frame(frame)
+      proc.frame(result())
+
+      expect(said(sender).map((event) => [event.text, event.activation])).toEqual([
+        ['Mary here', true],
+        ['About me', undefined]
+      ])
+      // Activated now: a further message is a plain send.
+      expect(await send(sender, reply.sessionId, 'thanks')).toEqual({ ok: true })
+      expect(proc.writes.slice(-1)).toEqual(['thanks'])
+    })
+
+    it('leaves the seat as it was when writing /<agentId> fails', async () => {
+      const { sender, proc, reply } = await pressed()
+      proc.frame(result())
+      proc.session.write = () => Promise.resolve(false)
+
+      expect(await send(sender, reply.sessionId, 'hello')).toMatchObject({ error: { code: 'session/write-failed' } })
+      proc.session.write = (text) => {
+        proc.writes.push(text)
+        return Promise.resolve(true)
+      }
+      expect(await send(sender, reply.sessionId, 'hello')).toEqual({ ok: true })
+      expect(proc.writes).toEqual(['/bmad-brainstorming', `/${A}`])
     })
   })
 })

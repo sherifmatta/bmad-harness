@@ -26,6 +26,8 @@ export type PersonaRecord = {
   text: string
   /** Set on what a persona said in a room (Story 4.2): it belongs to the party thread. Absent otherwise. */
   room?: true
+  /** Set on what a persona said while its `/<agentId>` activation turn was in flight (Story 8.3). Absent otherwise. */
+  activation?: true
 }
 
 /**

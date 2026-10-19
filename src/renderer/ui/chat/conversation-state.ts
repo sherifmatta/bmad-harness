@@ -212,6 +212,62 @@ export function sendMessage(
   return drain(entered, agentId)
 }
 
+/**
+ * The user's first message to a persona that has no session (Story 8.3): main starts the seat on it, so it is drawn as
+ * sent at once, plain, with no queued marker and no queue item. Nothing else about the state changes: the session and
+ * the busy mark come from `session:opened` or the open's reply (`seatStarted`).
+ */
+export function sendFirst(
+  state: ConversationState,
+  agentId: string,
+  at: number,
+  text: string,
+  mention?: string
+): ConversationState {
+  return withEntry(state, {
+    kind: 'user',
+    id: `entry-${state.nextId}`,
+    at,
+    text,
+    ...(mention === undefined ? {} : { mention }),
+    agentId
+  })
+}
+
+/**
+ * The first message of `sendFirst` was refused as busy: main already holds the persona's seat, which this window had
+ * missed. The entry is shown as queued, in place, and its message goes to the head of the persona's queue, to be sent
+ * once the seat's turn is known to be over. An entry no longer held changes nothing.
+ */
+export function firstRequeued(
+  state: ConversationState,
+  agentId: string,
+  entryId: string,
+  text: string,
+  personaName: string,
+  mention?: string
+): ConversationState {
+  if (!state.entries.some((entry) => entry.kind === 'user' && entry.id === entryId)) {
+    return state
+  }
+  const entries = state.entries.map((entry) =>
+    entry.kind === 'user' && entry.id === entryId ? { ...entry, queuedFor: personaName } : entry
+  )
+  return withQueue({ ...state, entries }, agentId, [
+    { entryId, text, ...(mention === undefined ? {} : { mention }) },
+    ...(state.queue.get(agentId) ?? [])
+  ])
+}
+
+/**
+ * The reply to a seat main started on a first message or a skill button (Story 8.3): the session is the persona's and
+ * has a turn in flight. A session `session:opened` already announced is as the events left it, so the reply changes
+ * nothing then; one the window meets only here is taken to be busy, as it is mid-activation or mid-run.
+ */
+export function seatStarted(state: ConversationState, agentId: string, sessionId: string): ConversationState {
+  return state.sessions.get(agentId) === sessionId ? state : withBusy(withSession(state, agentId, sessionId), sessionId, true)
+}
+
 /** Take a queued message back: its entry and its queue item go, and nothing is sent. */
 export function cancelQueued(state: ConversationState, entryId: string): ConversationState {
   for (const [agentId, messages] of state.queue) {
@@ -748,7 +804,8 @@ export function hydrate(
           agent: agentOf(record.agentId) ?? unknownAgent(record.agentId),
           text: record.text,
           messageId: record.messageId,
-          ...(record.room === true ? { room: true as const } : {})
+          ...(record.room === true ? { room: true as const } : {}),
+          ...(record.activation === true ? { activation: true as const } : {})
         }
       : record.kind === 'sysline'
         ? {
@@ -894,7 +951,7 @@ export function foldEvent(
     }
 
     case 'persona:said': {
-      const { agentId, messageId, text, at: time, room, skillSession } = event.payload
+      const { agentId, messageId, text, at: time, room, skillSession, activation } = event.payload
       if (agentId === undefined) {
         // What a skill said in a skill-first session (Story 7.5): its own entry, in its own thread.
         return { state: skillSession === undefined ? state : withSkillWords(state, skillSession, messageId, text, time) }
@@ -930,7 +987,8 @@ export function foldEvent(
           agent: agentOf(agentId) ?? unknownAgent(agentId),
           text,
           messageId,
-          ...(room === true ? { room: true as const } : {})
+          ...(room === true ? { room: true as const } : {}),
+          ...(activation === true ? { activation: true as const } : {})
         })
       }
     }

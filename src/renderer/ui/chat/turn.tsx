@@ -142,6 +142,7 @@ export function PendingSkillTurn({ name, since }: { name: string; since: number 
 export function PersonaTurn({
   agent,
   at,
+  lead,
   text,
   writing,
   decision,
@@ -149,6 +150,11 @@ export function PersonaTurn({
 }: {
   agent: AgentView
   at: number
+  /**
+   * The words of the activation reply this turn is drawn joined with (Story 8.3): their own block above `text`, whole,
+   * under the one head. Absent on every turn that is not that join.
+   */
+  lead?: string
   text: string
   /** Set while this is the turn in flight: the words so far, with the caret and the state line. */
   writing?: Writing
@@ -164,6 +170,7 @@ export function PersonaTurn({
       </div>
       <div className="turn-body">
         <Head name={agent.name} ident={agent.title} at={at} />
+        {lead !== undefined && <PersonaWords text={lead} />}
         <PersonaWords text={text} writing={writing} />
         {writing !== undefined && <TurnState since={writing.since} />}
         {decision !== undefined && onChoose !== undefined && (

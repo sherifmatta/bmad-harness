@@ -10,8 +10,8 @@ import { Initials } from '../persona/initials'
  * empty thread a blank pane with nothing to say what to do in it.
  *
  * It is read-only. The skill row above the composer is the one place a skill
- * runs from, and it needs a session (it is drawn disabled until the first message
- * opens one); this names what that row will offer and how a session starts, and
+ * runs from; on an empty chat a press starts the seat with that skill as its first
+ * turn (Story 8.3), and this names what that row will offer and how a session starts, and
  * carries no button, handler or tab stop of its own.
  * Everything project-supplied is React text.
  */

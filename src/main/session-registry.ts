@@ -23,7 +23,7 @@ import type { TranscriptRegistry } from './projections/transcript'
 import { initialRouteState, routeFrame } from './fold/route-frame'
 import type { RouteState } from './fold/route-frame'
 import { readFrame } from './fold/frame'
-import { foldTurn, initialTurn } from './fold/turn-end'
+import { beginTurn, foldTurn, initialTurn } from './fold/turn-end'
 import type { TurnState } from './fold/turn-end'
 import { foldWrittenPaths, initialWrittenState, withWrittenPaths } from './fold/written-paths'
 import type { WrittenState } from './fold/written-paths'
@@ -52,6 +52,9 @@ import type {
  */
 
 export type OpenReply = SessionOpenReply
+
+/** The run a seat started with a first turn begins once it is up (Story 8.3): the menu entry's code, plan and skill. */
+export type SeatRun = { code: string; plan?: TemplatePlan; skill?: string }
 
 export type Entry = {
   sessionId: SessionId
@@ -101,6 +104,20 @@ export type Entry = {
   roomCast: readonly AgentId[] | undefined
   /** When `session:opened` was announced for this entry, the same value as its `at`; `undefined` while starting. Memory only. */
   openedAt: EpochMs | undefined
+  /**
+   * Whether the persona has been activated in this session (Story 8.3): `/<agentId>` is its first turn, or has been
+   * written since. `false` only for a seat a skill button started with the skill as its first turn (no activation); the
+   * first chat message into such a seat writes `/<agentId>` first. Always `true` for the room and a skill-first
+   * session, where it means nothing. Memory only.
+   */
+  activated: boolean
+  /** `/<agentId>` is in flight (Story 8.3): what the persona says now is flagged `activation`, until that turn ends. Memory only. */
+  activating: boolean
+  /**
+   * The user's first message, held while `/<agentId>` is in flight (Story 8.3): written when that turn ends without
+   * failing, and dropped when it fails, is stopped, or the process goes. Never written with `/<agentId>` in flight.
+   */
+  pending: string | undefined
 }
 
 export { kindOf }
@@ -170,7 +187,20 @@ export type SessionRegistry = {
   /** The window's service, made on first ask. */
   serviceFor(sender: Sender, projectRoot: string): Service
   /** Start a session; its `ready` says how that went. */
-  open(sender: Sender, service: Service, projectRoot: string, agentId: AgentId): Entry
+  open(sender: Sender, service: Service, projectRoot: string, agentId: AgentId, pending?: string): Entry
+  /**
+   * Start a persona's seat with `firstTurn` as its first stdin turn and no `/<agentId>` (Story 8.3): a skill button
+   * pressed on an empty chat. The seat is not activated. Once it is up, `run` (the menu entry's code, plan and skill)
+   * begins as the seat's run, so its card is born in the persona's thread. Its `ready` says how that went.
+   */
+  openSeatWith(
+    sender: Sender,
+    service: Service,
+    projectRoot: string,
+    agentId: AgentId,
+    firstTurn: string,
+    run: SeatRun
+  ): Entry
   /**
    * Start the window's room, a session with no agent whose first turn is `firstTurn`, for `cast`
    * (kept on the entry, in the order given); its `ready` says how that went. The caller has checked
@@ -263,6 +293,27 @@ function turnOver(entry: Entry): void {
   for (const release of entry.idleWaiters.splice(0)) release()
 }
 
+/**
+ * The user's first message, written once the activation turn has ended (Story 8.3). The session is busy from this
+ * instant. The write is asynchronous: if it fails the harness says so and the session is free again, announced as
+ * any turn's end is; if the session went meanwhile nothing more happens.
+ */
+function writeHeld(sinks: FrameSinks, sender: Sender, service: Service, entry: Entry, text: string): void {
+  const { now, announce, say } = sinks
+  entry.turn = beginTurn(entry.turn)
+  entry.afterStop = undefined
+  void (entry.session?.write(text) ?? Promise.resolve(false)).then((written) => {
+    if (written || entry.closed) {
+      return
+    }
+    entry.turn = { ...entry.turn, busy: false }
+    say(sender, entry, LINES.failed(undefined))
+    service.personas.apply({ name: 'turn:failed', payload: { sessionId: entry.sessionId, at: now() } })
+    announce(sender, service, { name: 'session:awaiting-turn', payload: { sessionId: entry.sessionId, at: now() } })
+    turnOver(entry)
+  })
+}
+
 /** What one raw frame from a session does: end its turn, or say something, or write a file. */
 function foldFrame(
   sinks: FrameSinks,
@@ -309,6 +360,16 @@ function foldFrame(
   if (signal?.kind === 'ended') {
     // A run ends with its turn: the terminal event comes before the session is free.
     endRun(runs, sender, service, entry, stopped ? 'stopped' : { failed: signal.failed, subtype: signal.subtype })
+    // The activation turn is over (Story 8.3). The user's first message was held behind it: when the turn
+    // ended without failing it is written now, and the session stays busy, so nothing is announced and
+    // nothing waiting for a free session is released until the answer ends. Otherwise it is dropped.
+    const held = entry.pending
+    entry.activating = false
+    entry.pending = undefined
+    if (held !== undefined && !failedResult) {
+      writeHeld(sinks, sender, service, entry, held)
+      return
+    }
     announce(sender, service, {
       name: 'session:awaiting-turn',
       payload: { sessionId: entry.sessionId, at: now() }
@@ -358,8 +419,19 @@ function foldFrame(
     }
     // A skill-first session's files are nobody's: no persona owns them and the room did not write them.
   }
-  // What the persona said is kept and told; a run's document events go to its card.
-  deliver(runs, sender, service, entry, routed.events)
+  // What the persona said is kept and told; a run's document events go to its card. What it says while
+  // `/<agentId>` is in flight is the activation's, and is flagged so (Story 8.3).
+  deliver(
+    runs,
+    sender,
+    service,
+    entry,
+    entry.activating
+      ? routed.events.map((event) =>
+          event.name === 'persona:said' ? { ...event, payload: { ...event.payload, activation: true as const } } : event
+        )
+      : routed.events
+  )
 }
 
 /** What starting a session's process needs of the registry that holds it. */
@@ -488,7 +560,10 @@ function newEntry(
     idleWaiters: [],
     roomSends: Promise.resolve(),
     roomCast: roomCast === undefined ? undefined : [...roomCast],
-    openedAt: undefined
+    openedAt: undefined,
+    activated: true,
+    activating: false,
+    pending: undefined
   }
 }
 
@@ -531,6 +606,37 @@ function keepSkillStart(transcripts: TranscriptRegistry, entry: Entry, firstTurn
   const transcript = transcripts.forProject(entry.projectRoot)
   transcript.openSkillSession({ sessionId: entry.sessionId, skill: entry.skill ?? '', at })
   transcript.recordUserTurn(firstTurn, at, undefined, undefined, entry.sessionId)
+}
+
+/** What closing one session needs of the registry that holds it. */
+type FinishKit = { runs: RunKit; announce: StartKit['announce']; now: () => number }
+
+/** Close one session: its run ends with it, it is forgotten, and `session:closed` is announced once. */
+function finishSession(
+  kit: FinishKit,
+  sender: Sender,
+  service: Service,
+  entry: Entry,
+  reason: 'closed' | 'process-exited'
+): void {
+  if (entry.closed) {
+    return
+  }
+  // A run still in flight ends with its session, before the session is closed; one whose stop
+  // was asked for ends as that stop, whichever way the session went.
+  endRun(kit.runs, sender, service, entry, entry.run?.stopping === true ? 'stopped' : 'session-ended')
+  discard(service, entry)
+  turnOver(entry)
+  kit.announce(sender, service, {
+    name: 'session:closed',
+    payload: {
+      sessionId: entry.sessionId,
+      ...(entry.agentId === undefined ? {} : { agentId: entry.agentId }),
+      ...(entry.skill === undefined ? {} : { skill: entry.skill }),
+      reason,
+      at: kit.now()
+    }
+  })
 }
 
 export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistry {
@@ -597,30 +703,8 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
     }
   }
 
-  function finish(
-    sender: Sender,
-    service: Service,
-    entry: Entry,
-    reason: 'closed' | 'process-exited'
-  ): void {
-    if (entry.closed) {
-      return
-    }
-    // A run still in flight ends with its session, before the session is closed; one whose stop
-    // was asked for ends as that stop, whichever way the session went.
-    endRun(runs, sender, service, entry, entry.run?.stopping === true ? 'stopped' : 'session-ended')
-    discard(service, entry)
-    turnOver(entry)
-    announce(sender, service, {
-      name: 'session:closed',
-      payload: {
-        sessionId: entry.sessionId,
-        ...(entry.agentId === undefined ? {} : { agentId: entry.agentId }),
-        ...(entry.skill === undefined ? {} : { skill: entry.skill }),
-        reason,
-        at: now()
-      }
-    })
+  function finish(sender: Sender, service: Service, entry: Entry, reason: 'closed' | 'process-exited'): void {
+    finishSession({ runs, announce, now }, sender, service, entry, reason)
   }
 
   function onFrame(sender: Sender, service: Service, entry: Entry, frame: unknown): void {
@@ -636,10 +720,28 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
     return entry
   }
 
-  function open(sender: Sender, service: Service, projectRoot: string, agentId: AgentId): Entry {
+  function open(sender: Sender, service: Service, projectRoot: string, agentId: AgentId, pending?: string): Entry {
     const entry = newEntry(newSessionId(), projectRoot, agentId)
+    // The spawn writes `/<agentId>` as the first turn: it is in flight until it ends (Story 8.3).
+    entry.activating = true
+    entry.pending = pending
     service.byAgent.set(agentId, entry)
     return begin(sender, service, entry)
+  }
+
+  function openSeatWith(
+    sender: Sender,
+    service: Service,
+    projectRoot: string,
+    agentId: AgentId,
+    firstTurn: string,
+    run: SeatRun
+  ): Entry {
+    const entry = newEntry(newSessionId(), projectRoot, agentId)
+    entry.activated = false
+    service.byAgent.set(agentId, entry)
+    // Up: the run begins, so its card is born in the persona's thread (no user turn is recorded for a button).
+    return begin(sender, service, entry, firstTurn, () => startRun(runs, sender, service, entry, newRunId(), run.code, run.plan, run.skill))
   }
 
   function openRoom(sender: Sender, service: Service, projectRoot: string, cast: readonly AgentId[], firstTurn: string): Entry {
@@ -662,6 +764,7 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
     serviceOf: (senderId) => services.get(senderId),
     serviceFor,
     open,
+    openSeatWith,
     openRoom,
     openSkill,
     say,

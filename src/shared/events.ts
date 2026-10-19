@@ -80,6 +80,11 @@ export type PersonaSaid = {
    * words belong to that session's own thread alone.
    */
   skillSession?: SessionId
+  /**
+   * Set by main on what a persona said while the `/<agentId>` activation turn was in flight (Story 8.3): the
+   * greeting. The chat draws it joined with the persona turn directly after it. Absent on every other turn.
+   */
+  activation?: true
 }
 
 /**

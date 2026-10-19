@@ -22,6 +22,11 @@ export type PersonaEntry = {
   messageId?: string
   /** Said in the room (Story 4.2): the party thread draws it and a 1:1 thread never does. */
   room?: true
+  /**
+   * Said while the persona's `/<agentId>` activation turn was in flight (Story 8.3), as main flagged it: the greeting.
+   * The thread draws it joined with the persona turn directly after it. Only main sets it; absent on every other turn.
+   */
+  activation?: true
   /** A persona is never a skill-first session's speaker (Story 7.5): every entry kind answers which session's thread it is in. */
   skillSession?: undefined
 }

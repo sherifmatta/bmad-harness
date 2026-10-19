@@ -118,6 +118,31 @@ describe('writeTranscript and loadTranscript', () => {
     expect(loaded.kind === 'loaded' && 'room' in loaded.entries[2]).toBe(false)
   })
 
+  it('keeps the `activation` flag of a persona turn through a write and a read, and invents none (Story 8.3)', () => {
+    const file = transcriptFilePath(userData, project)
+    const held: TranscriptRecord[] = [
+      { kind: 'user', id: 'm-0', at: 1, text: 'hello', agentId: 'a' },
+      { kind: 'persona', id: 'm-1', at: 2, agentId: 'a', messageId: 'msg_1', text: 'Hi, I am A.', activation: true },
+      { kind: 'persona', id: 'm-2', at: 3, agentId: 'a', messageId: 'msg_2', text: 'The answer.' }
+    ]
+    writeTranscript(file, project, held)
+
+    const loaded = loadTranscript(file, project)
+    expect(loaded).toEqual({ kind: 'loaded', skillSessions: [], entries: held, runs: [], dropped: 0, attributed: true })
+    expect(loaded.kind === 'loaded' && 'activation' in loaded.entries[2]).toBe(false)
+  })
+
+  it('counts a persona record whose `activation` is anything but true as left out (Story 8.3)', () => {
+    const file = join(userData, 'odd-activation.json')
+    const good = { kind: 'persona', id: 'm-0', at: 1, agentId: 'a', messageId: 'msg', text: 'kept' }
+    writeFileSync(
+      file,
+      JSON.stringify({ version: 1, projectPath: project, entries: [good, { ...good, id: 'm-1', activation: 'yes' }] })
+    )
+
+    expect(loadTranscript(file, project)).toMatchObject({ kind: 'loaded', entries: [good], dropped: 1 })
+  })
+
   it('keeps a user turn’s `mention` through a write and a read, and invents none (Story 2.15)', () => {
     const file = transcriptFilePath(userData, project)
     const held: TranscriptRecord[] = [

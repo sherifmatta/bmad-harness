@@ -111,6 +111,8 @@ function isRecord(value: unknown): value is TranscriptRecord {
   ) {
     return false
   }
+  // A persona record's activation flag is `true` or not there at all (Story 8.3).
+  if (record.kind === 'persona' && record.activation !== undefined && record.activation !== true) return false
   if (record.kind === 'user' || record.kind === 'sysline') return true
   if (record.kind === 'skill') {
     return typeof record.messageId === 'string' && typeof record.skillSession === 'string'

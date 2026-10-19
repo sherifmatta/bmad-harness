@@ -33,6 +33,20 @@ describe('the transcript fold', () => {
     ])
   })
 
+  it('keeps `activation` on a record the piece starts, and a piece that joins it leaves it as it was (Story 8.3)', () => {
+    const state = foldAll([
+      { ...said('m1', 'Hi ', 10), activation: true },
+      { ...said('m1', 'there', 11), activation: true },
+      said('m2', 'The answer', 12)
+    ])
+
+    expect(state.entries).toEqual([
+      { kind: 'persona', id: 'm-0', at: 10, agentId: 'a', messageId: 'm1', text: 'Hi there', activation: true },
+      { kind: 'persona', id: 'm-1', at: 12, agentId: 'a', messageId: 'm2', text: 'The answer' }
+    ])
+    expect(state.entries[1]).not.toHaveProperty('activation')
+  })
+
   it('joins a following piece of the same agent and message, appending the text unedited', () => {
     const state = foldAll([said('m1', ' Hel', 10), said('m1', 'lo  ', 11), said('m1', '\n', 12)])
 

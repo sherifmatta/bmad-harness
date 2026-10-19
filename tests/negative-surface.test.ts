@@ -1310,6 +1310,8 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
       ).toEqual([
         "src/renderer/ui/chat/use-conversation.ts: dispatchMenu(sessionId: string, code: string): Promise<string>",
         "src/renderer/ui/chat/use-conversation.ts: runSkill(agentId: string, code: string): void",
+        // Story 8.3: a button pressed on an empty chat starts the seat with the code, which main resolves.
+        "src/renderer/ui/chat/use-conversation.ts: function startSeatWithSkill(agentId: string, code: string): void {",
         "src/renderer/ui/chat/use-conversation.ts: runSkill: (agentId: string, code: string) => void",
         "src/renderer/ui/chat/use-conversation.ts: (agentId: string, code: string) => conversation.current?.runSkill(agentId, code),",
       ]);
@@ -1323,6 +1325,9 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
         "src/renderer/ui/chat/use-conversation.ts: asHarnessError(reason).code",
         // Story 7.5: a first message is refused as naming no skill, or not.
         "src/renderer/ui/chat/use-conversation.ts: error.code",
+        // Story 8.3: a first message and a button press that start a seat are refused as busy (main holds the seat) or not.
+        "src/renderer/ui/chat/use-conversation.ts: asHarnessError(reason).code",
+        "src/renderer/ui/chat/use-conversation.ts: asHarnessError(reason).code",
         // Story 7.5: a send to a skill-first session is refused as ended, or not.
         "src/renderer/ui/chat/use-conversation.ts: asHarnessError(reason).code",
         "src/renderer/ui/chat/use-conversation.ts: asHarnessError(reason).code",

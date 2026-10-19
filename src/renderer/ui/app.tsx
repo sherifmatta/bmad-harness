@@ -476,13 +476,14 @@ export function App(): JSX.Element | null {
             head={
               // The persona's skills: drawn when it has a live session to run them in, or its thread holds
               // none of its records (the empty chat, Story 8.2). The row sends a code and nothing else; it is
-              // held while a turn is in flight and until a session exists, so on an empty chat it starts nothing.
+              // held while a turn is in flight. On an empty chat it is enabled: a press starts the seat with the
+              // skill as its first turn (Story 8.3), and a second press before the seat is up is the first.
               conversation.sessionOf(agent.id) === undefined &&
               conversation.entries.some((entry) => isEntryInPersonaThread(entry, agent.id)) ? undefined : (
                 <SkillRow
                   name={agent.name}
                   items={items}
-                  disabled={conversation.sessionOf(agent.id) === undefined || !conversation.canAnswer(agent.id)}
+                  disabled={conversation.sessionOf(agent.id) !== undefined && !conversation.canAnswer(agent.id)}
                   onRun={(code) => conversation.runSkill(agent.id, code)}
                 />
               )

@@ -11,6 +11,7 @@ import {
   dispatchStarted,
   dropQueued,
   ended,
+  firstRequeued,
   foldEvent,
   hydrate,
   initialConversation,
@@ -25,6 +26,8 @@ import {
   roomTurnsOf,
   roomUnsent,
   runCardOf,
+  seatStarted,
+  sendFirst,
   sendMessage,
   sessionOf,
   sessionReady,
@@ -1844,5 +1847,86 @@ describe('a persona’s own thread (Story 8.1)', () => {
     const record: SyslineRecord = { kind: 'sysline', id: 'm-8', at: 3, text: 'x', agentId: john.id }
 
     expect(withHandoff(initialConversation, record).entries).toEqual([{ kind: 'sysline', id: 'm-8', at: 3, text: 'x', agentId: john.id }])
+  })
+})
+
+describe('the first message starts the seat (Story 8.3)', () => {
+  it('draws the first message as sent: tagged with the persona, a mention beside it, no queued marker and no queue item', () => {
+    const sent = sendFirst(initialConversation, john.id, 5, 'hello', '@John')
+
+    expect(sent.entries).toEqual([{ kind: 'user', id: 'entry-0', at: 5, text: 'hello', mention: '@John', agentId: john.id }])
+    expect(sent.queue.size).toBe(0)
+    expect(sent.sessions.size).toBe(0)
+    expect(sent.busy.size).toBe(0)
+    expect(sendFirst(initialConversation, john.id, 5, 'hello').entries[0]).not.toHaveProperty('mention')
+  })
+
+  it('queues a message typed while the seat is starting, as every later message is', () => {
+    const first = sendFirst(initialConversation, john.id, 5, 'one')
+    const second = sendMessage(first, john.id, 6, 'two', 'John')
+
+    expect(second.state.entries).toMatchObject([{ text: 'one' }, { text: 'two', queuedFor: 'John' }])
+    expect(second.state.entries[0]).not.toHaveProperty('queuedFor')
+    expect(second.deliver).toBeUndefined()
+  })
+
+  it('takes the seat from the open’s reply as busy, and leaves a seat the events announced as they left it', () => {
+    const replied = seatStarted(initialConversation, john.id, 's7')
+    expect(sessionOf(replied, john.id)).toBe('s7')
+    expect(canAnswer(replied, john.id)).toBe(false)
+
+    const announced = fold([
+      { name: 'session:opened', payload: { sessionId: 's7', agentId: john.id, at: 1 } },
+      { name: 'session:awaiting-turn', payload: { sessionId: 's7', at: 2 } }
+    ])
+    expect(seatStarted(announced, john.id, 's7')).toBe(announced)
+    expect(canAnswer(announced, john.id)).toBe(true)
+  })
+
+  it('puts a first message main refused as busy back as queued, ahead of what was queued behind it', () => {
+    const first = sendFirst(initialConversation, john.id, 5, 'one', '@John')
+    const second = sendMessage(first, john.id, 6, 'two', 'John').state
+    const requeued = firstRequeued(second, john.id, 'entry-0', 'one', 'John', '@John')
+
+    expect(requeued.entries).toMatchObject([{ text: 'one', queuedFor: 'John' }, { text: 'two', queuedFor: 'John' }])
+    expect(requeued.queue.get(john.id)).toEqual([
+      { entryId: 'entry-0', text: 'one', mention: '@John' },
+      { entryId: 'entry-1', text: 'two' }
+    ])
+    expect(firstRequeued(initialConversation, john.id, 'entry-9', 'x', 'John')).toBe(initialConversation)
+  })
+
+  it('copies the activation flag of a live persona piece onto the entry it starts, and a piece that joins keeps it', () => {
+    const state = fold([
+      { name: 'persona:said', payload: { sessionId: 's1', agentId: mary.id, messageId: 'g', text: 'Hi ', at: 1, activation: true } },
+      { name: 'persona:said', payload: { sessionId: 's1', agentId: mary.id, messageId: 'g', text: 'there', at: 2, activation: true } },
+      said('a', 'Answer', 3)
+    ])
+
+    expect(state.entries).toMatchObject([
+      { kind: 'persona', text: 'Hi there', activation: true },
+      { kind: 'persona', text: 'Answer' }
+    ])
+    expect(state.entries[1]).not.toHaveProperty('activation')
+  })
+
+  it('copies the activation flag a stored persona record carries, and invents none', () => {
+    const { state } = hydrate(
+      initialConversation,
+      {
+        entries: [
+          { kind: 'persona', id: 'm-0', at: 1, agentId: mary.id, messageId: 'g', text: 'Hi', activation: true },
+          { kind: 'persona', id: 'm-1', at: 2, agentId: mary.id, messageId: 'a', text: 'Answer' }
+        ],
+        sessions: [],
+        busy: [],
+        personas: [],
+        runs: []
+      },
+      agentOf
+    )
+
+    expect(state.entries[0]).toMatchObject({ activation: true })
+    expect(state.entries[1]).not.toHaveProperty('activation')
   })
 })

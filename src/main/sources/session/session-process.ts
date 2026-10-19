@@ -223,10 +223,14 @@ export type SessionProcess = {
 export type SpawnSessionOptions = {
   /**
    * The persona the session activates, whose skill invocation is the first stdin
-   * turn. A room has none: it is given `firstTurn` instead.
+   * turn unless `firstTurn` is given. A room has none: it is given `firstTurn` instead.
    */
   agentId?: string
-  /** The first stdin turn of a session that has no `agentId`: a room's activation. */
+  /**
+   * The first stdin turn, in place of the activation: a room's activation, a skill-first session's text, or
+   * (with an `agentId`, Story 8.3) the skill a button started a persona's seat with, which is then not activated.
+   * It wins over the `agentId`'s own `/<agentId>`.
+   */
   firstTurn?: string
   /** The project root. */
   cwd: string

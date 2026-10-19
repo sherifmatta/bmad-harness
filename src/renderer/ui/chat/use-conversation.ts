@@ -12,6 +12,7 @@ import {
   dispatchStarted,
   dropQueued,
   ended,
+  firstRequeued,
   foldEvent,
   hydrate,
   initialConversation,
@@ -25,6 +26,8 @@ import {
   roomTurnsOf,
   roomUnsent,
   runCardOf,
+  seatStarted,
+  sendFirst,
   sendMessage,
   sessionOf,
   sessionReady,
@@ -40,7 +43,13 @@ import type { ProseStore } from './prose-store'
 import { runLifecycleLine, subjectWritten } from './run-status'
 import type { TranscriptEntry } from './transcript-entry'
 
-/** The nine bridge methods the conversation needs, and nothing else of the bridge. */
+/**
+ * The nine bridge methods the conversation needs, and nothing else of the bridge. `openSession` takes a persona's
+ * agent id (`@name`, an activation), `{ room }`, `{ first }`, and, from Story 8.3, `{ seat, message, mention? }` (the
+ * user's first message to a persona with no session: main records it, starts the seat, activates the persona and writes
+ * the message when that turn ends) and `{ seat, code }` (a skill button on an empty chat: the seat starts with the
+ * skill as its first turn and no activation).
+ */
 export type ConversationBridge = {
   openSession(target: SessionTarget): Promise<OpenedSession>
   closeSession(sessionId: string): Promise<void>
@@ -114,15 +123,20 @@ export type Conversation = {
    * is; nothing is written here, and with no live room nothing is sent.
    */
   writeSummary(folder: string): void
-  /** The user sent `text` to a persona; `mention` is the `@name` they typed to hand off to it, shown beside the text (AD-25). */
+  /**
+   * The user sent `text` to a persona; `mention` is the `@name` they typed to hand off to it, shown beside the text (AD-25).
+   * To a persona with no session, with nothing opening it and the snapshot taken, this asks main to start the seat on the
+   * message (Story 8.3): drawn as sent, not queued. Otherwise it is sent, or queued while a turn is in flight.
+   */
   send(agentId: string, text: string, mention?: string): void
   /** The user took a queued message back, by its transcript entry's id. */
   cancel(entryId: string): void
   /**
    * The user activated a menu entry of a persona: its code goes to main for the
    * persona's live session, and nothing else does. Ignored while the session
-   * has a turn in flight, or when the persona has none; a refusal is the
-   * failure line.
+   * has a turn in flight; a refusal is the failure line. With no session (an empty chat, Story 8.3)
+   * main starts the seat with the entry as its first turn and no activation; a second press while
+   * that open is in flight is ignored.
    */
   runSkill(agentId: string, code: string): void
   /**
@@ -193,10 +207,11 @@ type ConversationDeps = {
  * is queued and one into a session that is idle is sent, in the order typed.
  *
  * A persona's session is opened when `@<name>` turns to it (selecting a tile
- * opens nothing, Story 8.2), and for a message typed to a persona that has none,
- * on that first send: the composer is never disabled, and a window that opened on a
- * default persona nobody activated must still take a message. An activation the
- * session is already live for is still an open, which main answers with the same
+ * opens nothing, Story 8.2), when a skill button is pressed on its empty chat, and for a message typed to
+ * a persona that has none, on that first send: the composer is never disabled, and a window that opened on a
+ * default persona nobody activated must still take a message. The first message and the button are
+ * `session.open` forms (Story 8.3): main starts the seat on them, so the first message is drawn as sent, not
+ * queued. An activation the session is already live for is still an open, which main answers with the same
  * session; a switch writes no line (Story 7.4). A session has one turn in flight at a time, so a
  * message typed meanwhile — or before the session is up — is shown at once as
  * queued and is sent when the turn ends, first in first, one per turn. Nothing
@@ -220,6 +235,8 @@ export function createConversation(deps: ConversationDeps): Conversation {
   const stopped = new Set<string>()
   /** How many times the conversation has ended: an open begun before an end belongs to the one before it. */
   let endings = 0
+  /** The sessions main has said are closed: a reply that arrives after its session's own `session:closed` finds it so. */
+  const closedSessions = new Set<string>()
 
   function commit(next: ConversationState): void {
     state = next
@@ -441,6 +458,80 @@ export function createConversation(deps: ConversationDeps): Conversation {
     )
   }
 
+  /** The persona's open in flight settled: it is no longer in flight, and a later send or press asks again. */
+  function settleOpen(agentId: string, attempt: Promise<void>): void {
+    if (opening.get(agentId) === attempt) {
+      opening.delete(agentId)
+    }
+  }
+
+  /**
+   * The user's first message to a persona with no session (Story 8.3): drawn as sent at once, and main is asked to
+   * start the seat on it (it records the turn, spawns, activates the persona and writes the message when that turn
+   * ends). Busy: main holds the seat already, the window had missed it, so the message is queued as any is and the
+   * seat is found. Any other refusal drops what was queued behind it and is the failure line; the turn stays, and
+   * nothing is retried.
+   */
+  function startSeatWithMessage(agentId: string, text: string, mention: string | undefined): void {
+    const entryId = `entry-${state.nextId}`
+    commit(sendFirst(state, agentId, now(), text, mention))
+    const generation = endings
+    const attempt: Promise<void> = bridge
+      .openSession({ seat: agentId, message: text, ...(mention === undefined ? {} : { mention }) })
+      .then(({ sessionId }) => {
+        if (generation === endings && !closedSessions.has(sessionId)) {
+          commit(seatStarted(state, agentId, sessionId))
+        }
+      })
+      .catch((reason: unknown) => {
+        if (generation !== endings) {
+          return
+        }
+        if (asHarnessError(reason).code === 'session/busy') {
+          commit(firstRequeued(state, agentId, entryId, text, agentOf(agentId)?.name || agentId, mention))
+          // The open is spent: the seat is asked for again, whether or not this window thinks it has one.
+          settleOpen(agentId, attempt)
+          void ensureSession(agentId, true)
+          return
+        }
+        commit(dropQueued(state, agentId))
+        fail(reason)
+      })
+      .finally(() => settleOpen(agentId, attempt))
+    opening.set(agentId, attempt)
+  }
+
+  /**
+   * A skill button pressed on a persona's empty chat (Story 8.3): main starts the seat with the skill as its first
+   * turn. Waits for the snapshot as a first message does; a second press before the seat is up is the first. Busy
+   * (main holds the seat already) is silent, as a dispatch refused as busy is; any other refusal is the failure line.
+   */
+  function startSeatWithSkill(agentId: string, code: string): void {
+    if (!hydrated) {
+      afterSnapshot.push(() => startSeatWithSkill(agentId, code))
+      return
+    }
+    if (opening.has(agentId) || sessionOf(state, agentId) !== undefined) {
+      return
+    }
+    const generation = endings
+    const attempt: Promise<void> = bridge
+      .openSession({ seat: agentId, code })
+      .then(({ sessionId }) => {
+        if (generation === endings && !closedSessions.has(sessionId)) {
+          commit(seatStarted(state, agentId, sessionId))
+        }
+      })
+      .catch((reason: unknown) => {
+        if (generation !== endings || asHarnessError(reason).code === 'session/busy') {
+          return
+        }
+        fail(reason)
+      })
+      .finally(() => settleOpen(agentId, attempt))
+    opening.set(agentId, attempt)
+  }
+
   return {
     startFrom: startFirst,
 
@@ -519,6 +610,9 @@ export function createConversation(deps: ConversationDeps): Conversation {
           const { runId, path, callId, text } = event.payload
           prose.commit(runId, path, callId, text)
         }
+        if (event.name === 'session:closed') {
+          closedSessions.add(event.payload.sessionId)
+        }
         const folded = foldEvent(state, event, agentOf)
         commit(folded.state)
         transmit(folded.deliver)
@@ -593,6 +687,11 @@ export function createConversation(deps: ConversationDeps): Conversation {
 
     send(agentId, text, mention) {
       onFailure(null)
+      // A first message to a persona with no session, when nothing is opening it: main starts the seat (Story 8.3).
+      if (hydrated && sessionOf(state, agentId) === undefined && !opening.has(agentId)) {
+        startSeatWithMessage(agentId, text, mention)
+        return
+      }
       const sent = sendMessage(state, agentId, now(), text, agentOf(agentId)?.name || agentId, mention)
       commit(sent.state)
       transmit(sent.deliver)
@@ -608,7 +707,12 @@ export function createConversation(deps: ConversationDeps): Conversation {
     runSkill(agentId, code) {
       onFailure(null)
       const sessionId = sessionOf(state, agentId)
-      if (sessionId === undefined || !canAnswer(state, agentId)) {
+      if (sessionId === undefined) {
+        // An empty chat (Story 8.3): the button starts the seat, with the skill as its first turn.
+        startSeatWithSkill(agentId, code)
+        return
+      }
+      if (!canAnswer(state, agentId)) {
         return
       }
       commit(dispatchStarted(state, sessionId))

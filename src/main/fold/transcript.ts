@@ -14,6 +14,7 @@ import type { TranscriptRecord } from '../../shared/conversation'
  * no one's and is not recorded. One the room said (`room`, with the `agentId` its turn's marker
  * named) is recorded like any other, with the flag kept on the record; so is the user's turn into
  * the room, and into a skill-first session (`skillSession`).
+ * `activation` (Story 8.3) is kept on a record the piece starts; a piece that joins a record leaves it as it was.
  * A sysline is the harness's own line and is always a record of its own: it ends
  * whatever persona message came before it, so later words open a new one.
  */
@@ -44,7 +45,7 @@ function withRecord(state: TranscriptState, record: TranscriptRecord): Transcrip
 }
 
 export function foldPersonaSaid(state: TranscriptState, said: PersonaSaid): TranscriptState {
-  const { agentId, messageId, text, at, room, skillSession } = said
+  const { agentId, messageId, text, at, room, skillSession, activation } = said
   const last = state.entries[state.entries.length - 1]
   if (agentId === undefined) {
     if (skillSession === undefined) {
@@ -68,7 +69,8 @@ export function foldPersonaSaid(state: TranscriptState, said: PersonaSaid): Tran
     agentId,
     messageId,
     text,
-    ...(room === true ? { room: true as const } : {})
+    ...(room === true ? { room: true as const } : {}),
+    ...(activation === true ? { activation: true as const } : {})
   })
 }
 

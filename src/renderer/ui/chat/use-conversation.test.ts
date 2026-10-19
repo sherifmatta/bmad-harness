@@ -75,7 +75,17 @@ class FakeBridge implements ConversationBridge {
   /** What main answers a first message: an opened session, or a refusal; one entry is read per first message. */
   firstAnswers: (OpenedSession | HarnessError)[] = []
 
+  /** The `{ seat, ... }` targets main was asked to start a seat with (Story 8.3), in order; each is also an entry of `opens`. */
+  seatOpens: Extract<SessionTarget, { seat: string }>[] = []
+
   openSession(target: SessionTarget): Promise<OpenedSession> {
+    if (typeof target === 'object' && 'seat' in target) {
+      this.seatOpens.push(target)
+      this.opens.push(target.seat)
+      const started = deferred<string>()
+      this.openResult.push(started)
+      return started.promise.then((sessionId) => ({ sessionId }))
+    }
     if (typeof target === 'object' && 'first' in target) {
       this.firsts.push(target.first)
       const answer = this.firstAnswers.shift()
@@ -173,6 +183,7 @@ let clock: number
 function build() {
   const published: {
     entries: readonly unknown[]
+    busy: ReadonlySet<string>
     personas: ReadonlyMap<string, { state: string; at: number }>
   }[] = []
   const failures: unknown[] = []
@@ -467,8 +478,8 @@ describe('send with a typed mention (Story 2.15)', () => {
     expect(last().entries[0]).not.toHaveProperty('queuedFor')
   })
 
-  it('sends it after a session is opened for a persona that had none', async () => {
-    const { conversation } = build()
+  it('asks main to start the seat on a first message, with the mention beside the text, and sends nothing itself', async () => {
+    const { conversation, last } = build()
     await connected(conversation)
     conversation.send(john.id, 'go', '@John')
     bridge.push(opened('s7', john.id))
@@ -476,7 +487,10 @@ describe('send with a typed mention (Story 2.15)', () => {
     await settle()
     bridge.push(awaiting('s7'))
 
-    expect(bridge.sends).toEqual([['s7', 'go', '@John']])
+    expect(bridge.seatOpens).toEqual([{ seat: john.id, message: 'go', mention: '@John' }])
+    expect(bridge.sends).toEqual([])
+    expect(last().entries).toMatchObject([{ kind: 'user', text: 'go', mention: '@John', agentId: john.id }])
+    expect(last().entries[0]).not.toHaveProperty('queuedFor')
   })
 
   it('keeps it when main refuses the send as busy, and sends it again with the next turn end', async () => {
@@ -611,82 +625,143 @@ describe('send while a turn is in flight', () => {
 })
 
 describe('send to a persona with no session', () => {
-  it('opens the session, shows the turn queued, and writes it after the activation turn ends', async () => {
+  it('draws the first message as sent at once, plain and in its persona’s thread, and asks main to start the seat on it', async () => {
     const { conversation, last } = build()
     await connected(conversation)
     conversation.send(john.id, 'hello john')
 
     expect(bridge.opens).toEqual([john.id])
-    expect(last().entries).toMatchObject([{ kind: 'user', text: 'hello john', queuedFor: 'John' }])
-    expect(bridge.sends).toEqual([])
-
-    // The session comes up and its activation turn is in flight: nothing is
-    // sent into it, so nothing is refused.
-    bridge.push(opened('s7', john.id))
-    bridge.openResult[0].resolve('s7')
-    await settle()
-    expect(bridge.sends).toEqual([])
-
-    bridge.push(said(john.id, 'm1', 'Hi!'))
-    bridge.push(awaiting('s7'))
-    expect(bridge.sends).toEqual([['s7', 'hello john']])
+    expect(bridge.seatOpens).toEqual([{ seat: john.id, message: 'hello john' }])
+    expect(last().entries).toMatchObject([{ kind: 'user', text: 'hello john', agentId: john.id }])
     expect(last().entries[0]).not.toHaveProperty('queuedFor')
-    bridge.push(awaiting('s7'))
-    expect(bridge.sends).toHaveLength(1)
+    expect(bridge.sends).toEqual([])
   })
 
-  it('sends on awaiting-turn alone when the event beats the open reply', async () => {
-    const { conversation } = build()
+  it('takes the seat from the open’s reply, busy through the activation and the answer, and sends nothing into it', async () => {
+    const { conversation, published } = build()
+    await connected(conversation)
+    conversation.send(john.id, 'hello john')
+    bridge.openResult[0].resolve('s7')
+    await settle()
+
+    expect(published.at(-1)?.busy.has('s7')).toBe(true)
+    bridge.push(said(john.id, 'm1', 'Hi!'))
+    expect(bridge.sends).toEqual([])
+    // Main writes the message after the activation and announces nothing until the answer ends.
+    bridge.push(awaiting('s7'))
+    expect(published.at(-1)?.busy.has('s7')).toBe(false)
+    expect(bridge.sends).toEqual([])
+  })
+
+  it('leaves the busy mark to the events when they beat the open reply', async () => {
+    const { conversation, published } = build()
     await connected(conversation)
     conversation.send(john.id, 'hello john')
     bridge.push(opened('s7', john.id))
     bridge.push(awaiting('s7'))
-    expect(bridge.sends).toEqual([['s7', 'hello john']])
-
     bridge.openResult[0].resolve('s7')
     await settle()
-    expect(bridge.sends).toEqual([['s7', 'hello john']])
+
+    expect(published.at(-1)?.busy.has('s7')).toBe(false)
+    expect(bridge.sends).toEqual([])
   })
 
-  it('sends at once when the session was already live and idle, as after a window reload', async () => {
-    const { conversation, last } = build()
+  it('does not take a seat whose session closed before the reply arrived', async () => {
+    const { conversation, published } = build()
     await connected(conversation)
-    conversation.send(john.id, 'hello again')
+    conversation.send(john.id, 'hello john')
+    bridge.push(opened('s7', john.id))
+    bridge.push({ name: 'session:closed', payload: { sessionId: 's7', reason: 'process-exited', at: 3 } })
     bridge.openResult[0].resolve('s7')
     await settle()
 
-    expect(bridge.sends).toEqual([['s7', 'hello again']])
-    expect(last().entries[0]).not.toHaveProperty('queuedFor')
+    expect(published.at(-1)?.busy.has('s7')).toBe(false)
   })
 
-  it('queues a second message behind the first rather than refusing it', async () => {
+  it('queues a second message typed while the seat is starting, and sends it when the answer has ended', async () => {
     const { conversation, failures, last } = build()
     await connected(conversation)
     conversation.send(john.id, 'one')
     conversation.send(john.id, 'two')
 
-    expect(last().entries).toMatchObject([
-      { text: 'one', queuedFor: 'John' },
-      { text: 'two', queuedFor: 'John' }
-    ])
+    expect(last().entries).toMatchObject([{ text: 'one' }, { text: 'two', queuedFor: 'John' }])
+    expect(last().entries[0]).not.toHaveProperty('queuedFor')
     expect(failures.filter((failure) => failure !== null)).toEqual([])
     expect(bridge.opens).toEqual([john.id])
 
     bridge.push(opened('s7', john.id))
+    bridge.openResult[0].resolve('s7')
+    await settle()
+    expect(bridge.sends).toEqual([])
+    // The activation turn ended and main wrote the first message: nothing is announced. The answer ending is.
     bridge.push(awaiting('s7'))
-    bridge.push(awaiting('s7'))
-    expect(bridge.sends).toEqual([
-      ['s7', 'one'],
-      ['s7', 'two']
+    expect(bridge.sends).toEqual([['s7', 'two']])
+  })
+
+  it('queues a message typed while the greeting or the answer streams, dimmed and marked', async () => {
+    const { conversation, last } = build()
+    await connected(conversation)
+    conversation.send(john.id, 'one')
+    bridge.push(opened('s7', john.id))
+    bridge.openResult[0].resolve('s7')
+    await settle()
+    bridge.push({ name: 'persona:said', payload: { sessionId: 's7', agentId: john.id, messageId: 'g1', text: 'Hi', at: 3, activation: true } })
+    conversation.send(john.id, 'during')
+
+    expect(last().entries).toMatchObject([
+      { kind: 'user', text: 'one' },
+      { kind: 'persona', text: 'Hi', activation: true },
+      { kind: 'user', text: 'during', queuedFor: 'John' }
     ])
+    expect(bridge.sends).toEqual([])
+  })
+
+  it('shows the message queued and finds the seat when main answers busy: the window had missed it', async () => {
+    const { conversation, failures, last } = build()
+    await connected(conversation)
+    conversation.send(john.id, 'hello john')
+    bridge.openResult[0].reject({ code: 'session/busy', message: 'session · a turn is already in flight' })
+    await settle()
+
+    expect(last().entries).toMatchObject([{ text: 'hello john', queuedFor: 'John' }])
+    expect(failures.filter((failure) => failure !== null)).toEqual([])
+    // The seat is asked for by its agent id, and the message waits for its turn to end.
+    expect(bridge.opens).toEqual([john.id, john.id])
+    bridge.openResult[1].resolve('s7')
+    await settle()
+    expect(bridge.sends).toEqual([['s7', 'hello john']])
+  })
+
+  it('sends at once, as before, to a session that is live and idle', async () => {
+    const { conversation, last } = build()
+    await connected(conversation)
+    bridge.push(opened('s7', john.id))
+    bridge.push(awaiting('s7'))
+    conversation.send(john.id, 'hello again')
+
+    expect(bridge.seatOpens).toEqual([])
+    expect(bridge.sends).toEqual([['s7', 'hello again']])
+    expect(last().entries[0]).not.toHaveProperty('queuedFor')
+  })
+
+  it('queues the first message, and opens nothing yet, before the snapshot has arrived', async () => {
+    const pending = deferred<ConversationSnapshot>()
+    bridge.conversation = pending.promise
+    const { conversation, last } = build()
+    conversation.connect()
+    conversation.send(john.id, 'early')
+
+    expect(last().entries).toMatchObject([{ text: 'early', queuedFor: 'John' }])
+    expect(bridge.opens).toEqual([])
   })
 })
 
 describe('messages waiting on a session that is lost', () => {
-  it('are dropped with their entries when the open is refused, and the failure still shows', async () => {
+  it('are dropped with their entries when the start is refused, the first message stays, nothing is retried and the failure shows', async () => {
     const { conversation, failures, last } = build()
     await connected(conversation)
     conversation.send(john.id, 'one')
+    conversation.send(john.id, 'two')
     bridge.openResult[0].reject({
       code: 'session/spawn-failed',
       message: 'session · could not start the session'
@@ -694,24 +769,28 @@ describe('messages waiting on a session that is lost', () => {
     await settle()
 
     expect(failures.at(-1)).toMatchObject({ code: 'session/spawn-failed' })
-    expect(last().entries).toEqual([])
-    conversation.send(john.id, 'two')
+    expect(last().entries).toMatchObject([{ text: 'one', agentId: john.id }])
+    expect(last().entries[0]).not.toHaveProperty('queuedFor')
+    expect(bridge.opens).toEqual([john.id])
 
+    // The user's next message is their own ask, and starts a seat afresh.
+    conversation.send(john.id, 'three')
     expect(bridge.opens).toEqual([john.id, john.id])
     expect(failures.at(-1)).toBeNull()
-    expect(last().entries).toMatchObject([{ text: 'two' }])
+    expect(last().entries).toMatchObject([{ text: 'one' }, { text: 'three' }])
   })
 
   it('are dropped with their entries when the user closes the session, and never sent to a later session', async () => {
     const { conversation, last } = build()
     await connected(conversation)
+    conversation.send(john.id, 'first')
     conversation.send(john.id, 'stale')
     bridge.push(opened('s7', john.id))
     bridge.push({
       name: 'session:closed',
       payload: { sessionId: 's7', reason: 'closed', at: 3 }
     })
-    expect(last().entries).toEqual([])
+    expect(last().entries).toMatchObject([{ text: 'first' }])
     bridge.push(opened('s8', john.id))
     bridge.push(awaiting('s8'))
 
@@ -723,13 +802,17 @@ describe('messages waiting on a session that is lost', () => {
   it('are kept when the process exits on its own, shown as queued, and sent first to the next session', async () => {
     const { conversation, last } = build()
     await connected(conversation)
+    conversation.send(john.id, 'first')
     conversation.send(john.id, 'kept')
     bridge.push(opened('s7', john.id))
     bridge.push({
       name: 'session:closed',
       payload: { sessionId: 's7', reason: 'process-exited', at: 3 }
     })
-    expect(last().entries).toMatchObject([{ kind: 'user', text: 'kept', queuedFor: expect.any(String) }])
+    expect(last().entries).toMatchObject([
+      { kind: 'user', text: 'first' },
+      { kind: 'user', text: 'kept', queuedFor: expect.any(String) }
+    ])
     expect(bridge.sends).toEqual([])
 
     bridge.push(opened('s8', john.id))
@@ -971,7 +1054,9 @@ describe('end', () => {
     // A next message opens a fresh session rather than waiting on the old one.
     conversation.send(mary.id, 'again')
     expect(bridge.opens).toEqual([mary.id])
-    expect(last().entries).toMatchObject([{ text: 'again', queuedFor: 'Mary' }])
+    expect(bridge.seatOpens).toEqual([{ seat: mary.id, message: 'again' }])
+    expect(last().entries).toMatchObject([{ text: 'again' }])
+    expect(last().entries[0]).not.toHaveProperty('queuedFor')
   })
 
   it('shows a refusal as the failure line and leaves everything as it was', async () => {
@@ -1024,7 +1109,8 @@ describe('end', () => {
     expect(bridge.opens).toEqual([mary.id, mary.id])
     bridge.openResult[1].resolve('s2')
     await settle()
-    expect(bridge.sends).toEqual([['s2', 'fresh']])
+    expect(bridge.seatOpens).toEqual([{ seat: mary.id, message: 'fresh' }])
+    expect(bridge.sends).toEqual([])
     expect(last().entries).toMatchObject([{ text: 'fresh' }])
   })
 
@@ -1295,7 +1381,7 @@ describe('a run, through the conversation (Story 3.1)', () => {
     expect(published.at(-1)?.busy.has('s1')).toBe(true)
   })
 
-  it('does nothing for a persona with no session, and frees the row with the failure line on a refusal', async () => {
+  it('dispatches nothing into a session for a persona with no session, and frees the row with the failure line on a refusal', async () => {
     const { conversation, published, failures } = await live()
     conversation.runSkill(john.id, 'CP')
     expect(bridge.dispatches).toEqual([])
@@ -1306,6 +1392,73 @@ describe('a run, through the conversation (Story 3.1)', () => {
     await settle()
     expect(published.at(-1)?.busy.has('s1')).toBe(false)
     expect(failures.at(-1)).toEqual(refusal)
+  })
+
+  describe('on an empty chat (Story 8.3)', () => {
+    it('asks main to start the seat with the entry, and holds the row from the reply: the seat is busy running it', async () => {
+      const { conversation, published, failures } = await live()
+      conversation.runSkill(john.id, 'CP')
+
+      expect(bridge.seatOpens).toEqual([{ seat: john.id, code: 'CP' }])
+      expect(bridge.dispatches).toEqual([])
+      bridge.openResult[1].resolve('s9')
+      await settle()
+      expect(published.at(-1)?.busy.has('s9')).toBe(true)
+      expect(failures.filter((failure) => failure !== null)).toEqual([])
+      expect(published.at(-1)?.entries).toEqual([])
+    })
+
+    it('opens one seat for a second press before the first is answered', async () => {
+      const { conversation } = await live()
+      conversation.runSkill(john.id, 'CP')
+      conversation.runSkill(john.id, 'CP')
+
+      expect(bridge.seatOpens).toHaveLength(1)
+    })
+
+    it('opens no seat for a press on a persona that has a session', async () => {
+      const { conversation } = await live()
+      conversation.runSkill(mary.id, 'CP')
+
+      expect(bridge.seatOpens).toEqual([])
+    })
+
+    it('says nothing when main answers busy, and the failure line for any other refusal', async () => {
+      const { conversation, failures } = await live()
+      conversation.runSkill(john.id, 'CP')
+      bridge.openResult[1].reject({ code: 'session/busy', message: 'session · a turn is already in flight' })
+      await settle()
+      expect(failures.filter((failure) => failure !== null)).toEqual([])
+
+      const refusal = { code: 'menu/unknown-entry', message: 'menu · this persona has no such entry' }
+      conversation.runSkill(john.id, 'ZZ')
+      bridge.openResult[2].reject(refusal)
+      await settle()
+      expect(failures.at(-1)).toEqual(refusal)
+    })
+
+    it('waits for the snapshot before it asks, and a press then is the only one', async () => {
+      const pending = deferred<ConversationSnapshot>()
+      bridge.conversation = pending.promise
+      const { conversation } = build()
+      conversation.connect()
+      conversation.runSkill(john.id, 'CP')
+      conversation.runSkill(john.id, 'CP')
+      expect(bridge.seatOpens).toEqual([])
+
+      pending.resolve(EMPTY)
+      await settle()
+      expect(bridge.seatOpens).toEqual([{ seat: john.id, code: 'CP' }])
+    })
+
+    it('folds a started seat’s words as its persona’s entries, tagged by agent id', async () => {
+      const { conversation, published } = await live()
+      conversation.runSkill(john.id, 'CP')
+      bridge.push(opened('s9', john.id))
+      bridge.push(said(john.id, 'm1', 'working'))
+
+      expect(published.at(-1)?.entries).toMatchObject([{ kind: 'persona', agent: john, text: 'working' }])
+    })
   })
 
   it('keeps the row held and shows no failure when main answers busy: its turn’s end frees the session', async () => {
