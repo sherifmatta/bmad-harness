@@ -603,6 +603,29 @@ components:
     live-state: 'while collapsed and a row under it is `changing`: {colors.amber} dot with the pulse, and the word `changing` in {typography.meta} mono'
     count: 'none — a collapsed folder shows no number of files'
     focus: 'the shared ring, inset (-2px) so it is not clipped by the rail'
+    nested: 'added 2026-10-20: a nested heading shows its own name with a trailing slash, not its path; the full path is its title and accessible description'
+    indent: 'added 2026-10-20: {spacing.xl} (12px) per level of depth, added to the left padding of the heading and of the rows under it; no guide line, no connector'
+  rail-split:
+    form: 'added 2026-10-20: the Splitter turned horizontal, between the Changes half and the Outputs half: the Outputs head''s 1px {colors.line} top border with a 9px hit area centred on it, cursor row-resize'
+    line: 'as splitter.line: 1px at rest; {colors.accent-border} 3px on hover; {colors.accent} 3px while dragging or focused'
+    focus: 'the 3px accent line plus the shared ring {components.focus.ring}'
+    motion: 'none'
+    default: 'half and half of the rail''s height'
+    min: '120px for each half: the 30px head and three rows'
+    keys: 'ArrowUp moves the boundary up 16px, ArrowDown down; Shift 64px; Home and End to the limits; Enter or double-click resets'
+    aria: 'role=separator, aria-orientation=horizontal, aria-label, aria-valuemin/max/now as a percentage'
+    hidden: 'at ≤1000px (stacked layout)'
+  changes-row:
+    form: 'added 2026-10-20: the Rail row''s line and padding: the file icon, the file''s own name, and the state word at the right'
+    name: 'as rail-row at rest, {colors.text}; never text-strong, since nothing in this half is being written'
+    state: '{typography.meta} mono, {colors.dim}: modified · added · deleted · renamed · untracked · conflicted; renamed reads `renamed · from <old name>`'
+    deleted: 'name in {colors.dim} with a line-through, the icon at {colors.faint}; not underlined on hover, since it opens nothing'
+    icon: 'the rail row''s file icon, stroke {colors.faint} ({components.rail-row.iconStrokeIdle}); never amber'
+    colour: 'none: no state colour, no letter badge (M, A, ??)'
+  changes-head:
+    form: 'added 2026-10-20: the rail head (30px, chrome, label mono): `changes` on the left and nothing on the right'
+    empty: 'the half''s one line (no uncommitted changes · not a git repository · git not available · changes not read · <reason>) in {typography.meta} mono {colors.dim}, padding 8px 11px, as the Outputs empty line'
+    overflow: '`+<N> more not listed` after the 500th row, same type and ink, not a control'
   document-window:
     radius: '{rounded.window}'
     background: '{colors.panel}'
@@ -1042,7 +1065,7 @@ The block has **no chosen state and no disabled state**, because it does not sur
 
 One treatment, everywhere: `{components.focus}` — a `0 0 0 2px {colors.accent}` ring at **2px** offset, drawn outside the element and inheriting its radius. Stacked initials take a **3px** offset so the ring clears the `-5px` overlap of the disc behind. There is no focus fill, no focus shadow, no colour change and no motion; the ring is the whole treatment and it is identical on every primitive.
 
-It is specified for **every surface EXPERIENCE.md requires to be keyboard-operable**: the view switch and each of its buttons, the persona tile, the skill seat, the `Skill Session` button, the skill button, `+N more` and the skill row toggle (2026-10-20), the composer's send button, the decision option, the document card and its stop control, the rail row, a Board card or epic row that has a file (Story 7.1, 2026-10-15), the document window's three escapes, the cast chooser, the party header controls, and the initials token.
+It is specified for **every surface EXPERIENCE.md requires to be keyboard-operable**: the view switch and each of its buttons, the persona tile, the skill seat, the `Skill Session` button, the skill button, `+N more` and the skill row toggle (2026-10-20), the composer's send button, the decision option, the document card and its stop control, the rail row, the Changes row and the rail split (2026-10-20), a Board card or epic row that has a file (Story 7.1, 2026-10-15), the document window's three escapes, the cast chooser, the party header controls, and the initials token.
 
 `:focus-visible` only — a mouse press never draws the ring. Hover and focus are separate treatments and must not be collapsed into one: hover is `panel-2`, focus is the accent ring, and a surface may carry both at once.
 
@@ -1163,6 +1186,16 @@ The edge of a side panel, drawn as the panel's own 1px `line` border with a 9px 
 
 In the Outputs half, a directory group's heading is a button: a chevron, the directory path in `badge`-tier mono at `dim` (`text-strong` on hover), and, only while it is collapsed and a file under it is changing, the amber dot with the word `changing` at the right. The chevron is one inline stroked path like the file icon, and it changes direction without a transition. **There is no count of files.** The heading's whole row is the target and takes the shared ring, inset so the rail does not clip it. Collapsing hides the rows of that directory only; the headings of other directories are untouched.
 
+*Amended 2026-10-20 (Epic 9): the headings nest.* A directory inside another is drawn inside it, and collapsing a heading hides everything beneath it, its subdirectories included. A nested heading shows its **own name** with a trailing slash (`mockups/`) in the same type, and its full project-relative path is its title. **Depth is indentation alone**, `{spacing.xl}` (12px) per level added to the heading's left padding and to the rows under it, so a file's icon lines up with its directory's chevron one step in. There are no guide lines, connectors or tree glyphs, and no background band per level: the rail stays one ground, divided only by the rhythm of the indent. The root heading, the watched folder, is at no indent, as the first group label is today. The chevron, the `changing` treatment and the focus ring are unchanged. A long name ends in an ellipsis, as a path does. The same heading, with the same indent, draws the Changes half's tree.
+
+### Rail split
+
+*Added 2026-10-20 (Epic 9).* `{components.rail-split}`. The rail holds two halves, **Changes** above **Outputs**, and the boundary between them is the Splitter turned on its side: the Outputs head's own 1px `line` top border with a 9px hit area, widening to 3px `accent-border` on hover and 3px `accent` while dragging or focused, with the shared ring on focus. It has **no motion** and no snap, and it is not drawn in the stacked layout. Each half keeps the 30px rail head and scrolls on its own beneath it, so the two heads always show. Neither half is drawn shorter than its head and three rows (120px).
+
+### Changes row
+
+*Added 2026-10-20 (Epic 9).* `{components.changes-row}`. A Changes row is a Rail row at rest, and **nothing in it ever looks like it is happening**. It shows the file icon at `faint`, the file's own name in `text`, and at the right git's state as a word in `meta` mono at `dim`: `modified`, `added`, `deleted`, `renamed`, `untracked` or `conflicted`. **There is no colour for a state and no letter badge.** Amber, green and red mean something is under way or has just ended, and an uncommitted file is neither. A `deleted` row's name is `dim` and struck through, because it names a file that is not there and opens nothing; it has no hover underline. Hover and focus are the Rail row's. The half's head is the rail head reading `changes`, with nothing on its right. Its empty line and its `+<N> more not listed` line are the Outputs empty line's type and ink, and neither is a control.
+
 ### Document window
 
 A separate OS window over a `scrim` fill at z-40, window at z-50, top `8vh`, `min(880px,92vw) × min(760px,80vh)`. `panel` ground, 1px `win-line` (`#3a3a3a`), `{rounded.window}` (8px) radius, `shadow-window`.
@@ -1218,7 +1251,7 @@ Streaming prose arrives in frame-sized bursts, with the caret at the tail; a per
 |---|---|
 | Properties, Run | key and value rows at `{typography.control}`: the key `faint` in a *new* 78px column, the value `text`, mono for ids, branches and the model. Status is the existing status dot and its word, never a filled pill |
 | Goal trace | three rows, product then epic then story: the label in mono `text`, its note right-aligned in `faint` |
-| Outputs | the existing Outputs half (*Rail row*, *Outputs head*, *Folder heading*), unchanged |
+| Outputs | the existing Outputs half (*Rail row*, *Outputs head*, *Folder heading*), unchanged. *(Amended 2026-10-20, Epic 9: the built rail now holds the Changes half above the Outputs half (*Rail split*, *Changes row*). If this panel is ever built, both halves move into it together.)* |
 
 A field with no source is not drawn.
 
@@ -1265,6 +1298,8 @@ A field with no source is not drawn.
 | Draw a turn as a flat row: disc, head, words | Give a turn a container, ground, left rule or radius |
 | Disable **all** animation and transition globally under `prefers-reduced-motion: reduce` | Keep "essential" animation running, or leave a fact legible only while something moves |
 | Restate any `faint`-tier fact at `dim` or above | Put a fact only a user can act on at `faint` or `{colors.meta}` on `bg` — the locked ramp makes that a real contrast risk |
+| Show a nested directory by indentation alone, `{spacing.xl}` per level *(2026-10-20)* | Draw tree guide lines, connectors or a band per level, or repeat the full path on a nested heading |
+| Say a git state as a word in `dim` *(2026-10-20)* | Colour a git state, or draw `M` / `A` / `??` badges — the state colours mean something is happening |
 | Express absence and inattention with opacity | Remove a chosen persona's card from the room |
 | Build the party side panel with the *Room* section only, at its new width | Implement AD-14's 288px, or reserve slots for the deferred disagreement and decision sections |
 | Let the rail stay monochrome and dense | Turn the rail into a dashboard with colour-coded rows or badges |

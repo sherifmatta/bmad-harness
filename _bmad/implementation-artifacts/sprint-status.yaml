@@ -146,8 +146,12 @@ development_status:
   epic-8-retrospective: optional
 
   epic-9: backlog
-  # Added 2026-10-20. One story: the skill row collapses (UX-DR57).
+  # Added 2026-10-20. 9.1: the skill row collapses (UX-DR57). 9.2: the output
+  # folders nest (UX-DR58). 9.3: the rail's Changes half from git (FR142, UX-DR59),
+  # blocked on a bmad-architecture decision for the git source.
   9-1-open-the-skill-row-only-when-you-want-it: backlog
+  9-2-the-output-folders-nest-as-a-tree: backlog
+  9-3-see-what-changed-across-the-project-above-the-outputs: backlog
   epic-9-retrospective: optional
 action_items:
   - id: "epic-1-retro-item-1-make-the-packaged-app-find-claude-and-uv"

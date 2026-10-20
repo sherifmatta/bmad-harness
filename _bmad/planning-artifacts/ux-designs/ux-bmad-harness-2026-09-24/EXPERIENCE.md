@@ -63,7 +63,8 @@ Every rule below traces to a memlog decision, an architecture decision (AD-n), a
 | Theme | light and dark, the System default, where the choice lives, and what changing it touches |
 | Following the thread | what a thread does as it grows: follow, pause, and the way back |
 | Output folder | which folder the rail watches, how it is derived and chosen, and what follows it |
-| Resizing and folding | the two side panels' width, the Outputs folders' collapse, and what each remembers |
+| Resizing and folding | the two side panels' width, the Outputs folders' collapse, and what each remembers *(amended 2026-10-20: the folders nest as a tree)* |
+| Changes | the rail's top half: the project's uncommitted files, read from git, and the split between the two halves *(added 2026-10-20, Epic 9)* |
 | Layout, chat and Board | the three-column room, the thread as one conversation *(amended 2026-10-17: one persona's thread, per chat)*, and the Board view; what is adopted and what is not |
 | Dead Air | what the card does through a multi-minute silence |
 | Failure, Stopping and Contention | the stop cost, terminal states, and the no-arbitration posture |
@@ -104,10 +105,11 @@ Three top-level views behind a single switch — **1:1 Conversation**, **Party M
 | Skill-first session | a first message `/<name>` in the New session chat · a skill seat | the skill's name as speaker, its run card, its own thread, the composer | *Added 2026-10-15.* Its own kind of chat, never a persona's and never the room. See *Sessions without a persona* |
 | Team sidebar | 1:1, left | the **Team half**: a state strip, the Skill Session button in a row of its own (*built 2026-10-16: the `Sprint board` row is not built in the code, so the button has its own Team-half row*), the persona tiles, then the Skill sessions group while one exists | `{spacing.sidebar}` by default; resizable (*Resizing and folding*) |
 | Skill Session button | Team sidebar, in a Team-half row of its own, right-aligned (the *Sprint board* row it was drawn at the end of is not built in the code) | the label `Skill Session` and nothing else | *Added 2026-10-15.* An entry to a chat, not a launcher: it lists no skill |
-| Rail | 1:1, right | the **Outputs half** alone | `{spacing.rail}` by default; resizable (*Resizing and folding*) |
+| Rail | 1:1, right | the **Outputs half** alone. *(Amended 2026-10-20, Epic 9: two halves, one above the other, with a splitter between them: the **Changes half** on top and the **Outputs half** below, as it was; *Changes*)* | `{spacing.rail}` by default; resizable (*Resizing and folding*) |
+| Changes rows | rail, Changes half | *Added 2026-10-20.* one row per uncommitted file in the project, read from git: the file's name, its git state in words, nested under its directories as a tree that can be folded | git's truth only, never a run's; see *Changes* |
 | Persona tiles | Team sidebar | one per installed agent: initials disc, name, title, state line; current marked with an accent edge | grouped, see *Interaction Primitives*. Amended 2026-10-15: no illustrated avatar on any tile; no tile is current while the New session chat or a skill session is in view. *Amended 2026-10-17 (Epic 8): selecting a tile opens that persona's own chat and starts nothing (*A chat per persona*)* |
 | Skill seats | Team sidebar, in a **Skill sessions** group below the personas | one per skill-first session: a `/` disc, the skill's name in mono, a state line | *Added 2026-10-15.* Shown only while one exists. See *Sessions without a persona* |
-| Rail rows | rail, Outputs half | one row per file under `_bmad/` — path, owner, state, optional run annotation — under a heading per directory that can be folded | disk truth only (AD-1) |
+| Rail rows | rail, Outputs half | one row per file under `_bmad/` — path, owner, state, optional run annotation — under a heading per directory that can be folded. *(Amended 2026-10-20, Epic 9: the headings nest, a directory inside another drawn inside it, as a tree; *Resizing and folding → Folding the Outputs folders*)* | disk truth only (AD-1) |
 | Document card | **inline in the conversation, in time order** | head / body / foot | run-scoped; never a panel |
 | Party Mode | view switch | cast, header, transcript, *Room* section | see *Party Mode* below |
 | Board | view switch | overview, the story board by status, the epics, the agents, recent activity | read-only; see *Layout, chat and Board* |
@@ -117,7 +119,7 @@ Three top-level views behind a single switch — **1:1 Conversation**, **Party M
 **Nesting and lifetime**
 
 - 1:1, Party and Board are mutually exclusive; one switch. *(2026-10-09: Board is the third view, which lifts the earlier "no third view".)*
-- The rail shows **project artifacts only**. Harness bookkeeping — transcripts, logs, window state — lives in `userData` and never appears (AD-1). No affordance may imply the harness authored or can author a file.
+- The rail shows **project artifacts only**. Harness bookkeeping — transcripts, logs, window state — lives in `userData` and never appears (AD-1). No affordance may imply the harness authored or can author a file. *(Amended 2026-10-20, Epic 9: the rail's new Changes half lists **any** uncommitted file in the project, code included, so "project artifacts only" now holds for the Outputs half alone. The Changes half is still project files only: harness bookkeeping lives in `userData`, outside the project, and never appears in either half. It also creates, stages, commits and reverts nothing; *Changes*.)*
 - Document cards are **conversation entries**, not a region. A card is born with a skill invocation (`run:started`) and dies with it. A plain chat turn raises no card (AD-11). *(Amended 2026-10-17, Epic 8: a card is an entry in the thread of the persona whose run it is, and in no other thread; *A chat per persona → Another persona's run*.)*
 - Skill buttons are nested under the active persona and rebuilt whenever the active persona changes. *(Amended 2026-10-17, Epic 8: an empty persona chat has its persona's skill row, and a button pressed there starts the seat; *A chat per persona → The empty chat*.)* *(Amended 2026-10-20: the row is **collapsed by default**, one line of label and count, until the user opens it; *Component Patterns → The skill row's collapse, in detail*.)* *(2026-10-15: the New session chat and a skill-first session have no active persona and no skill buttons **[ASSUMPTION]** — a skill row is built from a persona's menu and these have none.)*
 - Ownership asymmetry: a party session carries no `agentId`. The **room** owns it, so a party summary's rail row shows the room as owner, in a presentation distinct from any persona (AD-19).
@@ -199,6 +201,7 @@ Behavioural only, per the ownership convention. Anatomy and appearance live in `
 | Tags | neutral and disagree chips; v1 ships none of the party tags: *Party Mode* | — |
 | Follow control | *Following the thread* | — |
 | Splitter, Folder heading, Outputs head | *Resizing and folding*, *Output folder* | — |
+| Changes head, Changes row, rail split | *Changes* (added 2026-10-20) | the Changes half has no rows when git reports nothing, and says so in one line |
 | Welcome | *Welcome* | — |
 
 ### `+N more`, in detail
@@ -265,7 +268,9 @@ Project **content** is untrusted because it is largely model-authored (AD-13). M
 | *Write summary to `_bmad/`* | party header | writes `_bmad/party/<date>-<topic>.md` |
 | End session | shell | `conversation.end(projectId)` — **project-scoped**, the only way to clear a persisted conversation. *(Amended 2026-10-17, Epic 8; FR140: it is the only **whole** clear: it ends every session and deletes every thread, persona, room and skill-first. A persona's `close session` clears that persona's thread alone.)* |
 | Splitter | the inner edge of the Team sidebar, the rail and the Room panel | drags that panel's width; double-click or `Enter` resets it |
-| Folder heading | rail, Outputs half | folds or unfolds that directory's rows |
+| Folder heading | rail, Outputs half | folds or unfolds that directory's rows. *(Amended 2026-10-20: and everything nested under it; the same heading folds a directory in the Changes half)* |
+| Changes row click | rail, Changes half | *Added 2026-10-20.* `doc.open(path)` → the same read-only document window as a rail row; a deleted file's row opens nothing (*Changes*) |
+| Rail split | between the Changes and Outputs halves | *Added 2026-10-20.* drags the boundary between the halves; double-click or `Enter` resets it to half and half |
 | *Open project folder…* · `⌘O` | welcome | the native folder chooser; a choice opens that project's window |
 | Drop a folder | welcome | opens that project's window |
 | *View ▸ Theme ▸ System · Light · Dark* | application menu, every window | sets the theme for every window at once |
@@ -449,6 +454,7 @@ CAP-1 promises zero *configuration*, not zero *prerequisites*. Any failure is re
 | Surface | Copy | Rule |
 |---|---|---|
 | Outputs half, fresh project | `no files under <folder> yet` with the watched path beneath it (`_bmad/` unless the output folder is another) | **states the situation and stops.** It reads as watching, not as broken. It must **not** suggest a next step, name a skill, or point at a persona (AD-21) |
+| Changes half, nothing to show | *Added 2026-10-20.* one line: `no uncommitted changes`, `not a git repository` or `git not available` (*Changes → When there is nothing to list*) | the half keeps its share of the rail and does not collapse. **States the fact and stops**: no *commit*, no *initialise*, no *install* (AD-21) |
 | New session chat | an empty thread; a header reading `New session`; an empty composer with focus | *Added 2026-10-15.* **It states nothing: no line, hint, placeholder, greeting or suggestion** (AD-21). It is the one empty state that is a whole chat, and it is also where a window opens (*Sessions without a persona*) |
 | Persona chat, empty | the existing thread introduction; that persona's skill row (*collapsed by default, amended 2026-10-20*); the composer; the header's disc, name and title | *Added 2026-10-17 (Epic 8).* **The persona says nothing**: no greeting, no line, no live dot, no process behind it. The introduction is harness text (read-only, no button, handler or tab stop). *A chat per persona → The empty chat* |
 | Skill sessions group | — | *Added 2026-10-15.* **No empty state:** with no skill-first session the group and its heading are not rendered, as the recent list and the deferred party sections are not |
@@ -725,20 +731,129 @@ The two panels in the 1:1 view share one row with the chat column, so each one's
 Each directory heading in the Outputs half is a button that folds that directory's rows away.
 
 - **Click, or `Enter`/`Space`, toggles it.** On a heading `←` folds and `→` unfolds. Focus stays on the heading, which is part of the list's one roving tab stop with the rows that are showing.
-- **Folding is of that directory only.** The groups are flat, one per directory: folding `_bmad/` does not fold `_bmad/ux/`.
-- **A live state is never folded out of sight.** While a directory is folded and a row under it is `changing` (the disk register, AD-2), its heading carries the amber dot with the pulse and the word `changing`, so a file being written is never hidden by a fold (AD-20: every indicator is driven by real state). When the file settles, the heading shows only its name. A run's *annotation* (owner, section) is not shown on a heading: it is a second register and is not merged (AD-2).
+- **Folding is of that directory only.** The groups are flat, one per directory: folding `_bmad/` does not fold `_bmad/ux/`. *(**Superseded 2026-10-20, Epic 9, at the owner's request:** the directories nest. See *The tree* below. Folding a directory hides everything under it, its subdirectories included.)*
+- **A live state is never folded out of sight.** *(Amended 2026-10-20: "under it" now means anywhere beneath it, at any depth. A folded heading says `changing` while any file in it or in any directory inside it is `changing`, and only the outermost folded heading that hides the file says so.)* While a directory is folded and a row under it is `changing` (the disk register, AD-2), its heading carries the amber dot with the pulse and the word `changing`, so a file being written is never hidden by a fold (AD-20: every indicator is driven by real state). When the file settles, the heading shows only its name. A run's *annotation* (owner, section) is not shown on a heading: it is a second register and is not merged (AD-2).
 - **No count.** A folded folder shows no number of files, saved or unread.
 - **Folded is not hidden from the system.** A file arriving in a folded folder does not unfold it, and does not move the user's focus or scroll; if it is changing, the heading says so. A folder emptied of files loses its heading as it does today.
 - **Remembered per project.** The set of folded directories is stored under `userData`, keyed by the project's path, as project-relative directory paths. It follows the directory, not the output folder: choosing another output folder (*Output folder*) leaves the entries in place for paths that still exist, and an entry for a directory that is gone is ignored. Unreadable or unknown entries read as unfolded, silently.
 - **No *collapse all* or *expand all*** in v1. **[ASSUMPTION]** — the prototype shows per-folder folding is enough for a rail with a handful of directories; add the pair if it stops being.
 
+### The tree
+
+*Added 2026-10-20 (Epic 9, owner's request; the details are the designer's defaults, accepted).* The Outputs folders were flat groups, so `_bmad/planning-artifacts/ux-designs/ux-bmad-harness-2026-09-24/mockups/` was a heading of its own, shown at full length and not inside its parent. Now **a directory nested in another is drawn inside it**.
+
+- **One heading per directory level, each showing its own name.** The root of the Outputs half is the watched folder (`_bmad/`), which is the first heading, as now. Each directory under it is a heading carrying its **own name** with a trailing slash (`planning-artifacts/`), not its full path. The full project-relative path is the heading's accessible description and its tooltip, so nothing is lost by shortening it.
+- **Depth is drawn by indentation**, one step per level (`DESIGN.md` → *Folder heading*, *Tree indent*). There are no guide lines and no connectors.
+- **A directory that holds files and nothing else is drawn the same way.** There is no compacting of single-child chains (`a/b/c/` drawn as one heading) **[ASSUMPTION]**. The rail is narrow, but compacting changes what a fold means. The deepest directory in this project's output folder is seven levels below `_bmad/` (a `.omc/state/sessions/<id>/` under the architecture folder). At the indent step that is about a quarter of the rail's default width, and a long name ends in an ellipsis as a path does today.
+- **Order inside a directory:** its subdirectories first, then its files, each in code-unit order, as rows were sorted before. No recency, relevance or pinning at any level (AD-21).
+- **A heading appears only while something under it, at any depth, is a row.** An emptied directory loses its heading, as before, and so does a parent left with nothing under it.
+- **Folding a heading hides everything beneath it.** The fold state of each directory inside is **kept, not reset**. Unfolding the parent shows its subdirectories as they were left.
+- **What is remembered does not change shape.** The folded set is still project-relative directory paths, per project, under `userData`. Every entry stored before this amendment means the same directory after it, so nothing is migrated and nothing unfolds by itself.
+- **Keyboard:** the list is still one roving tab stop over the headings and the rows that are showing, in visual order. On a heading, `←` folds and `→` unfolds, as before. *Added:* `←` on a heading that is already folded, or on a file row, moves focus to the heading of its parent directory, and does nothing at the root **[ASSUMPTION]**: it is the tree convention, and without it a deep tree is a long walk back up. Nothing else changes.
+- **A row's name** under its heading is the file's own name, as it is today.
+
+The same tree, with the same rules, draws the Changes half (*Changes*).
+
 ### Accessibility
 
-A splitter is a `separator` that exposes its minimum, maximum and current value; a heading is a button with `aria-expanded` and `aria-controls`, so a fold is announced by the control itself and **neither is announced through the live region**. Both take the shared focus ring. Nothing here moves with motion, so there is nothing for `prefers-reduced-motion` to disable.
+A splitter is a `separator` that exposes its minimum, maximum and current value; a heading is a button with `aria-expanded` and `aria-controls`, so a fold is announced by the control itself and **neither is announced through the live region**. *(Amended 2026-10-20: a nested heading also exposes its depth, as `aria-level` on its group or an equivalent the build chooses, so a screen reader hears where it is in the tree. It does not hear the path spelled out on every row.)* Both take the shared focus ring. Nothing here moves with motion, so there is nothing for `prefers-reduced-motion` to disable.
 
 ### Banned here
 
 No animation of a width or a fold; no snap points or presets; no per-persona, per-project or per-window panel width; no count or badge on a folded folder; no unfold when something arrives; no *collapse all* in v1; no way to hide the rail or the Room panel altogether.
+
+---
+
+## Changes
+
+*Added 2026-10-20 (Epic 9, from a request by the owner, Sherif, to Sally). The owner chose git's uncommitted changes across the whole project, opening a row in the document window, a draggable split and the same tree as the Outputs half. Everything else here is the designer's default and is marked where no one decided it. Appearance: `DESIGN.md` → *Rail split*, *Changes row*.*
+
+The Outputs half answers one question: what is in the output folder, and what is being written there now. It cannot answer the question a person asks after a run, which is **what did this change across the project?** A skill like `bmad-build` writes code, tests and configuration outside `_bmad/`, and none of it shows in the rail. The Changes half answers that question from the one source that knows: git.
+
+### The rail, split
+
+The rail holds **two halves, one above the other**: **Changes** on top and **Outputs** below, as it was. Each half has its own head (the 30px rail head) and its own scroll, so a long list in one never pushes the other off screen.
+
+| | Rule |
+|---|---|
+| default | half and half of the rail's height |
+| the boundary | a horizontal splitter, the same as the side panels' but turned on its side (*Resizing and folding*; `DESIGN.md` → *Rail split*). A drag follows the pointer one frame at a time, with no easing and no snap. Double-click, or `Enter` on the focused splitter, returns it to half and half |
+| keys | `↑` moves the boundary up 16px and `↓` moves it down, or 64px with `Shift`; `Home` and `End` go to the two limits |
+| limits | neither half is ever shorter than its head and three rows (**[ASSUMPTION]** 120px, see `DESIGN.md`) |
+| remembered | **per user, not per project**, as the share of the rail's height that Changes takes, beside the panel widths. A value that is missing, unreadable or out of range reads as half and half, silently. The window growing or shrinking keeps the share |
+| stacked (≤1000px) | no splitter: Changes, then Outputs, each at its own content height, as the panels already stack |
+
+Moving the boundary touches nothing live: no session, run, card, scroll position or follow state.
+
+### What is listed
+
+**Every file git reports as uncommitted in the project's working tree**: changed against `HEAD`, staged or not, plus untracked files git does not ignore. That is what `git status` lists, read for the project folder alone and never above it.
+
+- **The whole project, not just the output folder.** A file under `_bmad/` that is uncommitted appears **in both halves**. They report two different facts (git's state above, the disk register and a run's annotation below) and are not merged (AD-2).
+- **Ignored files never appear.** The project's `.gitignore` decides, so `node_modules/`, `out/` and the like are not listed. A submodule with changes is one row, not a tree of its contents **[ASSUMPTION]**.
+- **One state per row, in words** (`DESIGN.md` → *Changes row*): `modified` · `added` · `deleted` · `renamed` · `untracked` · `conflicted`. A renamed file is listed under its new path and reads `renamed · from <old name>`.
+- **Staged and unstaged are not told apart** **[ASSUMPTION]**. A file staged and then modified again is one `modified` row. The half shows what is uncommitted, not what the next commit will contain. Telling them apart is the work of a commit tool, and this is not one.
+- **No owner and no run annotation.** git does not know who wrote a file, and the harness does not guess (AD-19). A run is never named on a Changes row.
+
+### The tree and the rows
+
+The Changes half draws its files as **the same tree as the Outputs half** (*Resizing and folding → The tree*): one heading per directory level, each showing its own name, nested by indentation, subdirectories before files, code-unit order, a heading only while something beneath it is listed. **Its root is the project folder**, headed by the folder's name with a trailing slash (`bmad-harness/`), so a file at the top of the project sits directly under it.
+
+- **Folding works as it does below.** Click, `Enter` or `Space` toggles, `←` folds and `→` unfolds, and `←` on a folded heading or a row moves to the parent heading. Folding a directory keeps the fold state of every directory inside it.
+- **Folded is remembered per project**, under `userData`, as project-relative directory paths, in **a set of its own** separate from the Outputs half's. Folding `_bmad/` in one half leaves the other half as it was.
+- **A folded heading shows no count and no state**. It has no `changing` dot, because nothing in this half is "being written": a git state is a settled fact, not something happening.
+- **A row is the file's name and its state**, on one line.
+
+### When it changes
+
+- **Kept current while the window is in front.** The list follows the disk and git's index within about two seconds of a change: a file saved by an editor, written by a run, staged or committed from a terminal. It is re-read whenever the window comes to the front. **[ASSUMPTION]** two seconds is the designer's bound. How it is met (watching, re-reading, debouncing) is architecture's.
+- **Nothing is read while the window is in the background.** The answer is refreshed when the window comes back to the front.
+- **Rows arrive and leave in one frame**, with no arrival or removal animation, as rail rows do. A change never moves focus or scroll and never unfolds a heading.
+- **A focused row that leaves** (its file committed or reverted) hands focus to its parent heading, or, when that heading has gone too, to the half's own tab stop. Focus is never left on the page (NFR21).
+- **A commit made in a terminal** empties the list in one refresh, and the half then reads `no uncommitted changes`.
+
+### Opening a file
+
+Activating a row, by click or `Enter`, opens **the same read-only document window** a rail row opens (`doc.open(path)`), with the same three escapes, reloading from the watcher, with no edit and no save.
+
+- **Markdown renders as it does today.** Any other text file is shown **as plain text in mono**, read-only, with no highlighting **[ASSUMPTION]**. A file that is not text, or is larger than the window will read, opens to one line saying so (`not shown · binary file` · `not shown · larger than <limit>`) and nothing more.
+- **A `deleted` row opens nothing.** It is still a row in the list, so the keyboard can reach it, and its accessible description says `deleted · nothing to open`. Pressing it does nothing and announces nothing.
+- **This widens what the document window may open**, from the output folder to the whole project. The rule stays that every read stays inside the project's real path, so a symlink out of the project opens nothing. This is a change to an architecture boundary and is handed to `bmad-architecture` (*Handoffs* below).
+
+### When there is nothing to list
+
+One line, in the half's body, in the harness register, and nothing else:
+
+| Situation | Line |
+|---|---|
+| a git repository with nothing uncommitted | `no uncommitted changes` |
+| the project folder is not in a git repository | `not a git repository` |
+| git cannot be asked on this machine | `git not available` |
+| git answered with an error | `changes not read · <git's first line, shortened>` |
+
+Each **states the fact and stops**: no *commit*, no *git init*, no *install the developer tools*, no link (AD-21). The half keeps its share of the rail. An error clears when the next read succeeds.
+
+**The harness must never cause the operating system's prompt to install developer tools.** The branch chip already reads `.git/HEAD` directly for this reason (`src/main/sources/project/branch.ts`): on a Mac without the command-line tools, running `/usr/bin/git` opens a system modal. Asking git for status must not do that. Where git cannot be asked safely, the half reads `git not available`. How it is asked is architecture's decision.
+
+### Scale
+
+A large uncommitted change (a dependency bump, a generated folder someone forgot to ignore) can list thousands of files. The half lists the **first 500 rows in tree order**, then one line, `+<N> more not listed` **[ASSUMPTION]**. That line is a fact and not a control: it opens nothing, and there is no *show all*.
+
+### Accessibility
+
+- The Changes list is **one tab stop**, a roving list of its showing headings and rows, exactly as the Outputs list is. The **tab order** is the Changes list, then the rail split, then the Outputs head's `change…`, then the Outputs list.
+- The rail split is a `separator` with `aria-orientation="horizontal"`, exposing its value as a percentage with its minimum and maximum, and it takes the shared focus treatment.
+- A row's accessible name is the file's name and state (`app.tsx, modified`). Its description is the project-relative path.
+- **Nothing in this half is announced through the live region**: a row arriving, a list emptying and an error line are all read where they are, by the user going to them.
+
+### Banned here
+
+No stage, unstage, commit, discard, revert, stash or checkout. No diff view in v1 (a diff is a story of its own). No colour for a git state, since the four state colours are reserved for things happening, and no letter badges (`M`, `A`, `??`). No count on a heading or in the head, and no badge anywhere for "you have changes". No suggestion to commit. No owner and no run name on a row. No write of any kind into `.git` or the project. No read outside the project folder. No reading while the window is in the background. No *collapse all*.
+
+### Handoffs
+
+1. **To `bmad-architecture`:** a main-side source for git's status. Read-only, for the project folder only, never able to raise the developer-tools prompt, with a validated, closed-shape reply as the branch chip's is. Also a decision on how it is kept current. **Story 9.3 cannot be built until this exists.**
+2. **To `bmad-architecture`:** the document window's boundary widened from the output folder to the project, and the plain-text rendering of a non-markdown file, both under AD-13 (project content is untrusted).
 
 ---
 
@@ -1373,7 +1488,9 @@ With no command palette (*Banned everywhere*) there is no `⌘K` escape hatch, s
 | Composer | tab-reachable and **never disabled**. **[ASSUMPTION]** — `Enter` sends, `Shift+Enter` inserts a newline; no source specifies send keys. `⌘↵` does **not** send, and `DESIGN.md` drops it from the glyph inventory accordingly. *Added 2026-10-15 (Story 7.3):* while a persona's `/` list is open, `↑`/`↓` move its current row, `Enter` or `Tab` put `/<name> ` in the field and send nothing, and `Esc` closes the list; the list is not a tab stop and focus never leaves the field |
 | Decision option | each option is its own tab stop; `Enter`/`Space` chooses it, which sends the turn and removes the block |
 | Document card | the card is focusable; `Enter`/`Space` expands a collapsed card; the stop control is its own tab stop |
-| Rail — Outputs half | one tab stop for the list; arrows move between **folder headings and the rows that are showing**; `Enter` opens the document window on a row, and `Enter`/`Space` folds or unfolds on a heading; on a heading `←` folds and `→` unfolds |
+| Rail — Outputs half | one tab stop for the list; arrows move between **folder headings and the rows that are showing**; `Enter` opens the document window on a row, and `Enter`/`Space` folds or unfolds on a heading; on a heading `←` folds and `→` unfolds. *(Amended 2026-10-20: the headings nest; `←` on a folded heading or a row moves to the parent heading; *Resizing and folding → The tree*)* |
+| Rail — Changes half | *Added 2026-10-20.* the same as the Outputs half: one tab stop, the same keys, before the rail split in the tab order. `Enter` on a `deleted` row does nothing (*Changes → Accessibility*) |
+| Rail split | *Added 2026-10-20.* one tab stop between the two halves; `↑`/`↓` move the boundary 16px (64 with `Shift`), `Home`/`End` go to the limits, `Enter` resets it to half and half |
 | Splitter (Team sidebar, rail, Room panel) | one tab stop each, between the panel's neighbour and the panel; `←` grows and `→` shrinks a panel on the right, the sidebar the other way round (16px, 64 with `Shift`), `Home`/`End` go to min and max, `Enter` resets |
 | Document window | `Esc` closes. The three escapes are tab-reachable |
 | Party | cast chooser, header controls and composer all tab-reachable; no turn gate means no focus trap |

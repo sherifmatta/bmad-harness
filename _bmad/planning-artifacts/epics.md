@@ -33,6 +33,8 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 
 **Amended 2026-10-17 (Epic 8, from a request by the owner to John).** The harness is to work like a chat app: each persona has a chat and a thread of its own, selecting a persona opens an empty chat that says nothing until the user does, and closing a chat deletes it. `SPEC.md` is amended first (CAP-15 added, CAP-8 rewritten, the multiple-threads non-goal reworded); this document follows. Five requirements are added (FR137 to FR141), one UX design requirement (UX-DR56) and seven stories (8.1 to 8.7, the last the closing audit). It reverses on purpose the line Epic 7 kept, that the thread is the project's one conversation (FR14, FR60, AD-7), and carries dated notes on FR14, FR20, FR60, FR61, FR62, FR95, FR100, FR127, FR132 and FR133, on UX-DR53, and on Stories 2.4, 2.8, 2.9, 3.5, 3.10 and 7.4. The new capability is `SPEC.md` CAP-15; this document's *CAP-13* and *CAP-14* headings are its own groupings and are not the spec's. Existing numbers do not move.
 
+**Amended 2026-10-20 (Epic 9, from requests by the owner to Sally).** Epic 9 began with Story 9.1 (the skill row collapses, UX-DR57, no new FR). The owner then asked for two changes to the rail, and they are added as two more stories. The Outputs folders nest as a tree (Story 9.2). The rail splits in two, with the project's uncommitted files from git above the Outputs list (Story 9.3). The UX spines were amended first (`EXPERIENCE.md` *Resizing and folding → The tree* and the new *Changes* section; `DESIGN.md` *Folder heading*, *Rail split*, *Changes row*). One requirement is added (FR142, under *The rail's changes*) and two UX design requirements (UX-DR58, UX-DR59). Story 9.3 waits on an architecture decision, a main-side git source that can never raise the developer-tools prompt, and on a widened document-window boundary. The epic's title is widened to match. Existing numbers do not move.
+
 ## Requirements Inventory
 
 ### Functional Requirements
@@ -240,6 +242,12 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **FR140:** The header's `close session` on a persona's chat ends that persona's session and deletes that persona's thread: its records, stored runs, written-file bookkeeping, rail annotations and queued messages. Nothing is written in its place, and the next selection opens an empty chat. It touches no other persona, the room or a skill-first session. `conversation.end(projectId)` ends every session and deletes every thread, and is still the only whole clear. The control is a lifecycle action: never a suggestion, never highlighted, never badged.
 - **FR141:** `@<name>` typed in a persona's composer turns to the named persona's own chat: the message, with its `@name` chip, is a user turn in that persona's thread, the view moves to that chat, and nothing is written in the chat it was typed in. It addresses a persona and never a skill, and writes no `handed to` line.
 
+#### The rail's changes
+
+*Added 2026-10-20 from a request by the owner (Sherif) to Sally. The spines were amended first (`EXPERIENCE.md` → *Changes*).*
+
+- **FR142:** The rail shows, above the Outputs list, every file git reports as uncommitted in the project's working tree. That includes staged and unstaged changes against `HEAD` and untracked files git does not ignore, with nothing read outside the project folder. Each file is a row in a directory tree, with its state as a word (`modified`, `added`, `deleted`, `renamed`, `untracked`, `conflicted`). The list follows the disk and the index within about two seconds while the window is in front, and reads nothing while it is in the background. Activating a row opens the file read-only in the document window; a deleted file opens nothing. When there is nothing to list the half says one fact: `no uncommitted changes`, `not a git repository`, `git not available`, or `changes not read · <reason>`. The harness never stages, commits, reverts or writes anything, never names an owner or a run on a row, and never causes the operating system's developer-tools prompt.
+
 
 ### NonFunctional Requirements
 
@@ -361,6 +369,8 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **UX-DR55 — One disc for every person** (`DESIGN.md` → *Initials*, *Persona tile*, *Cast card*, *Welcome*, *Portrait (removed)*; `EXPERIENCE.md` → the *Portrait* row; added by Story 7.7): every persona is the neutral initials disc and a name, 26px on a tile, a cast card, a Welcome row, the cast chooser, an Agents-panel row, the empty thread's introduction and a seat, 22px in the chat header only, 20px for small references; the tile is a 44px row; the disc is `aria-hidden` beside its name and has no tab stop at 26 and 22px; no persona has a colour, tint, icon or image of their own, and no identity device replaces the portrait (`DESIGN.md` → *Brand and Style*).
 - **UX-DR56 — A chat per persona** (`EXPERIENCE.md` → *Layout, chat and Board*, *1:1 Conversation*; `DESIGN.md` → *Chat header*, *Persona tile*, *Thread introduction*; added by Epic 8, 2026-10-17): the chat shows one persona's thread, headed by that persona's 22px initials disc, name and title with the header's existing state and `close session`; an empty persona chat is the existing thread introduction (harness text, no button, handler or tab stop), the skill row and the composer, with no greeting, no live dot and no process behind it; a persona whose chat is in the background shows only the tile's own dot and word, with no unread mark, count, badge, preview or ordering by recency; `close session` is drawn only on a chat that has a live session or a stored thread; the activation reply and the answer are one persona turn in one flat row; no new colour, token, size or component.
 - **UX-DR57 — The skill row collapses** (`EXPERIENCE.md` → *Component Patterns → The skill row's collapse, in detail*; `DESIGN.md` → *Skill row toggle*, `components.skill-row-toggle`; added by Epic 9, 2026-10-20): the persona's skill row is **collapsed by default**, one line of a native toggle button reading `▸ <NAME> CAN · <N> skills` (`1 skill` for one), and opens to the row Epic 8 left (`▾ <NAME> CAN`, the skill buttons, `+N more` / `fewer`); the choice is one app-wide setting kept across restarts and shared by every persona's chat; the toggle writes no transcript entry, announces nothing, never moves or takes focus, opens by itself in no situation, and stays enabled while a turn is in flight; no new colour, size or radius token.
+- **UX-DR58 — The Outputs folders nest** (`EXPERIENCE.md` → *Resizing and folding → The tree*; `DESIGN.md` → *Folder heading*, `components.folder-heading.nested` and `.indent`; added by Epic 9, 2026-10-20): a directory inside another is drawn inside it. Each heading shows its own name with a trailing slash, with its full path as its title and accessible description. Depth is `{spacing.xl}` (12px) of indent per level, with no guide line or connector. Subdirectories come before files, both in code-unit order. Folding a heading hides everything beneath it and keeps the fold state of what is inside. A folded heading says `changing` while anything beneath it, at any depth, is `changing`. The stored folded set keeps its shape, so nothing is migrated. `←` on a folded heading or a row moves to the parent heading. There is no single-child compaction, no count and no *collapse all*.
+- **UX-DR59 — The rail split and the Changes half** (`EXPERIENCE.md` → *Changes*; `DESIGN.md` → *Rail split*, *Changes row*, `components.rail-split`, `.changes-row`, `.changes-head`; added by Epic 9, 2026-10-20): the rail holds Changes above Outputs, split half and half by a horizontal splitter. The splitter has the side splitters' look, keys and no motion, and keeps each half at least 120px. Its share is remembered per user. There is no splitter in the stacked layout. The Changes half has the rail head reading `changes` with nothing on its right, and the same tree as UX-DR58, rooted at the project folder, with a folded set of its own per project. A row is the file icon at `faint`, the name in `text` and the git state as a word in `meta` mono `dim`. A deleted row is struck through and opens nothing. There is no state colour, no letter badge, no count and no badge for having changes. The list is capped at 500 rows, with a `+<N> more not listed` line. The empty and failure lines are one fact each. Nothing is announced through the live region.
 
 ### FR Coverage Map
 
@@ -509,8 +519,9 @@ Every one of the 141 FRs maps to exactly one epic.
 | FR139 | Epic 8 | The first message starts the seat; the activation reply and the answer read as one persona turn |
 | FR140 | Epic 8 | `close session` ends the seat and deletes that persona's thread; `conversation.end` still clears all |
 | FR141 | Epic 8 | `@name` turns to the named persona's own chat and writes nothing in the chat it was typed in |
+| FR142 | Epic 9 | The rail's Changes half: git's uncommitted files as a tree, read-only, one fact when there is nothing |
 
-**Coverage by epic:** Epic 1 — 42 FRs · Epic 2 — 22 FRs · Epic 3 — 37 FRs · Epic 4 — 9 FRs · Epic 5 — 11 FRs · Epic 6 — 7 FRs · Epic 7 — 8 FRs · Epic 8 — 5 FRs · **Total 141.**
+**Coverage by epic:** Epic 1 — 42 FRs · Epic 2 — 22 FRs · Epic 3 — 37 FRs · Epic 4 — 9 FRs · Epic 5 — 11 FRs · Epic 6 — 7 FRs · Epic 7 — 8 FRs · Epic 8 — 5 FRs · Epic 9 — 1 FR · **Total 142.**
 
 ## Standing Constraint on Story Creation
 
@@ -702,21 +713,26 @@ Switching between personas feels like switching between colleagues in a chat app
 
 ---
 
-### Epic 9: A quieter skill row
+### Epic 9: A quieter skill row, a clearer rail
 
-The strip of skill buttons above the composer is useful while someone is learning what a persona can do and in the way after that. It collapses to one line, closed until the user opens it, and the choice is kept for the whole app.
+*Title widened 2026-10-20, when Stories 9.2 and 9.3 were added; it was* A quieter skill row.
 
-**Standalone:** one story, built on the chat as Epic 8 left it; nothing else depends on it.
+The strip of skill buttons above the composer is useful while someone is learning what a persona can do and in the way after that. It collapses to one line, closed until the user opens it, and the choice is kept for the whole app. *(Added 2026-10-20.)* The rail gets clearer too. Its folders nest as a tree instead of flat groups with long paths. It splits in two, with what is uncommitted across the project, from git, above the Outputs list, so the user can see what a run changed outside `_bmad/` without leaving the window.
 
-**FRs covered:** none new; it changes how the skill row of FR138's empty chat and every persona chat is drawn (Stories 8.2, 8.3 and 8.7 amended where they stand)
+**Standalone:** three stories, built on the chat and rail as Epic 8 left them. 9.1 and 9.2 depend on nothing. 9.3 builds on 9.2's tree and waits on an architecture decision (below).
+
+**FRs covered:** FR142 (Story 9.3). Story 9.1 adds none; it changes how the skill row of FR138's empty chat and every persona chat is drawn (Stories 8.2, 8.3 and 8.7 amended where they stand). Story 9.2 adds none; it changes how FR48's rows are grouped
 
 **NFRs addressed:** NFR12, NFR20, NFR21, NFR22, NFR28
 
-**UX-DRs addressed:** UX-DR57 (UX-DR56 amended; UX-DR52 as a constraint, since the `/` list stays the way to find a skill by name)
+**UX-DRs addressed:** UX-DR57 (UX-DR56 amended; UX-DR52 as a constraint, since the `/` list stays the way to find a skill by name), UX-DR58, UX-DR59 (UX-DR18 and Story 5.5's flat-groups rule amended)
 
 **Implementation notes:**
 - **Decided with the owner, 2026-10-20:** collapsed by default, on an empty persona chat too; one app-wide choice, kept across restarts; no auto-open; the toggle works while a turn is in flight. The spines were amended the same day.
 - **The storage place is the story's to settle**, with no separate architecture pass: the layout file already keeps per-user UI state (panel widths) behind a synchronous `layout:get`, and Story 9.1 extends it additively.
+- **Decided with the owner, 2026-10-20, for 9.2 and 9.3:** the changes listed are git's uncommitted files across the whole project; a row opens in the existing read-only document window; the split is draggable and remembered; both halves use one tree; two stories, so the tree ships without waiting on git. The spines were amended the same day.
+- **Story 9.3 needs `bmad-architecture` first.** It needs a main-side git status source that is read-only, scoped to the project folder and validated to a closed shape, and that can never open the macOS developer-tools prompt. The branch chip avoids a `git` process for exactly this reason (`src/main/sources/project/branch.ts`). It also needs a decision on keeping the source current, and the document window's boundary widened from the output folder to the project under AD-13.
+- **Sequencing:** 9.1 and 9.2 in any order; 9.3 after 9.2 and after the architecture decision.
 
 ---
 
@@ -4347,7 +4363,7 @@ So that a later change cannot merge the threads, greet unprompted or leak a thre
 
 ---
 
-## Epic 9: A quieter skill row
+## Epic 9: A quieter skill row, a clearer rail
 
 *Added 2026-10-20 from a request by the owner (Sherif), made to Sally (UX). The UX spines were amended first (`EXPERIENCE.md` *The skill row's collapse, in detail*; `DESIGN.md` *Skill row toggle*). Evidence below was read from the code at HEAD `3b06fff`; the story's spec re-reads it.*
 
@@ -4405,3 +4421,113 @@ So that the strip above the composer stays out of the way, and stays as I left i
 **Decisions to confirm before build (defaults in brackets):** the choice lives in `layout.json` beside the widths [yes: the nearest per-user UI setting; a new file, or a per-project key, are the alternatives; the owner asked for one app-wide setting and the default is exactly that]; the in-row `+N more` expansion is not kept [yes]; the count reads `<N> skills` over every entry [yes]; opening or closing the row leaves the thread's follow state as it is [yes: Story 5.3's rule applies to the composer's height change].
 
 **Boundaries:** no opening by itself in any situation, and no hint, badge or highlight on the toggle; no memory per persona; no change to what a skill button sends or to the `/` list; no row in the New session chat, the room or a skill-first session; no new FR.
+
+### Story 9.2: The output folders nest as a tree
+
+As someone reading the rail to see what the personas have written,
+I want a folder inside another folder drawn inside it,
+So that I can see where a file sits and fold away a whole branch at once, without reading the same long path on every heading.
+
+**Implements:** UX-DR58 · FR48, NFR20, NFR21, NFR22 (UX-DR18 and Story 5.5's flat-groups rule amended where they stand)
+
+**Evidence:** found by search at HEAD `6425d02`, to be re-read by the story's spec. `groupRows` (`src/renderer/ui/outputs/row-groups.ts`) groups rows by `dirOf(path)` into a flat, code-unit-sorted list of `{ dir, rows }`. A directory's heading shows its full project-relative `dir`, and a row its `baseName`. `Outputs` (`outputs.tsx`) builds the roving `order` from those groups (`headingKey(dir)`, then the rows of an unfolded group), and folding is a `saveFolded` of the whole set of `dir` strings through `useLayoutContext`. `FolderHeading` (`folder-heading.tsx`) is one native button with `aria-expanded`/`aria-controls`, and its `changing` flag is computed from the group's own rows only. In main the folded set is stored per project in `layout.json` (`fold/layout.ts`: `foldedOf`, `withFolded`) and written on `layout:set-folded`. Tests that assume flat groups: `row-groups.test.ts`, `outputs.test.tsx`, `outputs-fold.dom.test.tsx` and `outputs-focus.test.tsx`; `tests/layout-contract.test.tsx` (the `folder-heading` markup match and the one-`<button>` pin) and `tests/outputs-contract.test.ts` (the `.folder-heading` CSS pins).
+
+**Acceptance Criteria:**
+
+**Given** rows under `_bmad/`, `_bmad/planning-artifacts/` and `_bmad/planning-artifacts/ux-designs/mockups/`
+**Then** the Outputs half draws `_bmad/` as the root heading. `planning-artifacts/` is a heading inside it, and `ux-designs/` and `mockups/` are nested inside that in turn, each heading showing its own name with a trailing slash. A row shows the file's own name (UX-DR58)
+**And** each heading's full project-relative path is its `title` and its accessible description
+**And** depth is drawn as `{spacing.xl}` of indent per level on the heading and on the rows under it, with no guide line, connector or band, and no new colour, size or radius token.
+
+**Given** a directory holding both subdirectories and files
+**Then** its subdirectories come first and then its files, each in code-unit order, with no recency, relevance or pinning
+**And** a directory with nothing beneath it at any depth has no heading, and a chain of single-child directories is drawn level by level, not compacted.
+
+**Given** a heading folded
+**Then** everything beneath it is hidden, its subdirectories and their rows included
+**And** a subdirectory folded before its parent is still folded when the parent unfolds, and one that was open is still open
+**And** while anything beneath it, at any depth, is `changing`, the outermost folded heading hiding it carries the amber dot and `changing`, and no heading shows a count or a run's annotation.
+
+**Given** the keyboard
+**Then** the headings and the rows showing are still one roving tab stop in visual order, `↑`/`↓` move through them, and on a heading `←` folds, `→` unfolds and `Enter`/`Space` toggles, as before
+**And** `←` on a folded heading or on a row moves focus to its parent heading and does nothing at the root
+**And** a nested heading exposes its depth to assistive technology (`aria-level` or an equivalent), nothing is announced through the live region, and focus is never left on the page when a heading or row goes (NFR21).
+
+**Given** a folded set stored before this story
+**Then** every entry still names the same directory and is honoured as it is, nothing is migrated, `LAYOUT_VERSION` is unchanged, and `layout:set-folded` keeps its shape
+**And** a file arriving under a folded directory, at any depth, unfolds nothing and moves no focus or scroll.
+
+**Given** the tests that assumed flat groups (named in the evidence)
+**Then** each is changed on purpose to the tree, and none is deleted for being inconvenient
+**And** tests find: nesting from a set of paths, order inside a directory, a parent fold hiding a subtree and keeping the child folds, `changing` on the outermost folded heading, `←` to the parent, and an old stored set read unchanged.
+
+**Given** the epic's record
+**Then** Story 5.5 and UX-DR18 carry a dated note that the groups now nest, and `EXPERIENCE.md` *The tree* and `DESIGN.md` *Folder heading* (amended 2026-10-20) are checked against what was built.
+
+**Decisions to confirm before build (defaults in brackets):** no single-child compaction [yes: the owner asked for nesting, and compacting changes what a fold means]; subdirectories before files [yes: the convention of Finder's list view and every editor's tree]; `←` to the parent heading [yes, the tree convention]; 12px indent [yes, `{spacing.xl}`].
+
+**Boundaries:** the tree is built in the renderer from the rows main already sends, with no change to the rail snapshot or to `RailRow`; no *collapse all* or *expand all*; no count or badge; no change to a row's registers (AD-2); no new FR.
+
+### Story 9.3: See what changed across the project, above the outputs
+
+As someone who has just watched a persona run a skill,
+I want the top of the rail to list every file that is uncommitted in the project, from git,
+So that I can see what the run touched outside `_bmad/`, and open any of it, without leaving the window or opening a terminal.
+
+**Implements:** FR142 · UX-DR59 · NFR20, NFR21, NFR22, NFR28 (AD-13 and the document window's boundary amended by `bmad-architecture` first)
+
+**Blocked on:** a `bmad-architecture` decision covering three things. (1) A main-side git status source: read-only, scoped to the project folder, its reply validated to a closed shape the way `readBranch` validates the branch, and **never able to open the macOS developer-tools prompt**. When git cannot be asked safely, the answer is `git not available`. (2) How the source is kept current within about two seconds while the window is in front, with no reads in the background. (3) The document window allowed to open any file under the project's real path, not only the output folder, with non-markdown text shown as plain text. The story's spec starts from that decision.
+
+**Evidence:** found by search at HEAD `6425d02`, to be re-read by the story's spec. Nothing in the code asks git for status. `readBranch` (`src/main/sources/project/branch.ts`) reads `.git/HEAD` alone and documents why: a `git` subprocess on a Mac without the developer tools opens the OS install prompt from the `/usr/bin/git` shim. The rail is `.rail` in `shell.tsx` holding one `RailHalf` (`Outputs`), and `RailHalf` already draws a `section.rail-half` with its own `rail-head` and scrolling `rail-body`. `shell.css` gives `.rail-half` `flex: 1 1 var(--rail-half-basis)`, and `tokens.css` sets `--rail-half-basis: 50%`, left from the rail's original two halves. The side splitters are `PanelSplitter` with `panel-drag.ts` and `use-panel-width.ts` (`src/renderer/ui/layout/`), stored through `layout:set-width` in `layout.json`. The document window refuses a path outside the output folder (`doc-bridge.ts`, `doc · not a document under <folder>`).
+
+**Acceptance Criteria:**
+
+**Given** a project window in the 1:1 view
+**Then** the rail holds two halves, `changes` above `outputs`, each with the 30px rail head and its own scroll, split half and half (UX-DR59)
+**And** the Outputs half is exactly as Story 9.2 left it.
+
+**Given** the rail split
+**Then** it is a horizontal splitter on the Outputs head's top border, with the side splitters' look and no motion: a drag follows the pointer, `↑`/`↓` move it 16px (64 with `Shift`), `Home`/`End` go to the limits, and double-click or `Enter` resets it to half and half
+**And** neither half is drawn shorter than 120px, and the window resizing keeps the share
+**And** it is a `separator` with `aria-orientation="horizontal"` and its value as a percentage, it takes the shared focus ring, and it is not drawn at ≤1000px, where the halves stack
+**And** the share is remembered per user in `layout.json` beside the widths, additively and optionally by name, through one new validated request channel. A missing, unreadable or out-of-range value reads as half and half, silently. Writing a width or a folded set keeps it.
+
+**Given** a git repository with uncommitted work
+**Then** the Changes half lists every file git reports, staged or not, plus untracked files it does not ignore, from the project folder only, as Story 9.2's tree rooted at the project folder's name
+**And** each row is the file icon at `faint`, the file's own name in `text` and its state as one word in `meta` mono `dim`: `modified`, `added`, `deleted`, `renamed` (with `· from <old name>`), `untracked` or `conflicted`
+**And** no row has an owner, a run annotation, a state colour, or a letter badge
+**And** a file under the output folder that is uncommitted is listed in both halves, each with its own facts, unmerged (AD-2).
+
+**Given** a file saved, staged or committed by any writer while the window is in front
+**Then** the list reflects it within about two seconds, and again whenever the window comes to the front, and nothing is read while the window is in the background
+**And** rows arrive and leave in one frame, nothing unfolds, and focus and scroll do not move. A focused row that leaves hands focus to its parent heading, or to the half's tab stop (NFR21).
+
+**Given** a Changes row activated by click or `Enter`
+**Then** the file opens in the read-only document window with its three escapes. Markdown renders as before, other text is shown as plain mono text, and a binary or oversized file opens to one `not shown · …` line
+**And** a `deleted` row is struck through, opens nothing, has `deleted · nothing to open` as its description, and announces nothing
+**And** a path that resolves outside the project's real path opens nothing.
+
+**Given** nothing to list
+**Then** the half says exactly one line, `no uncommitted changes`, `not a git repository`, `git not available` or `changes not read · <reason>`, keeps its share of the rail, and offers no action
+**And** on a Mac without the developer tools no system prompt ever appears, and a test proves the source is never asked in a way that could raise it.
+
+**Given** more than 500 rows
+**Then** the first 500 in tree order are drawn, then `+<N> more not listed`, which is not a control.
+
+**Given** folding in the Changes half
+**Then** it behaves as Story 9.2's, with its own folded set per project, so folding a directory in one half leaves the other half's alone.
+
+**Given** the keyboard and assistive technology
+**Then** the Changes list is one roving tab stop before the rail split, which comes before the Outputs head's `change…` and the Outputs list
+**And** a row's accessible name is `<name>, <state>` and its description its path, and nothing in the half is announced through the live region.
+
+**Given** the contract and the boundaries
+**Then** the conversation contract is untouched, the new channels are tied to their preload literals as the other channels are, and no new event is pushed to the conversation
+**And** nothing anywhere stages, unstages, commits, discards, reverts, stashes, checks out or writes into `.git` or the project, and a negative-surface test pins that no such control or command exists.
+
+**Given** the epic's record
+**Then** `EXPERIENCE.md` *Changes* and `DESIGN.md` *Rail split* and *Changes row* (added 2026-10-20) are checked against what was built, and AD-13's amendment is cited.
+
+**Decisions to confirm before build (defaults in brackets):** staged and unstaged not told apart [yes: this is not a commit tool]; two seconds while in front, nothing in the background [yes]; a 500-row cap with a plain line [yes]; non-markdown text shown as plain mono, with no highlighting [yes]; a submodule is one row [yes]; the Changes head carries nothing on its right [yes: the branch is already in the topbar].
+
+**Boundaries:** no diff view (a story of its own if wanted); no commit, stage or revert of any kind; no count or badge for having changes, in the rail, the head, the topbar or the dock; no suggestion to commit; no read outside the project folder; no git process that can raise the developer-tools prompt.
