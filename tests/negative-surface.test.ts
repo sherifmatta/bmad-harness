@@ -1522,8 +1522,9 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
       const send = app.slice(app.indexOf("onSend={"));
       expect(send.indexOf("handoffTarget(")).toBeGreaterThan(-1);
       expect(app.slice(0, app.indexOf("onSend={"))).not.toContain("handoffTarget(");
-      // `activate` is called from the composer's `@` and from nowhere else: a tile only turns the chat (Story 8.2).
-      expect(app.match(/conversation\.activate\(/g)).toHaveLength(1);
+      // `activate` is called by nothing in the renderer's views: a tile and an `@` only turn the chat, and the
+      // first message starts the seat (Stories 8.2, 8.3, 8.6).
+      expect(app.match(/conversation\.activate\(/g)).toBeNull();
       for (const path of RENDERER_CODE.filter((p) => p !== APP && p !== "src/renderer/ui/chat/use-conversation.ts")) {
         expect(code.get(path) ?? "", path).not.toMatch(/\.activate\(/);
       }

@@ -855,13 +855,17 @@ describe('the three kinds of thread, in the whole App (Stories 7.4 and 7.5)', ()
     expect(await htmlOf('John')).toBe(before.John)
     expect(text(thread())).not.toMatch(/handed to/i)
     expect(bridge.sent).toEqual([])
+    // A bare `@name` is a turn of the view and opens nothing (Story 8.6).
+    expect(bridge.opened).toEqual([])
     // An `@name` with words sends those words and adds the user's own turn alone, never a line: in the named persona's thread.
     await chooseTile('Mary')
     type(chatField(), '@Sally what next')
     key(chatField(), 'Enter')
     await settle()
     await settle()
-    expect(bridge.sent.map(([, words, mention]) => [words, mention])).toEqual([['what next', '@Sally']])
+    // Sally has no seat: the words are her first message (Story 8.3), with the typed chip.
+    expect(bridge.seatStarts).toEqual([{ seat: SALLY.id, message: 'what next', mention: '@Sally' }])
+    expect(bridge.sent).toEqual([])
     expect(header().querySelector('h2')?.textContent).toBe('Sally')
     expect(all('.sysline', thread())).toEqual([])
     expect(all('.turn--user', thread())).toHaveLength(1)

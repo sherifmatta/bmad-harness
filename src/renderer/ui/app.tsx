@@ -114,6 +114,8 @@ export function App(): JSX.Element | null {
   // A persona's close deletes its chat (Story 8.5): a persona's composer is keyed by this count, so closing
   // one empties its draft with it and no other persona's draft is touched.
   const [composerEpoch, setComposerEpoch] = useState<ReadonlyMap<string, number>>(NO_EPOCHS)
+  // Each persona's half-typed text (Story 8.6), by `agentId`: read only when a persona's composer mounts, so a ref.
+  const drafts = useRef(new Map<string, string>())
   // A handoff line is announced once, with the line the transcript shows. Main no longer writes one
   // (Story 7.4), so this is reachable only through a reply that carries one.
   const announceHandoff = useCallback(
@@ -298,6 +300,7 @@ export function App(): JSX.Element | null {
   const closeSession = (agentId: string): void => {
     void conversation.close(agentId).then((closed) => {
       if (closed) {
+        drafts.current.delete(agentId)
         setComposerEpoch((held) => new Map(held).set(agentId, (held.get(agentId) ?? 0) + 1))
       }
       const current = currentAgent(displayOrder(groupAgents(snapshot?.agents ?? NO_AGENTS)), currentId)
@@ -546,20 +549,32 @@ export function App(): JSX.Element | null {
             slashEntries={snapshot.skills}
             focusOnMount={composerFocus?.id === agent.id}
             refocus={composerFocus?.id === agent.id ? composerFocus.n : 0}
+            initialText={drafts.current.get(agent.id) ?? ''}
+            onTextChange={(text) => {
+              if (text === '') {
+                drafts.current.delete(agent.id)
+              } else {
+                drafts.current.set(agent.id, text)
+              }
+            }}
             onSend={(text) => {
               const target = handoffTarget(text, snapshot.agents, agent.id)
               if (target === null) {
                 conversation.send(agent.id, text)
                 return
               }
-              // Turning to the persona first: its seat opens (or is found live) and nothing is written
-              // to the thread (Story 7.4), and only then does any text after the name go to it as a turn.
+              // The whole text was sent or consumed, and this composer unmounts with the turn: its held draft
+              // goes here, since the composer's own clear-and-report would not run (Story 8.6).
+              drafts.current.delete(agent.id)
+              // A turn of the view to the persona and nothing else (Story 8.2): no seat is opened, nothing is
+              // written to this thread (Story 7.4), and only text after the name goes to it, as its first
+              // message or a turn to its live seat.
               setCurrentId(target.agent.id)
+              setChat('persona')
               setComposerFocus({ id: target.agent.id, n: 0 })
-              const handedOff = conversation.activate(target.agent.id)
               if (target.text !== '') {
                 // The typed `@name` rides beside the text for display; the persona receives the text alone (AD-25).
-                void handedOff.then(() => conversation.send(target.agent.id, target.text, target.mention))
+                conversation.send(target.agent.id, target.text, target.mention)
               }
             }}
           />

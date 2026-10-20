@@ -897,12 +897,17 @@ describe('App, turning to the next persona', () => {
     expect(await announced()).toBe('')
   })
 
-  it('@<name> turns to the persona: the seat opens, no line is written, nothing of the token is echoed and focus lands in the new persona’s composer', async () => {
+  it('@<name> turns to the persona: nothing is opened, no line is written, nothing of the token is echoed and focus lands in the new persona’s composer', async () => {
     await start()
     await say('@john')
 
-    expect(opened).toEqual([john.id])
+    // A bare name is a selection (Stories 8.2, 8.6): no seat, no process, nothing called in main.
+    expect(opened).toEqual([])
+    expect(seatStarts).toEqual([])
     expect(sent).toEqual([])
+    expect(mounted!.container.querySelector('.status-dot--live, .status-dot--work')).toBeNull()
+    // Mary's composer is spent and John's thread is his own, empty.
+    expect(thread()).toEqual(['thread-intro'])
     expect(mounted!.container.querySelector('.turn--user')).toBeNull()
     expect(mounted!.container.textContent).not.toContain('@john')
     expect(mounted!.container.querySelector('.sysline')).toBeNull()
@@ -920,15 +925,106 @@ describe('App, turning to the next persona', () => {
     await start()
     await say('@John write the brief')
 
+    // John has no seat: the text is his first message (Story 8.3), once; nothing is sent to a session.
     expect(opened).toEqual([john.id])
     // The text without the name is what is sent; the token as typed (case kept) rides beside it (AD-25).
-    expect(sent).toEqual([[`session-of-${john.id}`, 'write the brief', '@John']])
+    expect(seatStarts).toEqual([{ seat: john.id, message: 'write the brief', mention: '@John' }])
+    expect(sent).toEqual([])
     expect(thread()).toEqual(['turn turn--user'])
     const turn = mounted!.container.querySelector('.turn--user')!
     expect(turn.querySelector('.turn-mention')?.textContent).toBe('@John')
     expect(turn.querySelector('.turn-words')?.textContent).toBe('write the brief')
     expect(turn.querySelector('.turn-mention')?.nextElementSibling).toBe(turn.querySelector('.turn-words'))
     expect(document.activeElement).toBe(field())
+    expect(field().value).toBe('')
+    // Nothing is written in Mary's chat: it is as it was, empty.
+    act(() => tile('Mary').click())
+    await settle()
+    expect(thread()).toEqual(['thread-intro'])
+    expect(field().value).toBe('')
+  })
+
+  it('@<name> with text turns to a live John and sends one turn to his session, opening nothing and writing nothing in Mary’s thread', async () => {
+    await start()
+    push({ name: 'session:opened', payload: { sessionId: 's-john', agentId: john.id, at: 1 } })
+    push({ name: 'session:awaiting-turn', payload: { sessionId: 's-john', at: 2 } })
+    await say('@John hi')
+
+    expect(opened).toEqual([])
+    expect(seatStarts).toEqual([])
+    expect(sent).toEqual([['s-john', 'hi', '@John']])
+    expect(tile('John').getAttribute('aria-current')).toBe('true')
+    const turn = mounted!.container.querySelector('.turn--user')!
+    expect(turn.querySelector('.turn-mention')?.textContent).toBe('@John')
+    expect(turn.querySelector('.turn-words')?.textContent).toBe('hi')
+
+    act(() => tile('Mary').click())
+    await settle()
+    expect(mounted!.container.querySelector('.turn--user')).toBeNull()
+    expect(mounted!.container.querySelector('.turn--queued')).toBeNull()
+  })
+
+  it('@<name> to a busy John queues one turn in his own chat and nothing in Mary’s', async () => {
+    await start()
+    push({ name: 'session:opened', payload: { sessionId: 's-john', agentId: john.id, at: 1 } })
+    await say('@John hi')
+
+    expect(sent).toEqual([])
+    expect(mounted!.container.querySelectorAll('.turn--queued')).toHaveLength(1)
+    act(() => tile('Mary').click())
+    await settle()
+    expect(mounted!.container.querySelector('.turn--user, .turn--queued')).toBeNull()
+  })
+
+  it('keeps each persona’s half-typed text in its own chat: John’s draft is found when the view returns, and Mary’s is not carried', async () => {
+    await start()
+    act(() => tile('John').click())
+    await settle()
+    type(field(), 'half of john')
+    act(() => tile('Mary').click())
+    await settle()
+    expect(field().getAttribute('aria-label')).toBe('Message Mary')
+    expect(field().value).toBe('')
+
+    // Mary's text is spent by the handoff: it is not carried to John, and her composer is empty after.
+    await say('@John')
+    expect(field().getAttribute('aria-label')).toBe('Message John')
+    expect(field().value).toBe('half of john')
+    act(() => tile('Mary').click())
+    await settle()
+    expect(field().value).toBe('')
+
+    type(field(), 'half of mary')
+    act(() => tile('John').click())
+    await settle()
+    expect(field().value).toBe('half of john')
+    act(() => tile('Mary').click())
+    await settle()
+    expect(field().value).toBe('half of mary')
+    expect(mounted!.container.querySelector('.turn--user')).toBeNull()
+  })
+
+  it('keeps John’s draft when a message to him is sent from Mary’s chat, and leaves no sent text behind as a draft', async () => {
+    await start()
+    act(() => tile('John').click())
+    await settle()
+    type(field(), 'half of john')
+    act(() => tile('Mary').click())
+    await settle()
+
+    await say('@John hi')
+    expect(field().getAttribute('aria-label')).toBe('Message John')
+    expect(field().value).toBe('half of john')
+
+    // A plain send clears its own composer and holds nothing: the text sent does not come back as a draft.
+    act(() => tile('Mary').click())
+    await settle()
+    await say('plain hello')
+    act(() => tile('John').click())
+    await settle()
+    act(() => tile('Mary').click())
+    await settle()
+    expect(field().value).toBe('')
   })
 
   it.each([
@@ -1342,6 +1438,25 @@ describe('App, the current persona’s close control', () => {
       expect(field().value).toBe('half a thought')
 
       act(() => closeButtons()[0].click())
+      await settle()
+
+      expect(field().value).toBe('')
+    })
+
+    it('drops the held draft with the close, so it is not found when the view returns to her', async () => {
+      await mountOnMary()
+      type(field(), 'half a thought')
+      act(() => tile('John').click())
+      await settle()
+      act(() => tile('Mary').click())
+      await settle()
+      expect(field().value).toBe('half a thought')
+
+      act(() => closeButtons()[0].click())
+      await settle()
+      act(() => tile('John').click())
+      await settle()
+      act(() => tile('Mary').click())
       await settle()
 
       expect(field().value).toBe('')
@@ -3241,9 +3356,10 @@ describe('App, the `/` list (Story 7.3)', () => {
     await settle()
 
     expect(mounted!.container.querySelector('[role="listbox"]')).toBeNull()
-    // Choosing Mary's tile opened nothing; the `@John` handoff opened John's.
+    // Choosing Mary's tile opened nothing; the `@John` handoff is John's first message (Story 8.6).
     expect(opened).toEqual([john.id])
-    expect(sent).toEqual([['session-of-bmad-agent-pm', 'hello', '@John']])
+    expect(seatStarts).toEqual([{ seat: john.id, message: 'hello', mention: '@John' }])
+    expect(sent).toEqual([])
   })
 })
 

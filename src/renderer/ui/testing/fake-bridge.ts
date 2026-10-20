@@ -26,6 +26,8 @@ export type FakeBridge = {
   opened: string[]
   /** The `[session, text, mention?]` turns the window sent. */
   sent: ([string, string] | [string, string, string])[]
+  /** The seats main was asked to start with a first message or a skill button (Story 8.3). */
+  seatStarts: { seat: string; message?: string; mention?: string; code?: string }[]
   /** The first messages the New session chat sent. */
   firsts: string[]
   /** The documents the window asked main to open. */
@@ -60,6 +62,7 @@ export function createFakeBridge(install: InstallSnapshot): FakeBridge {
     closedAgents: [],
     stopped: [],
     opened: [],
+    seatStarts: [],
     sent: [],
     firsts: [],
     docs: [],
@@ -102,7 +105,13 @@ export function createFakeBridge(install: InstallSnapshot): FakeBridge {
     }),
     onDocClosed: called('onDocClosed', () => () => {}),
     dispatchMenu: called('dispatchMenu', async () => 'r-dispatched'),
-    openSession: called('openSession', async (target: string | { room: readonly string[] } | { first: string }) => {
+    openSession: called('openSession', async (target: string | { room: readonly string[] } | { first: string } | { seat: string; message?: string; mention?: string; code?: string }) => {
+      if (typeof target !== 'string' && 'seat' in target) {
+        // Main starts the seat on a first message or a skill button (Story 8.3).
+        state.seatStarts.push(target)
+        state.opened.push(target.seat)
+        return { sessionId: `session-of-${target.seat}` }
+      }
       if (typeof target !== 'string' && 'first' in target) {
         state.firsts.push(target.first)
         return state.firstAnswer(target.first)
