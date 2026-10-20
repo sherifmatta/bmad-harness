@@ -692,10 +692,9 @@ describe('the seat rail, in the whole App (Stories 7.4 and 7.5)', () => {
     await chooseTile('Mary')
     act(() => (header().querySelector('button.chat-close') as HTMLButtonElement).click())
     await settle()
-    // Main answers by closing that session alone and writing its one line.
+    // Main answers by closing that session alone and deleting her thread, with no line written (Story 8.5).
     act(() => bridge.push({ name: 'session:closed', payload: { sessionId: 's-mary', agentId: MARY.id, reason: 'closed', at: NOW } }))
     act(() => bridge.push(personaStateOnClose(MARY.id, 's-mary', NOW)))
-    act(() => bridge.push({ name: 'harness:said', payload: { id: 'm-20', text: 'session closed · Mary starts fresh on the next message', at: NOW } }))
     await settle()
 
     expect(bridge.closed).toEqual(['s-mary'])
@@ -704,10 +703,12 @@ describe('the seat rail, in the whole App (Stories 7.4 and 7.5)', () => {
     expect(all('.status-dot--live', tile('Mary'))).toEqual([])
     expect(seats().map((seat) => stateOf(seat))).toEqual(['working', 'live', 'ended'])
     expect(stateOf(tile('John'))).toBe('working')
-    // Her turns stay in the thread, and the seats' threads are as they were.
+    // Her thread is gone and says nothing in its place; John's turns and the seats' threads are as they were.
     await chooseTile('Mary')
-    expect(text(thread())).toContain(MARYS[1])
-    expect(text(thread())).not.toContain(JOHNS[1])
+    expect(text(thread())).not.toContain(MARYS[1])
+    expect(text(thread())).not.toContain('starts fresh')
+    await chooseTile('John')
+    expect(text(thread())).toContain(JOHNS[1])
     await chooseSeat(0)
     expect(text(thread())).toContain(SKILL_A[1])
     expect(text(thread())).toContain('bmad-build run')

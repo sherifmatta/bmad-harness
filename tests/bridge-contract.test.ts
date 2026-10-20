@@ -722,6 +722,19 @@ it('sends closeSession down the close channel with the session id, resolves with
   await expect(closeSession('s1')).rejects.toEqual(error)
 })
 
+it('sends closeSession by agent id (Story 8.5) as the object it was given, down the same channel', async () => {
+  const closeSession = exposedApis.get('harness')?.closeSession as (target: string | { agentId: string }) => Promise<unknown>
+  invoke.mockClear()
+  invoke.mockResolvedValue({ ok: true })
+
+  await expect(closeSession({ agentId: 'bmad-agent-analyst' })).resolves.toBeUndefined()
+  expect(invoke).toHaveBeenCalledWith(sessionBridge.SESSION_CLOSE_CHANNEL, { agentId: 'bmad-agent-analyst' })
+
+  const error = { code: 'session/not-found', message: 'session · no such session is open' }
+  invoke.mockResolvedValue({ ok: false, error })
+  await expect(closeSession({ agentId: 'bmad-agent-analyst' })).rejects.toEqual(error)
+})
+
 it('answers the conversation channel on the same literal from both sides', () => {
   expect(preload.CONVERSATION_GET_CHANNEL).toBe(sessionBridge.CONVERSATION_GET_CHANNEL)
   expect(preload.CONVERSATION_GET_CHANNEL).toBe('conversation:get')

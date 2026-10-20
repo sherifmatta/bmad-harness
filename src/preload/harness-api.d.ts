@@ -2,7 +2,7 @@ import type { BoardSnapshot } from '../shared/board'
 import type { SessionTarget } from '../shared/commands'
 import type { ConversationSnapshot, OpenedSession } from '../shared/conversation'
 import type { ContractEvent } from '../shared/events'
-import type { RunId, SessionId } from '../shared/ids'
+import type { AgentId, RunId, SessionId } from '../shared/ids'
 import type { InstallSnapshot } from '../shared/install'
 import type { Layout, PanelId } from '../shared/layout'
 import type { ChooseOutcome } from '../shared/output-folder'
@@ -81,10 +81,14 @@ export interface HarnessApi {
   /**
    * End one session: main kills its process and closes it, which it reports as
    * `session:closed`. Resolves when it has; rejects with the `HarnessError`
-   * envelope (`session/not-found` for an unknown or already closed id). The
-   * transcript and every other session are untouched.
+   * envelope (`session/not-found` for an unknown or already closed id). A persona's
+   * close (Story 8.5), by its session id or by `{ agentId }`, also deletes that
+   * persona's thread and what main holds keyed to it, and writes nothing in its
+   * place; the agent form may close no session (a stored thread with none live) and
+   * then emits no `session:closed`. Every other persona, the room and a skill-first
+   * session are untouched.
    */
-  closeSession(sessionId: SessionId): Promise<void>
+  closeSession(target: SessionId | { agentId: AgentId }): Promise<void>
   /**
    * Send one turn into a session. Resolves when it was written and rejects
    * with the `HarnessError` envelope when it was not (`session/busy` while a

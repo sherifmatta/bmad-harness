@@ -204,6 +204,15 @@ export function foldAnnotations(
 }
 
 /**
+ * A persona's thread was deleted (Story 8.5): every run it held goes, whatever it was showing. The same
+ * table comes back when no run of that persona is held.
+ */
+export function foldWithoutAgent(table: AnnotationTable, agentId: AgentId): AnnotationTable {
+  const kept = new Map([...table].filter(([, run]) => run.agentId !== agentId))
+  return kept.size === table.size ? table : kept
+}
+
+/**
  * What the stream says of each path now: one annotation for every path a run
  * holds text for and shows. A run still writing a path always has the last word
  * over one that ended early, so the runs that ended are written first and

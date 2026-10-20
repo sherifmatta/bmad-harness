@@ -17,6 +17,7 @@ import {
   hydrate,
   initialConversation,
   orphansOf,
+  personaRemoved,
   personaTurnsInFlight,
   roomReady,
   roomRefused,
@@ -41,6 +42,7 @@ import type { SkillSeat } from '../status/skill-seat'
 import { createProseStore } from './prose-store'
 import type { ProseStore } from './prose-store'
 import { runLifecycleLine, subjectWritten } from './run-status'
+import { isEntryInPersonaThread } from './transcript-entry'
 import type { TranscriptEntry } from './transcript-entry'
 
 /**
@@ -52,7 +54,7 @@ import type { TranscriptEntry } from './transcript-entry'
  */
 export type ConversationBridge = {
   openSession(target: SessionTarget): Promise<OpenedSession>
-  closeSession(sessionId: string): Promise<void>
+  closeSession(target: string | { agentId: string }): Promise<void>
   sendTurn(sessionId: string, text: string, mention?: string): Promise<void>
   dispatchMenu(sessionId: string, code: string): Promise<string>
   stopRun(runId: string): Promise<void>
@@ -237,6 +239,12 @@ export function createConversation(deps: ConversationDeps): Conversation {
   let endings = 0
   /** The sessions main has said are closed: a reply that arrives after its session's own `session:closed` finds it so. */
   const closedSessions = new Set<string>()
+  /**
+   * How many times each persona's chat has been closed (Story 8.5): an open begun before a close belongs to the
+   * chat that was deleted, and its reply (or refusal) is dropped as one from before an end is.
+   */
+  const closes = new Map<string, number>()
+  const closesOf = (agentId: string): number => closes.get(agentId) ?? 0
 
   function commit(next: ConversationState): void {
     state = next
@@ -323,11 +331,12 @@ export function createConversation(deps: ConversationDeps): Conversation {
       return Promise.resolve()
     }
     const generation = endings
+    const closeCount = closesOf(agentId)
     const attempt: Promise<void> = bridge
       .openSession(agentId)
       .then(({ sessionId, handoff }) => {
-        // An open that outlived the conversation it began in found it ended.
-        if (generation !== endings) {
+        // An open that outlived the conversation it began in found it ended, and one that outlived its chat's close found it deleted.
+        if (generation !== endings || closeCount !== closesOf(agentId)) {
           return
         }
         const ready = sessionReady(state, agentId, sessionId)
@@ -339,8 +348,8 @@ export function createConversation(deps: ConversationDeps): Conversation {
       })
       .catch((reason: unknown) => {
         // An open still starting when the conversation ended was closed by
-        // main, and that is not a failure: what was waiting on it went with the end.
-        if (generation !== endings) {
+        // main, and that is not a failure: what was waiting on it went with the end (or with the chat's close).
+        if (generation !== endings || closeCount !== closesOf(agentId)) {
           return
         }
         // Messages waiting on a session that could not open are not kept: the
@@ -476,15 +485,16 @@ export function createConversation(deps: ConversationDeps): Conversation {
     const entryId = `entry-${state.nextId}`
     commit(sendFirst(state, agentId, now(), text, mention))
     const generation = endings
+    const closeCount = closesOf(agentId)
     const attempt: Promise<void> = bridge
       .openSession({ seat: agentId, message: text, ...(mention === undefined ? {} : { mention }) })
       .then(({ sessionId }) => {
-        if (generation === endings && !closedSessions.has(sessionId)) {
+        if (generation === endings && closeCount === closesOf(agentId) && !closedSessions.has(sessionId)) {
           commit(seatStarted(state, agentId, sessionId))
         }
       })
       .catch((reason: unknown) => {
-        if (generation !== endings) {
+        if (generation !== endings || closeCount !== closesOf(agentId)) {
           return
         }
         if (asHarnessError(reason).code === 'session/busy') {
@@ -515,15 +525,16 @@ export function createConversation(deps: ConversationDeps): Conversation {
       return
     }
     const generation = endings
+    const closeCount = closesOf(agentId)
     const attempt: Promise<void> = bridge
       .openSession({ seat: agentId, code })
       .then(({ sessionId }) => {
-        if (generation === endings && !closedSessions.has(sessionId)) {
+        if (generation === endings && closeCount === closesOf(agentId) && !closedSessions.has(sessionId)) {
           commit(seatStarted(state, agentId, sessionId))
         }
       })
       .catch((reason: unknown) => {
-        if (generation !== endings || asHarnessError(reason).code === 'session/busy') {
+        if (generation !== endings || closeCount !== closesOf(agentId) || asHarnessError(reason).code === 'session/busy') {
           return
         }
         fail(reason)
@@ -754,20 +765,29 @@ export function createConversation(deps: ConversationDeps): Conversation {
     async close(agentId) {
       onFailure(null)
       const sessionId = sessionOf(state, agentId)
-      if (sessionId === undefined) {
+      const hasThread = state.entries.some((entry) => isEntryInPersonaThread(entry, agentId))
+      if (sessionId === undefined && !hasThread) {
         return false
       }
+      // An open begun before this close belongs to the chat that is being deleted: its reply is dropped.
+      closes.set(agentId, closesOf(agentId) + 1)
       try {
-        await bridge.closeSession(sessionId)
+        await bridge.closeSession(sessionId ?? { agentId })
       } catch (reason) {
         // Already gone: main's `session:closed` was folded before this refusal,
-        // so the session did close and there is nothing to report.
-        if (sessionOf(state, agentId) !== sessionId) {
+        // so the session did close and there is nothing to report. For the agent
+        // form, main holding neither a session nor a thread is the same fact.
+        if (sessionId === undefined ? asHarnessError(reason).code === 'session/not-found' : sessionOf(state, agentId) !== sessionId) {
+          opening.delete(agentId)
+          commit(personaRemoved(state, agentId))
           return true
         }
         fail(reason)
         return false
       }
+      // An open still in flight is the seat that was just closed: it is no longer waited for.
+      opening.delete(agentId)
+      commit(personaRemoved(state, agentId))
       return true
     },
 

@@ -40,8 +40,8 @@ export type ContractCommands = {
     CommandReply<{ sessionId: SessionId }>
   >
   'session.close': CommandSpec<
-    [sessionId: SessionId],
-    'once per session, on persona close or session end',
+    [target: SessionId | { agentId: AgentId }],
+    'once per session, on persona close or session end; once per persona thread by agent id (Story 8.5)',
     CommandReply
   >
   'turn.send': CommandSpec<

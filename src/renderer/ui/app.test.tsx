@@ -52,6 +52,8 @@ let stopReply: (() => Promise<void>) | undefined
 let turnStopped: string[]
 /** The sessions the window asked main to close. */
 let closedSessions: string[]
+/** The agent ids a close was asked for by (Story 8.5). */
+let closedAgents: string[]
 /** Who `onInstallChanged` subscribed, to be pushed a new install snapshot. */
 let installListeners: ((next: InstallSnapshot) => void)[]
 let listeners: ((event: ContractEvent) => void)[]
@@ -127,8 +129,12 @@ function installBridge(): void {
       // Main answers an open with the session alone: a switch writes no line (Story 7.4).
       return { sessionId: `session-of-${agentId}` }
     },
-    closeSession: async (sessionId: string) => {
-      closedSessions.push(sessionId)
+    closeSession: async (target: string | { agentId: string }) => {
+      if (typeof target === 'string') {
+        closedSessions.push(target)
+      } else {
+        closedAgents.push(target.agentId)
+      }
     },
     sendTurn: async (sessionId: string, text: string, mention?: string) => {
       const refused = sendRefusal?.(sessionId)
@@ -170,6 +176,7 @@ beforeEach(() => {
   turnStopped = []
   stopReply = undefined
   closedSessions = []
+  closedAgents = []
   installListeners = []
   listeners = []
   revealListeners = []
@@ -1178,7 +1185,7 @@ describe('App, a session that outlives the install changing under it', () => {
     expect(closedSessions).toEqual([])
   })
 
-  it('closes only that session on the button, keeps the transcript, and lands focus in the current persona’s composer', async () => {
+  it('closes only that session on the button, deletes her thread with it, and lands focus in the current persona’s composer', async () => {
     await live()
     reinstall([john])
     const button = closeButtons()[0]
@@ -1188,7 +1195,8 @@ describe('App, a session that outlives the install changing under it', () => {
     act(() => button.click())
     await settle()
     expect(closedSessions).toEqual(['s-mary'])
-    // The header goes with main's report, not with the click.
+    // The header goes with the command's reply, with no `session:closed` pushed (Story 8.5).
+    expect(headers()).toHaveLength(0)
     push({ name: 'session:closed', payload: { sessionId: 's-mary', agentId: mary.id, reason: 'closed', at: 5 } })
 
     expect(headers()).toHaveLength(0)
@@ -1196,11 +1204,11 @@ describe('App, a session that outlives the install changing under it', () => {
     expect(document.activeElement).toBe(field())
     expect(field().getAttribute('aria-label')).toBe('Message John')
     expect(closedSessions).toEqual(['s-mary'])
-    // Her thread is kept: it is in her own chat when the agent is back and she is turned to.
+    // Her thread is deleted: her own chat is empty when the agent is back and she is turned to.
     reinstall([mary, john])
     act(() => tile('Mary').click())
     await settle()
-    expect(mounted!.container.textContent).toContain('Hello from Mary')
+    expect(mounted!.container.textContent).not.toContain('Hello from Mary')
     expect(mounted!.container.textContent).not.toContain('Hello from John')
   })
 
@@ -1219,7 +1227,7 @@ describe('App, a session that outlives the install changing under it', () => {
   it('keeps a header, and its failure line off the orphan, when main refuses the close', async () => {
     await live()
     reinstall([john])
-    ;(window.harness as unknown as { closeSession: (id: string) => Promise<void> }).closeSession = async () => {
+    ;(window.harness as unknown as { closeSession: (target: string | { agentId: string }) => Promise<void> }).closeSession = async () => {
       throw { code: 'session/not-found', message: 'session · no such session is open' }
     }
 
@@ -1265,7 +1273,7 @@ describe('App, the current persona’s close control', () => {
     expect(closeButtons()).toHaveLength(0)
   })
 
-  it('is in the current persona’s header from session:opened, closes that session on the click, goes with session:closed, and lands focus in the composer', async () => {
+  it('is in the current persona’s header from session:opened, closes that session on the click, goes with the reply, and lands focus in the composer', async () => {
     await mountAndOpenMary()
     push({ name: 'session:opened', payload: { sessionId: 's-mary', agentId: mary.id, at: 1 } })
     // The activation turn is in flight until it ends, and the one control reads Stop meanwhile.
@@ -1283,13 +1291,74 @@ describe('App, the current persona’s close control', () => {
     act(() => button.click())
     await settle()
     expect(closedSessions).toEqual(['s-mary'])
-    // The button goes with main's report, not with the click.
-    expect(closeButtons()).toHaveLength(1)
+    // The button goes with the command's reply (Story 8.5): the session and its thread are removed together.
+    expect(closeButtons()).toHaveLength(0)
     push({ name: 'session:closed', payload: { sessionId: 's-mary', agentId: mary.id, reason: 'closed', at: 5 } })
 
     expect(closeButtons()).toHaveLength(0)
     expect(document.activeElement).toBe(field())
     expect(field().getAttribute('aria-label')).toBe('Message Mary')
+  })
+
+  describe('a stored thread with no session (Story 8.5)', () => {
+    beforeEach(() => {
+      conversationNow = () => ({
+        entries: [
+          { kind: 'persona', id: 'm-0', at: 6, agentId: mary.id, messageId: 'msg_1', text: 'Stored from Mary' },
+          { kind: 'persona', id: 'm-1', at: 7, agentId: john.id, messageId: 'msg_2', text: 'Stored from John' }
+        ],
+        sessions: [],
+        busy: [],
+        personas: [],
+        runs: []
+      })
+    })
+
+    it('is offered, with its usual words, and closes by agent id: her thread is gone on the reply and John’s stays', async () => {
+      await mountOnMary()
+      expect(mounted!.container.textContent).toContain('Stored from Mary')
+      expect(closeButtons()).toHaveLength(1)
+      expect(closeButtons()[0].getAttribute('aria-label')).toBe('close session · Mary')
+      expect(closeButtons()[0].textContent).toBe('close session')
+      expect(closeButtons()[0].className).toBe('chat-close')
+
+      act(() => closeButtons()[0].click())
+      await settle()
+
+      expect(closedAgents).toEqual([mary.id])
+      expect(closedSessions).toEqual([])
+      // No `session:closed` was pushed: the reply alone emptied her chat, and with it the control.
+      expect(mounted!.container.textContent).not.toContain('Stored from Mary')
+      expect(closeButtons()).toHaveLength(0)
+      expect(document.activeElement).toBe(field())
+      act(() => tile('John').click())
+      await settle()
+      expect(mounted!.container.textContent).toContain('Stored from John')
+    })
+
+    it('drops the typed draft on the reply, and that persona’s alone', async () => {
+      await mountOnMary()
+      type(field(), 'half a thought')
+      expect(field().value).toBe('half a thought')
+
+      act(() => closeButtons()[0].click())
+      await settle()
+
+      expect(field().value).toBe('')
+    })
+
+    it('follows each persona’s own thread: closing John’s leaves Mary’s control in her chat', async () => {
+      await mountOn('John')
+      expect(closeButtons()).toHaveLength(1)
+      act(() => closeButtons()[0].click())
+      await settle()
+      expect(closedAgents).toEqual([john.id])
+      act(() => tile('Mary').click())
+      await settle()
+      // Mary still has her stored thread: the control follows each chat's own thread.
+      expect(closeButtons()).toHaveLength(1)
+      expect(mounted!.container.textContent).toContain('Stored from Mary')
+    })
   })
 
   it('is drawn for the persona who is current and for no other, and follows the tile', async () => {
@@ -3584,7 +3653,7 @@ describe('App, the New session chat and a skill-first session (Story 7.5)', () =
     it('keeps the session and shows main’s refusal as the failure line when the end is refused', async () => {
       await building()
       push({ name: 'session:awaiting-turn', payload: { sessionId: 'sk1', at: Date.now() } })
-      ;(window.harness as unknown as { closeSession: (id: string) => Promise<void> }).closeSession = async () => {
+      ;(window.harness as unknown as { closeSession: (target: string | { agentId: string }) => Promise<void> }).closeSession = async () => {
         throw { code: 'session/not-found', message: 'session · no such session is open' }
       }
 

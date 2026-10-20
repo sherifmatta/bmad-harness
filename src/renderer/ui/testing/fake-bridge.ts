@@ -18,6 +18,8 @@ export type FakeBridge = {
   calls: string[]
   /** The ids of the sessions the window asked main to close. */
   closed: string[]
+  /** The agent ids a close was asked for by (Story 8.5): the `{ agentId }` form, which may close no session. */
+  closedAgents: string[]
   /** The ids of the sessions the window asked main to stop the turn of. */
   stopped: string[]
   /** The agent ids the window asked main to open a seat for. */
@@ -55,6 +57,7 @@ export function createFakeBridge(install: InstallSnapshot): FakeBridge {
   const state: FakeBridge = {
     calls: [],
     closed: [],
+    closedAgents: [],
     stopped: [],
     opened: [],
     sent: [],
@@ -112,8 +115,12 @@ export function createFakeBridge(install: InstallSnapshot): FakeBridge {
       const held = state.conversation().sessions.find(({ agentId }) => agentId === target)
       return { sessionId: held?.sessionId ?? `session-of-${target}` }
     }),
-    closeSession: called('closeSession', async (sessionId: string) => {
-      state.closed.push(sessionId)
+    closeSession: called('closeSession', async (target: string | { agentId: string }) => {
+      if (typeof target === 'string') {
+        state.closed.push(target)
+      } else {
+        state.closedAgents.push(target.agentId)
+      }
     }),
     sendTurn: called('sendTurn', async (sessionId: string, text: string, mention?: string) => {
       state.sent.push(mention === undefined ? [sessionId, text] : [sessionId, text, mention])

@@ -205,12 +205,14 @@ const harness: HarnessApi = {
     return opened
   },
 
-  // A command (AD-13): the session's id goes to main, which ends that one
-  // session of this window. Nothing comes back but whether it did.
-  closeSession: async (sessionId) => {
+  // A command (AD-13): the session's id (or `{ agentId }`, Story 8.5) goes to
+  // main, which ends that one session of this window and, for a persona,
+  // deletes its thread. Nothing comes back but whether it did. The target
+  // crosses as it was given: a string stays a string.
+  closeSession: async (target) => {
     const reply = (await ipcRenderer.invoke(
       SESSION_CLOSE_CHANNEL,
-      sessionId
+      target
     )) as ContractCommands['session.close']['reply']
     if (!reply.ok) {
       throw reply.error

@@ -667,10 +667,33 @@ describe('Shell, the close control of an open session', () => {
   const markup = (props: Partial<Parameters<typeof Shell>[0]> = {}): string =>
     renderToStaticMarkup(<Shell projectPath="/work/falcon" snapshot={snapshot(2)} currentId="bmad-agent-0" {...props} />)
 
-  it('draws none without an open session, or without a way to close one', () => {
-    expect(markup()).not.toContain('chat-close')
-    expect(markup({ onCloseSession: () => {} })).not.toContain('chat-close')
+  it('draws none without an open session or a stored thread, or without a way to close one', () => {
+    expect(markup({ threadEmpty: true })).not.toContain('chat-close')
+    expect(markup({ threadEmpty: true, onCloseSession: () => {} })).not.toContain('chat-close')
     expect(markup({ liveSessions: new Set(['bmad-agent-0']) })).not.toContain('chat-close')
+    expect(markup({ onCloseSession: undefined })).not.toContain('chat-close')
+  })
+
+  it('draws one for a persona with a stored thread and no session open (Story 8.5), and none once the thread is empty', () => {
+    const stored = markup({ threadEmpty: false, onCloseSession: () => {} })
+
+    expect(count(stored, /class="chat-close"/g)).toBe(1)
+    expect(markup({ threadEmpty: true, onCloseSession: () => {} })).not.toContain('chat-close')
+  })
+
+  it('draws the stored-thread control as a real, enabled, tabbable button with its usual accessible name (keyboard reach)', () => {
+    const html = markup({ threadEmpty: false, onCloseSession: () => {} })
+    const button = html.match(/<button[^>]*class="chat-close"[^>]*>[^<]*<\/button>/)?.[0] ?? ''
+
+    expect(button).toMatch(/^<button type="button" class="chat-close" aria-label="close session · [^"]+">close session<\/button>$/)
+    // A native button is in the tab order and answers Enter and Space; nothing here takes it out or disables it.
+    expect(button).not.toMatch(/disabled|tabindex|aria-disabled|role=/i)
+  })
+
+  it('draws one for a live persona whose thread is empty', () => {
+    const html = markup({ threadEmpty: true, liveSessions: new Set(['bmad-agent-0']), onCloseSession: () => {} })
+
+    expect(count(html, /class="chat-close"/g)).toBe(1)
   })
 
   it('draws one in the current persona’s header while that persona has a session open, named for them', () => {
@@ -683,7 +706,7 @@ describe('Shell, the close control of an open session', () => {
   })
 
   it('draws none for a persona who is not current, even one with a session open', () => {
-    const html = markup({ liveSessions: new Set(['bmad-agent-1']), onCloseSession: () => {} })
+    const html = markup({ threadEmpty: true, liveSessions: new Set(['bmad-agent-1']), onCloseSession: () => {} })
 
     expect(html).not.toContain('chat-close')
   })

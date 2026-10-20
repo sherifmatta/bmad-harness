@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { RunCardSnapshot } from '../../shared/conversation'
 import type { ContractEvent } from '../../shared/events'
 import type { RailAnnotation } from '../../shared/rail'
-import { EMPTY_ANNOTATIONS, NAME_MAX, annotationsOf, foldAnnotations } from './rail-annotations'
+import { EMPTY_ANNOTATIONS, NAME_MAX, annotationsOf, foldAnnotations, foldWithoutAgent } from './rail-annotations'
 import type { AnnotationTable } from './rail-annotations'
 import { foldRunCard, startCard } from './run-card'
 
@@ -71,6 +71,31 @@ function cardWith(text: string): RunCardSnapshot {
 }
 
 const DOC = '# PRD\n\n## 1. Vision\nA.\n\n## 2. Goals\nB.\n'
+
+describe('an agent forgotten (Story 8.5)', () => {
+  it('drops every run the persona held, whatever it showed, and no other run', () => {
+    const w = world().send(
+      started('r1', JOHN),
+      prose('r1', '## Vision\nA.\n', PRD),
+      started('r2', 'bmad-agent-analyst'),
+      prose('r2', '## Notes\nB.\n', ADDENDUM),
+      started('r3', null),
+      ended('run:finished', 'r1')
+    )
+
+    const next = foldWithoutAgent(w.table, JOHN)
+
+    expect([...next.keys()]).toEqual(['r2', 'r3'])
+    expect(Object.keys(Object.fromEntries(annotationsOf(next)))).toEqual([ADDENDUM])
+  })
+
+  it('returns the same table when the persona held nothing', () => {
+    const w = world().send(started('r1', JOHN))
+
+    expect(foldWithoutAgent(w.table, 'nobody')).toBe(w.table)
+    expect(foldWithoutAgent(EMPTY_ANNOTATIONS, JOHN)).toBe(EMPTY_ANNOTATIONS)
+  })
+})
 
 describe('the annotation fold', () => {
   it('holds nothing for a run that has written nothing, and for events that are not a run’s', () => {

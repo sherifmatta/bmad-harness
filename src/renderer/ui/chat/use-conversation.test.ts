@@ -112,8 +112,14 @@ class FakeBridge implements ConversationBridge {
   closed: string[] = []
   /** What the next close answers; one entry is consumed per close. */
   closeResults: (Promise<void> | undefined)[] = []
-  closeSession(sessionId: string): Promise<void> {
-    this.closed.push(sessionId)
+  /** The agent ids a close was asked for by (Story 8.5); not among `closed`. */
+  closedAgents: string[] = []
+  closeSession(target: string | { agentId: string }): Promise<void> {
+    if (typeof target === 'string') {
+      this.closed.push(target)
+    } else {
+      this.closedAgents.push(target.agentId)
+    }
     return this.closeResults.shift() ?? Promise.resolve()
   }
   sendTurn(sessionId: string, text: string, ...mention: string[]): Promise<void> {
@@ -970,23 +976,30 @@ const closed = (sessionId: string, agentId: string): ContractEvent => ({
 })
 
 describe('close', () => {
-  it('sends the persona’s session to main and resolves true; the session is removed by main’s session:closed, not by the call', async () => {
+  it('sends the persona’s session to main and resolves true; her thread is dropped on the reply, not on session:closed (Story 8.5)', async () => {
     const { conversation, last, failures } = build()
     await connected(conversation)
     bridge.push(opened('s1', mary.id))
     bridge.push(opened('s2', john.id))
     bridge.push(said(mary.id, 'm1', 'Hello'))
+    bridge.push({ name: 'persona:said', payload: { sessionId: 's2', agentId: john.id, messageId: 'm2', text: 'Johns', at: 3 } })
 
     expect(await conversation.close(mary.id)).toBe(true)
     expect(bridge.closed).toEqual(['s1'])
+    expect(bridge.closedAgents).toEqual([])
     expect(failures.filter((failure) => failure !== null)).toEqual([])
+    // Gone on the reply, with no session:closed pushed: her records and her held session.
+    expect(last().entries).toMatchObject([{ text: 'Johns' }])
 
     bridge.push(closed('s1', mary.id))
-    // Its turns stay and the other persona’s session is untouched.
-    expect(last().entries).toMatchObject([{ text: 'Hello' }])
+    // The other persona’s thread and session are untouched.
+    expect(last().entries).toMatchObject([{ text: 'Johns' }])
     bridge.push(awaiting('s2'))
     conversation.send(john.id, 'still here')
     expect(bridge.sends).toEqual([['s2', 'still here']])
+    // Hers is an empty chat again: the next message starts her seat afresh.
+    conversation.send(mary.id, 'again')
+    expect(bridge.seatOpens).toMatchObject([{ seat: mary.id, message: 'again' }])
   })
 
   it('shows a refusal as the failure line and keeps the session', async () => {
@@ -1020,12 +1033,133 @@ describe('close', () => {
     expect(failures.filter((failure) => failure !== null)).toEqual([])
   })
 
-  it('asks main for nothing when the persona has no session', async () => {
+  it('asks main for nothing when the persona has neither a session nor a thread', async () => {
     const { conversation } = build()
     await connected(conversation)
 
     expect(await conversation.close(mary.id)).toBe(false)
     expect(bridge.closed).toEqual([])
+    expect(bridge.closedAgents).toEqual([])
+  })
+
+  describe('a stored thread with no session (Story 8.5)', () => {
+    const storedMary = (): ConversationSnapshot => ({
+      ...EMPTY,
+      entries: [
+        { kind: 'user', id: 'm-0', at: 5, text: 'Before', agentId: mary.id },
+        { kind: 'persona', id: 'm-1', at: 6, agentId: mary.id, messageId: 'msg_1', text: 'Hi' },
+        { kind: 'sysline', id: 'm-2', at: 7, text: 'session ended · the process exited', agentId: mary.id },
+        { kind: 'persona', id: 'm-3', at: 8, agentId: john.id, messageId: 'msg_2', text: 'Johns' }
+      ]
+    })
+
+    it('asks main by agent id, resolves true and drops that persona’s records alone, on the reply', async () => {
+      bridge.conversation = Promise.resolve(storedMary())
+      const { conversation, last, failures } = build()
+      await connected(conversation)
+      expect(last().entries).toHaveLength(4)
+
+      expect(await conversation.close(mary.id)).toBe(true)
+
+      expect(bridge.closedAgents).toEqual([mary.id])
+      expect(bridge.closed).toEqual([])
+      expect(last().entries).toMatchObject([{ text: 'Johns' }])
+      expect(failures.filter((failure) => failure !== null)).toEqual([])
+    })
+
+    it('treats a not-found reply as already gone: true, no failure, nothing of hers left', async () => {
+      bridge.conversation = Promise.resolve(storedMary())
+      const { conversation, last, failures } = build()
+      await connected(conversation)
+      bridge.closeResults.push(Promise.reject({ code: 'session/not-found', message: 'session · no such session is open' }))
+
+      expect(await conversation.close(mary.id)).toBe(true)
+
+      expect(last().entries).toMatchObject([{ text: 'Johns' }])
+      expect(failures.filter((failure) => failure !== null)).toEqual([])
+    })
+
+    it('keeps everything and shows the failure line when main refuses otherwise', async () => {
+      bridge.conversation = Promise.resolve(storedMary())
+      const { conversation, last, failures } = build()
+      await connected(conversation)
+      bridge.closeResults.push(Promise.reject({ code: 'session/close-failed', message: 'session · could not close' }))
+
+      expect(await conversation.close(mary.id)).toBe(false)
+
+      expect(last().entries).toHaveLength(4)
+      expect(failures.at(-1)).toMatchObject({ code: 'session/close-failed' })
+    })
+  })
+
+  it('drops the queue with the thread on the reply: nothing queued is sent to a later session', async () => {
+    const { conversation, last } = build()
+    await connected(conversation)
+    bridge.push(opened('s1', mary.id))
+    bridge.push(personaState(mary.id, 'work', 4))
+    conversation.send(mary.id, 'queued one')
+    conversation.send(mary.id, 'queued two')
+    expect(last().entries).toHaveLength(2)
+
+    expect(await conversation.close(mary.id)).toBe(true)
+    expect(last().entries).toEqual([])
+    expect(last().personas.has(mary.id)).toBe(false)
+
+    // A later session of hers sends nothing that was waiting.
+    bridge.push(opened('s9', mary.id))
+    bridge.push(awaiting('s9'))
+    expect(bridge.sends).toEqual([])
+  })
+
+  it('closes a persona whose first-message open is still pending: the stale open’s reply puts nothing back, and the next message starts a fresh seat', async () => {
+    const { conversation, last } = build()
+    await connected(conversation)
+    conversation.send(mary.id, 'first words')
+    expect(bridge.seatOpens).toHaveLength(1)
+    expect(last().entries).toHaveLength(1)
+
+    expect(await conversation.close(mary.id)).toBe(true)
+    expect(bridge.closedAgents).toEqual([mary.id])
+    expect(last().entries).toEqual([])
+
+    // The abandoned open answers late: its session is not taken for the persona's.
+    bridge.openResult[0].resolve('s-stale')
+    await settle()
+    expect(last().entries).toEqual([])
+    expect(last().busy.size).toBe(0)
+
+    // The next message is a first message again, not a wait on the abandoned open.
+    conversation.send(mary.id, 'second words')
+    expect(bridge.seatOpens).toHaveLength(2)
+    expect(bridge.sends).toEqual([])
+    expect(bridge.seatOpens[1]).toMatchObject({ seat: mary.id, message: 'second words' })
+  })
+
+  it('drops a stale open’s refusal too: no failure line for a chat that was deleted', async () => {
+    const { conversation, failures } = build()
+    await connected(conversation)
+    conversation.send(mary.id, 'first words')
+    await conversation.close(mary.id)
+
+    bridge.openResult[0].reject({ code: 'session/spawn-failed', message: 'session · could not start the session' })
+    await settle()
+
+    expect(failures.filter((failure) => failure !== null)).toEqual([])
+  })
+
+  it('leaves everything as it was when main refuses the close while the session is still held', async () => {
+    const { conversation, last } = build()
+    await connected(conversation)
+    bridge.push(opened('s1', mary.id))
+    bridge.push(said(mary.id, 'm1', 'Hello'))
+    bridge.closeResults.push(Promise.reject({ code: 'session/close-failed', message: 'session · could not close' }))
+
+    expect(await conversation.close(mary.id)).toBe(false)
+
+    expect(last().entries).toMatchObject([{ text: 'Hello' }])
+    bridge.push(awaiting('s1'))
+    conversation.send(mary.id, 'still here')
+    expect(bridge.sends).toEqual([['s1', 'still here']])
   })
 })
 
@@ -1275,7 +1409,7 @@ describe('useConversation', () => {
     expect(hook.current.canAnswer(mary.id)).toBe(true)
   })
 
-  it('closes an orphan through the hook, after which main’s session:closed removes it and the turns stay', async () => {
+  it('closes an orphan through the hook: its session and thread go on the reply (Story 8.5), and main’s session:closed finds nothing more', async () => {
     install(bridge)
     hook = renderHook(() => useConversation([john]))
     await settle()
@@ -1289,10 +1423,12 @@ describe('useConversation', () => {
     })
     expect(closedOk).toBe(true)
     expect(bridge.closed).toEqual(['s1'])
+    expect(hook.current.orphans).toEqual([])
+    expect(hook.current.entries).toEqual([])
     inAct(() => bridge.push(closed('s1', mary.id)))
 
     expect(hook.current.orphans).toEqual([])
-    expect(hook.current.entries).toMatchObject([{ text: 'Hello' }])
+    expect(hook.current.entries).toEqual([])
   })
 
   it('holds the agent ids that have a live session, from session:opened to session:closed, current or not', async () => {

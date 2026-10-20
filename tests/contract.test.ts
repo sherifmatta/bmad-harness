@@ -251,7 +251,8 @@ describe('the commands in', () => {
       (declared.get(name)?.match(/\[([^\]]*)\]/)?.[1] ?? '').replace(/:\s*[A-Za-z]+/g, '').replace(/\s+/g, '')
     // A persona's agent id, or from Story 4.1 the room's cast: one argument, `SessionTarget`.
     expect(args('session.open')).toBe('target')
-    expect(args('session.close')).toBe('sessionId')
+    // A session's id, or from Story 8.5 `{ agentId }`: one argument, the close's target.
+    expect(args('session.close')).toBe('target|{agentId}')
     expect(args('turn.send')).toBe('sessionId,text,mention?')
     expect(args('menu.dispatch')).toBe('sessionId,code')
     expect(args('run.stop')).toBe('runId')

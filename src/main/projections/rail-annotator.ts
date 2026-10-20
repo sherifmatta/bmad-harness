@@ -1,7 +1,8 @@
 import type { RunCardSnapshot } from '../../shared/conversation'
 import type { ContractEvent } from '../../shared/events'
+import type { AgentId } from '../../shared/ids'
 import type { RailAnnotation } from '../../shared/rail'
-import { EMPTY_ANNOTATIONS, annotationsOf, foldAnnotations } from '../fold/rail-annotations'
+import { EMPTY_ANNOTATIONS, annotationsOf, foldAnnotations, foldWithoutAgent } from '../fold/rail-annotations'
 
 /**
  * The producer behind the rail's annotation slot: what the stream says of a
@@ -46,6 +47,8 @@ export type RailAnnotator = {
   personaWrote(paths: readonly string[]): void
   /** The conversation ended: every room mark goes. */
   roomCleared(): void
+  /** A persona's thread was deleted (Story 8.5): the runs it held go, and the target is told `null` for the paths they held. */
+  forgetAgent(agentId: AgentId): void
 }
 
 /** Whether two annotations name the same owners: both none, or the same ids in the same order (an empty list is not none). */
@@ -103,6 +106,13 @@ export function createRailAnnotator(): RailAnnotator {
       for (const path of paths) {
         if (roomPaths.delete(path)) target?.unmarkRoom(path)
       }
+    },
+
+    forgetAgent(agentId) {
+      const next = foldWithoutAgent(table, agentId)
+      if (next === table) return
+      table = next
+      tell()
     },
 
     roomCleared() {

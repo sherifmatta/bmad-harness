@@ -57,4 +57,17 @@ describe('the run projection', () => {
     expect(runs.snapshot().map(({ runId }) => runId)).toEqual(['r2'])
     expect(runs.card('r1')).toBeUndefined()
   })
+
+  it('takes one persona’s cards away by the shared thread predicate and no other thread’s (Story 8.5)', () => {
+    const runs = createRunProjection()
+    runs.apply({ name: 'run:started', payload: { runId: 'r1', sessionId: 's1', agentId: 'a', code: 'A', at: 1 } })
+    runs.apply({ name: 'run:started', payload: { runId: 'r2', sessionId: 's2', agentId: 'b', code: 'B', at: 2 } })
+    runs.apply({ name: 'run:started', payload: { runId: 'r3', sessionId: 's3', code: 'C', at: 3 } })
+    runs.apply({ name: 'run:started', payload: { runId: 'r4', sessionId: 's4', agentId: 'a', code: 'D', at: 4 } })
+
+    runs.removeAgent('a')
+
+    expect(runs.snapshot().map(({ runId }) => runId)).toEqual(['r2', 'r3'])
+    expect(runs.card('r4')).toBeUndefined()
+  })
 })

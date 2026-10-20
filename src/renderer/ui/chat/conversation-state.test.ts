@@ -16,6 +16,7 @@ import {
   hydrate,
   initialConversation,
   orphansOf,
+  personaRemoved,
   personaTurnsInFlight,
   ROOM_REFUSED_LINE,
   roomReady,
@@ -543,6 +544,75 @@ describe('a session that does not come', () => {
     expect(dropped.entries).toMatchObject([{ text: 'b' }])
     expect([...dropped.queue.keys()]).toEqual([john.id])
     expect(dropQueued(dropped, mary.id)).toBe(dropped)
+  })
+})
+
+describe('personaRemoved (Story 8.5)', () => {
+  const personaState = (agentId: string, state: PersonaState): ContractEvent => ({
+    name: 'persona:state',
+    payload: { agentId, state, at: 5 }
+  })
+  const base = (): ConversationState => {
+    let state = fold([
+      openedEvent('s1', mary.id),
+      openedEvent('s2', john.id),
+      said('m1', 'mary words', 3, mary.id),
+      said('m2', 'john words', 4, john.id),
+      personaState(mary.id, 'work'),
+      personaState(john.id, 'error')
+    ])
+    // Both are mid-turn (an open leaves its turn in flight): messages typed now are queued.
+    state = send(state, 'mary queued', 50, mary.id).state
+    state = send(state, 'john queued', 51, john.id).state
+    return state
+  }
+
+  it('drops the persona’s records, queued entries, session, busy mark and state, and nothing of another persona', () => {
+    const before = base()
+    expect(before.queue.get(mary.id)).toHaveLength(1)
+
+    const after = personaRemoved(before, mary.id)
+
+    expect(after.entries.map((entry) => ('text' in entry ? entry.text : ''))).toEqual(['john words', 'john queued'])
+    expect(after.queue.has(mary.id)).toBe(false)
+    expect(after.queue.get(john.id)).toHaveLength(1)
+    expect(after.sessions.has(mary.id)).toBe(false)
+    expect(after.sessions.get(john.id)).toBe('s2')
+    expect(after.busy.has('s1')).toBe(false)
+    expect(after.busy.has('s2')).toBe(true)
+    expect(after.personas.has(mary.id)).toBe(false)
+    expect(after.personas.get(john.id)).toEqual({ state: 'error', at: 5 })
+    expect(after.nextId).toBe(before.nextId)
+  })
+
+  it('drops the harness lines of her thread and keeps the room’s, a skill session’s and the unattributed', () => {
+    const lines = (agentId?: string, extra: Partial<SyslineRecord> = {}): ContractEvent => ({
+      name: 'harness:said',
+      payload: { id: `m-${Math.random()}`, text: 'a line', at: 9, ...(agentId === undefined ? {} : { agentId }), ...extra }
+    })
+    const state = fold([lines(mary.id), lines(mary.id, { room: true }), lines(), lines(john.id)])
+    expect(state.entries).toHaveLength(4)
+
+    const after = personaRemoved(state, mary.id)
+
+    expect(after.entries.map((entry) => ('agentId' in entry ? entry.agentId : undefined))).toEqual([mary.id, undefined, john.id])
+    expect(after.entries[0]).toMatchObject({ room: true })
+  })
+
+  it('leaves the room and skill sessions untouched', () => {
+    const state = roomReady(fold([openedEvent('s1', mary.id)]), 'room-1', [mary.id, john.id], 5)
+
+    const after = personaRemoved(state, mary.id)
+
+    expect(after.room).toBe('room-1')
+    expect(after.roomCast).toEqual([mary.id, john.id])
+  })
+
+  it('returns the same state when there is nothing to drop', () => {
+    const state = fold([openedEvent('s2', john.id), said('m2', 'john words', 4, john.id)])
+
+    expect(personaRemoved(state, mary.id)).toBe(state)
+    expect(personaRemoved(initialConversation, mary.id)).toBe(initialConversation)
   })
 })
 

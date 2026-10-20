@@ -1,5 +1,6 @@
 import type { PersonaSaid } from '../../shared/events'
 import type { TranscriptRecord } from '../../shared/conversation'
+import { threadAgentOf } from '../../shared/thread'
 
 /**
  * The transcript main holds for a project — pure, immutable, with no I/O and
@@ -126,6 +127,15 @@ export function foldSysline(
  */
 export function foldWithoutSkillSession(state: TranscriptState, sessionId: string): TranscriptState {
   const entries = state.entries.filter((entry) => !('skillSession' in entry && entry.skillSession === sessionId))
+  return entries.length === state.entries.length ? state : { ...state, entries }
+}
+
+/**
+ * A persona's thread gone (Story 8.5): every record in it by the shared predicate (an `agentId`, no `room`, no
+ * `skillSession`). The same state comes back when nothing matched. Ids keep counting from where they were.
+ */
+export function foldWithoutPersonaThread(state: TranscriptState, agentId: string): TranscriptState {
+  const entries = state.entries.filter((entry) => threadAgentOf(entry) !== agentId)
   return entries.length === state.entries.length ? state : { ...state, entries }
 }
 

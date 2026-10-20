@@ -7,6 +7,7 @@ import {
   foldPersonaSaid,
   foldSysline,
   foldUserTurn,
+  foldWithoutPersonaThread,
   foldWithoutSkillSession,
   transcriptFrom
 } from './transcript'
@@ -235,6 +236,37 @@ describe('a skill-first session in the transcript (Story 7.5)', () => {
     expect(next.entries.map((entry) => entry.text)).toEqual(['persona', 'said'])
     expect(next.nextId).toBe(state.nextId)
     expect(foldWithoutSkillSession(next, 's1')).toBe(next)
+  })
+})
+
+describe('a persona’s thread taken out (Story 8.5)', () => {
+  const personaSaid = (agentId: string, messageId: string, text: string, extra: Partial<PersonaSaid> = {}): PersonaSaid => ({
+    sessionId: `s-${agentId}`,
+    agentId,
+    messageId,
+    text,
+    at: 1,
+    ...extra
+  })
+
+  it('takes out that persona’s records by the shared predicate and no other record, and never reuses an id', () => {
+    let state = foldUserTurn(EMPTY_TRANSCRIPT, 'to john', 1, undefined, undefined, undefined, 'john')
+    state = foldPersonaSaid(state, personaSaid('john', 'm1', 'john says'))
+    state = foldSysline(state, 'john line', 2, undefined, undefined, 'john')
+    state = foldPersonaSaid(state, personaSaid('mary', 'm2', 'mary says'))
+    state = foldUserTurn(state, 'to mary', 3, undefined, undefined, undefined, 'mary')
+    // The room's words with john's id, a skill session's record and an unattributed one are in no persona's thread.
+    state = foldPersonaSaid(state, personaSaid('john', 'm3', 'in the room', { room: true }))
+    state = foldUserTurn(state, 'room', 4, true)
+    state = foldUserTurn(state, 'skill', 5, undefined, undefined, 's1')
+    state = foldUserTurn(state, 'unplaced', 6)
+
+    const next = foldWithoutPersonaThread(state, 'john')
+
+    expect(next.entries.map((entry) => entry.text)).toEqual(['mary says', 'to mary', 'in the room', 'room', 'skill', 'unplaced'])
+    expect(next.nextId).toBe(state.nextId)
+    expect(foldWithoutPersonaThread(next, 'john')).toBe(next)
+    expect(foldWithoutPersonaThread(EMPTY_TRANSCRIPT, 'john')).toBe(EMPTY_TRANSCRIPT)
   })
 })
 

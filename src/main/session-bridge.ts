@@ -15,7 +15,7 @@ import {
 } from '../shared/channels'
 import type { ContractCommands } from '../shared/commands'
 import type { ConversationReply, MenuDispatchReply } from '../shared/conversation'
-import type { RunId, SessionId } from '../shared/ids'
+import type { AgentId, RunId, SessionId } from '../shared/ids'
 import type { ArtifactObservation } from '../shared/rail'
 import { skillOf } from '../shared/run-skill'
 import {
@@ -669,37 +669,85 @@ async function readPlanOf(ctx: Context, projectRoot: string, skill: string): Pro
 
 // Ends one session of this window: its process is killed and it is closed
 // through `finish`, so `session:closed` is emitted. A room says one harness line
-// first (Story 4.5), and so does a persona's seat (Story 7.4): the thread keeps
-// every turn, so the line is what says the persona starts fresh. A skill-first
-// session (Story 7.5) says nothing and takes its own records with it: its
-// records, its stored run cards, its run-projection cards and its list item.
-// One the transcript lists and this launch does not hold (it ended with a
-// launch) is removed the same way, with no process to kill. The transcript is
-// not otherwise touched, and neither is any other session. Nothing else ends a
-// session short of the conversation ending, the process exiting or the window going.
+// first (Story 4.5). A persona's close (Story 8.5) deletes its thread and writes
+// nothing in its place: the session is ended first (its run ends and is recorded),
+// then the persona's records, stored runs, run cards, written files, annotation
+// holds and flags go, so the chat is the empty chat again. It is asked for by the
+// session's id or by `{ agentId }`, which also reaches a persona with a stored
+// thread and no session (it ended with a relaunch). A skill-first session
+// (Story 7.5) says nothing and takes its own records with it: its records, its
+// stored run cards, its run-projection cards and its list item. One the
+// transcript lists and this launch does not hold (it ended with a launch) is
+// removed the same way, with no process to kill. No other session, thread or
+// file is touched. Nothing else ends a session short of the conversation
+// ending, the process exiting or the window going.
 function closeSession(ctx: Context) {
-  return (event: IpcMainInvokeEvent, sessionId: unknown): CloseReply => {
+  return (event: IpcMainInvokeEvent, target: unknown): CloseReply => {
     const sender = senderOf(event)
     const service = ctx.registry.serviceOf(sender.id)
-    const held = typeof sessionId === 'string' ? service?.bySession.get(sessionId) : undefined
+    const byAgent = isAgentTarget(target) ? target.agentId : undefined
+    const held =
+      byAgent !== undefined
+        ? service?.byAgent.get(byAgent)
+        : typeof target === 'string'
+          ? service?.bySession.get(target)
+          : undefined
     const entry = held === undefined || held.closed ? undefined : held
-    if (service === undefined || entry === undefined) {
-      return removeListedSkillSession(ctx, sender, service, sessionId)
+    if (byAgent === undefined && (service === undefined || entry === undefined)) {
+      return removeListedSkillSession(ctx, sender, service, target)
     }
-    const kind = kindOf(entry)
-    if (kind === 'room') {
-      ctx.registry.say(sender, entry, LINES.roomStopped)
-    } else if (kind === 'persona') {
-      ctx.registry.say(sender, entry, LINES.seatEnded(ctx.nameOf(sender.id, entry.agentId ?? '') || (entry.agentId ?? '')))
+    const kind = entry === undefined ? 'persona' : kindOf(entry)
+    if (service !== undefined && entry !== undefined) {
+      if (kind === 'room') {
+        ctx.registry.say(sender, entry, LINES.roomStopped)
+      }
+      entry.session?.kill()
+      ctx.registry.finish(sender, service, entry, 'closed')
     }
-    entry.session?.kill()
-    ctx.registry.finish(sender, service, entry, 'closed')
-    if (kind === 'skill') {
+    if (kind === 'persona') {
+      const agentId = byAgent ?? entry?.agentId
+      return agentId === undefined ? NOT_FOUND : removePersona(ctx, sender, service, entry !== undefined, agentId)
+    }
+    if (kind === 'skill' && service !== undefined && entry !== undefined) {
       // One still starting was never listed: there is nothing to remove, and it is ended all the same.
       removeListedSkillSession(ctx, sender, service, entry.sessionId)
     }
     return { ok: true }
   }
+}
+
+/** The `{ agentId }` form of the close target (Story 8.5). */
+function isAgentTarget(target: unknown): target is { agentId: AgentId } {
+  return (
+    typeof target === 'object' &&
+    target !== null &&
+    typeof (target as { agentId?: unknown }).agentId === 'string' &&
+    (target as { agentId: string }).agentId !== ''
+  )
+}
+
+/**
+ * One persona's removal (Story 8.5), the same for both forms of the target, run once its live session (if it
+ * had one: `wasLive`) has been killed and finished, so a run in flight has ended and been recorded: delete its
+ * thread and everything main holds keyed to it, then forget its flags. Nothing is written in its place. Ok when a
+ * session was live or anything was removed, `session/not-found` otherwise.
+ */
+function removePersona(
+  ctx: Context,
+  sender: Sender,
+  service: Service | undefined,
+  wasLive: boolean,
+  agentId: AgentId
+): CloseReply {
+  const projectRoot = ctx.projectPathFor(sender.id)
+  const removed = projectRoot === undefined ? false : ctx.transcripts.forProject(projectRoot).removePersonaThread(agentId)
+  if (service !== undefined) {
+    service.runs.removeAgent(agentId)
+    service.written.delete(agentId)
+    service.annotations.forgetAgent(agentId)
+    service.personas.forget(agentId)
+  }
+  return wasLive || removed ? { ok: true } : NOT_FOUND
 }
 
 /**

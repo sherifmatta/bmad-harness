@@ -1336,6 +1336,8 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
         "src/renderer/ui/chat/use-conversation.ts: asHarnessError(reason).code",
         // Story 3.19: the header's stop is refused as not-found or not, as a run's is.
         "src/renderer/ui/chat/use-conversation.ts: asHarnessError(reason).code",
+        // Story 8.5: a close by agent id is refused as not-found (nothing held there) or not.
+        "src/renderer/ui/chat/use-conversation.ts: asHarnessError(reason).code",
       ]);
       const descriptions = rest.flatMap((path) =>
         [...(code.get(path) ?? "").matchAll(/[\w.]*\.description\b/g)].map(
@@ -2884,20 +2886,16 @@ describe("nothing this epic promised not to do: the audit's static half (Story 4
     }
     // Said by the bridge, once each, through the registry's own `say`, and by nothing else in main.
     const bridge = code.get(BRIDGE) ?? "";
-    // Story 7.4 adds a persona seat's own ending, said once beside the room's, from `closeSession` alone.
-    expect(bridge.match(/registry\.say\(/g)).toHaveLength(3);
+    // A persona's close writes no line (Story 8.5, which takes Story 7.4's seat ending away): the bridge says two.
+    expect(bridge.match(/registry\.say\(/g)).toHaveLength(2);
     expect(bridge).toMatch(/registry\.say\(sender, entry, LINES\.roomOpened\(/);
     expect(bridge).toMatch(/registry\.say\(sender, entry, LINES\.roomStopped\)/);
     expect(offenders(MAIN_CODE, /\bLINES\.room(?:Opened|Stopped)\b/)).toEqual([`${BRIDGE}: LINES.roomOpened`]);
     expect(MAIN_CODE.reduce((count, path) => count + (code.get(path)?.match(/\bLINES\.roomOpened\b/g)?.length ?? 0), 0)).toBe(1);
     expect(MAIN_CODE.reduce((count, path) => count + (code.get(path)?.match(/\bLINES\.roomStopped\b/g)?.length ?? 0), 0)).toBe(1);
-    // The seat's line (Story 7.4): lower case and plain, a fact with no claim that anything continues, said from one place.
-    const seat = voice.match(/seatEnded:[^\n`]*`([^`]*)`/)?.[1] ?? "";
-    expect(seat).toBe("session closed · ${name} starts fresh on the next message");
-    expect(seat.replace("${name}", "")).toBe(seat.replace("${name}", "").toLowerCase());
-    expect(seat).not.toMatch(/[.!?:;,]$|\b(?:continue|resume|remember|context|again)\b/);
-    expect(bridge).toMatch(/registry\.say\(sender, entry, LINES\.seatEnded\(/);
-    expect(MAIN_CODE.reduce((count, path) => count + (code.get(path)?.match(/\bLINES\.seatEnded\b/g)?.length ?? 0), 0)).toBe(1);
+    // A persona's close deletes its thread and says nothing in its place (Story 8.5): no seat line is declared or said.
+    expect(voice).not.toMatch(/seatEnded/);
+    expect(MAIN_CODE.reduce((count, path) => count + (code.get(path)?.match(/\bLINES\.seatEnded\b/g)?.length ?? 0), 0)).toBe(0);
   });
 
   it("makes a persona's entry only from the session's own text: three constructors, each given the text the session sent", () => {

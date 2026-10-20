@@ -7,6 +7,7 @@ import type {
   TranscriptRecord
 } from '../../shared/conversation'
 import type { EpochMs } from '../../shared/ids'
+import { threadAgentOf } from '../../shared/thread'
 import {
   EMPTY_TRANSCRIPT,
   foldAttributeLegacy,
@@ -14,6 +15,7 @@ import {
   foldPersonaSaid,
   foldSysline,
   foldUserTurn,
+  foldWithoutPersonaThread,
   foldWithoutSkillSession,
   transcriptFrom
 } from '../fold/transcript'
@@ -119,6 +121,12 @@ export type ProjectTranscript = {
    * False when it was not listed.
    */
   removeSkillSession(sessionId: string): boolean
+  /**
+   * A persona's thread deleted (Story 8.5): its records and its stored run cards (by the shared thread
+   * predicate), written with the transcript. A run of it that is recorded afterwards is not kept. Nothing
+   * else is touched. False when no record and no stored run was in the thread.
+   */
+  removePersonaThread(agentId: string): boolean
   /**
    * Empty the transcript, the file first: it is written as `entries: []` at
    * once, with no run cards, and only when that succeeds is the in-memory
@@ -338,6 +346,20 @@ export function createTranscriptRegistry(deps: TranscriptRegistryDeps): Transcri
         }
         runs = runs.filter(({ card }) => card.sessionId !== sessionId)
         state = foldWithoutSkillSession(state, sessionId)
+        touched()
+        return true
+      },
+      removePersonaThread(agentId) {
+        const gone = runs.filter(({ card }) => threadAgentOf(card) === agentId)
+        for (const { card } of gone) {
+          ended.add(card.runId)
+        }
+        runs = runs.filter(({ card }) => threadAgentOf(card) !== agentId)
+        const next = foldWithoutPersonaThread(state, agentId)
+        if (next === state && gone.length === 0) {
+          return false
+        }
+        state = next
         touched()
         return true
       },

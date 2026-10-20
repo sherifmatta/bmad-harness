@@ -29,8 +29,9 @@ import { SETTLE_MS } from './rail-rows'
  * aggregate of every session carrying its `agentId`; a session without one
  * belongs to the room and is ignored here.
  *
- * Four inputs are the harness's own and not contract events — a turn the user
- * sent, a turn that ended in failure, a process attached, a process detached —
+ * Five inputs are the harness's own and not contract events — a turn the user
+ * sent, a turn that ended in failure, a process attached, a process detached, an
+ * agent forgotten (its thread deleted, Story 8.5) —
  * so they are declared here, in the same `noun:verb-past` form, and never cross
  * the bridge.
  */
@@ -41,6 +42,8 @@ export type InternalEvent =
   | { name: 'turn:failed'; payload: { sessionId: SessionId; at?: EpochMs } }
   | { name: 'process:attached'; payload: { sessionId: SessionId; at?: EpochMs } }
   | { name: 'process:detached'; payload: { sessionId: SessionId; at?: EpochMs } }
+  /** The agent's thread was deleted (Story 8.5): what outlives a session (`error`, `note`, `runEndedAt`) goes with it. */
+  | { name: 'agent:forgotten'; payload: { agentId: AgentId; at?: EpochMs } }
 
 /** Everything the fold reads. */
 export type PersonaInput = ContractEvent | InternalEvent
@@ -282,6 +285,18 @@ export function foldPersonaState(table: PersonaTable, input: PersonaInput, now: 
         runEndedAt: input.payload.at
       })
       return settled(ended, [flags.agentId], input.payload.at)
+    }
+
+    // The agent's thread was deleted: its flags and any session of it go, so no `error` or `note` outlives it.
+    case 'agent:forgotten': {
+      const { agentId } = input.payload
+      const sessions = new Map(table.sessions)
+      for (const [sessionId, flags] of table.sessions) {
+        if (flags.agentId === agentId) sessions.delete(sessionId)
+      }
+      const agents = new Map(table.agents)
+      agents.delete(agentId)
+      return settled({ ...table, sessions, agents }, [agentId], input.payload.at ?? now)
     }
 
     case 'rail:changed':

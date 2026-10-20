@@ -1,5 +1,6 @@
 import type { RunCardSnapshot } from '../../shared/conversation'
 import type { ContractEvent } from '../../shared/events'
+import { threadAgentOf } from '../../shared/thread'
 import { foldRunCard, startCard } from '../fold/run-card'
 
 /**
@@ -17,6 +18,8 @@ export type RunProjection = {
   clear(): void
   /** A skill-first session ended (Story 7.5): its cards go with it, and no other session's is touched. */
   removeSession(sessionId: string): void
+  /** A persona's thread was deleted (Story 8.5): its cards go with it, and no other thread's is touched. */
+  removeAgent(agentId: string): void
 }
 
 export function createRunProjection(): RunProjection {
@@ -44,6 +47,12 @@ export function createRunProjection(): RunProjection {
     removeSession(sessionId) {
       for (const [runId, card] of cards) {
         if (card.sessionId === sessionId) cards.delete(runId)
+      }
+    },
+
+    removeAgent(agentId) {
+      for (const [runId, card] of cards) {
+        if (threadAgentOf(card) === agentId) cards.delete(runId)
       }
     }
   }

@@ -79,6 +79,53 @@ function foldAt(inputs: PersonaInput[], at: number, from: PersonaTable): Persona
 const stateOf = (table: PersonaTable, agentId = A): PersonaState => stateOfAgent(table, agentId)
 const atOf = (table: PersonaTable, agentId = A): number | undefined => table.shown.get(agentId)?.at
 
+describe('an agent forgotten (Story 8.5)', () => {
+  const forgotten = (agentId: string): InternalEvent => ({ name: 'agent:forgotten', payload: { agentId } })
+
+  it('clears an error flag, so the persona reads idle and the dot does not come back with a new session', () => {
+    let table = fold([opened('s1', A), awaiting('s1'), failed('s1')])
+    expect(stateOf(table)).toBe('error')
+
+    table = fold([forgotten(A)], table)
+
+    expect(stateOf(table)).toBe('idle')
+    expect(table.agents.has(A)).toBe(false)
+    table = fold([opened('s2', A), awaiting('s2')], table)
+    expect(stateOf(table)).toBe('idle')
+  })
+
+  it('clears a note flag', () => {
+    let table = seedRail(EMPTY_PERSONA_TABLE, { revision: 1, folder: '_bmad/', rows: [row('_bmad/prd.md', 'saved', A, 1)] })
+    table = foldAt([rail(2, row('_bmad/prd.md', 'saved', A, 9))], 100_000, table)
+    expect(stateOf(table)).toBe('note')
+
+    table = fold([forgotten(A)], table)
+
+    expect(stateOf(table)).toBe('idle')
+  })
+
+  it('leaves another persona’s state and flags as they were', () => {
+    let table = fold([opened('s1', A), opened('s2', B), awaiting('s1'), awaiting('s2'), failed('s1'), failed('s2')])
+
+    table = fold([forgotten(A)], table)
+
+    expect(stateOf(table, B)).toBe('error')
+    expect(table.agents.get(B)).toMatchObject({ error: true })
+  })
+
+  it('drops any session of the agent still held', () => {
+    const table = fold([opened('s1', A), opened('s2', B), forgotten(A)])
+
+    expect([...table.sessions.keys()]).toEqual(['s2'])
+  })
+
+  it('does nothing to an agent the table does not know', () => {
+    const table = fold([opened('s1', B)])
+
+    expect(stateOf(fold([forgotten(A)], table))).toBe('idle')
+  })
+})
+
 describe('work', () => {
   it('begins when a session opens, at the opening event’s own time, and ends when it awaits a turn', () => {
     let table = fold([opened('s1', A, 10)])

@@ -48,6 +48,7 @@ const freshChat = (id: number): NewChat => ({ id, lines: [] })
 
 /** No run expanded: every card of a persona not viewed is a line. */
 const NO_RUNS: ReadonlySet<string> = new Set()
+const NO_EPOCHS: ReadonlyMap<string, number> = new Map()
 
 /**
  * The renderer's root: it resolves the project this window was opened for, gates
@@ -110,6 +111,9 @@ export function App(): JSX.Element | null {
   // The persona whose composer takes focus when it appears, or when `n` moves: after an
   // `@` handoff, and after the user answers a decision with an option (`n` counts those).
   const [composerFocus, setComposerFocus] = useState<{ id: string; n: number } | null>(null)
+  // A persona's close deletes its chat (Story 8.5): a persona's composer is keyed by this count, so closing
+  // one empties its draft with it and no other persona's draft is touched.
+  const [composerEpoch, setComposerEpoch] = useState<ReadonlyMap<string, number>>(NO_EPOCHS)
   // A handoff line is announced once, with the line the transcript shows. Main no longer writes one
   // (Story 7.4), so this is reachable only through a reply that carries one.
   const announceHandoff = useCallback(
@@ -293,6 +297,9 @@ export function App(): JSX.Element | null {
   // composer, as after a decision answer.
   const closeSession = (agentId: string): void => {
     void conversation.close(agentId).then((closed) => {
+      if (closed) {
+        setComposerEpoch((held) => new Map(held).set(agentId, (held.get(agentId) ?? 0) + 1))
+      }
       const current = currentAgent(displayOrder(groupAgents(snapshot?.agents ?? NO_AGENTS)), currentId)
       if (closed && current !== null) {
         setComposerFocus((held) => ({
@@ -518,7 +525,7 @@ export function App(): JSX.Element | null {
         composer={(agent, items, fieldRef) => (
           // Keyed apart from the chat header, which carries the same agent id in the same list.
           <Composer
-            key={`composer-${agent.id}`}
+            key={`composer-${agent.id}-${composerEpoch.get(agent.id) ?? 0}`}
             agentName={agent.name}
             head={
               // The persona's skills: drawn when it has a live session to run them in, or its thread holds

@@ -504,6 +504,78 @@ describe('a file that cannot be used whole', () => {
   })
 })
 
+describe('a persona’s thread deleted from the transcript (Story 8.5)', () => {
+  const card = (runId: string, agentId: string | undefined, over: Partial<RunCardSnapshot> = {}): RunCardSnapshot => ({
+    runId,
+    sessionId: `s-${runId}`,
+    ...(agentId === undefined ? {} : { agentId }),
+    code: 'CP',
+    startedAt: 1,
+    status: 'running',
+    notes: [],
+    steps: [],
+    documents: [],
+    ...over
+  })
+  const seeded = () => {
+    const transcript = registry().forProject(project)
+    transcript.recordUserTurn('to john', 1, undefined, undefined, undefined, 'bmad-agent-pm')
+    transcript.recordUserTurn('to mary', 2, undefined, undefined, undefined, 'bmad-agent-analyst')
+    transcript.recordSysline('mary line', 3, undefined, undefined, 'bmad-agent-analyst')
+    transcript.recordUserTurn('room', 4, true)
+    transcript.recordRun(card('r1', 'bmad-agent-pm'), 1)
+    transcript.recordRun(card('r2', 'bmad-agent-analyst'), 2)
+    transcript.recordRun(card('r3', 'bmad-agent-analyst'), 3)
+    return transcript
+  }
+  it('takes one persona’s records and stored runs out, and no other thread’s, and keeps none of its late cards', () => {
+    const transcript = seeded()
+
+    expect(transcript.removePersonaThread('bmad-agent-analyst')).toBe(true)
+    transcript.recordRun(card('r2', 'bmad-agent-analyst', { status: 'failed' }), 5)
+
+    expect(transcript.entries().map((entry) => entry.text)).toEqual(['to john', 'room'])
+    expect(transcript.storedRuns().map(({ runId }) => runId)).toEqual(['r1'])
+    expect(transcript.removePersonaThread('bmad-agent-analyst')).toBe(false)
+  })
+
+  it('is true for stored runs alone, and false for a persona with neither', () => {
+    const transcript = registry().forProject(project)
+    transcript.recordRun(card('r1', 'bmad-agent-pm'), 1)
+
+    expect(transcript.removePersonaThread('nobody')).toBe(false)
+    expect(transcript.removePersonaThread('bmad-agent-pm')).toBe(true)
+    expect(transcript.storedRuns()).toEqual([])
+  })
+
+  it('is written with the transcript, and a relaunch reads the thread as gone', () => {
+    const transcript = seeded()
+    transcript.removePersonaThread('bmad-agent-pm')
+    transcript.flush()
+
+    const file = onDisk()
+    expect(file.entries.map((entry: { text: string }) => entry.text)).toEqual(['to mary', 'mary line', 'room'])
+    expect(file.runs.map((stored: { card: { runId: string } }) => stored.card.runId)).toEqual(['r2', 'r3'])
+    expect(registry().forProject(project).entries().map((entry) => entry.text)).toEqual(['to mary', 'mary line', 'room'])
+  })
+
+  it('leaves a skill-first session’s records and cards alone', () => {
+    const transcript = registry().forProject(project)
+    transcript.openSkillSession({ sessionId: 's1', skill: 'bmad-build', at: 1 })
+    transcript.recordUserTurn('skill', 1, undefined, undefined, 's1')
+    transcript.recordRun(card('r1', undefined, { sessionId: 's1' }), 1)
+    transcript.recordUserTurn('to john', 2, undefined, undefined, undefined, 'bmad-agent-pm')
+
+    transcript.removePersonaThread('bmad-agent-pm')
+
+    expect(transcript.entries().map((entry) => entry.text)).toEqual(['skill'])
+    // Its card is kept (a skill-first session's run has no persona, so it is in no persona's thread), and a later card of it is still kept.
+    expect(transcript.storedRuns().map(({ runId }) => runId)).toEqual(['r1'])
+    transcript.recordRun(card('r1', undefined, { sessionId: 's1', status: 'failed' }), 5)
+    expect(transcript.storedRuns()).toMatchObject([{ runId: 'r1', status: 'failed' }])
+  })
+})
+
 describe('run cards kept with the transcript (Story 3.7)', () => {
   const card = (runId: string, over: Partial<RunCardSnapshot> = {}): RunCardSnapshot => ({
     runId,

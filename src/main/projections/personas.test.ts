@@ -198,6 +198,31 @@ describe('the persona projection and a persona’s own run', () => {
   })
 })
 
+describe('the persona projection, an agent forgotten (Story 8.5)', () => {
+  it('raises idle for a persona that read error, and its snapshot lists nothing for her', () => {
+    projection.apply(opened('s1', A, 10))
+    projection.apply({ name: 'turn:failed', payload: { sessionId: 's1', at: 15 } })
+    projection.apply(awaiting('s1', 20))
+    raised.length = 0
+    expect(projection.snapshot()).toEqual([expect.objectContaining({ agentId: A, state: 'error' })])
+
+    projection.forget(A)
+
+    expect(states().map(([agentId, state]) => [agentId, state])).toEqual([[A, 'idle']])
+    expect(projection.snapshot()).toEqual([])
+  })
+
+  it('says nothing for a persona that was idle, and leaves another persona’s state', () => {
+    projection.apply(opened('s2', B, 10))
+    raised.length = 0
+
+    projection.forget(A)
+
+    expect(raised).toEqual([])
+    expect(projection.snapshot()).toEqual([expect.objectContaining({ agentId: B, state: 'work' })])
+  })
+})
+
 describe('the persona projection’s snapshot', () => {
   it('is empty when nothing has happened, and holds no persona that is idle', () => {
     expect(projection.snapshot()).toEqual([])

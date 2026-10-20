@@ -11,6 +11,7 @@ import type { SkillSeat } from '../status/skill-seat'
 import { dropQueued, isQueued, withBusy, withEntry, withQueue } from './conversation-core'
 import { skillClosed, skillEntryOf, skillOpened, skillSessionsOf, withSkillWords } from './skill-session-state'
 import type { SkillSessionState } from './skill-session-state'
+import { isEntryInPersonaThread } from './transcript-entry'
 import type { RunCardEntry, TranscriptEntry, UserEntry } from './transcript-entry'
 
 export type { SkillSeat, SkillSessionState }
@@ -369,6 +370,35 @@ export function ended(state: ConversationState): ConversationState {
     roomReturned: undefined,
     skillSessions: new Map()
   }
+}
+
+/**
+ * The user closed a persona's chat (Story 8.5), and main's reply said it was deleted: the persona's thread, queue
+ * and held session are gone from the window as they are from main, with the harness lines and queued messages in
+ * it, and its persona state (main's `persona:state` for it settles as idle). Nothing of any other persona, the room
+ * or a skill-first session is touched. The same state comes back when there was nothing to drop.
+ */
+export function personaRemoved(state: ConversationState, agentId: string): ConversationState {
+  const sessionId = state.sessions.get(agentId)
+  const dropped = dropQueued(state, agentId)
+  const entries = dropped.entries.filter((entry) => !isEntryInPersonaThread(entry, agentId))
+  if (
+    sessionId === undefined &&
+    !state.personas.has(agentId) &&
+    entries.length === dropped.entries.length &&
+    dropped === state
+  ) {
+    return state
+  }
+  const sessions = new Map(dropped.sessions)
+  sessions.delete(agentId)
+  const personas = new Map(dropped.personas)
+  personas.delete(agentId)
+  const busy = new Set(dropped.busy)
+  if (sessionId !== undefined) {
+    busy.delete(sessionId)
+  }
+  return { ...dropped, entries, sessions, busy, personas }
 }
 
 /**

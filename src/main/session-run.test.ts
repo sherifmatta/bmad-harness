@@ -495,7 +495,8 @@ describe('the end of a run', () => {
     ])
     expect(names.indexOf('session:closed')).toBeGreaterThan(-1)
     expect(names.indexOf('run:failed')).toBeLessThan(names.indexOf('session:closed'))
-    expect(snapshot(sender).runs[0]).toMatchObject({ status: 'failed' })
+    // The persona's close deletes its thread (Story 8.5), its run card with it.
+    expect(snapshot(sender).runs).toEqual([])
   })
 
   it('releases held prose before the terminal event', async () => {

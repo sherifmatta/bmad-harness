@@ -567,10 +567,8 @@ describe('turn end and turn.send', () => {
     expect(sender.events.filter((event) => event.name === 'persona:state').map((event) => event.payload.state)).toEqual(['work', 'idle'])
     const get = handlers.get(CONVERSATION_GET_CHANNEL) as unknown as (e: { sender: FakeSender }) => ConversationReply
     const snapshot = get({ sender })
-    // Nothing of the turn is recorded; the only line is the seat's own ending (Story 7.4).
-    expect(snapshot.ok && snapshot.snapshot.entries.map((entry) => entry.kind === 'sysline' && entry.text)).toEqual([
-      'session closed · Mary starts fresh on the next message'
-    ])
+    // Nothing of the turn is recorded, and a persona's close writes no line (Story 8.5): the thread is gone.
+    expect(snapshot.ok && snapshot.snapshot.entries).toEqual([])
   })
 })
 
@@ -764,7 +762,7 @@ describe('what the harness says in its own voice', () => {
     expect(states(sender)).toEqual(['work', 'error', 'work'])
   })
 
-  it('says one seat line when the user closes a persona session, and nothing when the window goes', async () => {
+  it('says no line when the user closes a persona session (Story 8.5), and nothing when the window goes', async () => {
     const one = await opened(new FakeSender(1), 'bmad-agent-pm')
     closeSession(one.sender, one.reply.sessionId)
     const two = await opened(new FakeSender(2), 'bmad-agent-pm')
@@ -773,7 +771,7 @@ describe('what the harness says in its own voice', () => {
     two.proc.exit()
     one.proc.exit()
 
-    expect(lines(one.sender)).toMatchObject([{ text: 'session closed · John starts fresh on the next message' }])
+    expect(lines(one.sender)).toEqual([])
     expect(lines(two.sender)).toEqual([])
   })
 
@@ -893,8 +891,8 @@ describe('the silence clock', () => {
     closeSession(one.sender, one.reply.sessionId)
     expect(timer.cancelled).toBe(true)
     timer.run()
-    // Only the seat's own ending; a timer that runs late adds no silence line.
-    expect(lines(one.sender)).toEqual(['session closed · John starts fresh on the next message'])
+    // A persona's close says nothing (Story 8.5), and a timer that runs late adds no silence line.
+    expect(lines(one.sender)).toEqual([])
 
     const two = await opened(new FakeSender(2), 'bmad-agent-pm')
     const second = live()[0]
@@ -1008,19 +1006,20 @@ describe('session.close', () => {
     ])
   })
 
-  it('keeps the transcript and leaves the other sessions working', async () => {
+  it('deletes the closed persona’s thread and leaves the other sessions working (Story 8.5)', async () => {
     const sender = new FakeSender(1)
     const first = await opened(sender, 'bmad-agent-pm')
     const second = await opened(sender, 'bmad-agent-analyst')
-    say(first.proc, 'kept')
-    const turns = registry.forProject('/project-1').entries()
+    say(first.proc, 'gone')
+    say(second.proc, 'kept')
+    const kept = registry.forProject('/project-1').entries().filter((entry) => entry.kind === 'persona' && entry.agentId === 'bmad-agent-analyst')
+    expect(registry.forProject('/project-1').entries()).toHaveLength(2)
+    expect(kept).toHaveLength(1)
 
     closeSession(sender, first.reply.sessionId)
 
-    // Every turn stays, and the seat's line joins them.
-    expect(registry.forProject('/project-1').entries().slice(0, turns.length)).toEqual(turns)
-    expect(registry.forProject('/project-1').entries()).toHaveLength(2)
-    expect(turns).toHaveLength(1)
+    // The thread of the closed persona is gone and nothing is written in its place; the other's stays.
+    expect(registry.forProject('/project-1').entries()).toEqual(kept)
     second.proc.frame(result())
     expect(await send(sender, second.reply.sessionId, 'still here')).toEqual({ ok: true })
     // The closed one is gone, and a late frame from it says nothing.
@@ -1057,7 +1056,7 @@ describe('session.close', () => {
     expect(sender.sent).toHaveLength(before)
   })
 
-  it('says one seat line when a persona session is closed, and none for one that is not found', async () => {
+  it('says no line when a persona session is closed (Story 8.5), and none for one that is not found', async () => {
     const sender = new FakeSender(1)
     const { reply } = await opened(sender, 'bmad-agent-pm')
 
@@ -1066,12 +1065,8 @@ describe('session.close', () => {
     expect(closeSession(sender, reply.sessionId)).toEqual({ ok: true })
     expect(closeSession(sender, reply.sessionId)).toMatchObject({ ok: false })
 
-    expect(sender.events.filter((event) => event.name === 'harness:said')).toEqual([
-      {
-        name: 'harness:said',
-        payload: { sessionId: reply.sessionId, id: 'm-0', at: expect.any(Number), text: 'session closed · John starts fresh on the next message', agentId: 'bmad-agent-pm' }
-      }
-    ])
+    expect(sender.events.filter((event) => event.name === 'harness:said')).toEqual([])
+    expect(registry.forProject('/project-1').entries()).toEqual([])
   })
 
   it('closes a session whose turn is in flight', async () => {
@@ -1730,7 +1725,6 @@ describe('seats (Story 7.4)', () => {
   const A = 'bmad-agent-analyst'
   const B = 'bmad-agent-pm'
   type Opened = { ok: true; sessionId: string; handoff?: unknown }
-  const SEAT = (name: string) => `session closed · ${name} starts fresh on the next message`
   const end = (sender: FakeSender, projectId: string) =>
     (handlers.get(CONVERSATION_END_CHANNEL) as unknown as (e: { sender: FakeSender }, id: unknown) => unknown)(
       { sender },
@@ -1857,13 +1851,14 @@ describe('seats (Story 7.4)', () => {
     expect(entriesOf(sender).filter((entry) => entry.kind === 'user')).toEqual([])
   })
 
-  it('ends one of two seats: that persona alone is killed and closed, one line says it starts fresh, the other seat lives and every turn stays', async () => {
+  it('ends one of two seats: that persona alone is killed and closed and its thread deleted with no line (Story 8.5), the other seat lives and its turns stay', async () => {
     const sender = new FakeSender(1)
     const a = await openAs(sender, A)
     say(a.proc, 'msg_1', 'Plan')
     const b = await openAs(sender, B)
     say(b.proc, 'msg_2', 'Brief')
-    const turns = structuredClone(entriesOf(sender))
+    const turnsOfB = structuredClone(entriesOf(sender).filter((entry) => entry.kind === 'persona' && entry.agentId === B))
+    expect(turnsOfB).toHaveLength(1)
     const before = sender.events.length
 
     expect(closeSession(sender, a.reply.sessionId)).toEqual({ ok: true })
@@ -1873,20 +1868,16 @@ describe('seats (Story 7.4)', () => {
     expect(sender.events.slice(before).filter((event) => event.name === 'session:closed')).toEqual([
       { name: 'session:closed', payload: { sessionId: a.reply.sessionId, agentId: A, reason: 'closed', at: expect.any(Number) } }
     ])
-    expect(entriesOf(sender).slice(0, turns.length)).toEqual(turns)
-    expect(syslines(sender)).toEqual([{ kind: 'sysline', id: expect.any(String), at: expect.any(Number), text: SEAT('Mary'), agentId: A }])
-    // No persona's face, name or authorship and no room flag: a plain harness line, carrying only the persona it is about (Story 8.1).
-    expect(Object.keys(syslines(sender)[0]).sort()).toEqual(['agentId', 'at', 'id', 'kind', 'text'])
-    const said = sender.events.slice(before).filter((event) => event.name === 'harness:said')
-    expect(said).toHaveLength(1)
-    expect(said[0].payload).not.toHaveProperty('room')
+    expect(entriesOf(sender)).toEqual(turnsOfB)
+    expect(syslines(sender)).toEqual([])
+    expect(sender.events.slice(before).filter((event) => event.name === 'harness:said')).toEqual([])
     // John is still live: opening him is the same session, and he takes a turn.
     expect(await open(sender, B)).toEqual({ ok: true, sessionId: b.reply.sessionId })
     b.proc.frame(result())
     expect(await send(sender, b.reply.sessionId, 'still here')).toEqual({ ok: true })
-    // And the ended seat answers not-found, with no second line.
+    // And the ended seat answers not-found, with no line.
     expect(closeSession(sender, a.reply.sessionId)).toMatchObject({ ok: false, error: { code: 'session/not-found' } })
-    expect(syslines(sender)).toHaveLength(1)
+    expect(syslines(sender)).toEqual([])
   })
 
   it('starts a new session with nothing earlier for the next message to an ended seat', async () => {
@@ -1904,7 +1895,7 @@ describe('seats (Story 7.4)', () => {
     expect(again.proc.writes).toEqual([`/${A}`])
   })
 
-  it('says the id for an orphan seat, which the roster no longer names, by the same call', async () => {
+  it('closes an orphan seat, which the roster no longer names, by the same call, and says nothing', async () => {
     const sender = new FakeSender(1)
     const a = await openAs(sender, A)
     delete names[A]
@@ -1912,17 +1903,7 @@ describe('seats (Story 7.4)', () => {
     expect(closeSession(sender, a.reply.sessionId)).toEqual({ ok: true })
 
     expect(a.proc.killed).toBe(true)
-    expect(syslines(sender).map((entry) => entry.text)).toEqual([SEAT(A)])
-  })
-
-  it('names an empty display name by the id, as the room’s line does', async () => {
-    const sender = new FakeSender(1)
-    names[A] = ''
-    const a = await openAs(sender, A)
-
-    closeSession(sender, a.reply.sessionId)
-
-    expect(syslines(sender).map((entry) => entry.text)).toEqual([SEAT(A)])
+    expect(syslines(sender)).toEqual([])
   })
 
   it('writes no seat line when the conversation ends: the transcript clears, every seat closes', async () => {
@@ -1969,7 +1950,7 @@ describe('seats (Story 7.4)', () => {
     closeSession(sender, a.reply.sessionId)
     reply = get(sender)
     expect(reply.ok && reply.snapshot.sessions).toEqual([{ agentId: B, sessionId: b.reply.sessionId }])
-    expect(reply.ok && reply.snapshot.entries.at(-1)).toMatchObject({ kind: 'sysline', text: SEAT('Mary') })
+    expect(reply.ok && reply.snapshot.entries).toEqual([])
   })
 
   it('keeps a seat whose persona the roster stops naming, and the renamed one, live, and ends the orphan by the same control (the install side is pinned in session-contract)', async () => {
@@ -1992,10 +1973,10 @@ describe('seats (Story 7.4)', () => {
 
     expect(closeSession(sender, a.reply.sessionId)).toEqual({ ok: true })
     expect(b.proc.killed).toBe(false)
-    expect(syslines(sender).map((entry) => entry.text)).toEqual([SEAT(A)])
+    expect(syslines(sender)).toEqual([])
   })
 
-  it('takes the name from the install model the install bridge fills when the composition passes no lookup', async () => {
+  it('closes a seat without asking the install model for its name (Story 8.5)', async () => {
     launch({}, true)
     const sender = new FakeSender(1)
     const projection = { snapshot: () => ({ agents: [{ id: A, name: 'Mary' }] }) } as unknown as InstallProjection
@@ -2005,22 +1986,25 @@ describe('seats (Story 7.4)', () => {
 
       closeSession(sender, a.reply.sessionId)
 
-      expect(syslines(sender).map((entry) => entry.text)).toEqual([SEAT('Mary')])
+      expect(syslines(sender)).toEqual([])
     } finally {
       forgetInstall(sender.id, projection)
     }
   })
 
-  it('keeps two windows’ seats apart: ending one window’s seat writes to its own transcript alone', async () => {
+  it('keeps two windows’ seats apart: ending one window’s seat touches its own transcript alone', async () => {
     const one = new FakeSender(1)
     const two = new FakeSender(2)
     const a1 = await openAs(one, A)
-    await openAs(two, A)
+    const a2 = await openAs(two, A)
+    say(a1.proc, 'msg_1', 'one')
+    say(a2.proc, 'msg_1', 'two')
 
     closeSession(one, a1.reply.sessionId)
 
-    expect(syslines(one)).toHaveLength(1)
-    expect(syslines(two)).toEqual([])
+    expect(entriesOf(one)).toEqual([])
+    expect(entriesOf(two)).toHaveLength(1)
+    expect(a2.proc.killed).toBe(false)
   })
 })
 
@@ -3472,7 +3456,7 @@ describe('skill-first sessions (Story 7.5)', () => {
       expect(closeSession(sender, sessionId)).toMatchObject({ ok: false, error: { code: 'session/not-found' } })
     })
 
-    it('says one line for a persona’s seat and one for the room as it always did, and none for it', async () => {
+    it('says one line for the room as it always did, and none for a persona’s seat (Story 8.5) or a skill session', async () => {
       const sender = new FakeSender(1)
       const seat = await first(sender, '/bmad-agent-analyst')
       const room = await first(sender, '/bmad-party-mode')
@@ -3483,7 +3467,6 @@ describe('skill-first sessions (Story 7.5)', () => {
 
       expect(lines(sender).map(({ text }) => text)).toEqual([
         'room opened by you · present · Mary · John · Amelia',
-        'session closed · Mary starts fresh on the next message',
         'room stopped · session released'
       ])
     })

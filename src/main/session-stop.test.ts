@@ -1,10 +1,12 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConversationReply, ConversationSnapshot } from '../shared/conversation'
 import type { ContractEvent, EventName, EventPayload } from '../shared/events'
 import { createTranscriptRegistry } from './projections/transcript'
+import { railAnnotatorFor } from './rail-annotations'
+import type { RailAnnotation } from '../shared/rail'
 import type { TranscriptRegistry } from './projections/transcript'
 import { STOP_ACK_MS, STOP_RESULT_MS } from './session-stop'
 import { LINES } from './session-voice'
@@ -707,8 +709,8 @@ describe('a stop the CLI did not acknowledge', () => {
     fake.interrupts[0](false)
     await reply
 
-    // The seat's own line is said first (Story 7.4), then the run ends, then the session closes.
-    expect(sender.names).toEqual(['harness:said', 'run:stopped', 'session:closed'])
+    // A persona's close says no line (Story 8.5): the run ends, then the session closes.
+    expect(sender.names).toEqual(['run:stopped', 'session:closed'])
   })
 
   it('still ends as failed when the session is closed under a run nobody asked to stop', async () => {
@@ -716,7 +718,7 @@ describe('a stop the CLI did not acknowledge', () => {
 
     expect(call(SESSION_CLOSE_CHANNEL, sender, sessionId)).toEqual({ ok: true })
 
-    expect(sender.names).toEqual(['harness:said', 'run:failed', 'session:closed'])
+    expect(sender.names).toEqual(['run:failed', 'session:closed'])
   })
 
   it('leaves a session whose turn ended first alone: no kill, no line, the session open, and only the run’s own end told', async () => {
@@ -1221,20 +1223,17 @@ describe('a stop is found by run id, never through the roster', () => {
     await reply
   })
 
-  it('ends an orphan’s run through the existing path when its session is closed: failed, before the session closes, card and transcript kept', async () => {
+  it('ends an orphan’s run through the existing path when its session is closed: failed, before the session closes, then card and thread go (Story 8.5)', async () => {
     const { sender, fake, runId, sessionId } = await running()
     roster = false
-    const entries = snapshot(sender).entries.length
-
     expect(call(SESSION_CLOSE_CHANNEL, sender, sessionId)).toEqual({ ok: true })
 
-    expect(sender.names).toEqual(['harness:said', 'run:failed', 'session:closed'])
+    expect(sender.names).toEqual(['run:failed', 'session:closed'])
     expect(sender.of('run:failed')[0]).toMatchObject({ runId, error: { code: 'run/session-ended', message: 'run · the session ended' } })
     expect(fake.kills).toBe(1)
-    expect(snapshot(sender).runs).toMatchObject([{ runId, status: 'failed', error: { code: 'run/session-ended' } }])
-    // Nothing is removed: the one new record is the seat's own ending line (Story 7.4).
-    expect(snapshot(sender).entries).toHaveLength(entries + 1)
-    expect(snapshot(sender).entries.at(-1)).toMatchObject({ kind: 'sysline', text: expect.stringMatching(/^session closed · .+ starts fresh on the next message$/) })
+    // The thread goes with the session, the card and its stored run included.
+    expect(snapshot(sender).runs).toEqual([])
+    expect(snapshot(sender).entries).toEqual([])
   })
 })
 
@@ -1595,5 +1594,193 @@ describe('stopping a plain chat turn (Story 3.19)', () => {
 
     expect(refused.sender.names).toEqual(['run:stopped', 'harness:said', 'session:closed'])
     expect(refused.sender.of('harness:said')[0].text).toBe(LINES.stopEnded)
+  })
+})
+
+describe('a persona’s close deletes its thread (Story 8.5)', () => {
+  const closeBy = (sender: FakeSender, target: unknown) => call<{ ok: boolean; error?: { code: string } }>(SESSION_CLOSE_CHANNEL, sender, target)
+  const stateOf = (sender: FakeSender, agentId: string): string | undefined =>
+    sender.of('persona:state').filter((payload) => payload.agentId === agentId).at(-1)?.state
+
+  it('ends the live session by agent id as by session id: the run ends first, then the card, the stored run and the records go, with no line', async () => {
+    const { sender, fake, runId } = await running()
+
+    expect(closeBy(sender, { agentId: A })).toEqual({ ok: true })
+
+    expect(fake.kills).toBe(1)
+    expect(sender.names).toEqual(['run:failed', 'session:closed'])
+    expect(sender.of('run:failed')[0]).toMatchObject({ runId, error: { code: 'run/session-ended' } })
+    expect(snapshot(sender).runs).toEqual([])
+    expect(snapshot(sender).entries).toEqual([])
+    // The run's card was recorded when it ended, then deleted with the thread, and a late one is not revived.
+    const transcript = transcripts.forProject(ROOT)
+    expect(transcript.storedRuns()).toEqual([])
+    transcript.recordRun({ runId, sessionId: 's1', agentId: A, code: 'CP', startedAt: 1, status: 'failed', notes: [], steps: [], documents: [] }, 5)
+    expect(transcript.storedRuns()).toEqual([])
+    // Nothing of her is in the file after a flush.
+    transcript.flush()
+    const file = JSON.parse(readFileSync(join(userData, 'conversations', readdirSync(join(userData, 'conversations'))[0]), 'utf8'))
+    expect(file.runs ?? []).toEqual([])
+    expect(file.entries).toEqual([])
+  })
+
+  it('reads the persona as idle afterwards, whatever dot she carried: a failed run’s error does not outlive her thread', async () => {
+    const { sender } = await running()
+    expect(closeBy(sender, { agentId: A })).toEqual({ ok: true })
+
+    expect(stateOf(sender, A)).toBe('idle')
+    const states = snapshot(sender).personas
+    expect(states.find(({ agentId }) => agentId === A)).toBeUndefined()
+    // A new session of hers does not bring an error back.
+    sender.sent = []
+    await call<Promise<unknown>>(SESSION_OPEN_CHANNEL, sender, A)
+    fakes.get(A)!.feed(result())
+    expect(stateOf(sender, A)).toBe('idle')
+  })
+
+  it('deletes a stored thread that has no live session, and answers not-found for a second close or an unlisted persona', async () => {
+    const { sender, fake } = await running()
+    // The process goes without being asked to (as a relaunch leaves it): the thread and the error stay.
+    fake.exit()
+    expect(snapshot(sender).entries.length).toBeGreaterThan(0)
+    expect(snapshot(sender).personas.find(({ agentId }) => agentId === A)).toMatchObject({ state: 'error' })
+
+    expect(closeBy(sender, { agentId: A })).toEqual({ ok: true })
+
+    expect(snapshot(sender).entries).toEqual([])
+    expect(snapshot(sender).runs).toEqual([])
+    expect(snapshot(sender).personas).toEqual([])
+    expect(stateOf(sender, A)).toBe('idle')
+    expect(closeBy(sender, { agentId: A })).toMatchObject({ ok: false, error: { code: 'session/not-found' } })
+    expect(closeBy(sender, { agentId: 'bmad-agent-nobody' })).toMatchObject({ ok: false, error: { code: 'session/not-found' } })
+  })
+
+  it('answers not-found for a target that is neither a session id nor an agent id', async () => {
+    const { sender, fake } = await running()
+    const before = snapshot(sender).entries.length
+
+    for (const target of [{}, { agentId: 7 }, { agentId: '' }, null, 7, ['x']]) {
+      expect(closeBy(sender, target), JSON.stringify(target)).toMatchObject({ ok: false, error: { code: 'session/not-found' } })
+    }
+
+    expect(fake.kills).toBe(0)
+    expect(snapshot(sender).entries).toHaveLength(before)
+  })
+
+  it('touches no other persona, the room or a skill-first session: its session, records, runs and stored runs stay', async () => {
+    const sender = new FakeSender(1)
+    const one = await running(A, sender)
+    const two = await running(B, sender)
+    const transcript = transcripts.forProject(ROOT)
+    transcript.recordUserTurn('to john', 1, undefined, undefined, undefined, A)
+    transcript.recordUserTurn('to mary', 2, undefined, undefined, undefined, B)
+    transcript.recordUserTurn('to the room', 3, true)
+    transcript.openSkillSession({ sessionId: 'sk1', skill: 'bmad-build', at: 4 })
+    transcript.recordUserTurn('to the skill', 5, undefined, undefined, 'sk1')
+    two.fake.feed(result())
+
+    expect(closeBy(sender, { agentId: A })).toEqual({ ok: true })
+
+    expect(one.fake.kills).toBe(1)
+    expect(two.fake.kills).toBe(0)
+    expect(snapshot(sender).entries.map((entry) => ('text' in entry ? entry.text : ''))).toEqual(['to mary', 'to the room', 'to the skill'])
+    expect(snapshot(sender).runs.map(({ agentId }) => agentId)).toEqual([B])
+    expect(snapshot(sender).sessions).toEqual([{ agentId: B, sessionId: two.sessionId }])
+    expect(transcript.skillSessions()).toHaveLength(1)
+    expect(transcript.storedRuns().map(({ agentId }) => agentId)).toEqual([B])
+    expect(stateOf(sender, B)).not.toBe('idle')
+  })
+
+  describe('the rail’s annotations', () => {
+    const stream = (event: unknown) => ({ type: 'stream_event', parent_tool_use_id: null, event })
+    const toolResult = (id: string) => ({
+      type: 'user',
+      parent_tool_use_id: null,
+      message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, is_error: false, content: 'ok' }] }
+    })
+    /** One main-thread `Write` of `path`, streamed in pieces, as the CLI would. */
+    const writeOf = (id: string, path: string): unknown[] => {
+      const json = JSON.stringify({ file_path: `${ROOT}/${path}`, content: '## Notes\nWords.\n' })
+      const pieces: unknown[] = []
+      for (let at = 0; at < json.length; at += 7) {
+        pieces.push(stream({ type: 'content_block_delta', index: 1, delta: { type: 'input_json_delta', partial_json: json.slice(at, at + 7) } }))
+      }
+      return [
+        stream({ type: 'message_start', message: { id: `m-${id}` } }),
+        stream({ type: 'content_block_start', index: 1, content_block: { type: 'tool_use', id, name: 'Write', input: {} } }),
+        ...pieces,
+        stream({ type: 'content_block_stop', index: 1 }),
+        toolResult(id)
+      ]
+    }
+    /** Two personas, each with a run that has written one file, and a rail target that records what it is told. */
+    async function twoWriting() {
+      const sender = new FakeSender(1)
+      const one = await running(A, sender)
+      const two = await running(B, sender)
+      const told: [string, RailAnnotation | null][] = []
+      railAnnotatorFor(sender).bind({
+        annotate: (path, annotation) => void told.push([path, annotation]),
+        markRoom: () => undefined,
+        unmarkRoom: () => undefined,
+        clearRoom: () => undefined
+      })
+      for (const frame of writeOf('t1', '_bmad/john.md')) one.fake.feed(frame)
+      for (const frame of writeOf('t2', '_bmad/mary.md')) two.fake.feed(frame)
+      expect(told.map(([path, annotation]) => [path, annotation !== null])).toEqual([
+        ['_bmad/john.md', true],
+        ['_bmad/mary.md', true]
+      ])
+      told.length = 0
+      return { sender, one, two, told }
+    }
+
+    it('lets go of the closed persona’s held paths when closed by agent id, and of no other persona’s', async () => {
+      const { sender, two, told } = await twoWriting()
+
+      expect(closeBy(sender, { agentId: A })).toEqual({ ok: true })
+
+      // The run ends with the session (`stopped`), then the removal lets the path go: the last word is `null`, and only for hers.
+      expect(told.at(-1)).toEqual(['_bmad/john.md', null])
+      expect(told.every(([path]) => path === '_bmad/john.md')).toBe(true)
+      expect(two.fake.kills).toBe(0)
+    })
+
+    it('lets go of them the same way when closed by session id', async () => {
+      const { sender, one, told } = await twoWriting()
+
+      expect(closeBy(sender, one.sessionId)).toEqual({ ok: true })
+
+      // The run ends with the session (`stopped`), then the removal lets the path go: the last word is `null`, and only for hers.
+      expect(told.at(-1)).toEqual(['_bmad/john.md', null])
+      expect(told.every(([path]) => path === '_bmad/john.md')).toBe(true)
+    })
+  })
+
+  it('makes the same removal for an orphan seat the roster no longer names, by either form', async () => {
+    const { sender, fake } = await running()
+    roster = false
+
+    expect(closeBy(sender, { agentId: A })).toEqual({ ok: true })
+
+    expect(fake.kills).toBe(1)
+    expect(snapshot(sender).entries).toEqual([])
+    expect(snapshot(sender).runs).toEqual([])
+  })
+
+  it('leaves conversation.end as it was: every thread deleted, and a failed clear changes nothing', async () => {
+    const { sender, fake } = await running()
+    const transcript = transcripts.forProject(ROOT)
+    const clear = transcript.clear.bind(transcript)
+    transcript.clear = () => ({ ok: false, errno: 'EACCES' })
+
+    expect(call<{ ok: boolean; error?: { code: string } }>(CONVERSATION_END_CHANNEL, sender, ROOT)).toMatchObject({ ok: false, error: { code: 'conversation/end-failed' } })
+    expect(fake.kills).toBe(0)
+    expect(snapshot(sender).runs).toHaveLength(1)
+
+    transcript.clear = clear
+    expect(call<{ ok: boolean }>(CONVERSATION_END_CHANNEL, sender, ROOT)).toEqual({ ok: true })
+    expect(snapshot(sender).entries).toEqual([])
+    expect(snapshot(sender).runs).toEqual([])
   })
 })

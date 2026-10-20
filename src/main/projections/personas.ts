@@ -28,6 +28,11 @@ export type PersonaProjection = {
   rebaseRail(snapshot: RailSnapshot): void
   attach(sessionId: SessionId): void
   detach(sessionId: SessionId): void
+  /**
+   * A persona's thread was deleted (Story 8.5): its `error`, `note` and run flags go with it, and the
+   * resulting `persona:state` (`idle`, when it was anything else) is raised through the usual change-only path.
+   */
+  forget(agentId: AgentId): void
   /** Every persona that is anything but `idle`, with when that state began: what a reloaded window is told. */
   snapshot(): PersonaStateEvent['payload'][]
 }
@@ -76,6 +81,10 @@ export function createPersonaProjection({
 
     detach(sessionId) {
       apply({ name: 'process:detached', payload: { sessionId } })
+    },
+
+    forget(agentId) {
+      apply({ name: 'agent:forgotten', payload: { agentId } })
     },
 
     snapshot() {

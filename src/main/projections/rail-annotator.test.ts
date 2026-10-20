@@ -45,6 +45,24 @@ function recorder() {
   return { target, told }
 }
 
+describe('the rail annotator, a persona forgotten (Story 8.5)', () => {
+  it('tells the target null for the paths that persona held, and nothing for another’s', () => {
+    const { annotator, send } = run()
+    const { target, told } = recorder()
+    annotator.bind(target)
+    send(started, prose('## Vision\nA.\n'))
+    told.length = 0
+
+    annotator.forgetAgent('bmad-agent-analyst')
+    expect(told).toEqual([])
+    annotator.forgetAgent(JOHN)
+
+    expect(told).toEqual([[PRD, null]])
+    annotator.forgetAgent(JOHN)
+    expect(told).toHaveLength(1)
+  })
+})
+
 describe('the rail annotator', () => {
   it('tells nothing while no projection is bound, and everything held when one is', () => {
     const { annotator, send } = run()

@@ -357,7 +357,7 @@ export function Shell({
               state={stateOf(persona.id, states)}
               since={since.get(persona.id)}
               onClose={
-                onCloseSession !== undefined && liveSessions.has(persona.id)
+                onCloseSession !== undefined && (liveSessions.has(persona.id) || !threadEmpty)
                   ? () => onCloseSession(persona.id)
                   : undefined
               }
