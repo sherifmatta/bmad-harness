@@ -707,6 +707,10 @@
 
   /* The `/` list above the composer (Story 7.3) scrolls past this height. */
   --skill-list-max:240px;
+
+  /* The Outputs tree's depth (Story 9.2): a counter, not a size, set inline on each group
+     and multiplied by --space-xl for the indent. Zero outside a group. */
+  --tree-depth:0;
 }
 
 /*

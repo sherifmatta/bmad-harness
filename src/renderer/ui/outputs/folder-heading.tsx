@@ -22,20 +22,28 @@ function Chevron({ open }: { open: boolean }): JSX.Element {
 }
 
 /**
- * A directory's heading in the Outputs half (Story 5.5): a button that folds its own
- * rows. The chevron, then the directory path; and, only while it is folded and a
- * row under it is `changing`, the amber dot and the word `changing`, so a file
- * being written is never folded out of sight. It shows no count and never a run's
- * annotation. `aria-expanded` and `aria-controls` say the fold, so nothing is
- * announced through the live region.
+ * A directory's heading in the Outputs tree (Stories 5.5 and 9.2): a button that folds
+ * everything beneath it. The chevron, then the directory's own `name` (the output folder
+ * as written at the root); and, only while it is folded and a row anywhere beneath it is
+ * `changing`, the amber dot and the word `changing`, so a file being written is never
+ * folded out of sight. It shows no count and never a run's annotation. Its full
+ * project-relative path is its `title`, so a nested name is never ambiguous.
+ * `aria-expanded` and `aria-controls` say the fold, so nothing is announced through
+ * the live region.
+ *
+ * The button sits in a `role="heading"` wrapper whose `aria-level` is the tree's depth
+ * (the rail head is an `h3`, so the root is level 4). The indent is the stylesheet's,
+ * from the group's `--tree-depth`, and moves the chevron only, so the rule and the
+ * hover ground stay full width.
  *
  * The button is one stop of the list's roving tabindex, with the rows showing
  * (`tabStop`); which one, and how focus travels, is `Outputs`'s. Enter and Space
- * are the native click of a button and toggle it; `←` folds and `→` unfolds, in
- * `onKey`.
+ * are the native click of a button and toggle it; the arrows are `onKey`'s.
  */
 export function FolderHeading({
+  name,
   dir,
+  level,
   folded,
   changing,
   controls,
@@ -44,11 +52,16 @@ export function FolderHeading({
   onKey,
   buttonRef
 }: {
+  /** What the heading shows: the directory's own name with a trailing `/`. */
+  name: string
+  /** The full project-relative path, as the folded set holds it. */
   dir: string
+  /** The heading's `aria-level`: 4 at the root, one more per level. */
+  level: number
   folded: boolean
-  /** Whether a row under this directory is `changing` on disk. */
+  /** Whether a row anywhere beneath this directory is `changing` on disk. */
   changing: boolean
-  /** The id of the list of rows this heading folds. */
+  /** The id of the branch this heading folds. */
   controls: string
   tabStop: boolean
   onToggle: () => void
@@ -56,24 +69,27 @@ export function FolderHeading({
   buttonRef: (element: HTMLButtonElement | null) => void
 }): JSX.Element {
   return (
-    <button
-      type="button"
-      className="folder-heading focus-inset"
-      aria-expanded={!folded}
-      aria-controls={controls}
-      tabIndex={tabStop ? 0 : -1}
-      ref={buttonRef}
-      onClick={onToggle}
-      onKeyDown={onKey}
-    >
-      <Chevron open={!folded} />
-      <span className="folder-heading-path">{dir}</span>
-      {folded && changing && (
-        <span className="folder-heading-live">
-          <StatusDot state="work" />
-          changing
-        </span>
-      )}
-    </button>
+    <div role="heading" aria-level={level} className="folder-heading-row">
+      <button
+        type="button"
+        className="folder-heading focus-inset"
+        aria-expanded={!folded}
+        aria-controls={controls}
+        title={dir}
+        tabIndex={tabStop ? 0 : -1}
+        ref={buttonRef}
+        onClick={onToggle}
+        onKeyDown={onKey}
+      >
+        <Chevron open={!folded} />
+        <span className="folder-heading-path">{name}</span>
+        {folded && changing && (
+          <span className="folder-heading-live">
+            <StatusDot state="work" />
+            changing
+          </span>
+        )}
+      </button>
+    </div>
   )
 }

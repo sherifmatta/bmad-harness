@@ -89,6 +89,9 @@ vi.mock('react', async (importOriginal) => {
       effect()
     },
     useCallback: (callback: unknown) => callback,
+    useMemo: (factory: () => unknown) => factory(),
+    // The focus hand-off when a focused entry leaves (Story 9.2) needs a document: outputs-fold.dom.test.tsx drives it.
+    useLayoutEffect: () => {},
     // The layout context with no provider is its inert default, and the ids are fixed (Story 5.5).
     useContext: (context: { _currentValue: unknown }) => context._currentValue,
     useId: () => 'outputs'
@@ -116,15 +119,16 @@ function elementsOfType<P>(node: ReactNode, type: unknown): ReactElement<P>[] {
 const DOWN = ['Arrow', 'Down'].join('')
 const UP = ['Arrow', 'Up'].join('')
 const LEFT = ['Arrow', 'Left'].join('')
+const RIGHT = ['Arrow', 'Right'].join('')
 
 const NOW = 1_000_000_000_000
 const saved = (path: string): RailRow => ({ path, state: 'saved', savedAt: NOW })
 
-/** Visual order: _bmad/epics.md, then the planning-artifacts group by name. */
+/** Visual order (Story 9.2): the planning-artifacts subdirectory's files by name, then the root's own epics.md. */
 const EPICS = '_bmad/epics.md'
 const ARCHITECTURE = '_bmad/planning-artifacts/architecture.md'
 const PRD = '_bmad/planning-artifacts/prd.md'
-const ORDER = [EPICS, ARCHITECTURE, PRD]
+const ORDER = [ARCHITECTURE, PRD, EPICS]
 
 /** The two directories' headings, in visual order, as the list keys them (Story 5.5). */
 const TOP = '_bmad/'
@@ -208,7 +212,7 @@ beforeEach(() => {
 const tabStops = (rows: RowProps[]): boolean[] => rows.map((row) => row.tabStop)
 
 describe('Outputs, visual order', () => {
-  it('lists the headings and the rows groups first, names second, and makes the first heading the tab stop', () => {
+  it('lists a heading, then its subdirectories, then its files, and makes the root heading the tab stop', () => {
     const { rows, headings } = renderList()
 
     expect(headings.map((heading) => heading.dir)).toEqual([TOP, PLANNING])
@@ -219,50 +223,70 @@ describe('Outputs, visual order', () => {
 })
 
 describe('Outputs, keys', () => {
-  it('moves down across a directory group in visual order, a heading between, and stops the scroll', () => {
+  it('moves down out of a subdirectory into its parent’s own files, and from a heading into its subdirectory, and stops the scroll', () => {
     const { rows, headings } = renderList()
     const focuses = register(rows, headings)
     const { event, preventDefault } = keyEvent(DOWN)
 
-    // epics.md is the only row of its group; the next in visual order is the next directory's heading.
-    rows[0].onKey(event)
+    // prd.md is the last row of planning-artifacts/; the next in visual order is the root's own epics.md.
+    rows[1].onKey(event)
 
     expect(preventDefault).toHaveBeenCalledTimes(1)
-    expect(focuses.get(HEADING(PLANNING))).toHaveBeenCalledTimes(1)
-    expect(focuses.get(EPICS)).not.toHaveBeenCalled()
-    expect(focuses.get(ARCHITECTURE)).not.toHaveBeenCalled()
-    expect(hooks.events).toEqual([`set:outputs:1:${HEADING(PLANNING)}`])
-    // The moved-to heading holds the tab stop on the next render, and no row does.
+    expect(focuses.get(EPICS)).toHaveBeenCalledTimes(1)
+    expect(focuses.get(PRD)).not.toHaveBeenCalled()
+    expect(hooks.events).toEqual([`set:outputs:1:${EPICS}`])
+    // The moved-to row holds the tab stop on the next render, and no heading does.
     const next = renderList()
-    expect(next.headings.map((heading) => heading.tabStop)).toEqual([false, true])
-    expect(tabStops(next.rows)).toEqual([false, false, false])
+    expect(next.headings.map((heading) => heading.tabStop)).toEqual([false, false])
+    expect(tabStops(next.rows)).toEqual([false, false, true])
 
-    // And down again, from the heading, to the group's first row.
+    // From the root's heading, down to its subdirectory's heading; and from that, to its first row.
+    headings[0].onKey(keyEvent(DOWN).event)
+    expect(focuses.get(HEADING(PLANNING))).toHaveBeenCalledTimes(1)
     headings[1].onKey(keyEvent(DOWN).event)
     expect(focuses.get(ARCHITECTURE)).toHaveBeenCalledTimes(1)
   })
 
-  it('moves up back across the group boundary, through the heading', () => {
+  it('moves up back across the boundary, and from the subdirectory’s heading to the root’s', () => {
     const { rows, headings } = renderList()
     const focuses = register(rows, headings)
 
-    rows[1].onKey(keyEvent(UP).event)
+    rows[2].onKey(keyEvent(UP).event)
+    expect(focuses.get(PRD)).toHaveBeenCalledTimes(1)
+
+    rows[0].onKey(keyEvent(UP).event)
     expect(focuses.get(HEADING(PLANNING))).toHaveBeenCalledTimes(1)
 
     headings[1].onKey(keyEvent(UP).event)
-    expect(focuses.get(EPICS)).toHaveBeenCalledTimes(1)
+    expect(focuses.get(HEADING(TOP))).toHaveBeenCalledTimes(1)
   })
 
-  it('clamps at both ends of the whole list, not of a group', () => {
+  it('clamps at both ends of the whole list, not of a directory', () => {
     const { rows, headings } = renderList()
     const focuses = register(rows, headings)
 
     rows[2].onKey(keyEvent(DOWN).event)
-    expect(focuses.get(PRD)).toHaveBeenCalledTimes(1)
+    expect(focuses.get(EPICS)).toHaveBeenCalledTimes(1)
 
     headings[0].onKey(keyEvent(UP).event)
     expect(focuses.get(HEADING(TOP))).toHaveBeenCalledTimes(1)
     expect(focuses.get(HEADING(PLANNING))).not.toHaveBeenCalled()
+    expect(focuses.get(ARCHITECTURE)).not.toHaveBeenCalled()
+  })
+
+  it('moves a row to its parent heading on the left arrow, consuming the key', () => {
+    const { rows, headings } = renderList()
+    const focuses = register(rows, headings)
+
+    const fromEpics = keyEvent(LEFT)
+    rows[2].onKey(fromEpics.event)
+    expect(fromEpics.preventDefault).toHaveBeenCalledTimes(1)
+    expect(focuses.get(HEADING(TOP))).toHaveBeenCalledTimes(1)
+
+    rows[0].onKey(keyEvent(LEFT).event)
+    expect(focuses.get(HEADING(PLANNING))).toHaveBeenCalledTimes(1)
+    expect(hooks.events).toEqual([`set:outputs:1:${HEADING(TOP)}`, `set:outputs:1:${HEADING(PLANNING)}`])
+    expect(focuses.get(EPICS)).not.toHaveBeenCalled()
     expect(focuses.get(ARCHITECTURE)).not.toHaveBeenCalled()
   })
 
@@ -274,6 +298,7 @@ describe('Outputs, keys', () => {
       const { event, preventDefault } = keyEvent(DOWN, { [modifier]: true })
       rows[0].onKey(event)
       headings[0].onKey(keyEvent(DOWN, { [modifier]: true }).event)
+      rows[0].onKey(keyEvent(LEFT, { [modifier]: true }).event)
 
       expect(preventDefault, modifier).not.toHaveBeenCalled()
     }
@@ -283,11 +308,11 @@ describe('Outputs, keys', () => {
     }
   })
 
-  it('never prevents Enter, Space, Tab or an off-axis arrow, and moves nothing on them', () => {
+  it('never prevents Enter, Space, Tab or the right arrow on a row, and moves nothing on them', () => {
     const rows = renderOutputs()
     const focuses = register(rows)
 
-    for (const key of ['Enter', ' ', 'Tab', LEFT]) {
+    for (const key of ['Enter', ' ', 'Tab', RIGHT]) {
       const { event, preventDefault } = keyEvent(key)
       rows[1].onKey(event)
 
@@ -304,11 +329,11 @@ describe('Outputs, opening', () => {
   it('takes the tab stop and asks main to open the row’s project-relative path', () => {
     const rows = renderOutputs()
 
-    rows[2].onOpen(PRD)
+    rows[1].onOpen(PRD)
 
     expect(hooks.events).toEqual([`set:outputs:1:${PRD}`])
     expect(openDoc).toHaveBeenCalledExactlyOnceWith(PRD)
-    expect(tabStops(renderOutputs())).toEqual([false, false, true])
+    expect(tabStops(renderOutputs())).toEqual([false, true, false])
     // The window closes, which leaves the path owned by nobody for the next test.
     closed(PRD)
   })
@@ -325,7 +350,7 @@ describe('Outputs, focus return', () => {
     expect(focuses.get(EPICS)).not.toHaveBeenCalled()
     expect(focuses.get(ARCHITECTURE)).not.toHaveBeenCalled()
     expect(hooks.events).toEqual([`set:outputs:1:${PRD}`])
-    expect(tabStops(renderOutputs())).toEqual([false, false, true])
+    expect(tabStops(renderOutputs())).toEqual([false, true, false])
   })
 
   it('falls to the list’s first tab stop, the first heading, when the row has gone', () => {
@@ -343,7 +368,7 @@ describe('Outputs, focus return', () => {
 
   it('falls to the held tab stop, which is the row last opened, when the opening row has gone', () => {
     const rows = renderOutputs()
-    rows[2].onOpen(PRD)
+    rows[1].onOpen(PRD)
     // The next render is where the held tab stop is taken; the closed row is not in the list.
     const focuses = register(renderOutputs())
     hooks.events.length = 0

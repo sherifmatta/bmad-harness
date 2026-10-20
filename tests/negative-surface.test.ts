@@ -323,6 +323,7 @@ describe("no badge, unread count, quest marker, sort or recommendation", () => {
       ),
     );
 
+    // Story 9.2: the tree's two orderings, subdirectories by name and files by name, at every level.
     expect(sorts.map(({ path }) => path).sort()).toEqual([
       "src/main/fold/rail-rows.ts",
       // Story 6.7: the Recent activity feed is newest-first by the event's own time (a log, not a sort by priority, owner or age).
@@ -1441,11 +1442,17 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
   describe("a persona's turn carries no tooltip and no chrome derived from a skill", () => {
     it("has no `title=`, `data-*`, `aria-describedby`, tooltip, popover or CSS `attr(` anywhere in the renderer", () => {
       // `tokens.css` alone names an attribute: the light theme's `data-theme` (Story 5.2), which is
-      // written by the preload and read by no component.
+      // written by the preload and read by no component. A folder heading's `title={dir}` (Story 9.2) is
+      // the one title, named by its exact text: the directory's full path, never anything of a persona's turn.
+      const FOLDER_HEADING = "src/renderer/ui/outputs/folder-heading.tsx";
+      const SWEPT = /(?<![\w-])title\s*=|(?<![\w-])data-[a-z]|aria-describedby|role=["']tooltip|\btooltip\b|\bpopover\b|\battr\(|\bdataset\b|\bsetAttribute\(/i;
+      const heading = code.get(FOLDER_HEADING) ?? "";
+      expect(heading.split("title={dir}")).toHaveLength(2);
+      expect(heading.replace("title={dir}", "")).not.toMatch(SWEPT);
       expect(
         offenders(
-          RENDERER_ALL.filter((path) => path !== "src/renderer/design/tokens.css"),
-          /(?<![\w-])title\s*=|(?<![\w-])data-[a-z]|aria-describedby|role=["']tooltip|\btooltip\b|\bpopover\b|\battr\(|\bdataset\b|\bsetAttribute\(/i,
+          RENDERER_ALL.filter((path) => path !== "src/renderer/design/tokens.css" && path !== FOLDER_HEADING),
+          SWEPT,
         ),
       ).toEqual([]);
     });

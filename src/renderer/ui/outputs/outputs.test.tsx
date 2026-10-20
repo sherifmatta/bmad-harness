@@ -63,7 +63,7 @@ describe('Outputs', () => {
     expect(markup).not.toMatch(/<button|<input|<a |<ul|skill|persona|next|run /i)
   })
 
-  it('groups rows under directory headings, each a button of the folder heading class (Story 5.5)', () => {
+  it('nests rows under directory headings as a tree, each a button of the folder heading class showing its own name (Stories 5.5, 9.2)', () => {
     const markup = render({
       snapshot: rail(
         saved('_bmad/planning-artifacts/prd.md'),
@@ -74,11 +74,26 @@ describe('Outputs', () => {
 
     expect(count(markup, /class="folder-heading focus-inset"/g)).toBe(2)
     expect(markup).not.toContain('rail-group')
-    expect(markup.indexOf('>_bmad/<')).toBeLessThan(markup.indexOf('>_bmad/planning-artifacts/<'))
+    // The root as written, then the subdirectory by its own name, its full path its title.
+    expect(markup).toContain('>_bmad/<')
+    expect(markup).toContain('>planning-artifacts/<')
+    expect(markup).not.toContain('>_bmad/planning-artifacts/<')
+    expect(markup).toContain('title="_bmad/planning-artifacts/"')
     expect(count(markup, /<li/g)).toBe(3)
+    // Visual order: the root's heading, its subdirectory and that one's files, then the root's own files.
+    expect(markup.indexOf('>_bmad/<')).toBeLessThan(markup.indexOf('>planning-artifacts/<'))
+    expect(markup.indexOf('>planning-artifacts/<')).toBeLessThan(markup.indexOf('architecture.md'))
     expect(markup.indexOf('architecture.md')).toBeLessThan(markup.indexOf('prd.md'))
-    expect(markup.indexOf('>_bmad/planning-artifacts/<')).toBeLessThan(markup.indexOf('architecture.md'))
-    expect(markup.indexOf('epics.md')).toBeLessThan(markup.indexOf('>_bmad/planning-artifacts/<'))
+    expect(markup.indexOf('prd.md')).toBeLessThan(markup.indexOf('epics.md'))
+    // The subdirectory's group sits inside the root's branch.
+    expect(markup).toMatch(/<div class="outputs-group" style="--tree-depth:0">.*<div class="outputs-group" style="--tree-depth:1">/)
+  })
+
+  it('heads each level with its depth: the root at level 4 under the rail head’s h3, one more per level', () => {
+    const markup = render({ snapshot: rail(saved('_bmad/a/b/c.md')) })
+
+    expect([...markup.matchAll(/role="heading" aria-level="(\d)"/g)].map(([, level]) => level)).toEqual(['4', '5', '6'])
+    expect([...markup.matchAll(/--tree-depth:(\d)/g)].map(([, depth]) => depth)).toEqual(['0', '1', '2'])
   })
 
   it('names the owner from the roster, and nothing where the roster lacks the agent', () => {
@@ -172,12 +187,20 @@ describe('Outputs', () => {
     expect(markup).not.toMatch(/\b2\b/)
   })
 
-  it('is one list per group, each heading and each row one button, and no role, style, title or live region', () => {
+  it('is one list per directory with files, each heading and each row one button, and no role, style, title or live region but the tree’s', () => {
     const markup = render({ snapshot: rail(saved('_bmad/a.md'), saved('_bmad/x/b.md')) })
 
     expect(count(markup, /<ul/g)).toBe(2)
     expect(count(markup, /<button/g)).toBe(4)
-    expect(markup).not.toMatch(/<input|role=|style=|title=/)
+    // The tree's own (Story 9.2): a heading wrapper per directory, its full path as the title, and its depth.
+    expect(count(markup, /role="heading"/g)).toBe(2)
+    expect(count(markup, /title=/g)).toBe(2)
+    expect(count(markup, /style="--tree-depth:\d"/g)).toBe(2)
+    const bare = markup
+      .replace(/role="heading" aria-level="\d"/g, '')
+      .replace(/title="[^"]*"/g, '')
+      .replace(/style="--tree-depth:\d"/g, '')
+    expect(bare).not.toMatch(/<input|role=|style=|title=/)
     // Spelled in two halves: accessibility.test.ts counts the bare attribute across src/.
     expect(markup).not.toContain(`aria-${'live'}`)
   })
@@ -205,13 +228,13 @@ describe('the rows as one roving list', () => {
     // Two headings and three rows are the list; one of the five holds the stop.
     expect(count(markup, /tabindex="0"/g)).toBe(1)
     expect(count(markup, /tabindex="-1"/g)).toBe(4)
-    // Visual order: _bmad/, its epics.md, then the planning-artifacts heading and its rows by name.
-    expect(markup.indexOf('tabindex="0"')).toBeLessThan(markup.indexOf('_bmad/<'))
+    // Visual order: _bmad/, then its planning-artifacts/ heading and that one's rows by name, then epics.md.
+    expect(markup.indexOf('tabindex="0"')).toBeLessThan(markup.indexOf('>_bmad/<'))
     expect(markup.indexOf('tabindex="0"')).toBeLessThan(markup.indexOf('epics.md'))
     expect(markup.indexOf('tabindex="0"')).toBeLessThan(markup.indexOf('tabindex="-1"'))
   })
 
-  it('draws the list with no role: it is a plain list of buttons', () => {
-    expect(render({ snapshot })).not.toMatch(/role=/)
+  it('draws the list with no role but the headings’ own: it is a plain list of buttons', () => {
+    expect(render({ snapshot }).replace(/role="heading"/g, '')).not.toMatch(/role=/)
   })
 })

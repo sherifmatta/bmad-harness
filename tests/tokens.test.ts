@@ -909,7 +909,8 @@ describe('the light theme (Story 5.2, seam A)', () => {
     // Re-pinned for the `/` list (Story 7.3): `--skill-list-max`, the one height the list scrolls past, added at the block's end.
     // Re-pinned for the removal of the portrait (Story 7.7, 2026-10-15): `--cast-portrait`, `--cast-ring` and `--lh-none` deleted,
     // `--tile-height` 56px to 44px, `--tile-padding` `9px 11px` to `3px 11px`, and the comments that named the portrait and the 56px tile reworded.
-    expect(createHash('sha256').update(promotedBlock()).digest('hex')).toBe('dd3c5dc85fdb9f794aefe7c66ff16db871c200d08cc68e7f755657f15688d305')
+    // Re-pinned for the Outputs tree (Story 9.2, 2026-10-20): `--tree-depth:0`, a depth counter and not a size, added at the block's end.
+    expect(createHash('sha256').update(promotedBlock()).digest('hex')).toBe('207b340e435f4e6f272e8f84fc72b031c2ffca5773acf596a483e6fcfb41a3b0')
   })
 
   it('states color-scheme: light in its own block, and the dark theme still states dark', () => {

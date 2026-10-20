@@ -1,79 +1,108 @@
 import { describe, expect, it } from 'vitest'
 import type { RailRow } from '../../../shared/rail'
-import { baseName, groupRows } from './row-groups'
+import { baseName, buildTree, hasChanging } from './row-groups'
+import type { TreeNode } from './row-groups'
 
 const row = (path: string): RailRow => ({ path, state: 'saved', savedAt: 1 })
+const changing = (path: string): RailRow => ({ path, state: 'changing' })
 
-describe('groupRows', () => {
-  it('groups by directory with a trailing slash, root files under _bmad/', () => {
-    const groups = groupRows([
-      row('_bmad/epics.md'),
-      row('_bmad/planning-artifacts/prd.md'),
-      row('_bmad/config.toml')
+/** The tree in visual order: a heading as its name, indented by depth, then its subdirectories, then its files. */
+function lines(node: TreeNode): string[] {
+  const pad = (depth: number): string => '  '.repeat(depth)
+  return [
+    `${pad(node.depth)}${node.name}`,
+    ...node.dirs.flatMap(lines),
+    ...node.rows.map((r) => `${pad(node.depth + 1)}${baseName(r.path)}`)
+  ]
+}
+
+describe('buildTree', () => {
+  it('nests each directory under its parent, rooted at the output folder as written', () => {
+    const tree = buildTree(
+      [row('_bmad/a.md'), row('_bmad/planning-artifacts/epics.md'), row('_bmad/planning-artifacts/ux-designs/mockups/x.html')],
+      '_bmad/'
+    )
+
+    expect(lines(tree)).toEqual([
+      '_bmad/',
+      '  planning-artifacts/',
+      '    ux-designs/',
+      '      mockups/',
+      '        x.html',
+      '    epics.md',
+      '  a.md'
     ])
-
-    expect(groups.map((group) => group.dir)).toEqual(['_bmad/', '_bmad/planning-artifacts/'])
-    expect(groups[0].rows.map((r) => r.path)).toEqual(['_bmad/config.toml', '_bmad/epics.md'])
+    expect(tree.dir).toBe('_bmad/')
+    expect(tree.depth).toBe(0)
+    const mockups = tree.dirs[0].dirs[0].dirs[0]
+    expect(mockups).toMatchObject({ dir: '_bmad/planning-artifacts/ux-designs/mockups/', name: 'mockups/', depth: 3 })
   })
 
-  it('heads the files directly in a chosen folder by the folder itself, and its subfolders by their own paths (Story 5.4)', () => {
-    const groups = groupRows([
-      row('docs/out/prd.md'),
-      row('docs/out/epics.md'),
-      row('docs/out/planning/arch.md'),
-      row('docs/out/planning/deep/x.md')
-    ])
+  it('puts subdirectories before files, each in code-unit order', () => {
+    const tree = buildTree([row('_bmad/z.md'), row('_bmad/b/x.md'), row('_bmad/c.md'), row('_bmad/a/x.md')], '_bmad/')
 
-    expect(groups.map((group) => group.dir)).toEqual(['docs/out/', 'docs/out/planning/', 'docs/out/planning/deep/'])
-    expect(groups[0].rows.map((r) => r.path)).toEqual(['docs/out/epics.md', 'docs/out/prd.md'])
+    expect([...tree.dirs.map((d) => d.name), ...tree.rows.map((r) => baseName(r.path))]).toEqual(['a/', 'b/', 'c.md', 'z.md'])
   })
 
-  it('names no folder of its own: it reads the directory from the path, whatever the output folder is', () => {
-    for (const folder of ['_bmad/', '_bmad-output/', 'a/b/c/', 'x/']) {
-      expect(groupRows([row(`${folder}f.md`)]).map((group) => group.dir)).toEqual([folder])
-    }
+  it('orders by code unit, never by locale', () => {
+    const tree = buildTree(
+      [row('_bmad/b/x.md'), row('_bmad/B/x.md'), row('_bmad/a-b/x.md'), row('_bmad/a/Z.md'), row('_bmad/a/a.md'), row('_bmad/a/B.md')],
+      '_bmad/'
+    )
+
+    expect(tree.dirs.map((d) => d.name)).toEqual(['B/', 'a-b/', 'a/', 'b/'])
+    expect(tree.dirs[2].rows.map((r) => baseName(r.path))).toEqual(['B.md', 'Z.md', 'a.md'])
   })
 
-  it('orders groups and rows by code unit, never by locale', () => {
-    const groups = groupRows([
-      row('_bmad/b/x.md'),
-      row('_bmad/B/x.md'),
-      row('_bmad/a-b/x.md'),
-      row('_bmad/a/Z.md'),
-      row('_bmad/a/a.md'),
-      row('_bmad/a/B.md')
-    ])
+  it('heads a root with no files of its own, and its only subdirectory beneath it', () => {
+    expect(lines(buildTree([row('_bmad/x/y.md')], '_bmad/'))).toEqual(['_bmad/', '  x/', '    y.md'])
+  })
 
-    expect(groups.map((group) => group.dir)).toEqual([
-      '_bmad/B/',
-      '_bmad/a-b/',
-      '_bmad/a/',
-      '_bmad/b/'
-    ])
-    expect(groups[2].rows.map((r) => baseName(r.path))).toEqual(['B.md', 'Z.md', 'a.md'])
+  it('does not compact a chain of single children', () => {
+    expect(lines(buildTree([row('_bmad/a/b/c/d.md')], '_bmad/'))).toEqual(['_bmad/', '  a/', '    b/', '      c/', '        d.md'])
+  })
+
+  it('roots a chosen output folder by its whole path, and its subfolders by their own names (Story 5.4)', () => {
+    const tree = buildTree([row('docs/out/prd.md'), row('docs/out/planning/deep/x.md')], 'docs/out/')
+
+    expect(lines(tree)).toEqual(['docs/out/', '  planning/', '    deep/', '      x.md', '  prd.md'])
+    expect(tree.dirs[0].dirs[0].dir).toBe('docs/out/planning/deep/')
+  })
+
+  it('places a row that is not under the root directly under it', () => {
+    expect(lines(buildTree([row('elsewhere/q.md'), row('_bmad/a.md')], '_bmad/'))).toEqual(['_bmad/', '  a.md', '  q.md'])
+  })
+
+  it('has a bare root for no rows, and makes a directory only where a row is beneath it', () => {
+    expect(buildTree([], '_bmad/')).toEqual({ dir: '_bmad/', name: '_bmad/', depth: 0, dirs: [], rows: [] })
   })
 
   it('does not depend on the order it is given', () => {
-    const rows = [row('_bmad/z/a.md'), row('_bmad/a/a.md'), row('_bmad/m.md')]
+    const rows = [row('_bmad/z/a.md'), row('_bmad/a/a.md'), row('_bmad/m.md'), row('_bmad/a/b/c.md')]
 
-    expect(groupRows(rows)).toEqual(groupRows([...rows].reverse()))
-  })
-
-  it('makes a group only where there is a row, and none for no rows', () => {
-    expect(groupRows([])).toEqual([])
+    expect(buildTree(rows, '_bmad/')).toEqual(buildTree([...rows].reverse(), '_bmad/'))
   })
 
   it('does not mutate what it is given', () => {
     const rows = [row('_bmad/b.md'), row('_bmad/a.md')]
-    groupRows(rows)
+    buildTree(rows, '_bmad/')
 
     expect(rows.map((r) => r.path)).toEqual(['_bmad/b.md', '_bmad/a.md'])
   })
 
-  it('has no recency, relevance, pin or count on a group', () => {
-    const [group] = groupRows([row('_bmad/a.md')])
+  it('has no recency, relevance, pin or count on a node', () => {
+    expect(Object.keys(buildTree([row('_bmad/a.md')], '_bmad/')).sort()).toEqual(['depth', 'dir', 'dirs', 'name', 'rows'])
+  })
+})
 
-    expect(Object.keys(group).sort()).toEqual(['dir', 'rows'])
+describe('hasChanging', () => {
+  it('is true while any row beneath, at any depth, is changing, and false otherwise', () => {
+    const deep = buildTree([row('_bmad/a.md'), changing('_bmad/x/y/z.md'), row('_bmad/w/v.md')], '_bmad/')
+
+    expect(hasChanging(deep)).toBe(true)
+    expect(hasChanging(deep.dirs.find((d) => d.name === 'x/') as TreeNode)).toBe(true)
+    expect(hasChanging(deep.dirs.find((d) => d.name === 'w/') as TreeNode)).toBe(false)
+    expect(hasChanging(buildTree([row('_bmad/a.md'), row('_bmad/x/y.md')], '_bmad/'))).toBe(false)
   })
 })
 

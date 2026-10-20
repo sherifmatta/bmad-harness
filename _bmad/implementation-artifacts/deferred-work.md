@@ -168,3 +168,9 @@
 - source_spec: `_bmad/implementation-artifacts/spec-6-2-the-sprint-status-read-once-in-main.md`
   summary: A file written without pause never settles the Board's quiet window, so it is not re-read until writes stop; `epics.md` sharded into a folder gives slug titles with no signal to the view.
   evidence: Review (edge cases): `schedule()` resets its timer on every observation with no maximum wait; titles come only from `planning-artifacts/epics.md`. Neither affects the file as it is written today.
+- source_spec: `_bmad/implementation-artifacts/spec-9-2-the-output-folders-nest-as-a-tree.md`
+  summary: Confirm in the running Electron app that a focused Outputs row whose file is deleted hands focus to its parent heading (unverified, medium if it fails).
+  evidence: The hand-off is tested only in jsdom, which fires no blur on removal; if Chromium fires a connected blur during removal, `focusedKey` would clear and focus would fall to `body`. Settle by focusing a row, deleting its file on disk, and checking where focus lands.
+- source_spec: `_bmad/implementation-artifacts/spec-9-2-the-output-folders-nest-as-a-tree.md`
+  summary: When the last Outputs row leaves while focused, the empty state draws and focus falls to `body`, since nothing in the half can hold it.
+  evidence: Review (edge cases): `target` is null with an empty order. Pre-existing: before Story 9.2 no removal hand-off existed. A fix would send focus to the head's `change…` control, outside the list.

@@ -12,10 +12,11 @@ import type { Mounted } from '../testing/render-hook'
 import { Outputs } from './outputs'
 
 /**
- * Folding the Outputs directories (Story 5.5), mounted: a heading is a button that folds its
- * own rows, headings and the rows showing are one roving tab stop, a fold is the window's layout
- * and is kept through the bridge, and a file arriving in a folded directory changes nothing the
- * user is holding. The pure parts are row-nav.test.ts's and outputs-focus.test.tsx's.
+ * Folding the Outputs tree (Stories 5.5 and 9.2), mounted: a heading is a button that folds its
+ * whole subtree, headings and the rows showing are one roving tab stop in visual order, a fold is
+ * the window's layout and is kept through the bridge, and a file arriving in a folded directory
+ * changes nothing the user is holding. The pure parts are row-nav.test.ts's, row-groups.test.ts's
+ * and outputs-focus.test.tsx's.
  */
 
 const NOW = 1_000_000_000_000
@@ -83,9 +84,10 @@ function show(snapshot: RailSnapshot, initial: string[] = []): { rerender(next: 
 const SNAPSHOT = rail(saved(EPICS), saved(ARCH), saved(PRD), saved(DESIGN))
 
 const headings = (): HTMLButtonElement[] => [...document.querySelectorAll<HTMLButtonElement>('.folder-heading')]
-const heading = (dir: string): HTMLButtonElement => headings().find((button) => button.textContent?.startsWith(dir)) as HTMLButtonElement
+/** A heading by its full path, which is its title (Story 9.2); it shows its own name. */
+const heading = (dir: string): HTMLButtonElement => headings().find((button) => button.title === dir) as HTMLButtonElement
 const names = (): string[] => [...document.querySelectorAll('.output-row-name')].map((node) => node.textContent ?? '')
-/** What a heading or a row calls itself: the path of a heading, the file name of a row. */
+/** What a heading or a row calls itself: the name of a heading, the file name of a row. */
 const labelOf = (node: Element | null): string => node?.querySelector('.output-row-name')?.textContent ?? node?.textContent ?? ''
 const click = (target: HTMLElement): void => act(() => void target.click())
 const LEFT = 'Arrow' + 'Left'
@@ -100,22 +102,39 @@ function press(target: HTMLElement, key: string, init: KeyboardEventInit = {}): 
 }
 
 describe('a directory heading', () => {
-  it('is a button with the path, aria-expanded and aria-controls naming its rows, and no role of its own', () => {
+  it('is a button with its own name, its full path as title, aria-expanded and aria-controls naming its branch, in a heading of its level', () => {
     show(SNAPSHOT)
 
-    expect(headings().map((button) => button.textContent)).toEqual([TOP, PLAN, UX])
+    expect(headings().map((button) => button.textContent)).toEqual([TOP, 'planning-artifacts/', 'ux/'])
+    expect(headings().map((button) => button.title)).toEqual([TOP, PLAN, UX])
     for (const button of headings()) {
       expect(button.tagName).toBe('BUTTON')
       expect(button.type).toBe('button')
       expect(button.getAttribute('aria-expanded')).toBe('true')
-      const list = document.getElementById(button.getAttribute('aria-controls') ?? '')
-      expect(list?.tagName).toBe('UL')
-      expect(button.nextElementSibling).toBe(list)
+      const branch = document.getElementById(button.getAttribute('aria-controls') ?? '')
+      expect(branch?.classList.contains('outputs-branch')).toBe(true)
+      expect(button.parentElement?.nextElementSibling).toBe(branch)
       expect(button.hasAttribute('role')).toBe(false)
+      expect(button.parentElement?.getAttribute('role')).toBe('heading')
     }
-    // Each names its own list, and the rows are in it.
+    expect(headings().map((button) => button.parentElement?.getAttribute('aria-level'))).toEqual(['4', '5', '5'])
+    // Each names its own branch, the rows are in it, and the subdirectories' groups are in the root's.
     expect(new Set(headings().map((button) => button.getAttribute('aria-controls'))).size).toBe(3)
     expect(document.getElementById(heading(PLAN).getAttribute('aria-controls') as string)?.textContent).toContain('architecture.md')
+    expect(document.getElementById(heading(TOP).getAttribute('aria-controls') as string)?.contains(heading(UX))).toBe(true)
+  })
+
+  it('nests in visual order: a heading, its subdirectories, then its own files', () => {
+    show(SNAPSHOT)
+
+    const order = [...document.querySelectorAll<HTMLElement>('.folder-heading, .output-row-button')]
+    expect(order.map(labelOf)).toEqual([TOP, 'planning-artifacts/', 'architecture.md', 'prd.md', 'ux/', 'design.md', 'epics.md'])
+    // Depth reaches the stylesheet as a counter on each group, and nothing is drawn for it.
+    expect([...document.querySelectorAll<HTMLElement>('.outputs-group')].map((group) => group.style.getPropertyValue('--tree-depth'))).toEqual([
+      '0',
+      '1',
+      '1'
+    ])
   })
 
   it('draws one stroked chevron, pointing right when folded and down when open, and nothing animated', () => {
@@ -132,29 +151,39 @@ describe('a directory heading', () => {
 
   it('folds on a click, and unfolds on the next, its rows going and coming and nothing else changing', () => {
     show(SNAPSHOT)
-    expect(names()).toEqual(['epics.md', 'architecture.md', 'prd.md', 'design.md'])
+    expect(names()).toEqual(['architecture.md', 'prd.md', 'design.md', 'epics.md'])
 
     click(heading(PLAN))
 
     expect(heading(PLAN).getAttribute('aria-expanded')).toBe('false')
-    expect(names()).toEqual(['epics.md', 'design.md'])
+    expect(names()).toEqual(['design.md', 'epics.md'])
     expect(heading(TOP).getAttribute('aria-expanded')).toBe('true')
     expect(heading(UX).getAttribute('aria-expanded')).toBe('true')
     expect(kept.map((set) => [...set])).toEqual([[PLAN]])
 
     click(heading(PLAN))
 
-    expect(names()).toEqual(['epics.md', 'architecture.md', 'prd.md', 'design.md'])
+    expect(names()).toEqual(['architecture.md', 'prd.md', 'design.md', 'epics.md'])
     expect(kept.map((set) => [...set])).toEqual([[PLAN], []])
   })
 
-  it('is flat: folding one directory folds none inside it', () => {
-    show(rail(saved(EPICS), saved(DESIGN)))
+  it('hides the whole subtree on a parent fold, and keeps the folds inside it as they were', () => {
+    show(SNAPSHOT, [PLAN])
 
     click(heading(TOP))
 
-    expect(names()).toEqual(['design.md'])
+    // Nothing beneath the root is drawn: no subdirectory heading, no row.
+    expect(headings().map((button) => button.textContent)).toEqual([TOP])
+    expect(names()).toEqual([])
+    expect(kept.map((set) => [...set].sort())).toEqual([[TOP, PLAN].sort()])
+
+    click(heading(TOP))
+
+    // planning-artifacts/ is still folded, and its open sibling still open.
+    expect(heading(PLAN).getAttribute('aria-expanded')).toBe('false')
     expect(heading(UX).getAttribute('aria-expanded')).toBe('true')
+    expect(names()).toEqual(['design.md', 'epics.md'])
+    expect(kept.map((set) => [...set])).toEqual([[PLAN, TOP], [PLAN]])
   })
 
   it('keeps the folded rows out of the document, not merely hidden', () => {
@@ -163,10 +192,10 @@ describe('a directory heading', () => {
     expect(document.body.textContent).not.toContain('architecture.md')
     expect(document.body.textContent).not.toContain('prd.md')
     expect(document.querySelectorAll('.output-row')).toHaveLength(2)
-    // The list it controls is still there, empty and hidden, so aria-controls names something.
-    const list = document.getElementById(heading(PLAN).getAttribute('aria-controls') as string) as HTMLElement
-    expect(list.hidden).toBe(true)
-    expect(list.children).toHaveLength(0)
+    // The branch it controls is still there, empty and hidden, so aria-controls names something.
+    const branch = document.getElementById(heading(PLAN).getAttribute('aria-controls') as string) as HTMLElement
+    expect(branch.hidden).toBe(true)
+    expect(branch.children).toHaveLength(0)
   })
 
   it('shows no count, whatever it holds', () => {
@@ -201,6 +230,35 @@ describe('a directory heading', () => {
       expect(kept).toEqual([])
     })
 
+    it('moves a folded heading’s left arrow to its parent heading, and does nothing at the root', () => {
+      show(SNAPSHOT, [PLAN])
+      heading(PLAN).focus()
+
+      const up = press(heading(PLAN), LEFT)
+      expect(up.defaultPrevented).toBe(true)
+      expect(document.activeElement).toBe(heading(TOP))
+      expect(heading(TOP).tabIndex).toBe(0)
+
+      // Fold the root, then the left arrow again: nowhere to go, nothing kept for it.
+      press(heading(TOP), LEFT)
+      expect(heading(TOP).getAttribute('aria-expanded')).toBe('false')
+      press(heading(TOP), LEFT)
+      expect(document.activeElement).toBe(heading(TOP))
+      expect(kept.map((set) => [...set])).toEqual([[PLAN, TOP]])
+    })
+
+    it('moves a row’s left arrow to its parent heading', () => {
+      show(SNAPSHOT)
+      const epics = [...document.querySelectorAll<HTMLElement>('.output-row-button')].find((row) => labelOf(row) === 'epics.md') as HTMLElement
+      const prd = [...document.querySelectorAll<HTMLElement>('.output-row-button')].find((row) => labelOf(row) === 'prd.md') as HTMLElement
+
+      expect(press(prd, LEFT).defaultPrevented).toBe(true)
+      expect(document.activeElement).toBe(heading(PLAN))
+      press(epics, LEFT)
+      expect(document.activeElement).toBe(heading(TOP))
+      expect(kept).toEqual([])
+    })
+
     it('leaves Enter and Space to the button, which clicks, and Home, End and Tab alone', () => {
       show(SNAPSHOT)
 
@@ -231,16 +289,17 @@ describe('a directory heading', () => {
       expect(stops()).toEqual([`heading ${TOP}`])
 
       const order = [...document.querySelectorAll<HTMLElement>('.folder-heading, .output-row-button')]
-      expect(order.map(labelOf)).toEqual([TOP, 'epics.md', PLAN, 'architecture.md', 'prd.md', UX, 'design.md'])
+      expect(order.map(labelOf)).toEqual([TOP, 'planning-artifacts/', 'architecture.md', 'prd.md', 'ux/', 'design.md', 'epics.md'])
 
       const down = press(order[0], DOWN)
       expect(down.defaultPrevented).toBe(true)
-      expect(document.activeElement).toBe(order[1])
-      expect(stops()).toEqual(['row epics.md'])
-      press(order[1], DOWN)
       expect(document.activeElement).toBe(heading(PLAN))
-      press(heading(PLAN), UP)
-      expect(document.activeElement).toBe(order[1])
+      expect(stops()).toEqual(['heading planning-artifacts/'])
+      press(heading(PLAN), DOWN)
+      expect(document.activeElement).toBe(order[2])
+      expect(stops()).toEqual(['row architecture.md'])
+      press(order[2], UP)
+      expect(document.activeElement).toBe(heading(PLAN))
     })
 
     it('skips the rows of a folded directory, and clamps at both ends of what is showing', () => {
@@ -249,10 +308,10 @@ describe('a directory heading', () => {
       press(heading(PLAN), DOWN)
       expect(document.activeElement).toBe(heading(UX))
       press(heading(UX), DOWN)
-      press(document.activeElement as HTMLElement, DOWN)
       expect(labelOf(document.activeElement)).toBe('design.md')
       press(document.activeElement as HTMLElement, DOWN)
-      expect(labelOf(document.activeElement)).toBe('design.md')
+      press(document.activeElement as HTMLElement, DOWN)
+      expect(labelOf(document.activeElement)).toBe('epics.md')
 
       press(heading(TOP), UP)
       expect(document.activeElement).toBe(heading(TOP))
@@ -262,12 +321,13 @@ describe('a directory heading', () => {
       show(SNAPSHOT)
       const row = document.querySelectorAll<HTMLElement>('.output-row-button')[1]
       press(row, UP)
+      press(document.activeElement as HTMLElement, UP)
       press(heading(PLAN), RIGHT)
       row.focus()
 
       click(heading(PLAN))
 
-      expect(stops()).toEqual([`heading ${PLAN}`])
+      expect(stops()).toEqual(['heading planning-artifacts/'])
     })
 
     it('opens a row’s document on a click, as before', () => {
@@ -275,7 +335,7 @@ describe('a directory heading', () => {
 
       click(document.querySelector('.output-row-button') as HTMLElement)
 
-      expect(openDoc).toHaveBeenCalledWith(EPICS)
+      expect(openDoc).toHaveBeenCalledWith(ARCH)
     })
   })
 })
@@ -287,7 +347,7 @@ describe('a folded directory with a file changing', () => {
     const live = heading(PLAN).querySelector('.folder-heading-live') as HTMLElement
     expect(live.textContent).toBe('changing')
     expect(live.querySelector('.status-dot--work')).not.toBeNull()
-    expect(heading(PLAN).textContent).toBe(`${PLAN}changing`)
+    expect(heading(PLAN).textContent).toBe('planning-artifacts/changing')
     // Never a run's annotation, an owner or a state of its own.
     expect(heading(PLAN).textContent).not.toMatch(/writing|§|John|saved/)
     expect(document.querySelector('.output-row--changing')).toBeNull()
@@ -308,11 +368,28 @@ describe('a folded directory with a file changing', () => {
   })
 
   it('says it only on the directory it is in, and goes when the file settles', () => {
-    const shown = show(rail(saved(EPICS), changing(PRD), saved(DESIGN)), [TOP, PLAN, UX])
+    // The root is open, so its two folded subdirectories are both drawn.
+    const shown = show(rail(saved(EPICS), changing(PRD), saved(DESIGN)), [PLAN, UX])
     expect(document.querySelectorAll('.folder-heading-live')).toHaveLength(1)
     expect(heading(PLAN).querySelector('.folder-heading-live')).not.toBeNull()
 
     shown.rerender(rail(saved(EPICS), saved(PRD), saved(DESIGN)))
+    expect(document.querySelector('.folder-heading-live')).toBeNull()
+  })
+
+  it('says it on the outermost folded heading only, from a file at any depth beneath it', () => {
+    const X = `${TOP}x/`
+    const shown = show(rail(saved(EPICS), changing(`${X}y/z.md`)), [TOP, X])
+
+    expect(headings().map((button) => button.textContent)).toEqual([`${TOP}changing`])
+    expect(document.querySelectorAll('.status-dot--work')).toHaveLength(1)
+
+    // Unfold the root: x/ is still folded, and now it is the outermost, so it says it.
+    click(heading(TOP))
+    expect(heading(TOP).querySelector('.folder-heading-live')).toBeNull()
+    expect(heading(X).textContent).toBe('x/changing')
+
+    shown.rerender(rail(saved(EPICS), saved(`${X}y/z.md`)))
     expect(document.querySelector('.folder-heading-live')).toBeNull()
   })
 })
@@ -324,10 +401,11 @@ describe('what arrives, changes and leaves while a directory is folded', () => {
     const shown = show(rail(saved(EPICS), saved(PRD)), [PLAN])
     heading(PLAN).focus()
 
-    shown.rerender(rail(saved(EPICS), saved(PRD), saved(ARCH), changing(`${PLAN}new.md`)))
+    shown.rerender(rail(saved(EPICS), saved(PRD), saved(ARCH), changing(`${PLAN}new.md`), changing(`${PLAN}deep/er/n.md`)))
 
     expect(heading(PLAN).getAttribute('aria-expanded')).toBe('false')
     expect(names()).toEqual(['epics.md'])
+    expect(heading(PLAN).textContent).toBe('planning-artifacts/changing')
     expect(document.activeElement).toBe(heading(PLAN))
     expect(kept).toEqual([])
     expect(scrolls).not.toHaveBeenCalled()
@@ -341,7 +419,71 @@ describe('what arrives, changes and leaves while a directory is folded', () => {
     shown.rerender(rail(saved(EPICS)))
 
     expect(headings().map((button) => button.textContent)).toEqual([TOP])
-    expect(document.body.textContent).not.toContain(PLAN)
+    expect(document.body.textContent).not.toContain('planning-artifacts/')
+  })
+
+  it('hands focus to the nearest heading still showing when the focused row leaves, and its directory with it', () => {
+    const X = `${TOP}x/`
+    const shown = show(rail(saved(EPICS), saved(`${X}y.md`)))
+    const row = [...document.querySelectorAll<HTMLElement>('.output-row-button')].find((node) => labelOf(node) === 'y.md') as HTMLElement
+    act(() => row.focus())
+
+    shown.rerender(rail(saved(EPICS)))
+
+    expect(heading(X)).toBeUndefined()
+    expect(document.activeElement).toBe(heading(TOP))
+    expect(heading(TOP).tabIndex).toBe(0)
+  })
+
+  it('hands focus to the parent heading when the focused heading leaves', () => {
+    const X = `${TOP}x/`
+    const shown = show(rail(saved(EPICS), saved(`${X}a/y.md`)))
+    act(() => heading(`${X}a/`).focus())
+
+    shown.rerender(rail(saved(EPICS), saved(`${X}z.md`)))
+
+    expect(document.activeElement).toBe(heading(X))
+  })
+
+  it('hands focus to the list’s tab stop when no ancestor is left, and never leaves it on the page', () => {
+    const shown = show(rail(saved(EPICS)))
+    act(() => (document.querySelector('.output-row-button') as HTMLElement).focus())
+
+    // The rail re-points to another folder (Story 5.4): the row and every heading above it go.
+    shown.rerender({ revision: 2, folder: 'docs/out/', rows: [saved('docs/out/q.md')] })
+
+    expect(document.activeElement).not.toBe(document.body)
+    expect(document.activeElement).toBe(heading('docs/out/'))
+    expect(heading('docs/out/').tabIndex).toBe(0)
+  })
+
+  it('keeps the focused row through the window losing focus, and hands focus to its parent heading when the row leaves meanwhile', () => {
+    const X = `${TOP}x/`
+    const shown = show(rail(saved(EPICS), saved(`${X}y.md`), saved(`${X}z.md`)))
+    const row = [...document.querySelectorAll<HTMLElement>('.output-row-button')].find((node) => labelOf(node) === 'y.md') as HTMLElement
+    act(() => row.focus())
+    // The app window goes to the background (the document window in front): a blur with nowhere to go.
+    const hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(false)
+    act(() => void row.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: null })))
+
+    shown.rerender(rail(saved(EPICS), saved(`${X}z.md`)))
+
+    expect(document.activeElement).toBe(heading(X))
+    hasFocus.mockRestore()
+  })
+
+  it('takes back no focus the user moved out of the list', () => {
+    const shown = show(rail(saved(EPICS), saved(PRD)))
+    const outside = document.createElement('button')
+    document.body.append(outside)
+    const prd = [...document.querySelectorAll<HTMLElement>('.output-row-button')].find((node) => labelOf(node) === 'prd.md') as HTMLElement
+    act(() => prd.focus())
+    act(() => outside.focus())
+
+    shown.rerender(rail(saved(EPICS)))
+
+    expect(document.activeElement).toBe(outside)
+    outside.remove()
   })
 
   it('does not move the list’s focus when a heading comes and goes elsewhere', () => {
@@ -358,19 +500,20 @@ describe('what arrives, changes and leaves while a directory is folded', () => {
 
 describe('the folded set', () => {
   it('keeps an entry for a directory that is gone, ignores it while it is absent, and applies it again when it returns', () => {
-    const shown = show(rail(saved(EPICS), saved(PRD)), ['gone/', PLAN])
+    const GONE = `${TOP}gone/`
+    const shown = show(rail(saved(EPICS), saved(PRD)), [GONE, PLAN])
     expect(names()).toEqual(['epics.md'])
 
     // Folding another directory keeps the entry for the one that is not there.
     click(heading(TOP))
-    expect(new Set(kept.at(-1))).toEqual(new Set(['gone/', PLAN, TOP]))
+    expect(new Set(kept.at(-1))).toEqual(new Set([GONE, PLAN, TOP]))
     click(heading(TOP))
-    expect(new Set(kept.at(-1))).toEqual(new Set(['gone/', PLAN]))
+    expect(new Set(kept.at(-1))).toEqual(new Set([GONE, PLAN]))
 
     // The directory returns, and is folded as it was.
-    shown.rerender(rail(saved(EPICS), saved(PRD), saved('gone/x.md')))
-    expect(headings().map((button) => button.textContent)).toEqual([TOP, PLAN, 'gone/'])
-    expect(heading('gone/').getAttribute('aria-expanded')).toBe('false')
+    shown.rerender(rail(saved(EPICS), saved(PRD), saved(`${GONE}x.md`)))
+    expect(headings().map((button) => button.textContent)).toEqual([TOP, 'gone/', 'planning-artifacts/'])
+    expect(heading(GONE).getAttribute('aria-expanded')).toBe('false')
     expect(names()).toEqual(['epics.md'])
   })
 
@@ -378,7 +521,17 @@ describe('the folded set', () => {
     show(SNAPSHOT, [UX])
 
     expect(heading(UX).getAttribute('aria-expanded')).toBe('false')
-    expect(names()).toEqual(['epics.md', 'architecture.md', 'prd.md'])
+    expect(names()).toEqual(['architecture.md', 'prd.md', 'epics.md'])
+  })
+
+  it('reads a set stored before the tree as it is: that heading folded, the rest open, entries it does not know ignored, nothing written', () => {
+    show(rail(saved(EPICS), saved(PRD), saved(`${PLAN}ux-designs/mockups/x.html`), saved(DESIGN)), [PLAN, 'unknown/'])
+
+    expect(heading(PLAN).getAttribute('aria-expanded')).toBe('false')
+    expect(heading(TOP).getAttribute('aria-expanded')).toBe('true')
+    expect(heading(UX).getAttribute('aria-expanded')).toBe('true')
+    expect(names()).toEqual(['design.md', 'epics.md'])
+    expect(kept).toEqual([])
   })
 })
 
@@ -406,6 +559,6 @@ describe('kept through the bridge', () => {
     click(heading(PLAN))
 
     expect(setFolded.mock.calls).toEqual([[['gone/', PLAN]], [['gone/', PLAN, UX]], [['gone/', UX]]])
-    expect(names()).toEqual(['epics.md', 'architecture.md', 'prd.md'])
+    expect(names()).toEqual(['architecture.md', 'prd.md', 'epics.md'])
   })
 })

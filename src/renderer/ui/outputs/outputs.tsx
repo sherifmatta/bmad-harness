@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import type { JSX, KeyboardEvent } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties, JSX, KeyboardEvent } from 'react'
 
 import './outputs.css'
 import type { AgentView, HarnessError } from '../../../shared/install'
@@ -11,15 +11,51 @@ import { useLayoutContext } from '../layout/layout-context'
 import { FolderHeading } from './folder-heading'
 import { OutputRow } from './output-row'
 import { ownerLabel } from './owner-label'
-import { groupRows } from './row-groups'
+import { buildTree, hasChanging } from './row-groups'
+import type { TreeNode } from './row-groups'
 import { headingKey, rowMove, tabStopPath } from './row-nav'
 import { useDocOpen } from './use-doc-open'
 import { useNow } from './use-now'
 
 /**
+ * The headings and the rows showing, in visual order: a heading is keyed `dir:<dir>`, a
+ * row by its path; nothing beneath a folded heading. With each key's parent heading, for
+ * `←` and for a focused entry that leaves. A tree with no rows shows nothing.
+ */
+function showing(
+  tree: TreeNode | null,
+  folded: ReadonlySet<string>
+): { order: string[]; parentOf: Map<string, string | null> } {
+  const order: string[] = []
+  const parentOf = new Map<string, string | null>()
+  const walk = (node: TreeNode, parent: string | null): void => {
+    const key = headingKey(node.dir)
+    order.push(key)
+    parentOf.set(key, parent)
+    if (folded.has(node.dir)) {
+      return
+    }
+    node.dirs.forEach((child) => walk(child, key))
+    for (const row of node.rows) {
+      order.push(row.path)
+      parentOf.set(row.path, key)
+    }
+  }
+  if (tree !== null && hasRows(tree)) {
+    walk(tree, null)
+  }
+  return { order, parentOf }
+}
+
+function hasRows(node: TreeNode): boolean {
+  return node.rows.length > 0 || node.dirs.length > 0
+}
+
+/**
  * The rail's Outputs half (FR48, UX-DR18): one row per file under the project's
- * output folder, grouped by directory. The folder is the snapshot's own (Story
- * 5.4): the first group is headed by it, and the empty state names it.
+ * output folder, nested as a directory tree (Story 9.2, UX-DR58). The folder is
+ * the snapshot's own (Story 5.4): the tree is rooted at it, its heading shows it
+ * as written, and the empty state names it.
  *
  * Before the first snapshot it draws nothing at all: no spinner, no sentence.
  * A snapshot with no rows is exactly two lines — that there are none, and the
@@ -33,19 +69,24 @@ import { useNow } from './use-now'
  * (`ownerLabel`). `now` is data, passed in so the markup can be rendered at a
  * fixed moment.
  *
- * Each directory's heading is a button that folds its rows (Story 5.5). The folded
- * set is the window's layout (`useLayoutContext`): a toggle is one `saveFolded` of
- * the whole set, entries for directories that are gone kept. A folded directory's
- * rows are not rendered, a file arriving under it unfolds nothing, and its
- * heading says `changing` while a row under it is.
+ * Each directory's heading is a button that folds its whole subtree (Stories 5.5
+ * and 9.2). The folded set is the window's layout (`useLayoutContext`): a toggle is
+ * one `saveFolded` of the whole set, entries for directories that are gone kept,
+ * and the folds inside a folded directory kept too. Nothing beneath a folded
+ * directory is rendered, a file arriving under it unfolds nothing, and its heading
+ * says `changing` while a row anywhere beneath it is.
  *
  * The headings and the rows showing are one roving-tabindex list (NFR20, UX-DR18):
  * one tab stop — the one last moved to or opened, else the first in visual order,
- * which is a heading — with vertical, clamped travel through `rowMove`; on a
- * heading `←` folds and `→` unfolds and focus stays on it. Activating a row asks main to
+ * which is a heading — with vertical, clamped travel through `rowMove` in visual
+ * order (a heading, its subdirectories, then its files); on an open heading `←`
+ * folds and `→` unfolds and focus stays on it, and `←` on a folded heading or a
+ * row moves to its parent heading (none at the root). Activating a row asks main to
  * open its document window (FR55). When that window is closed by the user, focus
  * comes back to the row that opened it, and if the row has gone since, to the
- * list's own tab stop; it is never left on the page (NFR21).
+ * list's own tab stop. When the focused heading or row leaves the list, focus goes
+ * to its nearest ancestor heading still showing, else to the list's tab stop: it is
+ * never left on the page (NFR21).
  */
 export function Outputs({
   snapshot,
@@ -65,12 +106,8 @@ export function Outputs({
   const { folded, saveFolded } = useLayoutContext()
   const listsId = useId()
 
-  const groups = groupRows(snapshot?.rows ?? [])
-  // Headings and the rows showing, in visual order: a heading is keyed `dir:<dir>`, a row by its path.
-  const order = groups.flatMap((group) => [
-    headingKey(group.dir),
-    ...(folded.has(group.dir) ? [] : group.rows.map((row) => row.path))
-  ])
+  const tree = useMemo(() => (snapshot === null ? null : buildTree(snapshot.rows, snapshot.folder)), [snapshot])
+  const { order, parentOf } = useMemo(() => showing(tree, folded), [tree, folded])
   const tabStop = tabStopPath(order, movedToPath)
 
   // The tab stop as of the last render, for a close that finds its row gone.
@@ -78,6 +115,33 @@ export function Outputs({
   useEffect(() => {
     heldStop.current = tabStop
   }, [tabStop])
+
+  // The entry holding focus, and the parents as of the render it was focused in.
+  const focusedKey = useRef<string | null>(null)
+  const heldParents = useRef(parentOf)
+  useLayoutEffect(() => {
+    const was = focusedKey.current
+    const parents = heldParents.current
+    heldParents.current = parentOf
+    if (was === null || order.includes(was)) {
+      return
+    }
+    focusedKey.current = null
+    // Only a focus the removal dropped is placed again: one the user took elsewhere is left there.
+    const active = document.activeElement
+    if (active !== null && active !== document.body) {
+      return
+    }
+    let to = parents.get(was) ?? null
+    while (to !== null && !order.includes(to)) {
+      to = parents.get(to) ?? null
+    }
+    const target = to ?? tabStopPath(order, null)
+    if (target !== null) {
+      setMovedToPath(target)
+      buttons.current.get(target)?.focus()
+    }
+  }, [order, parentOf])
 
   const returnFocus = useCallback((path: string) => {
     const row = buttons.current.get(path)
@@ -102,7 +166,7 @@ export function Outputs({
     )
   }
 
-  if (snapshot.rows.length === 0) {
+  if (tree === null || snapshot.rows.length === 0) {
     return (
       <div className="outputs-empty">
         <p className="outputs-empty-line">{`no files under ${snapshot.folder} yet`}</p>
@@ -113,9 +177,17 @@ export function Outputs({
 
   const nameOf = new Map(agents.map((agent) => [agent.id, agent.name]))
 
+  const chord = (event: KeyboardEvent<HTMLButtonElement>): boolean =>
+    event.altKey || event.ctrlKey || event.metaKey || event.shiftKey
+
+  function moveTo(key: string): void {
+    setMovedToPath(key)
+    buttons.current.get(key)?.focus()
+  }
+
   function travel(event: KeyboardEvent<HTMLButtonElement>, index: number): void {
     // A chord is the OS's or the app's, never a row move.
-    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+    if (chord(event)) {
       return
     }
     const to = rowMove(event.key, index, order.length)
@@ -125,8 +197,27 @@ export function Outputs({
     }
     // A move would otherwise scroll the rail; Enter never reaches here.
     event.preventDefault()
-    setMovedToPath(target)
-    buttons.current.get(target)?.focus()
+    moveTo(target)
+  }
+
+  /** `←` on a folded heading or a row: to the parent heading, and nowhere at the root. */
+  function toParent(event: KeyboardEvent<HTMLButtonElement>, key: string): void {
+    event.preventDefault()
+    const parent = parentOf.get(key) ?? null
+    if (parent !== null) {
+      moveTo(parent)
+    }
+  }
+
+  function rowKeys(event: KeyboardEvent<HTMLButtonElement>, path: string): void {
+    if (chord(event)) {
+      return
+    }
+    if (foldKey(event.key) === 'fold') {
+      toParent(event, path)
+      return
+    }
+    travel(event, order.indexOf(path))
   }
 
   function activate(path: string): void {
@@ -149,71 +240,96 @@ export function Outputs({
     saveFolded(next)
   }
 
-  function headingKeys(event: KeyboardEvent<HTMLButtonElement>, dir: string, index: number): void {
-    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+  function headingKeys(event: KeyboardEvent<HTMLButtonElement>, dir: string): void {
+    if (chord(event)) {
       return
     }
+    const key = headingKey(dir)
     const fold = foldKey(event.key)
+    if (fold === 'fold' && folded.has(dir)) {
+      toParent(event, key)
+      return
+    }
     if (fold !== null) {
       event.preventDefault()
       setFolded(dir, fold === 'fold')
       return
     }
-    travel(event, index)
+    travel(event, order.indexOf(key))
+  }
+
+  const remember = (key: string) => (element: HTMLButtonElement | null) => {
+    if (element === null) {
+      buttons.current.delete(key)
+    } else {
+      buttons.current.set(key, element)
+    }
+  }
+
+  // Branch ids in render order; a folded branch's subtree takes none.
+  let branches = 0
+
+  /** One directory: its heading, then its branch of subdirectories and then files, at its depth. */
+  function group(node: TreeNode): JSX.Element {
+    const isFolded = folded.has(node.dir)
+    const key = headingKey(node.dir)
+    const branchId = `${listsId}-${branches++}`
+    return (
+      <div key={node.dir} className="outputs-group" style={{ '--tree-depth': node.depth } as CSSProperties}>
+        <FolderHeading
+          name={node.name}
+          dir={node.dir}
+          level={4 + node.depth}
+          folded={isFolded}
+          changing={isFolded && hasChanging(node)}
+          controls={branchId}
+          tabStop={key === tabStop}
+          onToggle={() => setFolded(node.dir, !isFolded)}
+          onKey={(event) => headingKeys(event, node.dir)}
+          buttonRef={remember(key)}
+        />
+        <div id={branchId} className="outputs-branch" hidden={isFolded}>
+          {isFolded ? null : node.dirs.map(group)}
+          {isFolded || node.rows.length === 0 ? null : (
+            <ul className="outputs-list">
+              {node.rows.map((row) => (
+                <OutputRow
+                  key={row.path}
+                  row={row}
+                  ownerName={ownerLabel(row, nameOf)}
+                  now={now}
+                  tabStop={row.path === tabStop}
+                  onOpen={activate}
+                  onKey={(event) => rowKeys(event, row.path)}
+                  buttonRef={remember(row.path)}
+                />
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="outputs">
-      {groups.map((group, groupIndex) => {
-        const isFolded = folded.has(group.dir)
-        const key = headingKey(group.dir)
-        const listId = `${listsId}-${groupIndex}`
-        return (
-          <div key={group.dir} className="outputs-group">
-            <FolderHeading
-              dir={group.dir}
-              folded={isFolded}
-              changing={group.rows.some((row) => row.state === 'changing')}
-              controls={listId}
-              tabStop={key === tabStop}
-              onToggle={() => setFolded(group.dir, !isFolded)}
-              onKey={(event) => headingKeys(event, group.dir, order.indexOf(key))}
-              buttonRef={(element) => {
-                if (element === null) {
-                  buttons.current.delete(key)
-                } else {
-                  buttons.current.set(key, element)
-                }
-              }}
-            />
-            <ul id={listId} className="outputs-list" hidden={isFolded}>
-              {isFolded
-                ? null
-                : group.rows.map((row) => {
-                    const index = order.indexOf(row.path)
-                    return (
-                      <OutputRow
-                        key={row.path}
-                        row={row}
-                        ownerName={ownerLabel(row, nameOf)}
-                        now={now}
-                        tabStop={row.path === tabStop}
-                        onOpen={activate}
-                        onKey={(event) => travel(event, index)}
-                        buttonRef={(element) => {
-                          if (element === null) {
-                            buttons.current.delete(row.path)
-                          } else {
-                            buttons.current.set(row.path, element)
-                          }
-                        }}
-                      />
-                    )
-                  })}
-            </ul>
-          </div>
-        )
-      })}
+    <div
+      className="outputs"
+      onFocus={(event) => {
+        const target: EventTarget = event.target
+        const key = [...buttons.current].find(([, element]) => element === target)?.[0]
+        focusedKey.current = key ?? null
+      }}
+      onBlur={(event) => {
+        // Focus taken elsewhere in this document by the user: a later removal is none of the list's business.
+        // A window losing focus (a null target while the document has none) moves nothing, and is kept.
+        const to = event.relatedTarget
+        const elsewhere = to === null ? document.hasFocus() : !event.currentTarget.contains(to)
+        if (event.target.isConnected && elsewhere) {
+          focusedKey.current = null
+        }
+      }}
+    >
+      {group(tree)}
     </div>
   )
 }

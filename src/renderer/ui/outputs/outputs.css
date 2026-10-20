@@ -18,7 +18,9 @@
  * keywords. No stacking index, no keyframes and no motion.
  */
 
-.outputs-group {
+.outputs-group,
+.outputs-branch,
+.folder-heading-row {
   display: flex;
   flex-direction: column;
 }
@@ -139,15 +141,28 @@
   color: var(--amber);
 }
 
-/* A folded directory keeps its list, empty, so its heading's `aria-controls` names something. */
-.outputs-list[hidden] {
+/* A folded directory keeps its branch, empty, so its heading's `aria-controls` names something. */
+.outputs-branch[hidden] {
   display: none;
 }
 
+/* ---------- the tree's indent (Story 9.2) ----------
+   `--tree-depth` is a counter set on each group, not a size: a heading at depth d is
+   indented d steps of `--space-xl`, and its files d + 1. The indent moves the content
+   (the chevron, the file icon), so every row's rule and hover ground stay full width.
+   No guide line, connector or band. */
+.folder-chevron {
+  margin-left: calc(var(--space-xl) * var(--tree-depth));
+}
+
+.output-row .file-icon {
+  margin-left: calc(var(--space-xl) * var(--tree-depth) + var(--space-xl));
+}
+
 /* ---------- the folder heading (Story 5.5) ----------
-   A button for the whole row: the chevron, the directory path in the group label's own
-   mono at `dim` (`text-strong` on hover), and, only while folded and a row under it is
-   changing, the amber dot and the word `changing` at the right. No count. The shared inset
+   A button for the whole row: the chevron, the directory's own name in the group label's own
+   mono at `dim` (`text-strong` on hover), and, only while folded and a row anywhere beneath
+   it is changing, the amber dot and the word `changing` at the right. No count. The shared inset
    ring is design/focus.css's. The chevron changes direction and nothing more: no rotation,
    no transition, no animation of a fold. */
 

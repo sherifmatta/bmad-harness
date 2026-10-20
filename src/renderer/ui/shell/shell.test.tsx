@@ -482,7 +482,9 @@ describe('Shell, the project files', () => {
 
   it('puts the rows and group headings in the Outputs half and never the Team half', () => {
     expect(count(outputsOf(withRail), /<li/g)).toBe(2)
-    expect(outputsOf(withRail)).toContain('>_bmad/planning-artifacts/<')
+    // A nested directory's heading shows its own name, its full path its title (Story 9.2).
+    expect(outputsOf(withRail)).toContain('>planning-artifacts/<')
+    expect(outputsOf(withRail)).toContain('title="_bmad/planning-artifacts/"')
     expect(teamOf(withRail)).not.toContain('output-row')
     expect(teamOf(withRail)).not.toContain('>_bmad/')
   })
@@ -490,7 +492,8 @@ describe('Shell, the project files', () => {
   it('makes each row one button and the half one tab stop, with no input, link or role', () => {
     const outputs = outputsOf(withRail)
 
-    expect(outputs).not.toMatch(/<input|<a |role=/)
+    // The one role is a folder heading's own `heading` wrapper (Story 9.2).
+    expect(outputs.replace(/role="heading"/g, '')).not.toMatch(/<input|<a |role=/)
     // The head's `change…`, the two directories' headings and the two rows: the headings and the rows are the
     // list's one tab stop (the first heading holds it), the head's button its own, before them.
     expect(count(outputs, /<button/g)).toBe(1 + 2 + 2)

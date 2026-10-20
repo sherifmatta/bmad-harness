@@ -167,8 +167,8 @@ describe('the Outputs half with a folded directory holding a changing file, buil
       inner.replace(/<[^>]*>/g, '')
     )
 
-    // The text of a heading is the directory path and, folded and changing, one word: no digit is added to either.
-    expect(headings).toEqual([TOP, `${PLAN}changing`])
+    // The text of a heading is the directory's own name (Story 9.2) and, folded and changing, one word: no digit is added to either.
+    expect(headings).toEqual([TOP, 'planning-artifacts/changing'])
     for (const text of headings) {
       expect(text.replace(/_bmad/g, '')).not.toMatch(/\d/)
     }

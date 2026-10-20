@@ -134,7 +134,7 @@ describe('the outputs sources', () => {
   const HEAD = `${OUTPUTS_DIR}/outputs-head.tsx`
   const FOLDER = `${OUTPUTS_DIR}/folder-heading.tsx`
 
-  it('draw no control, tab stop or handler but in the row, the folder heading and the head’s one link, and no role, inline style, title or live region anywhere', () => {
+  it('draw no control, tab stop or handler but in the row, the folder heading and the head’s one link, and no role, inline style, title or live region anywhere but the tree’s named three', () => {
     expect(outputsSources).toContain(ROW)
     expect(outputsSources).toContain(HEAD)
     expect(outputsSources).toContain(FOLDER)
@@ -157,7 +157,20 @@ describe('the outputs sources', () => {
         expect(text.match(/<button\b/g)).toHaveLength(1)
         expect(text.match(/onClick=/g)).toHaveLength(1)
       }
-      expect(text, path).not.toMatch(/<input|role=|style=|title=/)
+      // The tree (Story 9.2) adds exactly three, each named by its exact text: the heading's
+      // `role="heading"` wrapper and its full path as the title, and each group's depth counter.
+      let bare = text
+      if (path === FOLDER) {
+        expect(text.match(/role="heading" aria-level=\{level\}/g)).toHaveLength(1)
+        expect(text.match(/title=\{dir\}/g)).toHaveLength(1)
+        bare = bare.replace('role="heading" aria-level={level}', '').replace('title={dir}', '')
+      }
+      if (path === `${OUTPUTS_DIR}/outputs.tsx`) {
+        const depth = "style={{ '--tree-depth': node.depth } as CSSProperties}"
+        expect(text.split(depth)).toHaveLength(2)
+        bare = bare.replace(depth, '')
+      }
+      expect(bare, path).not.toMatch(/<input|role=|style=|title=/)
       expect(text, path).not.toMatch(/aria-live/)
       expect(text, path).not.toMatch(/announc/i)
     }

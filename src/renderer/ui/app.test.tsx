@@ -3514,15 +3514,21 @@ describe('App, the layout (Story 5.5)', () => {
     expect(sidebar.style.getPropertyValue('--sidebar')).toBe('300px')
     expect(sidebar.querySelector('.persona-tile')).not.toBeNull()
     expect(rail.querySelector('.persona-tile')).toBeNull()
-    const headings = [...mounted!.container.querySelectorAll<HTMLButtonElement>('.folder-heading')]
-    expect(headings.map((heading) => heading.textContent)).toEqual(['_bmad/', '_bmad/ux/'])
-    expect(headings[0].getAttribute('aria-expanded')).toBe('false')
-    expect(headings[1].getAttribute('aria-expanded')).toBe('true')
-    expect([...mounted!.container.querySelectorAll('.output-row-name')].map((name) => name.textContent)).toEqual(['design.md'])
+    // A tree (Story 9.2): folding `_bmad/` hides everything beneath it, `ux/` with its rows.
+    const headings = (): HTMLButtonElement[] => [...mounted!.container.querySelectorAll<HTMLButtonElement>('.folder-heading')]
+    expect(headings().map((heading) => heading.textContent)).toEqual(['_bmad/'])
+    expect(headings()[0].getAttribute('aria-expanded')).toBe('false')
+    expect(mounted!.container.querySelectorAll('.output-row-name')).toHaveLength(0)
 
-    act(() => headings[1].click())
+    act(() => headings()[0].click())
 
-    expect(setFolded).toEqual([['_bmad/', '_bmad/ux/']])
+    expect(headings().map((heading) => heading.textContent)).toEqual(['_bmad/', 'ux/'])
+    expect(headings()[1].getAttribute('aria-expanded')).toBe('true')
+    expect([...mounted!.container.querySelectorAll('.output-row-name')].map((name) => name.textContent)).toEqual(['design.md', 'epics.md'])
+
+    act(() => headings()[1].click())
+
+    expect(setFolded).toEqual([[], ['_bmad/ux/']])
     expect(setPanelWidth).toEqual([])
   })
 })
