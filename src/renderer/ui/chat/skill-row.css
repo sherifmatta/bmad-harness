@@ -26,17 +26,28 @@
   margin-bottom: var(--space-md);
 }
 
+/*
+ * The toggle drops the button's own type, alignment and look before it takes the
+ * label's, so the row sits as the label did. Its padding is the click target
+ * DESIGN.md gives it; the negative start margin takes the same amount back, so
+ * the label stays on the composer's edge, where it was before the toggle.
+ */
 .skill-row-toggle {
   display: inline-flex;
   align-items: baseline;
   gap: var(--space-sm);
   padding: var(--space-xs) var(--space-sm);
+  margin-left: calc(var(--space-sm) * -1);
   margin-right: var(--skill-label-trail);
+  appearance: none;
   background: none;
   border: 0;
   font-family: var(--mono);
   font-size: var(--fs-meta);
+  font-weight: inherit;
+  line-height: inherit;
   letter-spacing: var(--track-skill-label);
+  text-align: start;
   color: var(--meta);
   cursor: pointer;
 }
@@ -45,12 +56,14 @@
   color: var(--text);
 }
 
+/* The label takes the toggle's type and adds only the case; the count beside it is not uppercase. */
 .skill-row-label {
-  font-family: var(--mono);
-  font-size: var(--fs-meta);
-  letter-spacing: var(--track-skill-label);
   text-transform: uppercase;
-  color: inherit;
+}
+
+/* The entries region the toggle controls: it draws no box, so its buttons sit in the row's own wrap as before. */
+.skill-row-entries {
+  display: contents;
 }
 
 .skill-button {

@@ -24,10 +24,13 @@ const collapsed = (items = ENTRIES, disabled = false): string => row(disabled, i
 describe('the skill row, collapsed (Story 9.1)', () => {
   it('is one disclosure button reading `▸ <Name> can · <N> skills`, and draws no skill button and no `+N more`', () => {
     const markup = collapsed(entries(7))
+    // The toggle controls the entries region by its id, which is there and empty while collapsed.
+    const id = /aria-controls="([^"]+)"/.exec(markup)?.[1] ?? ''
+    expect(id).not.toBe('')
     expect(markup).toBe(
-      '<div class="skill-row"><button type="button" class="skill-row-toggle" aria-expanded="false" aria-label="John can, 7 skills">' +
+      `<div class="skill-row"><button type="button" class="skill-row-toggle" aria-expanded="false" aria-controls="${id}" aria-label="John can, 7 skills">` +
         '<span aria-hidden="true">▸</span><span class="skill-row-label">John can</span><span class="skill-row-count">· 7 skills</span>' +
-        '</button></div>'
+        `</button><div id="${id}" class="skill-row-entries"></div></div>`
     )
     expect(markup).not.toContain('skill-button')
     expect(markup).not.toContain('skill-more')
@@ -47,9 +50,11 @@ describe('the skill row, collapsed (Story 9.1)', () => {
 
   it('reads `▾ <Name> can` with no count when open, its name still carrying the count', () => {
     const markup = row(false, ten)
+    const id = /aria-controls="([^"]+)"/.exec(markup)?.[1] ?? ''
     expect(markup).toContain(
-      '<button type="button" class="skill-row-toggle" aria-expanded="true" aria-label="John can, 10 skills">' +
-        '<span aria-hidden="true">▾</span><span class="skill-row-label">John can</span></button>'
+      `<button type="button" class="skill-row-toggle" aria-expanded="true" aria-controls="${id}" aria-label="John can, 10 skills">` +
+        `<span aria-hidden="true">▾</span><span class="skill-row-label">John can</span></button><div id="${id}" class="skill-row-entries">` +
+        '<button type="button" class="skill-button">'
     )
     expect(markup).not.toContain('skill-row-count')
   })

@@ -10,7 +10,7 @@ import { isPanelId, readWidth } from '../shared/layout'
 import type { Layout } from '../shared/layout'
 import { defaultProjectPathFor, defaultWriteDiagnostic, noProject, senderOf, unexpected } from './bridge-kit'
 import { foldedOf, skillRowOpenOf, widthsOf, withFolded, withSkillRowOpen, withWidth } from './fold/layout'
-import { layoutFilePath, readLayoutFile, writeLayoutFile } from './sources/persistence/layout-file'
+import { layoutFilePath, readLayoutFile, readLayoutToChange, writeLayoutFile } from './sources/persistence/layout-file'
 import type { LayoutToWrite } from './sources/persistence/layout-file'
 
 /**
@@ -55,8 +55,14 @@ export function registerLayoutBridge(deps: LayoutBridgeDeps): void {
   const writeDiagnostic = deps.writeDiagnostic ?? defaultWriteDiagnostic
   const filePath = (): string => layoutFilePath(deps.userDataPath())
 
-  function store(next: LayoutToWrite): void {
-    const outcome = writeLayoutFile(filePath(), next)
+  function store(next: (raw: unknown) => LayoutToWrite): void {
+    const current = readLayoutToChange(filePath())
+    if (!current.ok) {
+      // A file that is there and could not be read is left as it is: writing would replace every width and fold it holds.
+      writeDiagnostic(`layout/unread · ${current.errno}`)
+      return
+    }
+    const outcome = writeLayoutFile(filePath(), next(current.raw))
     if (!outcome.ok) {
       // The width, fold or skill row choice still applies in this window; say so for the developer.
       writeDiagnostic(`layout/unwritten · ${outcome.errno}`)
@@ -88,7 +94,7 @@ export function registerLayoutBridge(deps: LayoutBridgeDeps): void {
       return { ok: true as const, ignored: true as const }
     }
     try {
-      store(withWidth(readLayoutFile(filePath()), panel, width as number | null))
+      store((raw) => withWidth(raw, panel, width as number | null))
       return { ok: true as const }
     } catch (error) {
       return unexpected('layout', error, writeDiagnostic)
@@ -105,7 +111,7 @@ export function registerLayoutBridge(deps: LayoutBridgeDeps): void {
       return { ok: true as const, ignored: true as const }
     }
     try {
-      store(withFolded(readLayoutFile(filePath()), projectKey, folded))
+      store((raw) => withFolded(raw, projectKey, folded))
       return { ok: true as const }
     } catch (error) {
       return unexpected('layout', error, writeDiagnostic)
@@ -113,12 +119,14 @@ export function registerLayoutBridge(deps: LayoutBridgeDeps): void {
   })
 
   ipcMain.handle(LAYOUT_SET_SKILL_ROW_CHANNEL, (_event: IpcMainInvokeEvent, open: unknown) => {
-    // The choice is the user's, not a project's, so no project is needed. Anything but a boolean is ignored.
+    // The choice is the user's, not a project's, so no project is needed. Anything but a boolean is ignored,
+    // and said once for the developer: the preload only ever sends a boolean, so anything else is a renderer bug.
     if (typeof open !== 'boolean') {
+      writeDiagnostic(`layout/ignored · skill-row · ${open === null ? 'null' : typeof open}`)
       return { ok: true as const, ignored: true as const }
     }
     try {
-      store(withSkillRowOpen(readLayoutFile(filePath()), open))
+      store((raw) => withSkillRowOpen(raw, open))
       return { ok: true as const }
     } catch (error) {
       return unexpected('layout', error, writeDiagnostic)

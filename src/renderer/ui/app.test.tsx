@@ -1955,6 +1955,64 @@ describe('App, the skill row opens only when you want it (Story 9.1)', () => {
     expect(toggle().getAttribute('aria-expanded')).toBe('true')
     expect(skillRowWrites).toEqual([true])
   })
+
+  it('stays as it was through a roster change, an install error, and a closed session that remounts the composer', async () => {
+    await openOn('Mary')
+    const session = `session-of-${mary.id}`
+    push({ name: 'session:opened', payload: { sessionId: session, agentId: mary.id, at: 1 } })
+    push({ name: 'session:awaiting-turn', payload: { sessionId: session, at: 2 } })
+    act(() => toggle().click())
+    act(() => more()?.click())
+    expect(buttons()).toHaveLength(7)
+
+    // A new install snapshot: John leaves the roster and the install carries an error.
+    act(() =>
+      installListeners.forEach((listener) =>
+        listener({
+          ...snapshot,
+          revision: 2,
+          agents: [mary],
+          menus: { [mary.id]: seven },
+          errors: [{ code: 'menu/entry-malformed', message: 'menu · Mary · entry ZZ has neither skill nor prompt' }]
+        })
+      )
+    )
+    await settle()
+    expect(mounted!.container.querySelectorAll('.error-line')).toHaveLength(1)
+    expect(toggle().getAttribute('aria-expanded')).toBe('true')
+    // The in-row expansion is the open row's own: a roster change leaves it too.
+    expect(buttons()).toHaveLength(7)
+
+    // Closing her session bumps the composer's key, which remounts the row with it.
+    const composer = field()
+    act(() => mounted!.container.querySelector<HTMLButtonElement>('button.chat-close')?.click())
+    await settle()
+    expect(closedSessions).toEqual([session])
+    expect(field()).not.toBe(composer)
+    expect(toggle().getAttribute('aria-expanded')).toBe('true')
+    // A remount draws the open row afresh, so its expansion starts closed.
+    expect(buttons()).toHaveLength(5)
+    expect(skillRowWrites).toEqual([true])
+  })
+
+  it('lets `Enter` and `Space` reach the toggle uncancelled, so the native button activates on them', async () => {
+    // jsdom does not turn a key into a button's click, so this pins the half the app owns: no handler on the
+    // toggle or above it in the window cancels the keys a native button activates on.
+    await openOn('Mary')
+    const pressed = toggle()
+    pressed.focus()
+    for (const [type, key] of [
+      ['keydown', 'Enter'],
+      ['keydown', ' '],
+      ['keyup', ' ']
+    ] as const) {
+      const event = new KeyboardEvent(type, { key, bubbles: true, cancelable: true })
+      act(() => void pressed.dispatchEvent(event))
+      expect(event.defaultPrevented, `${type} ${JSON.stringify(key)}`).toBe(false)
+    }
+    expect(document.activeElement).toBe(pressed)
+    expect(skillRowWrites).toEqual([])
+  })
 })
 
 describe('App, the running card stays in view (Story 3.14)', () => {

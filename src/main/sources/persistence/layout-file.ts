@@ -13,7 +13,8 @@ import { errnoOf } from '../errno'
  *
  * Reading never throws and never judges: a file that is missing, unreadable or
  * not JSON is `null`, and whatever else was found is handed back as it is for
- * the fold to read tolerantly. Writing is synchronous and atomic (a temporary
+ * the fold to read tolerantly. A write starts from `readLayoutToChange`, which
+ * tells a file that is not there from one that could not be read. Writing is synchronous and atomic (a temporary
  * file beside the target, then a rename) and reports instead of throwing.
  */
 
@@ -26,10 +27,34 @@ export function layoutFilePath(userDataDir: string): string {
 
 /** The parsed JSON of the file, or `null` when it cannot be read as JSON. */
 export function readLayoutFile(filePath: string): unknown {
+  const current = readLayoutToChange(filePath)
+  return current.ok ? current.raw : null
+}
+
+/** Where a write starts from: what the file holds, or the errno of a file that is there and could not be read. */
+export type LayoutToChange = { ok: true; raw: unknown } | { ok: false; errno: string }
+
+/** Errnos that mean there is no file at the path, so a write starts from nothing and loses nothing. */
+const ABSENT = new Set(['ENOENT', 'ENOTDIR'])
+
+/**
+ * The file as a write must start from it. A missing file and one that is not
+ * JSON are `null`, as the read has them, so the write replaces them whole; any
+ * other failure to read is reported, so a write never replaces a file it could
+ * not see with nothing.
+ */
+export function readLayoutToChange(filePath: string): LayoutToChange {
+  let text: string
   try {
-    return JSON.parse(readFileSync(filePath, 'utf8')) as unknown
+    text = readFileSync(filePath, 'utf8')
+  } catch (error) {
+    const errno = errnoOf(error, 'UNKNOWN')
+    return ABSENT.has(errno) ? { ok: true, raw: null } : { ok: false, errno }
+  }
+  try {
+    return { ok: true, raw: JSON.parse(text) as unknown }
   } catch {
-    return null
+    return { ok: true, raw: null }
   }
 }
 

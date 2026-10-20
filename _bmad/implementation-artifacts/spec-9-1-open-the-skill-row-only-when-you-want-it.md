@@ -114,6 +114,22 @@ Pass 1 (blind-hunter, edge-case-hunter, verification-gap; verification-gap filed
 | 15 | blind | sprint-status still `in-progress` while the spec is `in-review` | false | The workflow syncs sprint status at presentation | reject |
 | 16 | blind | `epics.md` notes are missing from the diff | false | Left out of the review diff on purpose, because another session's AD-31 edits share the file. The notes were verified at lines ~4182, 4228 and 4367 | reject |
 
+Pass 2 (bmad-review after commit, 2026-10-20: adversarial, edge-case-hunter, verification-gap; verification-gap filed no gaps). The user asked for every finding to be applied; findings that would change the frozen intent are held for the owner.
+
+| # | Finding | Verdict | Route |
+|---|---------|---------|-------|
+| 1 | A read failure other than a missing file made any layout write replace the file with empty widths and folds | real | patch: `readLayoutToChange` tells ENOENT/ENOTDIR from other errnos; the bridge skips the write and reports `layout/unread · <errno>` |
+| 2 | A non-boolean skill row value was ignored silently | real | patch: `layout/ignored · skill-row · <type>` |
+| 3 | The toggle had no `aria-controls` | real | patch: an always-drawn `.skill-row-entries` region (`display: contents`) named by `useId` |
+| 4 | The expansion reset relied on a closed render (`setState` during render) | real | patch: the open entries are their own component, drawn only while open |
+| 5 | Button UA styles (weight, line-height, alignment, appearance) leaked into the toggle; `.skill-row-label` restated the toggle's type | real | patch |
+| 6 | The toggle's padding moved the label off the composer edge | real | patch: a negative start margin of `--space-sm` keeps the padding as the click target |
+| 7 | The doc comment said the word "skill" never appears in the row | real | patch: the comment now says the count's word is the spec's |
+| 8 | No test of a failed rename or of temp-file cleanup; no app-level test of roster change, error or composer remount; no key test | real | patch: tests added. jsdom does not activate a button on a key, so the app test pins that nothing cancels `Enter`/`Space` |
+| 9 | Windows already open do not see a new choice | held | contradicts the frozen Never "A pushed event" (and pass-1 #7); for the owner |
+| 10 | "N skills" also counts prompt entries | held | the frozen Always fixes the wording; for the owner |
+| 11 | A first-run empty chat hides the skills Story 8.3 relies on | held | contradicts the frozen Always "The empty chat is collapsed too"; for the owner |
+
 ## Verification
 
 **Commands:**

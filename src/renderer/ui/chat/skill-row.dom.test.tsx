@@ -169,7 +169,7 @@ describe('the skill row’s toggle (Story 9.1)', () => {
     expect(view.ran).toEqual([])
   })
 
-  it('is a native button, so `Enter` and `Space` open it (its source has no key handler: tests/negative-surface.test.ts)', () => {
+  it('is a native button, so `Enter` and `Space` open it (no key handler in its source: tests/negative-surface.test.ts; nothing above it cancels them: app.test.tsx)', () => {
     const view = draw(7, false, false)
     expect(view.disclosure().type).toBe('button')
     expect(view.disclosure().tagName).toBe('BUTTON')
@@ -214,7 +214,7 @@ describe('the skill row’s toggle (Story 9.1)', () => {
     expect(view.asked).toEqual([true, false])
   })
 
-  it('never opens or closes by itself when its menu or its hold changes', () => {
+  it('asks for no change of its own when its menu or its hold changes (the app keeps the choice: app.test.tsx covers what it does)', () => {
     const view = draw(7, false, false)
     view.rerender(entries(3), true)
     view.rerender(entries(9), false)

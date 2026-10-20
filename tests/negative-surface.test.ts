@@ -1410,6 +1410,8 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
     it("draws no completion surface: no listbox, datalist, autocomplete, active descendant or popup", () => {
       // A folder heading (Story 5.5) names the rows it folds with `aria-controls`: the one place, and not a completion.
       const FOLDER_HEADING = "src/renderer/ui/outputs/folder-heading.tsx";
+      // Story 9.1's skill row toggle names the entries region it opens with `aria-controls`, the same disclosure.
+      const SKILL_ROW = "src/renderer/ui/chat/skill-row.tsx";
       // Story 7.3's `/` list is the one completion surface, by design, and is exempt by directory: its listbox, the
       // `aria-controls` and `aria-activedescendant` the textarea carries while it is open. It is still no datalist,
       // autocomplete attribute, popup or suggestion, and the two attributes are spelled in its hook alone.
@@ -1417,13 +1419,13 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
       expect(SLASH_LIST.length).toBeGreaterThan(2);
       expect(
         offenders(
-          RENDERER_CODE.filter((path) => path !== FOLDER_HEADING && !SLASH_LIST.includes(path)),
+          RENDERER_CODE.filter((path) => path !== FOLDER_HEADING && path !== SKILL_ROW && !SLASH_LIST.includes(path)),
           /\blistbox\b|<datalist\b|\blist=["{]|aria-autocomplete|aria-activedescendant|aria-haspopup|aria-controls|aria-owns|autoComplete|\bcompletions?\b|\bsuggest/i,
         ),
       ).toEqual([]);
       expect(
         offenders(
-          [FOLDER_HEADING],
+          [FOLDER_HEADING, SKILL_ROW],
           /\blistbox\b|<datalist\b|\blist=["{]|aria-autocomplete|aria-activedescendant|aria-haspopup|aria-owns|autoComplete|\bcompletions?\b|\bsuggest/i,
         ),
       ).toEqual([]);
@@ -1769,12 +1771,17 @@ describe("the skill row knows nothing about what it runs (Story 3.1)", () => {
     expect(offenders(SKILL_FIRST_KIND, /\.action\b|['"]prompt['"]|ResolvedMenuEntry/)).toEqual([]);
   });
 
-  it("owns one piece of local state and adds two interactive elements, the open toggle and `+N more`, neither a tooltip or a list", () => {
+  it("owns one piece of local state, the in-row expansion, and adds two interactive elements, the open toggle and `+N more`, neither a tooltip or a list", () => {
     expect(row.match(/\buseState\(/g)).toHaveLength(1);
     // A skill button, `+N more` and, since Story 9.1, the disclosure toggle that opens the row.
     expect(row.match(/<button\b/g)).toHaveLength(3);
     expect(row).toContain('type="button" className="skill-more" aria-expanded={expanded}');
-    expect(row).toMatch(/className="skill-row-toggle"\s+aria-expanded=\{open\}/);
+    expect(row).toMatch(/className="skill-row-toggle"\s+aria-expanded=\{open\}\s+aria-controls=\{entriesId\}/);
+    // The region it controls is always drawn, its id from `useId`, and holds the entries only while open: the in-row
+    // expansion lives in what it draws then, so a close of any kind drops it.
+    expect(row).toContain('<div id={entriesId} className="skill-row-entries">');
+    expect(row).toContain("{open && <OpenEntries ");
+    expect(row.match(/\buseId\(/g)).toHaveLength(1);
     // Whether the row is open comes in by props: the row keeps it nowhere and calls the one prop to change it.
     expect(row).toContain("onClick={() => onOpenChange(!open)}");
     // A native button: `Enter` and `Space` open it with no key handler of the row's own.

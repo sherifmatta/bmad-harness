@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -252,13 +252,21 @@ describe('the layout bridge: the skill row choice (Story 9.1)', () => {
     expect(read(WINDOW_A).skillRowOpen).toBe(false)
   })
 
-  it('ignores anything that is not a boolean, and writes nothing', () => {
+  it('ignores anything that is not a boolean, writes nothing, and says so for the developer', () => {
     for (const args of [['yes'], [1], [undefined], [null], [{}], ['true'], []]) {
       expect(setSkillRow(WINDOW_A, ...args)).toEqual({ ok: true, ignored: true })
     }
 
     expect(() => statSync(join(userData, 'layout.json'))).toThrow()
-    expect(diagnostics).toEqual([])
+    expect(diagnostics).toEqual([
+      'layout/ignored · skill-row · string',
+      'layout/ignored · skill-row · number',
+      'layout/ignored · skill-row · undefined',
+      'layout/ignored · skill-row · null',
+      'layout/ignored · skill-row · object',
+      'layout/ignored · skill-row · string',
+      'layout/ignored · skill-row · undefined'
+    ])
   })
 
   it('leaves a stored file untouched when it ignores a value', () => {
@@ -312,6 +320,47 @@ describe('the layout bridge: a failure to write', () => {
 
     expect(setSkillRow(WELCOME, true)).toEqual({ ok: true })
     expect(diagnostics).toEqual(['layout/unwritten · ENOTDIR'])
+  })
+
+  it.skipIf(process.getuid?.() === 0)('reports a write the directory refuses by EACCES, leaving the stored file as it was and no temporary file', () => {
+    setWidth(WINDOW_A, 'rail', 400)
+    setFolded(WINDOW_A, ['_bmad/'])
+    const before = readFileSync(join(userData, 'layout.json'), 'utf8')
+    chmodSync(userData, 0o555)
+    try {
+      expect(setSkillRow(WINDOW_A, true)).toEqual({ ok: true })
+      expect(diagnostics).toEqual(['layout/unwritten · EACCES'])
+      expect(readFileSync(join(userData, 'layout.json'), 'utf8')).toBe(before)
+      expect(readdirSync(userData)).toEqual(['layout.json'])
+    } finally {
+      chmodSync(userData, 0o755)
+    }
+  })
+})
+
+describe('the layout bridge: a file it cannot read', () => {
+  it('leaves a file that is there and unreadable as it is, for every write, and says so by its errno', () => {
+    // A directory where the file should be: the read fails with EISDIR, which is not a missing file.
+    mkdirSync(join(userData, 'layout.json'))
+    writeFileSync(join(userData, 'layout.json', 'kept'), 'x')
+
+    expect(setSkillRow(WINDOW_A, true)).toEqual({ ok: true })
+    expect(setWidth(WINDOW_A, 'rail', 400)).toEqual({ ok: true })
+    expect(setFolded(WINDOW_A, ['_bmad/'])).toEqual({ ok: true })
+
+    expect(diagnostics).toEqual(['layout/unread · EISDIR', 'layout/unread · EISDIR', 'layout/unread · EISDIR'])
+    expect(statSync(join(userData, 'layout.json')).isDirectory()).toBe(true)
+    expect(readdirSync(join(userData, 'layout.json'))).toEqual(['kept'])
+    expect(read(WINDOW_A)).toEqual({ sidebar: null, rail: null, room: null, folded: [], skillRowOpen: false })
+  })
+
+  it('still replaces a file that is there but not JSON, as it always has', () => {
+    writeFileSync(join(userData, 'layout.json'), '{not json')
+
+    expect(setSkillRow(WINDOW_A, true)).toEqual({ ok: true })
+
+    expect(diagnostics).toEqual([])
+    expect(stored()).toEqual({ version: 1, widths: {}, folded: {}, skillRowOpen: true })
   })
 })
 

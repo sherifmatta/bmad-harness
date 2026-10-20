@@ -2,7 +2,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, w
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { LAYOUT_VERSION, layoutFilePath, readLayoutFile, writeLayoutFile } from './layout-file'
+import { LAYOUT_VERSION, layoutFilePath, readLayoutFile, readLayoutToChange, writeLayoutFile } from './layout-file'
 
 let dir: string
 
@@ -51,6 +51,32 @@ describe('the layout file', () => {
 
     expect(writeLayoutFile(file, LAYOUT)).toEqual({ ok: true })
     expect(readLayoutFile(file)).toEqual({ version: 1, ...LAYOUT })
+  })
+
+  it('reports the errno of a rename that fails after the temporary file is written, and removes that file', () => {
+    // A directory with something in it where the file should be: the temporary file is written, the rename is refused.
+    const file = layoutFilePath(dir)
+    mkdirSync(file)
+    writeFileSync(join(file, 'kept'), 'x')
+
+    const outcome = writeLayoutFile(file, LAYOUT)
+
+    expect(outcome).toMatchObject({ ok: false })
+    expect(outcome.ok ? '' : outcome.errno).toMatch(/^(EISDIR|ENOTEMPTY|EEXIST|EPERM)$/)
+    expect(readdirSync(dir)).toEqual(['layout.json'])
+    expect(readdirSync(file)).toEqual(['kept'])
+  })
+
+  it('tells a missing file from one that is there and cannot be read, for a write to start from', () => {
+    expect(readLayoutToChange(join(dir, 'nope.json'))).toEqual({ ok: true, raw: null })
+    expect(readLayoutToChange(join(dir, 'nope', 'deeper.json'))).toEqual({ ok: true, raw: null })
+    writeFileSync(join(dir, 'bad.json'), '{not json')
+    expect(readLayoutToChange(join(dir, 'bad.json'))).toEqual({ ok: true, raw: null })
+    writeFileSync(join(dir, 'file'), 'x')
+    expect(readLayoutToChange(join(dir, 'file', 'under-a-file.json'))).toEqual({ ok: true, raw: null })
+    mkdirSync(join(dir, 'a-directory.json'))
+    expect(readLayoutToChange(join(dir, 'a-directory.json'))).toEqual({ ok: false, errno: 'EISDIR' })
+    expect(readLayoutFile(join(dir, 'a-directory.json'))).toBeNull()
   })
 
   it('reports an errno name and throws nothing when it cannot write, leaving no temporary file', () => {
