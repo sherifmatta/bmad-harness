@@ -1533,7 +1533,7 @@ describe('the chat UI as the mockup draws it (2026-10-09)', () => {
     const skills = css('src/renderer/ui/chat/skill-row.css')
 
     expect(rule(skills, '.skill-row-label')).toContain('text-transform: uppercase')
-    expect(rule(skills, '.skill-row-label')).toContain('margin-right: var(--skill-label-trail)')
+    expect(rule(skills, '.skill-row-toggle')).toContain('margin-right: var(--skill-label-trail)')
     expect(tokens.get('--skill-label-trail')).toBe('2px')
     expect(rule(skills, '.skill-more')).toContain('background: var(--panel-2)')
     expect(rule(skills, '.skill-more')).toContain('border: var(--rule-width) solid var(--line)')

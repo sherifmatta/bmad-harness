@@ -157,8 +157,8 @@ describe('the install’s skills (Story 7.3)', () => {
   it('add no channel, command or bridge method, and leave the contract version as it was', () => {
     expect(read('src/shared/events.ts')).toMatch(/export const CONTRACT_VERSION = 1\n/)
     expect(COMMANDS).toHaveLength(8)
-    expect(withoutComments(read('src/shared/channels.ts')).match(/export const \w+_CHANNEL\b/g)).toHaveLength(36)
-    // The bridge's own method count is pinned in `bridge-contract.test.ts` (twenty-four), and no preload file gained one for this.
+    expect(withoutComments(read('src/shared/channels.ts')).match(/export const \w+_CHANNEL\b/g)).toHaveLength(37)
+    // The bridge's own method count is pinned in `bridge-contract.test.ts` (twenty-five since Story 9.1's `setSkillRowOpen`), and no preload file gained one for this.
     expect(withoutComments(read('src/preload/harness-api.d.ts'))).not.toMatch(/\bskills?\b/i)
   })
 })
@@ -222,12 +222,12 @@ describe('the skill-first session’s fields (Story 7.5, audited by Story 7.6)',
     expect(commands).toContain('export type SessionTarget = AgentId | { room: readonly AgentId[] } | { first: string } | { seat: AgentId; message: string; mention?: string } | { seat: AgentId; code: string }')
   })
 
-  it('adds no command, event, channel or bridge method, and leaves the contract at version 1 with 8, 17, 36 and 24', () => {
+  it('adds no command, event, channel or bridge method, and leaves the contract at version 1 with 8, 17, 37 and 25 (Story 9.1 added one layout channel and method)', () => {
     expect(read('src/shared/events.ts')).toMatch(/export const CONTRACT_VERSION = 1\n/)
     expect(COMMANDS).toHaveLength(8)
     expect(EVENTS).toHaveLength(17)
-    expect(withoutComments(read('src/shared/channels.ts')).match(/export const \w+_CHANNEL\b/g)).toHaveLength(36)
-    expect([...withoutComments(read('src/preload/harness-api.d.ts')).matchAll(/^ {2}[a-zA-Z]+\(/gm)]).toHaveLength(24)
+    expect(withoutComments(read('src/shared/channels.ts')).match(/export const \w+_CHANNEL\b/g)).toHaveLength(37)
+    expect([...withoutComments(read('src/preload/harness-api.d.ts')).matchAll(/^ {2}[a-zA-Z]+\(/gm)]).toHaveLength(25)
     // The two earlier additive pins of this epic stand as they were: one `file` each on a story and an epic, one `skills` on the install.
     expect(withoutComments(read('src/shared/board.ts')).match(/\bfile\??:/g)).toHaveLength(2)
     expect(withoutComments(read('src/shared/install.ts')).match(/\bskills: SkillView\[\]/g)).toHaveLength(1)
@@ -301,8 +301,8 @@ describe('a chat per persona’s fields (Epic 8, audited by Story 8.7)', () => {
     expect(EVENTS).toHaveLength(17)
     expect([...entries(mapBody(commands, 'ContractCommands')).keys()]).toEqual(COMMANDS)
     expect([...entries(mapBody(events, 'ContractEvents')).keys()]).toEqual(EVENTS)
-    expect(withoutComments(read('src/shared/channels.ts')).match(/export const \w+_CHANNEL\b/g)).toHaveLength(36)
-    expect([...withoutComments(read('src/preload/harness-api.d.ts')).matchAll(/^ {2}[a-zA-Z]+\(/gm)]).toHaveLength(24)
+    expect(withoutComments(read('src/shared/channels.ts')).match(/export const \w+_CHANNEL\b/g)).toHaveLength(37)
+    expect([...withoutComments(read('src/preload/harness-api.d.ts')).matchAll(/^ {2}[a-zA-Z]+\(/gm)]).toHaveLength(25)
   })
 })
 

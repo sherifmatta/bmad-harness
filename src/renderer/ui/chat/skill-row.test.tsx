@@ -14,8 +14,46 @@ const ENTRIES = [
 const entries = (count: number) => Array.from({ length: count }, (_, at) => ({ code: `C${at}`, description: `Entry ${at}` }))
 const ten = entries(10)
 
-const row = (disabled = false, items = ENTRIES): string =>
-  renderToStaticMarkup(<SkillRow name="John" items={items} disabled={disabled} onRun={() => {}} />)
+// The open row is the subject of most of these (Story 9.1 draws it collapsed until the user opens it).
+const row = (disabled = false, items = ENTRIES, open = true): string =>
+  renderToStaticMarkup(
+    <SkillRow name="John" items={items} disabled={disabled} onRun={() => {}} open={open} onOpenChange={() => {}} />
+  )
+const collapsed = (items = ENTRIES, disabled = false): string => row(disabled, items, false)
+
+describe('the skill row, collapsed (Story 9.1)', () => {
+  it('is one disclosure button reading `▸ <Name> can · <N> skills`, and draws no skill button and no `+N more`', () => {
+    const markup = collapsed(entries(7))
+    expect(markup).toBe(
+      '<div class="skill-row"><button type="button" class="skill-row-toggle" aria-expanded="false" aria-label="John can, 7 skills">' +
+        '<span aria-hidden="true">▸</span><span class="skill-row-label">John can</span><span class="skill-row-count">· 7 skills</span>' +
+        '</button></div>'
+    )
+    expect(markup).not.toContain('skill-button')
+    expect(markup).not.toContain('skill-more')
+  })
+
+  it('counts every entry, and reads `1 skill` for one', () => {
+    expect(collapsed(ten)).toContain('· 10 skills')
+    expect(collapsed(ten)).toContain('aria-label="John can, 10 skills"')
+    expect(collapsed(ENTRIES.slice(0, 1))).toContain('<span class="skill-row-count">· 1 skill</span>')
+    expect(collapsed(ENTRIES.slice(0, 1))).toContain('aria-label="John can, 1 skill"')
+  })
+
+  it('never disables the toggle, and is nothing at no entries', () => {
+    expect(collapsed(ten, true)).not.toContain('disabled')
+    expect(collapsed([])).toBe('')
+  })
+
+  it('reads `▾ <Name> can` with no count when open, its name still carrying the count', () => {
+    const markup = row(false, ten)
+    expect(markup).toContain(
+      '<button type="button" class="skill-row-toggle" aria-expanded="true" aria-label="John can, 10 skills">' +
+        '<span aria-hidden="true">▾</span><span class="skill-row-label">John can</span></button>'
+    )
+    expect(markup).not.toContain('skill-row-count')
+  })
+})
 
 describe('the skill row', () => {
   it('is labelled with the persona, and shows each entry’s description behind its code chip', () => {
@@ -78,7 +116,10 @@ describe('the skill row', () => {
         snapshot={snapshot}
         currentId={agent.id}
         composer={(current, items) => (
-          <Composer agentName={current.name} head={<SkillRow name={current.name} items={items} disabled={false} onRun={() => {}} />} />
+          <Composer
+            agentName={current.name}
+            head={<SkillRow name={current.name} items={items} disabled={false} onRun={() => {}} open onOpenChange={() => {}} />}
+          />
         )}
       />
     )

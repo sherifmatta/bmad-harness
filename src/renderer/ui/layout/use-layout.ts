@@ -9,6 +9,7 @@ type LayoutBridge = {
   getLayout?: () => Layout
   setPanelWidth?: (panel: PanelId, width: number | null) => void
   setFolded?: (dirs: readonly string[]) => void
+  setSkillRowOpen?: (open: boolean) => void
 }
 
 function bridge(): LayoutBridge | undefined {
@@ -18,7 +19,8 @@ function bridge(): LayoutBridge | undefined {
 /**
  * The layout as the window starts from it: asked once, synchronously, and read
  * as tolerantly as main reads it. A width that is not an integer within its
- * panel's range is the default; a folded set that is not strings is nothing folded.
+ * panel's range is the default; a folded set that is not strings is nothing folded;
+ * a skill row choice that is not `true` is collapsed.
  */
 function readInitial(): Layout {
   const asked = bridge()?.getLayout
@@ -38,19 +40,21 @@ function readInitial(): Layout {
     room: readWidth(record['room'], 'room'),
     folded: Array.isArray(record['folded'])
       ? record['folded'].filter((entry): entry is string => typeof entry === 'string')
-      : []
+      : [],
+    skillRowOpen: record['skillRowOpen'] === true
   }
 }
 
 /**
  * The window's layout (Story 5.5), for `App` to provide: what was stored, read
- * once, and the two ways to keep a width or a fold. A write is a request through
+ * once, and the ways to keep a width, a fold or the skill row choice. A write is a request through
  * a named bridge method and reports nothing back; with no such method it only
  * changes what this window shows.
  */
 export function useLayout(): LayoutContextValue {
   const [initial] = useState(readInitial)
   const [folded, setFolded] = useState<ReadonlySet<string>>(() => new Set(initial.folded))
+  const [skillRowOpen, setSkillRowOpen] = useState<boolean>(initial.skillRowOpen === true)
 
   const saveWidth = useCallback((panel: PanelId, width: number | null) => {
     const send = bridge()?.setPanelWidth
@@ -67,11 +71,19 @@ export function useLayout(): LayoutContextValue {
     }
   }, [])
 
+  const saveSkillRowOpen = useCallback((open: boolean) => {
+    setSkillRowOpen(open)
+    const send = bridge()?.setSkillRowOpen
+    if (typeof send === 'function') {
+      send.call(bridge(), open)
+    }
+  }, [])
+
   return useMemo(() => {
     const widths = Object.fromEntries(PANEL_IDS.map((panel) => [panel, initial[panel]])) as Record<
       PanelId,
       number | null
     >
-    return { widths, folded, saveWidth, saveFolded }
-  }, [initial, folded, saveWidth, saveFolded])
+    return { widths, folded, saveWidth, saveFolded, skillRowOpen, saveSkillRowOpen }
+  }, [initial, folded, saveWidth, saveFolded, skillRowOpen, saveSkillRowOpen])
 }

@@ -5,7 +5,11 @@
  *
  * The label is mono at the meta size on the skill-label tracking, uppercase,
  * and sits 2px further from the first button than the row's gap, all as the
- * mockup draws it (`.skillrow .lbl`, :249). DESIGN.md confines uppercase to five
+ * mockup draws it (`.skillrow .lbl`, :249). Since Story 9.1 the label is the
+ * text of the row's disclosure toggle (DESIGN.md *Skill row toggle*): a native
+ * button with no ground and no border, in `meta`, lifted to `text` on hover,
+ * taking the shared focus ring and no motion. The chevron and the count sit
+ * beside the label in the toggle's own type; the count is not uppercase. DESIGN.md confines uppercase to five
  * surfaces and this is not one; the mockup wins, by the user's instruction. The
  * button is a `panel-2` ground with a hairline `line` border at the control
  * radius; its code chip is the accent on its fill at the micro radius. A
@@ -22,13 +26,31 @@
   margin-bottom: var(--space-md);
 }
 
+.skill-row-toggle {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
+  margin-right: var(--skill-label-trail);
+  background: none;
+  border: 0;
+  font-family: var(--mono);
+  font-size: var(--fs-meta);
+  letter-spacing: var(--track-skill-label);
+  color: var(--meta);
+  cursor: pointer;
+}
+
+.skill-row-toggle:hover {
+  color: var(--text);
+}
+
 .skill-row-label {
   font-family: var(--mono);
   font-size: var(--fs-meta);
   letter-spacing: var(--track-skill-label);
   text-transform: uppercase;
-  color: var(--meta);
-  margin-right: var(--skill-label-trail);
+  color: inherit;
 }
 
 .skill-button {

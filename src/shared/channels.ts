@@ -83,11 +83,13 @@ export const THEME_CHOOSE_CHANNEL = 'theme:choose'
 export const OUTPUT_FOLDER_CHOOSE_CHANNEL = 'output-folder:choose'
 
 /**
- * The layout's three (Story 5.5): the widths and folded directories a window asks
- * for (synchronously, so its first paint is at the stored width), then one width
- * a window keeps and the set of directories it has folded. Each write is a
- * request main validates; nothing is pushed.
+ * The layout's four (Story 5.5, Story 9.1): the widths, folded directories and
+ * skill row choice a window asks for (synchronously, so its first paint is at
+ * the stored width), then one width a window keeps, the set of directories it
+ * has folded, and whether the skill row is open. Each write is a request main
+ * validates; nothing is pushed.
  */
 export const LAYOUT_GET_CHANNEL = 'layout:get'
 export const LAYOUT_SET_WIDTH_CHANNEL = 'layout:set-width'
 export const LAYOUT_SET_FOLDED_CHANNEL = 'layout:set-folded'
+export const LAYOUT_SET_SKILL_ROW_CHANNEL = 'layout:set-skill-row'

@@ -44,7 +44,9 @@ function layout(widths: Partial<LayoutContextValue['widths']> = {}): LayoutConte
     widths: { sidebar: null, rail: null, room: null, ...widths },
     folded: new Set(),
     saveWidth: (panel, width) => saved.push([panel, width]),
-    saveFolded: () => {}
+    saveFolded: () => {},
+    skillRowOpen: false,
+    saveSkillRowOpen: () => {}
   }
 }
 

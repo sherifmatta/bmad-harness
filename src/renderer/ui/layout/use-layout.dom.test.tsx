@@ -110,13 +110,58 @@ describe('useLayout', () => {
   })
 })
 
+describe('useLayout, the skill row choice (Story 9.1)', () => {
+  it('is collapsed with no bridge, with no `skillRowOpen`, and with one that is not `true`', () => {
+    expect(renderHook(useLayout).current.skillRowOpen).toBe(false)
+    for (const value of [undefined, false, 'true', 1, null, {}]) {
+      setHarness({ getLayout: () => ({ sidebar: null, rail: null, room: null, folded: [], skillRowOpen: value }) })
+      expect(renderHook(useLayout).current.skillRowOpen, String(value)).toBe(false)
+    }
+    setHarness({
+      getLayout: () => {
+        throw new Error('no')
+      }
+    })
+    expect(renderHook(useLayout).current.skillRowOpen).toBe(false)
+  })
+
+  it('is open from a stored `true`', () => {
+    setHarness({ getLayout: () => ({ sidebar: null, rail: null, room: null, folded: [], skillRowOpen: true }) })
+    expect(renderHook(useLayout).current.skillRowOpen).toBe(true)
+  })
+
+  it('keeps the choice through setSkillRowOpen, with the boolean alone, and shows it at once', () => {
+    const setSkillRowOpen = vi.fn()
+    setHarness({ setSkillRowOpen })
+    const hook = renderHook(useLayout)
+
+    inAct(() => hook.current.saveSkillRowOpen(true))
+    expect(hook.current.skillRowOpen).toBe(true)
+    inAct(() => hook.current.saveSkillRowOpen(false))
+    expect(hook.current.skillRowOpen).toBe(false)
+
+    expect(setSkillRowOpen.mock.calls).toEqual([[true], [false]])
+  })
+
+  it('still applies the choice in the window where the bridge cannot keep it', () => {
+    setHarness({ setSkillRowOpen: 'nope' })
+    const hook = renderHook(useLayout)
+
+    inAct(() => hook.current.saveSkillRowOpen(true))
+
+    expect(hook.current.skillRowOpen).toBe(true)
+  })
+})
+
 describe('the inert layout', () => {
   it('is the defaults and keeps nothing, so a shell with no provider still works', () => {
     expect(INERT_LAYOUT.widths).toEqual({ sidebar: null, rail: null, room: null })
     expect(INERT_LAYOUT.folded.size).toBe(0)
+    expect(INERT_LAYOUT.skillRowOpen).toBe(false)
     expect(() => {
       INERT_LAYOUT.saveWidth('rail', 400)
       INERT_LAYOUT.saveFolded(new Set(['x/']))
+      INERT_LAYOUT.saveSkillRowOpen(true)
     }).not.toThrow()
   })
 })

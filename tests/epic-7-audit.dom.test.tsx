@@ -564,6 +564,8 @@ describe('the `/` list, in the whole App (Story 7.3)', () => {
   it('has no other control, menu entry, tile, panel or shortcut that lists or launches a manifest skill: the menu’s code buttons and `Skill Session` are the two allowed', async () => {
     await start(plain())
     await chooseTile('Mary')
+    // The row is drawn collapsed until it is opened (Story 9.1); opened, its buttons are what is audited here.
+    act(() => root().querySelector<HTMLButtonElement>('.skill-row-toggle')?.click())
 
     // The persona menu's buttons dispatch a menu code and show the menu's own words, none of the manifest's.
     const codeButtons = all('.skill-button', root())

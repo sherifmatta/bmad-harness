@@ -542,6 +542,8 @@ export function App(): JSX.Element | null {
                   items={items}
                   disabled={conversation.sessionOf(agent.id) !== undefined && !conversation.canAnswer(agent.id)}
                   onRun={(code) => conversation.runSkill(agent.id, code)}
+                  open={layout.skillRowOpen}
+                  onOpenChange={layout.saveSkillRowOpen}
                 />
               )
             }

@@ -364,14 +364,15 @@ describe('the skill row’s buttons', () => {
       { code: 'CP', description: 'Create the PRD' },
       { code: 'VP', description: 'Validate a PRD' }
     ]
-    mounted = mount(createElement(SkillRow, { name: 'John', items, disabled: false, onRun: (...args: unknown[]) => void ran.push(args) }))
-    const buttons = [...mounted.container.querySelectorAll('button')]
+    const row = { name: 'John', items, open: true, onOpenChange: () => {} }
+    mounted = mount(createElement(SkillRow, { ...row, disabled: false, onRun: (...args: unknown[]) => void ran.push(args) }))
+    const buttons = [...mounted.container.querySelectorAll('button.skill-button')] as HTMLButtonElement[]
     act(() => buttons[1].click())
     expect(ran).toEqual([['VP']])
 
     mounted.unmount()
-    mounted = mount(createElement(SkillRow, { name: 'John', items, disabled: true, onRun: (...args: unknown[]) => void ran.push(args) }))
-    act(() => mounted?.container.querySelector('button')?.click())
+    mounted = mount(createElement(SkillRow, { ...row, disabled: true, onRun: (...args: unknown[]) => void ran.push(args) }))
+    act(() => mounted?.container.querySelector<HTMLButtonElement>('button.skill-button')?.click())
     expect(ran).toEqual([['VP']])
   })
 })

@@ -4,7 +4,8 @@ import type { PanelId } from '../../shared/layout'
 /**
  * What the layout store holds (Story 5.5), as a rule over whatever was read, with
  * no I/O: two widths per user, one per panel, and the folded Outputs directories
- * per project. Reading is tolerant — a value of the wrong shape is no value and
+ * per project, and one app-wide choice, whether the skill row is open (Story 9.1).
+ * Reading is tolerant — a value of the wrong shape is no value and
  * the next write replaces it — and writing keeps only what is valid.
  */
 
@@ -14,8 +15,8 @@ export type StoredWidths = Partial<Record<PanelId, number>>
 /** The folded directories of every project the store knows, by project key. */
 export type StoredFolded = Record<string, string[]>
 
-/** What a write stores. */
-export type StoredLayout = { widths: StoredWidths; folded: StoredFolded }
+/** What a write stores: the widths, the folds, and whether the skill row is open (Story 9.1). */
+export type StoredLayout = { widths: StoredWidths; folded: StoredFolded; skillRowOpen: boolean }
 
 /** A value of any shape as a record, or `null`. */
 function recordOf(value: unknown): Record<string, unknown> | null {
@@ -57,6 +58,11 @@ export function allFolded(raw: unknown): StoredFolded {
   return folded
 }
 
+/** Whether the skill row is open: only a stored `true` is; anything else, or nothing, is collapsed. */
+export function skillRowOpenOf(raw: unknown): boolean {
+  return recordOf(raw)?.skillRowOpen === true
+}
+
 /** The directories folded for a project, as the store holds them. */
 export function foldedOf(raw: unknown, projectKey: string): string[] {
   const all = allFolded(raw)
@@ -71,7 +77,7 @@ export function withWidth(raw: unknown, panel: PanelId, width: number | null): S
   if (valid !== null) {
     widths[panel] = valid
   }
-  return { widths, folded: allFolded(raw) }
+  return { widths, folded: allFolded(raw), skillRowOpen: skillRowOpenOf(raw) }
 }
 
 /** The store with one project's folded directories replaced, or removed when there are none; the other projects untouched. */
@@ -82,5 +88,10 @@ export function withFolded(raw: unknown, projectKey: string, dirs: readonly stri
   if (kept.length > 0) {
     folded[projectKey] = kept
   }
-  return { widths: widthsOf(raw), folded }
+  return { widths: widthsOf(raw), folded, skillRowOpen: skillRowOpenOf(raw) }
+}
+
+/** The store with the skill row's choice set; the widths and every project's folds untouched. */
+export function withSkillRowOpen(raw: unknown, open: boolean): StoredLayout {
+  return { widths: widthsOf(raw), folded: allFolded(raw), skillRowOpen: open }
 }

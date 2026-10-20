@@ -15,14 +15,33 @@ afterEach(() => {
   mounted = null
 })
 
-function draw(count: number, disabled = false) {
+/**
+ * Mounts the row the way the app holds it: the open choice lives outside, and a toggle asks for it to change.
+ * Most cases here are about the open row (`open` defaults to true); the collapsed default is drawn with `false`.
+ */
+function draw(count: number, disabled = false, startOpen = true) {
   const ran: string[] = []
-  const element = (items: ReturnType<typeof entries>, off: boolean) =>
-    createElement(SkillRow, { name: 'Mary', items, disabled: off, onRun: (code: string) => void ran.push(code) })
+  const asked: boolean[] = []
+  let open = startOpen
+  let items = entries(count)
+  let off = disabled
+  const element = () =>
+    createElement(SkillRow, {
+      name: 'Mary',
+      items,
+      disabled: off,
+      onRun: (code: string) => void ran.push(code),
+      open,
+      onOpenChange: (next: boolean) => {
+        asked.push(next)
+        open = next
+        react.render(element())
+      }
+    })
   const container = document.createElement('div')
   document.body.append(container)
   const react = createRoot(container)
-  act(() => react.render(element(entries(count), disabled)))
+  act(() => react.render(element()))
   const root = {
     container,
     unmount() {
@@ -33,9 +52,19 @@ function draw(count: number, disabled = false) {
   mounted = root
   return {
     ran,
+    asked,
     skills: (): string[] => [...root.container.querySelectorAll('button.skill-button')].map((b) => b.textContent ?? ''),
     toggle: (): HTMLButtonElement | null => root.container.querySelector<HTMLButtonElement>('button.skill-more'),
-    rerender: (items: ReturnType<typeof entries>, off = disabled) => act(() => react.render(element(items, off)))
+    disclosure: (): HTMLButtonElement => root.container.querySelector<HTMLButtonElement>('button.skill-row-toggle') as HTMLButtonElement,
+    rerender: (next: ReturnType<typeof entries>, nextOff = disabled) => {
+      items = next
+      off = nextOff
+      act(() => react.render(element()))
+    },
+    setOpen: (next: boolean) => {
+      open = next
+      act(() => react.render(element()))
+    }
   }
 }
 
@@ -110,5 +139,86 @@ describe('the skill row’s expansion', () => {
     view.rerender(entries(5))
     expect(view.toggle()).toBeNull()
     expect(view.skills()).toHaveLength(5)
+  })
+})
+
+describe('the skill row’s toggle (Story 9.1)', () => {
+  it('starts collapsed when the app says so: one button, no skill button and no `+N more` in the DOM', () => {
+    const view = draw(7, false, false)
+    expect(view.disclosure().getAttribute('aria-expanded')).toBe('false')
+    expect(view.disclosure().textContent).toBe('▸Mary can· 7 skills')
+    expect(view.disclosure().getAttribute('aria-label')).toBe('Mary can, 7 skills')
+    expect(view.disclosure().querySelector('[aria-hidden="true"]')?.textContent).toBe('▸')
+    expect(view.skills()).toEqual([])
+    expect(view.toggle()).toBeNull()
+    expect((mounted as Mounted).container.querySelectorAll('button')).toHaveLength(1)
+  })
+
+  it('opens on a click to five buttons and `+2 more`, asks once, and leaves focus on the toggle', () => {
+    const view = draw(7, false, false)
+    const disclosure = view.disclosure()
+    disclosure.focus()
+    act(() => disclosure.click())
+    expect(view.asked).toEqual([true])
+    expect(view.disclosure()).toBe(disclosure)
+    expect(document.activeElement).toBe(disclosure)
+    expect(disclosure.getAttribute('aria-expanded')).toBe('true')
+    expect(disclosure.textContent).toBe('▾Mary can')
+    expect(view.skills()).toHaveLength(5)
+    expect(view.toggle()?.textContent).toBe('+2 more')
+    expect(view.ran).toEqual([])
+  })
+
+  it('is a native button, so `Enter` and `Space` open it (its source has no key handler: tests/negative-surface.test.ts)', () => {
+    const view = draw(7, false, false)
+    expect(view.disclosure().type).toBe('button')
+    expect(view.disclosure().tagName).toBe('BUTTON')
+  })
+
+  it('closes back to one button, and asks once more', () => {
+    const view = draw(7)
+    act(() => view.disclosure().click())
+    expect(view.asked).toEqual([false])
+    expect(view.skills()).toEqual([])
+    expect(view.toggle()).toBeNull()
+    expect(view.disclosure().textContent).toBe('▸Mary can· 7 skills')
+  })
+
+  it('starts the in-row expansion closed every time the row opens', () => {
+    const view = draw(7)
+    act(() => view.toggle()?.click())
+    expect(view.skills()).toHaveLength(7)
+    act(() => view.disclosure().click())
+    act(() => view.disclosure().click())
+    expect(view.skills()).toHaveLength(5)
+    expect(view.toggle()?.textContent).toBe('+2 more')
+  })
+
+  it('forgets the expansion when the app closes the row, too', () => {
+    const view = draw(7)
+    act(() => view.toggle()?.click())
+    view.setOpen(false)
+    view.setOpen(true)
+    expect(view.skills()).toHaveLength(5)
+  })
+
+  it('stays enabled while a turn is in flight, and toggles; only the skill buttons are held', () => {
+    const view = draw(7, true, false)
+    expect(view.disclosure().disabled).toBe(false)
+    act(() => view.disclosure().click())
+    const buttons = [...(mounted as Mounted).container.querySelectorAll<HTMLButtonElement>('button.skill-button')]
+    expect(buttons).toHaveLength(5)
+    expect(buttons.every((button) => button.disabled)).toBe(true)
+    expect(view.disclosure().disabled).toBe(false)
+    act(() => view.disclosure().click())
+    expect(view.asked).toEqual([true, false])
+  })
+
+  it('never opens or closes by itself when its menu or its hold changes', () => {
+    const view = draw(7, false, false)
+    view.rerender(entries(3), true)
+    view.rerender(entries(9), false)
+    expect(view.disclosure().getAttribute('aria-expanded')).toBe('false')
+    expect(view.asked).toEqual([])
   })
 })

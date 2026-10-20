@@ -5,7 +5,9 @@ import { errnoOf } from '../errno'
 /**
  * Where the layout lives and how it is read and written (Story 5.5): one JSON
  * file, `<userData>/layout.json`, holding `{version, widths: {sidebar, rail, room},
- * folded: {<projectKey>: string[]}}` and nothing else. It is the harness's own
+ * folded: {<projectKey>: string[]}, skillRowOpen: boolean}` and nothing else.
+ * `skillRowOpen` (Story 9.1) is whether the skill row is open, app-wide; a file
+ * written before it has none, which reads as collapsed. It is the harness's own
  * bookkeeping, beside the recent list, the theme and the output folders; nothing
  * is ever written into a project.
  *
@@ -35,6 +37,7 @@ export function readLayoutFile(filePath: string): unknown {
 export type LayoutToWrite = {
   widths: Readonly<Record<string, number>>
   folded: Readonly<Record<string, readonly string[]>>
+  skillRowOpen: boolean
 }
 
 export type LayoutWriteOutcome = { ok: true } | { ok: false; errno: string }
@@ -46,7 +49,12 @@ export function writeLayoutFile(filePath: string, layout: LayoutToWrite): Layout
     mkdirSync(dirname(filePath), { recursive: true })
     writeFileSync(
       temporary,
-      JSON.stringify({ version: LAYOUT_VERSION, widths: layout.widths, folded: layout.folded })
+      JSON.stringify({
+        version: LAYOUT_VERSION,
+        widths: layout.widths,
+        folded: layout.folded,
+        skillRowOpen: layout.skillRowOpen
+      })
     )
     renameSync(temporary, filePath)
     return { ok: true }

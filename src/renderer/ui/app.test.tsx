@@ -77,6 +77,9 @@ let sendRefusal: ((sessionId: string) => unknown) | undefined
 /** What `getBoard` answers with, or a rejection; and who `onBoardChanged` subscribed. */
 let boardNow: () => Promise<unknown>
 let boardListeners: ((next: unknown) => void)[]
+/** What `getLayout` answers beyond the defaults (Story 9.1 reads `skillRowOpen` from it), and each skill row choice kept. */
+let layoutStored: Record<string, unknown>
+let skillRowWrites: unknown[]
 
 function installBridge(): void {
   const bridge = {
@@ -161,7 +164,9 @@ function installBridge(): void {
     onRunRevealed: (listener: (runId: string) => void) => {
       revealListeners.push(listener)
       return () => {}
-    }
+    },
+    getLayout: () => ({ sidebar: null, rail: null, room: null, folded: [], ...layoutStored }),
+    setSkillRowOpen: (open: boolean) => void skillRowWrites.push(open)
   }
   Object.defineProperty(window, 'harness', { value: bridge, configurable: true, writable: true })
 }
@@ -195,6 +200,9 @@ beforeEach(() => {
   }
   conversationNow = () => ({ entries: [], sessions: [], busy: [], personas: [], runs: [] })
   sendRefusal = undefined
+  // Nothing stored: the skill row is collapsed (Story 9.1).
+  layoutStored = {}
+  skillRowWrites = []
   installBridge()
 })
 
@@ -1591,6 +1599,8 @@ describe('App, pressing a skill button (Story 3.1)', () => {
 
   beforeEach(() => {
     dispatched = []
+    // The open row is the subject here: the user opened it before (Story 9.1 draws it collapsed until then).
+    layoutStored = { skillRowOpen: true }
     const harness = window.harness as unknown as Record<string, unknown>
     harness.getInstall = async () => ({
       ...snapshot,
@@ -1706,6 +1716,8 @@ describe('App, the whole menu and only the menu (Story 3.2)', () => {
 
   beforeEach(() => {
     dispatched = []
+    // The open row is the subject here: the user opened it before (Story 9.1 draws it collapsed until then).
+    layoutStored = { skillRowOpen: true }
     install()
   })
 
@@ -1788,6 +1800,160 @@ describe('App, the whole menu and only the menu (Story 3.2)', () => {
     const row = mounted!.container.querySelector('.skill-row') as HTMLElement
     expect(row.querySelector('[title]')).toBeNull()
     expect(row.textContent).not.toMatch(/skill|prompt|action/i)
+  })
+})
+
+describe('App, the skill row opens only when you want it (Story 9.1)', () => {
+  const push = (event: ContractEvent): void => act(() => listeners.forEach((listener) => listener(event)))
+  const buttons = (): HTMLButtonElement[] => [...mounted!.container.querySelectorAll<HTMLButtonElement>('button.skill-button')]
+  const more = (): HTMLButtonElement | null => mounted!.container.querySelector<HTMLButtonElement>('button.skill-more')
+  const toggle = (): HTMLButtonElement => mounted!.container.querySelector<HTMLButtonElement>('button.skill-row-toggle') as HTMLButtonElement
+  const seven = Array.from({ length: 7 }, (_, at) => ({ code: `C${at}`, description: `Entry ${at}` }))
+  const live = (): string => mounted!.container.querySelector('.visually-hidden')?.textContent ?? ''
+
+  beforeEach(() => {
+    const harness = window.harness as unknown as Record<string, unknown>
+    harness.getInstall = async () => ({ ...snapshot, menus: { [mary.id]: seven, [john.id]: [{ code: 'CP', description: 'Create the PRD' }] } })
+  })
+
+  async function openOn(name: string): Promise<void> {
+    mounted = mount(createElement(App))
+    await settle()
+    await settle()
+    act(() => tile(name).click())
+    await settle()
+  }
+
+  it('is collapsed on an empty chat when nothing is stored: one toggle, no skill button and no `+N more`', async () => {
+    await openOn('Mary')
+    expect(toggle().getAttribute('aria-expanded')).toBe('false')
+    expect(toggle().textContent).toBe('▸Mary can· 7 skills')
+    expect(toggle().getAttribute('aria-label')).toBe('Mary can, 7 skills')
+    expect(toggle().disabled).toBe(false)
+    expect(buttons()).toEqual([])
+    expect(more()).toBeNull()
+    expect(mounted!.container.querySelectorAll('.skill-row button')).toHaveLength(1)
+    expect(skillRowWrites).toEqual([])
+  })
+
+  it('reads `1 skill` for a persona with one entry', async () => {
+    await openOn('John')
+    expect(toggle().textContent).toBe('▸John can· 1 skill')
+    expect(toggle().getAttribute('aria-label')).toBe('John can, 1 skill')
+  })
+
+  it('is collapsed for a stored value that is not `true`', async () => {
+    layoutStored = { skillRowOpen: 'yes' }
+    await openOn('Mary')
+    expect(toggle().getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('opens from a stored `true`, with the buttons and `+N more` as before', async () => {
+    layoutStored = { skillRowOpen: true }
+    await openOn('Mary')
+    expect(toggle().getAttribute('aria-expanded')).toBe('true')
+    expect(toggle().textContent).toBe('▾Mary can')
+    expect(buttons()).toHaveLength(5)
+    expect(more()?.textContent).toBe('+2 more')
+    expect(skillRowWrites).toEqual([])
+  })
+
+  it('opens on a press, keeps the choice once, leaves focus on the toggle, and asks main for nothing else', async () => {
+    await openOn('Mary')
+    opened.length = 0
+    const before = mounted!.container.querySelectorAll('.thread > *').length
+    const pressed = toggle()
+    pressed.focus()
+
+    act(() => pressed.click())
+    await settle()
+
+    expect(toggle()).toBe(pressed)
+    expect(document.activeElement).toBe(pressed)
+    expect(pressed.getAttribute('aria-expanded')).toBe('true')
+    expect(buttons()).toHaveLength(5)
+    expect(more()?.textContent).toBe('+2 more')
+    expect(skillRowWrites).toEqual([true])
+    // No transcript entry, no session or conversation command, nothing announced.
+    expect(mounted!.container.querySelectorAll('.thread > *')).toHaveLength(before)
+    expect(opened).toEqual([])
+    expect(seatStarts).toEqual([])
+    expect(sent).toEqual([])
+    expect(dispatchedMenus).toEqual([])
+    expect(closedSessions).toEqual([])
+    expect(closedAgents).toEqual([])
+    expect(ended).toEqual([])
+    expect(turnStopped).toEqual([])
+    expect(live()).toBe('')
+
+    act(() => pressed.click())
+    expect(skillRowWrites).toEqual([true, false])
+    expect(buttons()).toEqual([])
+    expect(document.activeElement).toBe(pressed)
+  })
+
+  it('is one choice for every persona’s chat: opened in Mary’s, John’s is open, and closed in John’s, Mary’s is closed', async () => {
+    await openOn('Mary')
+    act(() => toggle().click())
+
+    act(() => tile('John').click())
+    await settle()
+    expect(toggle().getAttribute('aria-expanded')).toBe('true')
+    expect(buttons().map((button) => button.textContent)).toEqual(['CPCreate the PRD'])
+
+    act(() => toggle().click())
+    act(() => tile('Mary').click())
+    await settle()
+    expect(toggle().getAttribute('aria-expanded')).toBe('false')
+    expect(buttons()).toEqual([])
+    expect(skillRowWrites).toEqual([true, false])
+  })
+
+  it('starts the in-row `+N more` closed every time the row opens', async () => {
+    await openOn('Mary')
+    act(() => toggle().click())
+    act(() => more()?.click())
+    expect(buttons()).toHaveLength(7)
+    act(() => toggle().click())
+    act(() => toggle().click())
+    expect(buttons()).toHaveLength(5)
+    expect(more()?.textContent).toBe('+2 more')
+  })
+
+  it('stays as it was through a first message, a turn starting and ending, and a persona switch', async () => {
+    await openOn('Mary')
+    const session = `session-of-${mary.id}`
+    // Collapsed through a first message and its turn.
+    type(field(), 'hello')
+    act(() => void field().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })))
+    await settle()
+    expect(seatStarts).toEqual([{ seat: mary.id, message: 'hello' }])
+    push({ name: 'session:opened', payload: { sessionId: session, agentId: mary.id, at: 1 } })
+    push({ name: 'persona:said', payload: { sessionId: session, agentId: mary.id, messageId: 'm1', text: 'Hi', at: 2 } })
+    push({ name: 'session:awaiting-turn', payload: { sessionId: session, at: 3 } })
+    expect(toggle().getAttribute('aria-expanded')).toBe('false')
+    expect(buttons()).toEqual([])
+
+    // Open through a turn in flight, which holds the buttons and never the toggle, and its end.
+    act(() => toggle().click())
+    type(field(), 'more')
+    act(() => void field().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })))
+    await settle()
+    expect(sent).toEqual([[session, 'more']])
+    expect(buttons().every((button) => button.disabled)).toBe(true)
+    expect(toggle().disabled).toBe(false)
+    expect(toggle().getAttribute('aria-expanded')).toBe('true')
+    push({ name: 'persona:said', payload: { sessionId: session, agentId: mary.id, messageId: 'm2', text: 'Done', at: 4 } })
+    push({ name: 'session:awaiting-turn', payload: { sessionId: session, at: 5 } })
+    expect(toggle().getAttribute('aria-expanded')).toBe('true')
+    expect(buttons().every((button) => !button.disabled)).toBe(true)
+
+    act(() => tile('John').click())
+    await settle()
+    act(() => tile('Mary').click())
+    await settle()
+    expect(toggle().getAttribute('aria-expanded')).toBe('true')
+    expect(skillRowWrites).toEqual([true])
   })
 })
 
@@ -3950,6 +4116,8 @@ describe('App, selecting a persona gives an empty chat (Story 8.2)', () => {
   }
 
   beforeEach(() => {
+    // The empty chat's row is drawn open here because the user opened it before (Story 9.1 draws it collapsed until then).
+    layoutStored = { skillRowOpen: true }
     const harness = window.harness as unknown as Record<string, unknown>
     harness.getInstall = async () => ({
       ...snapshot,

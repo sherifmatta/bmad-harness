@@ -30,17 +30,19 @@ export const PANELS: Readonly<Record<PanelId, PanelLimits>> = {
 /** The panels, in the order the layout names them. */
 export const PANEL_IDS: readonly PanelId[] = ['sidebar', 'rail', 'room']
 
-/** What the window holds of the layout: a chosen width per panel (or none) and the folded Outputs directories. */
+/** What the window holds of the layout: a chosen width per panel (or none), the folded Outputs directories, and whether the skill row is open. */
 export type Layout = {
   sidebar: number | null
   rail: number | null
   room: number | null
   /** Project-relative directory paths, as the Outputs half groups them (trailing `/`). */
   folded: string[]
+  /** Whether the skill row above the composer is open, app-wide (Story 9.1). Absent reads as collapsed. */
+  skillRowOpen?: boolean
 }
 
 /** The layout of a window that has stored nothing. */
-export const NO_LAYOUT: Layout = { sidebar: null, rail: null, room: null, folded: [] }
+export const NO_LAYOUT: Layout = { sidebar: null, rail: null, room: null, folded: [], skillRowOpen: false }
 
 /** Whether a value is one of the panels. */
 export function isPanelId(value: unknown): value is PanelId {

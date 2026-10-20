@@ -10,6 +10,7 @@ import {
   INSTALL_GET_CHANNEL,
   LAYOUT_GET_CHANNEL,
   LAYOUT_SET_FOLDED_CHANNEL,
+  LAYOUT_SET_SKILL_ROW_CHANNEL,
   LAYOUT_SET_WIDTH_CHANNEL,
   MENU_DISPATCH_CHANNEL,
   OUTPUT_FOLDER_CHOOSE_CHANNEL,
@@ -59,6 +60,7 @@ export {
   INSTALL_GET_CHANNEL,
   LAYOUT_GET_CHANNEL,
   LAYOUT_SET_FOLDED_CHANNEL,
+  LAYOUT_SET_SKILL_ROW_CHANNEL,
   LAYOUT_SET_WIDTH_CHANNEL,
   MENU_DISPATCH_CHANNEL,
   OUTPUT_FOLDER_CHOOSE_CHANNEL,
@@ -155,10 +157,11 @@ const harness: HarnessApi = {
     return reply.outcome
   },
 
-  // The window's layout (Story 5.5), read when the window needs it and never at load: two
-  // widths and this project's folded directories, synchronously, so the first paint is already at
-  // the stored width. The writes are requests: a panel and a width, or the set of folded
-  // directories, and nothing comes back that the window reads. Main validates both.
+  // The window's layout (Story 5.5), read when the window needs it and never at load: the
+  // widths, this project's folded directories and the skill row choice, synchronously, so the first paint is already at
+  // the stored width. The writes are requests: a panel and a width, the set of folded
+  // directories, or whether the skill row is open, and nothing comes back that the window reads.
+  // Main validates all three.
   getLayout: () => ipcRenderer.sendSync(LAYOUT_GET_CHANNEL) as Layout,
 
   setPanelWidth: (panel, width) => {
@@ -167,6 +170,12 @@ const harness: HarnessApi = {
 
   setFolded: (dirs) => {
     void ipcRenderer.invoke(LAYOUT_SET_FOLDED_CHANNEL, [...dirs])
+  },
+
+  // Whether the skill row is open (Story 9.1): one app-wide boolean, a request like the
+  // other two writes. Nothing comes back; main ignores anything that is not a boolean.
+  setSkillRowOpen: (open) => {
+    void ipcRenderer.invoke(LAYOUT_SET_SKILL_ROW_CHANNEL, open)
   },
 
   onDocClosed: (listener) => {

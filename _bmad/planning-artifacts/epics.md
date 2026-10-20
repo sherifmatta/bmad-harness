@@ -4179,6 +4179,8 @@ So that the persona does not speak until I do.
 
 **Boundaries:** no change to what a tile shows, says or orders; no new state or colour; no change to the live dot's meaning (it holds context, FR132); no greeting suppressed after the first message (Story 8.3).
 
+*(Amended 2026-10-20, Story 9.1, built: the empty chat's skill row is still drawn, but collapsed by default, as every persona's row is, to one toggle reading `▸ <Name> can · <N> skills`. Its buttons are drawn only once the user opens it, and the choice is one app-wide value kept in `layout.json` (UX-DR57). Where this story says the row is drawn, it is drawn as that toggle until opened.)*
+
 ### Story 8.3: The first message starts the seat
 
 As someone who has just said something to a persona,
@@ -4222,6 +4224,8 @@ So that opening a chat feels like sending a message, not like waking someone and
 **Decisions to confirm before build (defaults in brackets):** the activation reply and the answer render as one persona turn [yes: the flagged activation turn and the turn after it, in order, nothing edited; two separate turns would show the greeting the owner asked not to see unprompted]; the user's first message shows as sent and not queued [yes: the dimmed marker would say the persona is busy with something the user never asked for]; whether the activation reply is shown at all [yes: hiding any of a persona's words would be the harness editing them, FR21].
 
 **Boundaries:** no change to the argv, to `CONTRACT_VERSION`'s rule or to the turn serialisation; no persona turn the user did not cause; the only stored addition is the `activation` flag, and no word is stored differently.
+
+*(Amended 2026-10-20, Story 9.1, built: the skill row is drawn collapsed by default, so on an empty chat a skill button is pressed only after the user opens the row with its `<Name> can` toggle. What a pressed button does is unchanged: the seat starts with the skill as its first turn.)*
 
 ### Story 8.4: A run in a chat you are not looking at stays in its own chat
 
@@ -4359,6 +4363,8 @@ So that a later change cannot merge the threads, greet unprompted or leak a thre
 **Boundaries:** no feature work; no change to any surface beyond what a failing prohibition requires.
 
 *(Amended 2026-10-20, Story 8.7, built: the closing audit is `tests/epic-8-audit.dom.test.tsx` (the real `App` over every persona, the room and two skill-first sessions), `tests/epic-8-audit.test.ts` (the real session bridge, registry and store over a fake process), the Epic 8 describes in `tests/contract.test.ts` and `tests/negative-surface.test.ts`, and the amendment notes in `EXPERIENCE.md`, `DESIGN.md` and the Architecture Spine. Verified, with no change to `src/`: selecting every persona by click, Enter and Space opens, writes, records and lights nothing; the first message is recorded before the spawn, `/<agentId>` is written once as the first stdin turn and the message after that turn ends; every stored record, in memory and in the file, is in exactly one thread by `shared/thread.ts`, and the file's bytes are identical after repeated reads and turns; closing a persona's thread by `{ agentId }`, stored and then live, leaves every other record, run and session as it was and writes nothing in its place; `conversation.end` is still the one whole clear; no unread mark, count, badge, preview, recency order, suggested persona or `handed to` exists in any `src/` producer; the contract grew only by the named optional fields (`agentId` on `UserRecord`, `SyslineRecord` and `harness:said`, `activation` on `PersonaRecord` and `persona:said`, `TranscriptFile.attributed`, the `{ agentId }` close target and the two `{ seat }` open targets), at `CONTRACT_VERSION` 1, 17 events, 8 commands, 36 channels. The notes on Stories 2.4, 2.8, 2.9, 3.5, 3.10 and 7.4 were checked against what was built and stand as written; none needed adding. Still deferred, on purpose and recorded: the dead collapsed run line (`RunCardLine`, `isCollapsed`, `RunCollapse` and the `collapse` prop of `Turns`) is unreachable since Story 8.4 and still in the code, because removing it touches about ten test files and is cleanup, not an audit.)*
+
+*(Amended 2026-10-20, Story 9.1, built: the audit's skill row is now drawn collapsed by default, and `tests/epic-7-audit.dom.test.tsx` opens it before it audits the code buttons. `tests/epic-8-audit.dom.test.tsx`'s *no count* sweep allows the collapsed toggle's `· <N> skills`, which states how many entries the menu holds and is no unread mark. The layout gained one channel and one bridge method (`layout:set-skill-row`, `setSkillRowOpen`), so the pins read 37 channels and 25 methods; `CONTRACT_VERSION`, the 17 events and the 8 commands are unchanged.)*
 
 
 ---

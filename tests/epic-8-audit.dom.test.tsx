@@ -556,7 +556,16 @@ describe('what is never suggested, in the whole App (Stories 8.4 and 8.6, audite
     for (const words of [...leaves, ...all('[aria-label]', root()).map((node) => node.getAttribute('aria-label') ?? '')]) {
       expect(words).not.toMatch(/^\d+$|\+\d|\b\d+\s+(?:new|unread|live|seats?|sessions?|open|active|running|messages?)\b|recommend|\bnext\b|needs you|badge|unread|suggest|preview/i)
     }
-    expect(all('*', root()).filter((node) => /recommend|next|needs|badge|unread|count|preview|recent|highlight|suggest/.test(node.className.toString()))).toEqual([])
+    // The collapsed skill row's `· <N> skills` (Story 9.1) is the one class that names a count: how many entries the
+    // persona's menu holds, a fact of the menu that never changes with what was said, so it is no unread mark.
+    expect(
+      all('*', root()).filter(
+        (node) =>
+          !node.classList.contains('skill-row-count') &&
+          /recommend|next|needs|badge|unread|count|preview|recent|highlight|suggest/.test(node.className.toString())
+      )
+    ).toEqual([])
+    expect(all('.skill-row-count', root()).map(text)).toEqual(['· 2 skills'])
     // A seat's line is the dot's word and the counter of a working one, never a message or a time of the last word.
     for (const button of tiles()) {
       expect(text(button.querySelector('.state-text'))).toMatch(/^(?:idle|live|ended|working(?: · (?:\d+m )?\d+s)?)$/)

@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-25-2026 17:00
-last_updated: 10-20-2026 12:00
+last_updated: 10-20-2026 14:10
 project: bmad-harness
 project_key: NOKEY
 tracking_system: file-system
@@ -145,11 +145,11 @@ development_status:
   8-7-nothing-this-epic-promised-not-to-do: done
   epic-8-retrospective: optional
 
-  epic-9: backlog
+  epic-9: in-progress
   # Added 2026-10-20. 9.1: the skill row collapses (UX-DR57). 9.2: the output
   # folders nest (UX-DR58). 9.3: the rail's Changes half from git (FR142, UX-DR59),
   # blocked on a bmad-architecture decision for the git source.
-  9-1-open-the-skill-row-only-when-you-want-it: backlog
+  9-1-open-the-skill-row-only-when-you-want-it: review
   9-2-the-output-folders-nest-as-a-tree: backlog
   9-3-see-what-changed-across-the-project-above-the-outputs: backlog
   epic-9-retrospective: optional

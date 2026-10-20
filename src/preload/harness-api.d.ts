@@ -48,8 +48,8 @@ export interface HarnessApi {
   chooseOutputFolder(): Promise<ChooseOutcome>
   /**
    * The layout this window starts from (Story 5.5): the two panel widths the user chose,
-   * or `null` for a panel left at its default, and the Outputs directories this project
-   * has folded. Synchronous, so the first paint is at the stored width; never throws.
+   * or `null` for a panel left at its default, the Outputs directories this project
+   * has folded, and whether the skill row is open (Story 9.1). Synchronous, so the first paint is at the stored width; never throws.
    */
   getLayout(): Layout
   /**
@@ -62,6 +62,12 @@ export interface HarnessApi {
    * request: nothing comes back. Held under `userData`, never in the project.
    */
   setFolded(dirs: readonly string[]): void
+  /**
+   * Keep whether the skill row above the composer is open (Story 9.1): one choice for the
+   * whole app, shared by every persona's chat. A request: nothing comes back, and main
+   * ignores anything that is not a boolean. Held under `userData`, never in the project.
+   */
+  setSkillRowOpen(open: boolean): void
   /**
    * Calls back with the project-relative path of the row whose document window
    * has just been closed by the user; returns the way to stop listening.

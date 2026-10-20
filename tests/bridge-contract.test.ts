@@ -141,20 +141,23 @@ it('answers the output folder’s one channel on the same literal from both side
   expect(registeredHandlers.has(outputFolderBridge.OUTPUT_FOLDER_CHOOSE_CHANNEL)).toBe(true)
 })
 
-it('answers the layout’s three channels on the same literals from both sides (Story 5.5)', () => {
+it('answers the layout’s four channels on the same literals from both sides (Story 5.5, Story 9.1)', () => {
   expect(preload.LAYOUT_GET_CHANNEL).toBe(layoutBridge.LAYOUT_GET_CHANNEL)
   expect(preload.LAYOUT_SET_WIDTH_CHANNEL).toBe(layoutBridge.LAYOUT_SET_WIDTH_CHANNEL)
   expect(preload.LAYOUT_SET_FOLDED_CHANNEL).toBe(layoutBridge.LAYOUT_SET_FOLDED_CHANNEL)
+  expect(preload.LAYOUT_SET_SKILL_ROW_CHANNEL).toBe(layoutBridge.LAYOUT_SET_SKILL_ROW_CHANNEL)
   expect([
     layoutBridge.LAYOUT_GET_CHANNEL,
     layoutBridge.LAYOUT_SET_WIDTH_CHANNEL,
-    layoutBridge.LAYOUT_SET_FOLDED_CHANNEL
-  ]).toEqual(['layout:get', 'layout:set-width', 'layout:set-folded'])
+    layoutBridge.LAYOUT_SET_FOLDED_CHANNEL,
+    layoutBridge.LAYOUT_SET_SKILL_ROW_CHANNEL
+  ]).toEqual(['layout:get', 'layout:set-width', 'layout:set-folded', 'layout:set-skill-row'])
   // The read is answered synchronously, as the theme's state is, so the first paint is at the stored width.
   expect(registeredListeners.has(layoutBridge.LAYOUT_GET_CHANNEL)).toBe(true)
   expect(registeredHandlers.has(layoutBridge.LAYOUT_GET_CHANNEL)).toBe(false)
   expect(registeredHandlers.has(layoutBridge.LAYOUT_SET_WIDTH_CHANNEL)).toBe(true)
   expect(registeredHandlers.has(layoutBridge.LAYOUT_SET_FOLDED_CHANNEL)).toBe(true)
+  expect(registeredHandlers.has(layoutBridge.LAYOUT_SET_SKILL_ROW_CHANNEL)).toBe(true)
 })
 
 it('answers the document channels on the same literals from both sides', () => {
@@ -257,7 +260,7 @@ it('paints each of the three windows from main’s state as its preload loads, a
   }
 })
 
-it('exposes exactly twenty-four named methods, and no channel passthrough', () => {
+it('exposes exactly twenty-five named methods, and no channel passthrough', () => {
   const harness = exposedApis.get('harness')
 
   expect(harness).toBeDefined()
@@ -275,6 +278,7 @@ it('exposes exactly twenty-four named methods, and no channel passthrough', () =
     'getLayout',
     'setPanelWidth',
     'setFolded',
+    'setSkillRowOpen',
     'onDocClosed',
     'openSession',
     'closeSession',
@@ -333,7 +337,7 @@ it('exposes the Welcome exactly seven named methods, four of them its own and th
     }
   }
   // The counts of the other two are untouched by the Welcome's arrival.
-  expect(Object.keys(exposedApis.get('harness') ?? {})).toHaveLength(24)
+  expect(Object.keys(exposedApis.get('harness') ?? {})).toHaveLength(25)
   expect(Object.keys(exposedApis.get('docWindow') ?? {})).toHaveLength(5)
 })
 
@@ -565,11 +569,12 @@ it('sends chooseOutputFolder down its channel with nothing, and resolves with wh
   await expect(choose()).rejects.toEqual(error)
 })
 
-it('asks for the layout only when the window does, and sends a width and a folded set down their own channels, each with only what it holds (Story 5.5)', () => {
+it('asks for the layout only when the window does, and sends a width, a folded set and the skill row choice down their own channels, each with only what it holds (Story 5.5, Story 9.1)', () => {
   const harness = exposedApis.get('harness') as {
     getLayout: () => unknown
     setPanelWidth: (panel: string, width: number | null) => unknown
     setFolded: (dirs: string[]) => unknown
+    setSkillRowOpen: (open: boolean) => unknown
   }
   // Not at load: the three preloads' only synchronous ask is the theme's.
   expect(syncAsked.some(([channel]) => channel === layoutBridge.LAYOUT_GET_CHANNEL)).toBe(false)
@@ -585,10 +590,14 @@ it('asks for the layout only when the window does, and sends a width and a folde
   expect(harness.setPanelWidth('room', null)).toBeUndefined()
   const dirs = ['_bmad/', '_bmad/planning-artifacts/']
   expect(harness.setFolded(dirs)).toBeUndefined()
+  expect(harness.setSkillRowOpen(true)).toBeUndefined()
+  expect(harness.setSkillRowOpen(false)).toBeUndefined()
   expect(invoke.mock.calls).toEqual([
     [layoutBridge.LAYOUT_SET_WIDTH_CHANNEL, 'rail', 400],
     [layoutBridge.LAYOUT_SET_WIDTH_CHANNEL, 'room', null],
-    [layoutBridge.LAYOUT_SET_FOLDED_CHANNEL, dirs]
+    [layoutBridge.LAYOUT_SET_FOLDED_CHANNEL, dirs],
+    [layoutBridge.LAYOUT_SET_SKILL_ROW_CHANNEL, true],
+    [layoutBridge.LAYOUT_SET_SKILL_ROW_CHANNEL, false]
   ])
 })
 

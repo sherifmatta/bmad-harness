@@ -31,9 +31,10 @@ const shipping = filesUnder(SRC).filter(
 describe('the channels', () => {
   const literals = Object.values(channels)
 
-  it('are thirty-six, and distinct', () => {
-    expect(literals).toHaveLength(36)
-    expect(new Set(literals).size).toBe(36)
+  // Thirty-seven since Story 9.1 added the layout's `layout:set-skill-row`.
+  it('are thirty-seven, and distinct', () => {
+    expect(literals).toHaveLength(37)
+    expect(new Set(literals).size).toBe(37)
   })
 
   // `rail:changed` is also the name of the event the rail projection raises,

@@ -4,8 +4,8 @@ import type { PanelId } from '../../../shared/layout'
 
 /**
  * What the window's layout gives the panels and the Outputs list (Story 5.5): the
- * widths the user chose, the directories they folded, and the two ways to keep
- * either. The default is inert, so a `Shell` or an `Outputs` mounted with no
+ * widths the user chose, the directories they folded, whether the skill row is
+ * open (Story 9.1), and the ways to keep each. The default is inert, so a `Shell` or an `Outputs` mounted with no
  * provider (a test, a page with no bridge) shows the defaults and keeps nothing.
  */
 export type LayoutContextValue = {
@@ -17,6 +17,10 @@ export type LayoutContextValue = {
   saveWidth(panel: PanelId, width: number | null): void
   /** Keep the whole folded set. */
   saveFolded(dirs: ReadonlySet<string>): void
+  /** Whether the skill row is open: one choice for the whole app, shared by every persona's chat. */
+  skillRowOpen: boolean
+  /** Open or close the skill row, and keep the choice. */
+  saveSkillRowOpen(open: boolean): void
 }
 
 function nothing(): void {}
@@ -25,7 +29,9 @@ export const INERT_LAYOUT: LayoutContextValue = {
   widths: { sidebar: null, rail: null, room: null },
   folded: new Set<string>(),
   saveWidth: nothing,
-  saveFolded: nothing
+  saveFolded: nothing,
+  skillRowOpen: false,
+  saveSkillRowOpen: nothing
 }
 
 export const LayoutContext = createContext<LayoutContextValue>(INERT_LAYOUT)
