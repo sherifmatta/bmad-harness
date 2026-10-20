@@ -4,7 +4,7 @@ type: design-spine
 description: 'Dense, hairline-ruled desktop shell in two themes, dark and light, that spends its restraint budget on nothing: no portrait, no illustration, no identity device. A person or a skill is an initials disc and a name.'
 status: final
 created: '2026-09-24'
-updated: '2026-10-17'
+updated: '2026-10-20'
 sources:
   - ../../../specs/spec-bmad-visual-harness/SPEC.md
   - ../../../specs/spec-bmad-visual-harness/ui-surfaces.md
@@ -450,6 +450,14 @@ components:
     hoverBorder: '{colors.skill-button-hover-line}'
     codeChip: '{typography.micro} {colors.accent}, border {colors.accent-border}, radius {rounded.micro}'
     moreVariant: '{colors.faint}'
+  skill-row-toggle:
+    form: 'the skill row''s label as a native button: no ground, no border, no radius; a chevron, the label and, collapsed only, the count, on one baseline'
+    label: '{typography.meta} mono, uppercase, the skill-label tracking, {colors.meta}: the label the row already has'
+    chevron: '`▸` collapsed, `▾` open, at the label size and colour, {spacing.sm} before the label, aria-hidden'
+    count: '` · <N> skills` after the label, collapsed only, same type and colour; `1 skill` for one'
+    hover: 'label and count to {colors.text}; no ground and no border change'
+    padding: '{spacing.xs} {spacing.sm}, so the target is no smaller than the text'
+    collapsedRow: 'the toggle alone, with the same {spacing.md} bottom margin as the open row'
   conversation-turn:
     form: 'a flat row: no container, radius, ground or border, for a persona and for you'
     gap: '11px between the disc and the words'
@@ -1034,7 +1042,7 @@ The block has **no chosen state and no disabled state**, because it does not sur
 
 One treatment, everywhere: `{components.focus}` — a `0 0 0 2px {colors.accent}` ring at **2px** offset, drawn outside the element and inheriting its radius. Stacked initials take a **3px** offset so the ring clears the `-5px` overlap of the disc behind. There is no focus fill, no focus shadow, no colour change and no motion; the ring is the whole treatment and it is identical on every primitive.
 
-It is specified for **every surface EXPERIENCE.md requires to be keyboard-operable**: the view switch and each of its buttons, the persona tile, the skill seat, the `Skill Session` button, the skill button and `+N more`, the composer's send button, the decision option, the document card and its stop control, the rail row, a Board card or epic row that has a file (Story 7.1, 2026-10-15), the document window's three escapes, the cast chooser, the party header controls, and the initials token.
+It is specified for **every surface EXPERIENCE.md requires to be keyboard-operable**: the view switch and each of its buttons, the persona tile, the skill seat, the `Skill Session` button, the skill button, `+N more` and the skill row toggle (2026-10-20), the composer's send button, the decision option, the document card and its stop control, the rail row, a Board card or epic row that has a file (Story 7.1, 2026-10-15), the document window's three escapes, the cast chooser, the party header controls, and the initials token.
 
 `:focus-visible` only — a mouse press never draws the ring. Hover and focus are separate treatments and must not be collapsed into one: hover is `panel-2`, focus is the accent ring, and a surface may carry both at once.
 
@@ -1043,6 +1051,12 @@ It is specified for **every surface EXPERIENCE.md requires to be keyboard-operab
 `panel-2` ground, 1px `line`, `{rounded.control}` (4px) radius, `{typography.body-ui}`. Carries a leading code chip in `{typography.micro}` mono, `accent` on transparent with an `accent-border` border at `{rounded.micro}` (2px) radius — one step tighter than its parent. Hover: border `skill-button-hover-line`, ground `panel-3`. The `+N more` variant renders in `faint`.
 
 The row must look right at **1 to 10 entries**. Its overflow behaviour — in-place expansion, and what must never happen instead — is EXPERIENCE.md's (→ *Component Patterns → `+N more`, in detail*).
+
+### Skill row toggle
+
+*Added 2026-10-20.* The row's existing label, `JOHN CAN`, becomes a button and gains a chevron; nothing else about the row is redrawn. It uses the label's own type (`{typography.meta}` mono, uppercase, on the skill-label tracking) in `meta`, so a collapsed row is the quietest thing above the composer: a line of grey mono, with no chip and no border. The chevron is `▸` when the row is closed and `▾` when open, in the same ink. Collapsed, a count follows the label, `JOHN CAN · 5 skills`, in the same type and ink, so the closed row still says what is behind it; one entry reads `1 skill`. Hover lifts the label and count to `text`. There is no ground and no border, which the row's buttons have, because this is a disclosure and not a command. Focus is the shared ring, drawn around the whole label with the padding above so it is not clipped. No new colour, size, radius or token.
+
+Opening the row draws the skill buttons and `+N more` exactly as *Skill button* describes, and closing removes them in one frame: no fade, no arrival, no slide. The composer's height changes with it and nothing else in the layout does. The toggle is not dimmed while a turn is in flight: only the skill buttons take the disabled look. What the toggle does, remembers and never does is EXPERIENCE.md's (→ *Component Patterns → The skill row's collapse, in detail*).
 
 ### Conversation turn
 

@@ -144,6 +144,11 @@ development_status:
   8-6-name-turns-to-another-persona-s-own-chat: done
   8-7-nothing-this-epic-promised-not-to-do: done
   epic-8-retrospective: optional
+
+  epic-9: backlog
+  # Added 2026-10-20. One story: the skill row collapses (UX-DR57).
+  9-1-open-the-skill-row-only-when-you-want-it: backlog
+  epic-9-retrospective: optional
 action_items:
   - id: "epic-1-retro-item-1-make-the-packaged-app-find-claude-and-uv"
     epic: 1

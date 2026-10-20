@@ -360,6 +360,7 @@ This document provides the complete epic and story breakdown for the **BMad Visu
 - **UX-DR54 — A Board card that opens a file** (`EXPERIENCE.md` → *Layout, chat and Board* → Accessibility, Banned here; amended by Story 7.1): a card or epic row with a file is a native button in the tab order (the Board has no roving group) with the shared focus ring and a pointer cursor; one without is text as before. It carries no icon, no count, no hover reveal and no colour of its own, and opening returns focus to it on close.
 - **UX-DR55 — One disc for every person** (`DESIGN.md` → *Initials*, *Persona tile*, *Cast card*, *Welcome*, *Portrait (removed)*; `EXPERIENCE.md` → the *Portrait* row; added by Story 7.7): every persona is the neutral initials disc and a name, 26px on a tile, a cast card, a Welcome row, the cast chooser, an Agents-panel row, the empty thread's introduction and a seat, 22px in the chat header only, 20px for small references; the tile is a 44px row; the disc is `aria-hidden` beside its name and has no tab stop at 26 and 22px; no persona has a colour, tint, icon or image of their own, and no identity device replaces the portrait (`DESIGN.md` → *Brand and Style*).
 - **UX-DR56 — A chat per persona** (`EXPERIENCE.md` → *Layout, chat and Board*, *1:1 Conversation*; `DESIGN.md` → *Chat header*, *Persona tile*, *Thread introduction*; added by Epic 8, 2026-10-17): the chat shows one persona's thread, headed by that persona's 22px initials disc, name and title with the header's existing state and `close session`; an empty persona chat is the existing thread introduction (harness text, no button, handler or tab stop), the skill row and the composer, with no greeting, no live dot and no process behind it; a persona whose chat is in the background shows only the tile's own dot and word, with no unread mark, count, badge, preview or ordering by recency; `close session` is drawn only on a chat that has a live session or a stored thread; the activation reply and the answer are one persona turn in one flat row; no new colour, token, size or component.
+- **UX-DR57 — The skill row collapses** (`EXPERIENCE.md` → *Component Patterns → The skill row's collapse, in detail*; `DESIGN.md` → *Skill row toggle*, `components.skill-row-toggle`; added by Epic 9, 2026-10-20): the persona's skill row is **collapsed by default**, one line of a native toggle button reading `▸ <NAME> CAN · <N> skills` (`1 skill` for one), and opens to the row Epic 8 left (`▾ <NAME> CAN`, the skill buttons, `+N more` / `fewer`); the choice is one app-wide setting kept across restarts and shared by every persona's chat; the toggle writes no transcript entry, announces nothing, never moves or takes focus, opens by itself in no situation, and stays enabled while a turn is in flight; no new colour, size or radius token.
 
 ### FR Coverage Map
 
@@ -698,6 +699,24 @@ Switching between personas feels like switching between colleagues in a chat app
 - **Most of what the owner described is already built.** Background seats stay live (FR132, Story 7.4) and `close session` ends one seat alone. The code evidence found only the tile click spawning a session, which wrote the persona's activation turn at open (`session-process.ts:383`); a first message to a persona who is not live already opens the session on first use.
 - **Three consequences the owner did not name, raised by reading Stories 3.5 and 3.10:** another persona's running card no longer collapses to a line in the viewed chat, since that chat holds only its own persona's records, so its stop control is reached by turning to that persona; a notification click turns the view to that persona's chat, since it names a card the user could not otherwise see; and `conversation.end` still ends everything. Story 8.4 states the first two.
 - **Sequencing:** 8.1, then 8.2, then 8.3; 8.4, 8.5 and 8.6 in any order after 8.1; 8.7 last.
+
+---
+
+### Epic 9: A quieter skill row
+
+The strip of skill buttons above the composer is useful while someone is learning what a persona can do and in the way after that. It collapses to one line, closed until the user opens it, and the choice is kept for the whole app.
+
+**Standalone:** one story, built on the chat as Epic 8 left it; nothing else depends on it.
+
+**FRs covered:** none new; it changes how the skill row of FR138's empty chat and every persona chat is drawn (Stories 8.2, 8.3 and 8.7 amended where they stand)
+
+**NFRs addressed:** NFR12, NFR20, NFR21, NFR22, NFR28
+
+**UX-DRs addressed:** UX-DR57 (UX-DR56 amended; UX-DR52 as a constraint, since the `/` list stays the way to find a skill by name)
+
+**Implementation notes:**
+- **Decided with the owner, 2026-10-20:** collapsed by default, on an empty persona chat too; one app-wide choice, kept across restarts; no auto-open; the toggle works while a turn is in flight. The spines were amended the same day.
+- **The storage place is the story's to settle**, with no separate architecture pass: the layout file already keeps per-user UI state (panel widths) behind a synchronous `layout:get`, and Story 9.1 extends it additively.
 
 ---
 
@@ -4324,3 +4343,65 @@ So that a later change cannot merge the threads, greet unprompted or leak a thre
 **Boundaries:** no feature work; no change to any surface beyond what a failing prohibition requires.
 
 *(Amended 2026-10-20, Story 8.7, built: the closing audit is `tests/epic-8-audit.dom.test.tsx` (the real `App` over every persona, the room and two skill-first sessions), `tests/epic-8-audit.test.ts` (the real session bridge, registry and store over a fake process), the Epic 8 describes in `tests/contract.test.ts` and `tests/negative-surface.test.ts`, and the amendment notes in `EXPERIENCE.md`, `DESIGN.md` and the Architecture Spine. Verified, with no change to `src/`: selecting every persona by click, Enter and Space opens, writes, records and lights nothing; the first message is recorded before the spawn, `/<agentId>` is written once as the first stdin turn and the message after that turn ends; every stored record, in memory and in the file, is in exactly one thread by `shared/thread.ts`, and the file's bytes are identical after repeated reads and turns; closing a persona's thread by `{ agentId }`, stored and then live, leaves every other record, run and session as it was and writes nothing in its place; `conversation.end` is still the one whole clear; no unread mark, count, badge, preview, recency order, suggested persona or `handed to` exists in any `src/` producer; the contract grew only by the named optional fields (`agentId` on `UserRecord`, `SyslineRecord` and `harness:said`, `activation` on `PersonaRecord` and `persona:said`, `TranscriptFile.attributed`, the `{ agentId }` close target and the two `{ seat }` open targets), at `CONTRACT_VERSION` 1, 17 events, 8 commands, 36 channels. The notes on Stories 2.4, 2.8, 2.9, 3.5, 3.10 and 7.4 were checked against what was built and stand as written; none needed adding. Still deferred, on purpose and recorded: the dead collapsed run line (`RunCardLine`, `isCollapsed`, `RunCollapse` and the `collapse` prop of `Turns`) is unreachable since Story 8.4 and still in the code, because removing it touches about ten test files and is cleanup, not an audit.)*
+
+
+---
+
+## Epic 9: A quieter skill row
+
+*Added 2026-10-20 from a request by the owner (Sherif), made to Sally (UX). The UX spines were amended first (`EXPERIENCE.md` *The skill row's collapse, in detail*; `DESIGN.md` *Skill row toggle*). Evidence below was read from the code at HEAD `3b06fff`; the story's spec re-reads it.*
+
+### Story 9.1: Open the skill row only when you want it
+
+As someone who already knows what a persona can do,
+I want the skill row collapsed to one line until I open it,
+So that the strip above the composer stays out of the way, and stays as I left it.
+
+**Implements:** UX-DR57 · NFR12, NFR20, NFR21, NFR22, NFR28 (UX-DR56 and Stories 8.2, 8.3 and 8.7 amended where they stand)
+
+**Evidence:** found by search, to be re-read by the story's spec. `SkillRow` (`src/renderer/ui/chat/skill-row.tsx`) draws `<Name> can`, one `skill-button` per menu entry and, past five, a `+N more` / `fewer` toggle whose `expanded` is the component's own state; it returns nothing for an empty menu. `app.tsx:540` hands it to the composer as its `head`, and omits it only for a persona with no session and a thread that holds records; `disabled` is true while a live session has a turn in flight. The persistence precedent is the layout: `layout:get` is a synchronous `ipcMain.on` answering `{ sidebar, rail, room, folded }` from `<userData>/layout.json`, each write a request main validates (`layout-bridge.ts`), written atomically and, when it fails, reported as a diagnostic while the choice still applies in the window (`layout-file.ts`). Tests that assume an open row: `skill-row.dom.test.tsx` and `skill-row.test.tsx`; `app.test.tsx` (the `button.skill-button` and `button.skill-more` queries and the empty-chat row cases); `tests/epic-7-audit.dom.test.tsx` (`.skill-button` inside `.skill-row`); and `tests/negative-surface.test.ts` (source-text pins on `skill-row.tsx`, including `aria-expanded={expanded}` and the `.skill-row-label` entry in the token audit).
+
+**Acceptance Criteria:**
+
+**Given** a persona's chat, the empty chat included, and no stored choice
+**Then** the skill row is drawn collapsed: a native `<button>` with `aria-expanded="false"` whose visible text is `<Name> can · <N> skills` behind an `aria-hidden` `▸`, `<N>` counting every menu entry and reading `1 skill` for one (UX-DR57)
+**And** no skill button and no `+N more` is drawn, so none is a tab stop and none can be pressed
+**And** a persona with no menu entries has no row and no toggle, and the New session chat, the room and a skill-first session draw none, as before.
+
+**Given** the toggle activated by a click, `Enter` or `Space`
+**Then** the row opens: the chevron reads `▾`, `aria-expanded` is `true`, and the skill buttons and `+N more` / `fewer` are as they were before this story; activating it again closes the row
+**And** no transcript entry, no `session` or `conversation` command and no live-region announcement results, and focus stays on the toggle that was pressed.
+
+**Given** a turn in flight in the persona's session
+**Then** the skill buttons are disabled as before and the toggle is not: it opens and closes the row.
+
+**Given** a persona switch, a first message, a turn starting or ending, a roster change or an error
+**Then** the row's state does not change by itself, and the choice is the same in every persona's chat: opening it for one persona leaves it open for the next
+**And** none of these moves focus to the toggle or takes it from the tile (NFR21).
+
+**Given** a row opened and `+N more` pressed, then the row closed and opened again
+**Then** the row is open with the first five entries, because the in-row expansion is not part of the kept choice.
+
+**Given** the choice
+**Then** main keeps it as one boolean, `skillRowOpen`, in `layout.json` beside the widths, and `layout:get` answers it with the rest; a file with no such field, a file from before this story or one that cannot be read gives collapsed, and `LAYOUT_VERSION` is unchanged
+**And** one new request channel, `layout:set-skill-row`, validates that it was sent a boolean (anything else is ignored with nothing changed) and writes atomically; a failed write is reported as a `layout/unwritten` diagnostic and the choice still applies in the window
+**And** a width or folded write made after it keeps `skillRowOpen`, and the choice survives a restart
+**And** no event is pushed: another open window reads the choice when it next asks.
+
+**Given** the toggle's look
+**Then** it follows `DESIGN.md` *Skill row toggle*: the label's own mono, uppercase type in `meta` with the chevron and, closed, the count; no ground and no border; hover to `text`; the shared focus ring; no motion, or a short height ease not played under reduced motion; and no new colour, size, radius or token
+**And** the `skill-row.css` token audit in `tests/negative-surface.test.ts` carries the toggle's rules by name.
+
+**Given** the tests that assumed an open row (named in the evidence)
+**Then** each is changed on purpose to the new default, or mounted with the open choice stored where the open row is what it tests, and none is deleted for being inconvenient
+**And** a test finds the toggle's state, count wording, `aria-expanded`, focus staying put, the toggle enabled with a turn in flight, and one choice shared by two personas' chats.
+
+**Given** the contract
+**Then** the conversation contract is untouched (`CONTRACT_VERSION`, the 17 events and 8 commands as they stand), the new channel is tied to the literal in the preload that speaks it as the other layout channels are, and the layout answer's new field is additive and optional by name.
+
+**Given** the epic's record
+**Then** Stories 8.2, 8.3 and 8.7 carry a dated note that the skill row is drawn collapsed, and `EXPERIENCE.md` and `DESIGN.md` (amended 2026-10-20) are checked against what was built.
+
+**Decisions to confirm before build (defaults in brackets):** the choice lives in `layout.json` beside the widths [yes: the nearest per-user UI setting; a new file, or a per-project key, are the alternatives; the owner asked for one app-wide setting and the default is exactly that]; the in-row `+N more` expansion is not kept [yes]; the count reads `<N> skills` over every entry [yes]; opening or closing the row leaves the thread's follow state as it is [yes: Story 5.3's rule applies to the composer's height change].
+
+**Boundaries:** no opening by itself in any situation, and no hint, badge or highlight on the toggle; no memory per persona; no change to what a skill button sends or to the `/` list; no row in the New session chat, the room or a skill-first session; no new FR.
