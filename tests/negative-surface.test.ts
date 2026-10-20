@@ -3157,3 +3157,71 @@ describe("the `/` list is the only skill list in the product, and it launches no
     expect(offenders(MAIN_CODE.filter((path) => path !== "src/main/fold/skills.ts"), /canonicalId/)).toEqual([]);
   });
 });
+
+describe("what a chat per persona did not do, and the one predicate behind its threads (Epic 8, audited by Story 8.7)", () => {
+  // The closing sweep of Epic 8. Story 7.4's sweep covers main alone; this one covers every producer there could be.
+  it("has no `handed to` line and no handoff composer anywhere in `src/`: a switch, an `@name` and a close write no line of the kind", () => {
+    // The renderer's `withHandoff` / `onHandoff` names, and the optional `handoff` field a reply may still carry, are not producers.
+    expect(offenders(ALL_CODE, /handed to|handoffFor|createHandoffComposer/)).toEqual([]);
+    expect(offenders(ALL_CODE, /["'`]handed\b/i)).toEqual([]);
+  });
+
+  const THREAD = "src/shared/thread.ts";
+
+  it("declares a persona thread's membership once, in `shared/thread.ts`, and no other file joins `room` with `skillSession` to decide it", () => {
+    const thread = code.get(THREAD) ?? "";
+    expect([...thread.matchAll(/^export (?:function|type) (\w+)/gm)].map(([, name]) => name)).toEqual([
+      "ThreadTagged",
+      "threadAgentOf",
+      "isInPersonaThread",
+    ]);
+    // The one condition: an agent, no room flag, no skill session.
+    expect(thread).toMatch(/record\.agentId === undefined \|\| record\.room === true \|\| record\.skillSession !== undefined/);
+    const joined =
+      /\b(?:\w+\.)?(?:room\s*[!=]==\s*true|skillSession\s*[!=]==\s*undefined)\s*(?:\|\||&&)\s*(?:\w+\.)?(?:room\s*[!=]==\s*true|skillSession\s*[!=]==\s*undefined)/;
+    // Allowed near-duplicates: the one-time attribution of legacy records (it asks which records are still untagged, a
+    // different question from whose thread one is in), and the rail annotations' removal (it filters held runs by
+    // `agentId` alone and has no room or skill field to join).
+    const LEGACY_ATTRIBUTION = "src/main/fold/transcript.ts";
+    expect(offenders(ALL_CODE, joined).map((hit) => hit.split(":")[0]).sort()).toEqual([LEGACY_ATTRIBUTION, THREAD].sort());
+    const fold = code.get(LEGACY_ATTRIBUTION) ?? "";
+    const attribution = fold.slice(fold.indexOf("export function foldAttributeLegacy"));
+    const end = attribution.indexOf("\nexport function", 1);
+    expect(end === -1 ? attribution : attribution.slice(0, end)).toMatch(joined);
+    expect(fold.slice(0, fold.indexOf("export function foldAttributeLegacy"))).not.toMatch(joined);
+    const annotations = code.get("src/main/fold/rail-annotations.ts") ?? "";
+    expect(annotations).not.toMatch(/\bskillSession\b|\broom\b/);
+    expect(annotations).toMatch(/run\.agentId !== agentId/);
+  });
+
+  it("reaches the predicate from the renderer's filter, main's removal, the run cards' owner and the empty-thread and send-count sites", () => {
+    // Main's removal of a thread: the records, the stored runs and the held cards.
+    for (const path of ["src/main/fold/transcript.ts", "src/main/projections/transcript.ts", "src/main/projections/runs.ts"]) {
+      expect(code.get(path) ?? "", path).toMatch(/import \{ threadAgentOf \} from ['"]\.\.\/\.\.\/shared\/thread['"]/);
+      expect(code.get(path) ?? "", path).toMatch(/\bthreadAgentOf\(/);
+    }
+    // The renderer's filter reads each kind of entry through it, and nothing else defines the entry-level question.
+    const entry = code.get("src/renderer/ui/chat/transcript-entry.ts") ?? "";
+    expect(entry).toMatch(/import \{ isInPersonaThread \} from ['"]\.\.\/\.\.\/\.\.\/shared\/thread['"]/);
+    expect(entry.match(/\bisInPersonaThread\(/g)).toHaveLength(2);
+    expect(entry.match(/export function isEntryInPersonaThread\b/g)).toHaveLength(1);
+    // The drawn thread, the empty-thread test, the send count, the close offer and the removal each ask it.
+    for (const path of [
+      "src/renderer/ui/chat/transcript.tsx",
+      "src/renderer/ui/app.tsx",
+      "src/renderer/ui/chat/use-conversation.ts",
+      "src/renderer/ui/chat/conversation-state.ts",
+    ]) {
+      expect(code.get(path) ?? "", path).toMatch(/import \{[^}]*\bisEntryInPersonaThread\b[^}]*\} from ['"][^'"]*transcript-entry['"]/);
+      expect(code.get(path) ?? "", path).toMatch(/\bisEntryInPersonaThread\(/);
+    }
+    const app = code.get("src/renderer/ui/app.tsx") ?? "";
+    expect(app).toMatch(/entry\.kind === 'user' && isEntryInPersonaThread\(entry, viewed\.id\)/);
+    expect(app).toMatch(/!conversation\.entries\.some\(\(entry\) => isEntryInPersonaThread\(entry, viewed\.id\)\)/);
+    expect(app).toMatch(/threadAgentOf\(card\)/);
+    // No second definition of the predicate's name in the renderer or main.
+    expect(
+      offenders(ALL_CODE.filter((path) => path !== THREAD), /\bfunction (?:threadAgentOf|isInPersonaThread)\b|\bconst (?:threadAgentOf|isInPersonaThread)\b/),
+    ).toEqual([]);
+  });
+});

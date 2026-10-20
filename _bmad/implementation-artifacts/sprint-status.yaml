@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-25-2026 17:00
-last_updated: 10-17-2026 14:17
+last_updated: 10-20-2026 12:00
 project: bmad-harness
 project_key: NOKEY
 tracking_system: file-system
@@ -134,7 +134,7 @@ development_status:
   7-6-nothing-this-epic-promised-not-to-do: done
   epic-7-retrospective: done
 
-  epic-8: backlog
+  epic-8: done
   # Added 2026-10-17. Build order: 8-1, then 8-2, then 8-3; 8-4, 8-5 and 8-6 in any order after 8-1; 8-7 last. 8-6's key drops the @ of its title.
   8-1-a-thread-for-each-persona: done
   8-2-select-a-persona-and-get-an-empty-chat: done
@@ -142,7 +142,7 @@ development_status:
   8-4-a-run-in-a-chat-you-are-not-looking-at-stays-in-its-own-chat: done
   8-5-close-a-chat-and-its-history-goes-with-it: done
   8-6-name-turns-to-another-persona-s-own-chat: done
-  8-7-nothing-this-epic-promised-not-to-do: backlog
+  8-7-nothing-this-epic-promised-not-to-do: done
   epic-8-retrospective: optional
 action_items:
   - id: "epic-1-retro-item-1-make-the-packaged-app-find-claude-and-uv"

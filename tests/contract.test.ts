@@ -234,6 +234,78 @@ describe('the skill-first session’s fields (Story 7.5, audited by Story 7.6)',
   })
 })
 
+describe('a chat per persona’s fields (Epic 8, audited by Story 8.7)', () => {
+  const conversation = withoutComments(read('src/shared/conversation.ts'))
+  const events = withoutComments(read('src/shared/events.ts'))
+  const commands = withoutComments(read('src/shared/commands.ts'))
+
+  /** The fields a declared type holds at its own top level, in order, `?` kept: nested object types are one field each. */
+  function fieldsOf(source: string, name: string): string[] {
+    const start = source.indexOf(`export type ${name} = {`)
+    expect(start, `${name} is declared`).toBeGreaterThanOrEqual(0)
+    const body = source.slice(start, source.indexOf('\n}', start))
+    return [...body.matchAll(/^ {2}(\w+\??):/gm)].map(([, field]) => field)
+  }
+
+  it('is `agentId` optional on exactly the user record, the sysline record and the harness:said event, and required where it already was', () => {
+    expect(fieldsOf(conversation, 'UserRecord')).toContain('agentId?')
+    expect(fieldsOf(conversation, 'SyslineRecord')).toContain('agentId?')
+    expect(fieldsOf(events, 'HarnessSaid')).toContain('agentId?')
+    // The persona record keeps its required `agentId`: a persona turn is always one persona's.
+    expect(fieldsOf(conversation, 'PersonaRecord')).toContain('agentId')
+    expect(fieldsOf(conversation, 'PersonaRecord')).not.toContain('agentId?')
+    // The skill's own record names a session, never an agent.
+    expect(fieldsOf(conversation, 'SkillRecord')).not.toContain('agentId')
+    expect(fieldsOf(conversation, 'SkillRecord')).not.toContain('agentId?')
+    // Every `agentId` declaration, by file: conversation.ts holds the persona record's required one, the user's and
+    // the sysline's optional ones, the run card's (Epic 3) and the live-sessions listing's; events.ts holds the five
+    // events' that were there (opened, closed, persona:said, run:started, persona:state) and the one added for harness:said;
+    // commands.ts holds the close target's.
+    expect(conversation.match(/\bagentId\??:/g)).toHaveLength(5)
+    expect(events.match(/\bagentId\??:/g)).toHaveLength(6)
+    expect(commands.match(/\bagentId\??:/g)).toHaveLength(1)
+    expect(conversation.match(/\bagentId\?:/g)).toHaveLength(3)
+    expect(events.match(/\bagentId\?:/g)).toHaveLength(5)
+  })
+
+  it('is `activation` optional on exactly the persona record and the persona:said event, and nowhere else', () => {
+    expect(fieldsOf(conversation, 'PersonaRecord')).toContain('activation?')
+    expect(fieldsOf(events, 'PersonaSaid')).toContain('activation?')
+    expect(conversation.match(/\bactivation\??:/g)).toHaveLength(1)
+    expect(events.match(/\bactivation\??:/g)).toHaveLength(1)
+    expect(commands).not.toMatch(/\bactivation\??:/)
+    for (const name of ['UserRecord', 'SyslineRecord', 'SkillRecord', 'RunCardSnapshot']) {
+      expect(fieldsOf(conversation, name), name).not.toContain('activation?')
+    }
+    for (const name of ['HarnessSaid', 'SessionOpened', 'SessionClosed', 'RunStarted']) {
+      expect(fieldsOf(events, name), name).not.toContain('activation?')
+    }
+  })
+
+  it('keeps the stored file at version 1, with `attributed?` its one field for this epic', () => {
+    expect(fieldsOf(conversation, 'TranscriptFile')).toEqual(['version', 'projectPath', 'entries', 'runs?', 'skillSessions?', 'attributed?'])
+    expect(conversation).toMatch(/export type TranscriptFile = \{\n {2}version: 1\n/)
+    expect(conversation.match(/\battributed\??:/g)).toHaveLength(1)
+    expect(conversation).toMatch(/attributed\?: true\n\}/)
+  })
+
+  it('is `{ agentId }` the one second target of session.close, and the session targets as Story 8.3 left them', () => {
+    expect(commands.match(/\[target: SessionId \| \{ agentId: AgentId \}\]/g)).toHaveLength(1)
+    expect(commands.match(/\{ agentId: AgentId \}/g)).toHaveLength(1)
+    expect(commands).toContain('export type SessionTarget = AgentId | { room: readonly AgentId[] } | { first: string } | { seat: AgentId; message: string; mention?: string } | { seat: AgentId; code: string }')
+  })
+
+  it('adds no command, event, channel or bridge method, and leaves the contract at version 1 with 8 commands and 17 events', () => {
+    expect(read('src/shared/events.ts')).toMatch(/export const CONTRACT_VERSION = 1\n/)
+    expect(COMMANDS).toHaveLength(8)
+    expect(EVENTS).toHaveLength(17)
+    expect([...entries(mapBody(commands, 'ContractCommands')).keys()]).toEqual(COMMANDS)
+    expect([...entries(mapBody(events, 'ContractEvents')).keys()]).toEqual(EVENTS)
+    expect(withoutComments(read('src/shared/channels.ts')).match(/export const \w+_CHANNEL\b/g)).toHaveLength(36)
+    expect([...withoutComments(read('src/preload/harness-api.d.ts')).matchAll(/^ {2}[a-zA-Z]+\(/gm)]).toHaveLength(24)
+  })
+})
+
 describe('the commands in', () => {
   const body = mapBody(withoutComments(read('src/shared/commands.ts')), 'ContractCommands')
   const declared = entries(body)
