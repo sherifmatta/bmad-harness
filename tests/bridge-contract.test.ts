@@ -89,6 +89,7 @@ const installBridge = await import('../src/main/install-bridge')
 const projectBridge = await import('../src/main/project-bridge')
 const railBridge = await import('../src/main/rail-bridge')
 const boardBridge = await import('../src/main/board-bridge')
+const changesBridge = await import('../src/main/changes-bridge')
 const docBridge = await import('../src/main/doc-bridge')
 const outputFolderBridge = await import('../src/main/output-folder-bridge')
 const layoutBridge = await import('../src/main/layout-bridge')
@@ -135,29 +136,42 @@ it('answers the Board’s two channels on the same literals from both sides (Sto
   expect(registeredHandlers.has(boardBridge.BOARD_CHANGED_CHANNEL)).toBe(false)
 })
 
+it('answers the Changes half’s two channels on the same literals from both sides (Story 9.3)', () => {
+  expect(preload.CHANGES_GET_CHANNEL).toBe(changesBridge.CHANGES_GET_CHANNEL)
+  expect(preload.CHANGES_CHANGED_CHANNEL).toBe(changesBridge.CHANGES_CHANGED_CHANNEL)
+  expect(preload.CHANGES_GET_CHANNEL).toBe('changes:get')
+  expect(preload.CHANGES_CHANGED_CHANNEL).toBe('changes:changed')
+  expect(registeredHandlers.has(changesBridge.CHANGES_GET_CHANNEL)).toBe(true)
+  // The change is a push to a window: nothing answers on it.
+  expect(registeredHandlers.has(changesBridge.CHANGES_CHANGED_CHANNEL)).toBe(false)
+})
+
 it('answers the output folder’s one channel on the same literal from both sides', () => {
   expect(preload.OUTPUT_FOLDER_CHOOSE_CHANNEL).toBe(outputFolderBridge.OUTPUT_FOLDER_CHOOSE_CHANNEL)
   expect(preload.OUTPUT_FOLDER_CHOOSE_CHANNEL).toBe('output-folder:choose')
   expect(registeredHandlers.has(outputFolderBridge.OUTPUT_FOLDER_CHOOSE_CHANNEL)).toBe(true)
 })
 
-it('answers the layout’s four channels on the same literals from both sides (Story 5.5, Story 9.1)', () => {
+it('answers the layout’s five channels on the same literals from both sides (Story 5.5, Story 9.1, Story 9.3)', () => {
   expect(preload.LAYOUT_GET_CHANNEL).toBe(layoutBridge.LAYOUT_GET_CHANNEL)
   expect(preload.LAYOUT_SET_WIDTH_CHANNEL).toBe(layoutBridge.LAYOUT_SET_WIDTH_CHANNEL)
   expect(preload.LAYOUT_SET_FOLDED_CHANNEL).toBe(layoutBridge.LAYOUT_SET_FOLDED_CHANNEL)
   expect(preload.LAYOUT_SET_SKILL_ROW_CHANNEL).toBe(layoutBridge.LAYOUT_SET_SKILL_ROW_CHANNEL)
+  expect(preload.LAYOUT_SET_RAIL_SPLIT_CHANNEL).toBe(layoutBridge.LAYOUT_SET_RAIL_SPLIT_CHANNEL)
   expect([
     layoutBridge.LAYOUT_GET_CHANNEL,
     layoutBridge.LAYOUT_SET_WIDTH_CHANNEL,
     layoutBridge.LAYOUT_SET_FOLDED_CHANNEL,
-    layoutBridge.LAYOUT_SET_SKILL_ROW_CHANNEL
-  ]).toEqual(['layout:get', 'layout:set-width', 'layout:set-folded', 'layout:set-skill-row'])
+    layoutBridge.LAYOUT_SET_SKILL_ROW_CHANNEL,
+    layoutBridge.LAYOUT_SET_RAIL_SPLIT_CHANNEL
+  ]).toEqual(['layout:get', 'layout:set-width', 'layout:set-folded', 'layout:set-skill-row', 'layout:set-rail-split'])
   // The read is answered synchronously, as the theme's state is, so the first paint is at the stored width.
   expect(registeredListeners.has(layoutBridge.LAYOUT_GET_CHANNEL)).toBe(true)
   expect(registeredHandlers.has(layoutBridge.LAYOUT_GET_CHANNEL)).toBe(false)
   expect(registeredHandlers.has(layoutBridge.LAYOUT_SET_WIDTH_CHANNEL)).toBe(true)
   expect(registeredHandlers.has(layoutBridge.LAYOUT_SET_FOLDED_CHANNEL)).toBe(true)
   expect(registeredHandlers.has(layoutBridge.LAYOUT_SET_SKILL_ROW_CHANNEL)).toBe(true)
+  expect(registeredHandlers.has(layoutBridge.LAYOUT_SET_RAIL_SPLIT_CHANNEL)).toBe(true)
 })
 
 it('answers the document channels on the same literals from both sides', () => {
@@ -260,7 +274,7 @@ it('paints each of the three windows from main’s state as its preload loads, a
   }
 })
 
-it('exposes exactly twenty-five named methods, and no channel passthrough', () => {
+it('exposes exactly twenty-eight named methods, and no channel passthrough', () => {
   const harness = exposedApis.get('harness')
 
   expect(harness).toBeDefined()
@@ -268,6 +282,8 @@ it('exposes exactly twenty-five named methods, and no channel passthrough', () =
     'getProjectPath',
     'getInstall',
     'onInstallChanged',
+    'getChanges',
+    'onChangesChanged',
     'getBranch',
     'getRail',
     'onRailChanged',
@@ -279,6 +295,7 @@ it('exposes exactly twenty-five named methods, and no channel passthrough', () =
     'setPanelWidth',
     'setFolded',
     'setSkillRowOpen',
+    'setRailSplit',
     'onDocClosed',
     'openSession',
     'closeSession',
@@ -337,7 +354,7 @@ it('exposes the Welcome exactly seven named methods, four of them its own and th
     }
   }
   // The counts of the other two are untouched by the Welcome's arrival.
-  expect(Object.keys(exposedApis.get('harness') ?? {})).toHaveLength(25)
+  expect(Object.keys(exposedApis.get('harness') ?? {})).toHaveLength(28)
   expect(Object.keys(exposedApis.get('docWindow') ?? {})).toHaveLength(5)
 })
 
@@ -429,6 +446,32 @@ it('hands a subscriber the snapshot and never the event, and unsubscribes that v
   unsubscribe()
   expect(removed).toEqual([[installBridge.INSTALL_CHANGED_CHANNEL, added[0]]])
   expect(listeners.get(installBridge.INSTALL_CHANGED_CHANNEL)?.size).toBe(0)
+})
+
+it('turns a refused changes:get into a rejection carrying the envelope, resolves the snapshot itself otherwise, and hands a subscriber only the snapshot (Story 9.3)', async () => {
+  const error = { code: 'changes/no-project', message: 'changes · no project is open for this window' }
+  const harness = exposedApis.get('harness') as {
+    getChanges: () => Promise<unknown>
+    onChangesChanged: (listener: (snapshot: unknown) => void) => () => void
+  }
+
+  invoke.mockResolvedValue({ ok: false, error })
+  await expect(harness.getChanges()).rejects.toEqual(error)
+  expect(invoke).toHaveBeenCalledWith(changesBridge.CHANGES_GET_CHANNEL)
+
+  const snapshot = { kind: 'reading', revision: 1, root: 'p' }
+  invoke.mockResolvedValue({ ok: true, snapshot })
+  await expect(harness.getChanges()).resolves.toEqual(snapshot)
+
+  const received: unknown[] = []
+  removed.length = 0
+  const unsubscribe = harness.onChangesChanged((pushed) => received.push(pushed))
+  const added = [...(listeners.get(changesBridge.CHANGES_CHANGED_CHANNEL) ?? [])]
+  expect(added).toHaveLength(1)
+  ;(added[0] as (event: unknown, snapshot: unknown) => void)({ sender: 'raw event' }, snapshot)
+  expect(received).toEqual([snapshot])
+  unsubscribe()
+  expect(removed).toEqual([[changesBridge.CHANGES_CHANGED_CHANNEL, added[0]]])
 })
 
 it('turns a refused board:get into a rejection carrying the envelope, and resolves the snapshot itself otherwise', async () => {
@@ -569,12 +612,13 @@ it('sends chooseOutputFolder down its channel with nothing, and resolves with wh
   await expect(choose()).rejects.toEqual(error)
 })
 
-it('asks for the layout only when the window does, and sends a width, a folded set and the skill row choice down their own channels, each with only what it holds (Story 5.5, Story 9.1)', () => {
+it('asks for the layout only when the window does, and sends a width, a folded set, the skill row choice and the rail split down their own channels, each with only what it holds (Story 5.5, Story 9.1, Story 9.3)', () => {
   const harness = exposedApis.get('harness') as {
     getLayout: () => unknown
     setPanelWidth: (panel: string, width: number | null) => unknown
-    setFolded: (dirs: string[]) => unknown
+    setFolded: (dirs: string[], half?: 'changes') => unknown
     setSkillRowOpen: (open: boolean) => unknown
+    setRailSplit: (share: number | null) => unknown
   }
   // Not at load: the three preloads' only synchronous ask is the theme's.
   expect(syncAsked.some(([channel]) => channel === layoutBridge.LAYOUT_GET_CHANNEL)).toBe(false)
@@ -592,12 +636,19 @@ it('asks for the layout only when the window does, and sends a width, a folded s
   expect(harness.setFolded(dirs)).toBeUndefined()
   expect(harness.setSkillRowOpen(true)).toBeUndefined()
   expect(harness.setSkillRowOpen(false)).toBeUndefined()
+  // The Changes half's set crosses with its half; the Outputs half's crosses as it always did, with none.
+  expect(harness.setFolded(['src/'], 'changes')).toBeUndefined()
+  expect(harness.setRailSplit(0.3)).toBeUndefined()
+  expect(harness.setRailSplit(null)).toBeUndefined()
   expect(invoke.mock.calls).toEqual([
     [layoutBridge.LAYOUT_SET_WIDTH_CHANNEL, 'rail', 400],
     [layoutBridge.LAYOUT_SET_WIDTH_CHANNEL, 'room', null],
     [layoutBridge.LAYOUT_SET_FOLDED_CHANNEL, dirs],
     [layoutBridge.LAYOUT_SET_SKILL_ROW_CHANNEL, true],
-    [layoutBridge.LAYOUT_SET_SKILL_ROW_CHANNEL, false]
+    [layoutBridge.LAYOUT_SET_SKILL_ROW_CHANNEL, false],
+    [layoutBridge.LAYOUT_SET_FOLDED_CHANNEL, ['src/'], 'changes'],
+    [layoutBridge.LAYOUT_SET_RAIL_SPLIT_CHANNEL, 0.3],
+    [layoutBridge.LAYOUT_SET_RAIL_SPLIT_CHANNEL, null]
   ])
 })
 

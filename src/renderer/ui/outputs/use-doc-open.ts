@@ -11,15 +11,17 @@ export type DocOpenBridge = {
 
 /**
  * Ask main to open the row's document. A command, not a read: nothing comes
- * back but whether main acted, and a refusal is swallowed here because nothing
- * legitimate produces one — a row's path is always a path under the output folder. With
- * no bridge (a preload that failed to load) it does nothing.
+ * back but whether main acted. A refusal is expected and says nothing to the
+ * user: main admits a rail row's path under the output folder, and a Changes row's
+ * path only when it and its real path are both listed (Story 9.3, AD-13), so an
+ * untracked link to an unlisted file is refused by design. `onRefused` hears it.
+ * With no bridge (a preload that failed to load) it does nothing.
  */
-export function openDocument(bridge: Partial<DocOpenBridge> | undefined, path: string): void {
+export function openDocument(bridge: Partial<DocOpenBridge> | undefined, path: string, onRefused: () => void = () => {}): void {
   if (typeof bridge?.openDoc !== 'function') {
     return
   }
-  bridge.openDoc(path).catch(() => {})
+  bridge.openDoc(path).catch(onRefused)
 }
 
 /**
@@ -82,7 +84,8 @@ export function useDocOpen(onClosed: (path: string) => void): (path: string) => 
   return useCallback(
     (path: string) => {
       openers.set(path, self)
-      openDocument(window.harness, path)
+      // A refused open leaves no window to close, so nobody owns the path.
+      openDocument(window.harness, path, () => openers.get(path) === self && openers.delete(path))
     },
     [self]
   )

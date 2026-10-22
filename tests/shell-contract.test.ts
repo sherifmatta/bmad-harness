@@ -297,8 +297,11 @@ describe('the shell furniture stays within scope', () => {
       const text = code(path)
       // The two inline styles are the sidebar's and the rail's own width while the user has chosen one
       // (Story 5.5): the token's property overridden, set by `usePanelWidth` and by nothing in the shell.
-      expect(text.replace('style={sidebarStyle}', '').replace('style={railStyle}', ''), path).not.toMatch(/style=\{/)
-      expect(text.match(/style=\{/g)?.length ?? 0, path).toBe(path.endsWith('/shell.tsx') ? 2 : 0)
+      // Story 9.3 adds the rail halves' share, `--rail-half-basis`, set by `useRailSplit`: a rail half
+      // takes the `style` it is given, and the shell gives the Changes half and the Outputs half theirs.
+      const exempt = ['style={sidebarStyle}', 'style={railStyle}', 'style={style}', 'style={changesStyle}', 'style={outputsStyle}']
+      expect(exempt.reduce((left, spelled) => left.replace(spelled, ''), text), path).not.toMatch(/style=\{/)
+      expect(text.match(/style=\{/g)?.length ?? 0, path).toBe(path.endsWith('/shell.tsx') ? 5 : 0)
       expect(text, path).not.toMatch(/aria-live/)
       expect(text, path).not.toMatch(/\bHelp\b/)
       expect(text, path).not.toMatch(/spinner|skeleton/i)

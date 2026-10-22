@@ -1,6 +1,6 @@
 import { open, realpath, stat } from 'node:fs/promises'
 import { watch } from 'chokidar'
-import { DOC_MAX_BYTES, DOC_SNIFF_BYTES } from '../../../shared/document'
+import { DOC_MAX_BYTES } from '../../../shared/document'
 import { isInside } from './resolve-document'
 
 /**
@@ -28,11 +28,19 @@ export type DocRead =
   | { state: 'present'; text: string; truncated: boolean }
   | { state: 'missing' | 'unreadable' | 'binary' | 'refused' }
 
+/**
+ * What a window's every read must stay within, fixed at open (AD-13 amended): a
+ * directory (`<root>/<output folder>`, admission 1) the file's real path must sit
+ * inside, or the one real path a Changes row was admitted at (admission 2), which
+ * the file's real path must still equal.
+ */
+export type DocBoundary = string | { realPath: string }
+
 /** How one look at the file is taken; `watchDocument` takes it as a dependency. */
 export type DocumentReader = (
   fullPath: string,
   onError: (error: unknown) => void,
-  boundary?: string
+  boundary?: DocBoundary
 ) => Promise<DocRead>
 
 function codeOf(error: unknown): string | undefined {
@@ -41,14 +49,64 @@ function codeOf(error: unknown): string | undefined {
     : undefined
 }
 
+/** How many bytes the UTF-8 sequence a lead byte starts takes; 0 for a byte that leads none. */
+function sequenceLength(byte: number): number {
+  if (byte >= 0xf0 && byte <= 0xf7) {
+    return 4
+  }
+  if (byte >= 0xe0) {
+    return byte <= 0xef ? 3 : 0
+  }
+  if (byte >= 0xc0) {
+    return 2
+  }
+  return byte < 0x80 ? 1 : 0
+}
+
 /**
- * Read at most `DOC_MAX_BYTES` of `fullPath` and say what it is. A NUL byte in
- * the first `DOC_SNIFF_BYTES` makes it `binary`. A file that is not there is
- * `missing`; any other failure is `unreadable`, and `onError` is told why.
+ * A truncated read without the sequence the cut fell inside: the last lead byte
+ * within the final three, when the bytes after it are fewer than it needs. Only
+ * an incomplete tail is trimmed; anything else invalid is left to the decoder.
+ */
+export function trimIncompleteTail(bytes: Uint8Array): Uint8Array {
+  for (let back = 1; back <= Math.min(3, bytes.length); back += 1) {
+    const at = bytes.length - back
+    const byte = bytes[at] as number
+    if (byte < 0x80 || byte >= 0xc0) {
+      const needs = sequenceLength(byte)
+      return needs > back ? bytes.subarray(0, at) : bytes
+    }
+  }
+  return bytes
+}
+
+/**
+ * The text of `bytes`, or `null` when they are not UTF-8 text: a NUL byte anywhere, or an invalid sequence.
+ * `cutShort` says the bytes are not the whole file, so an incomplete last sequence is trimmed, not invalid.
+ */
+export function decodeText(bytes: Uint8Array, cutShort: boolean): string | null {
+  if (bytes.includes(0)) {
+    return null
+  }
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(cutShort ? trimIncompleteTail(bytes) : bytes)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Read at most `DOC_MAX_BYTES` of `fullPath` and say what it is. A NUL byte or
+ * invalid UTF-8 within the bounded read makes it `binary`; a sequence the
+ * `DOC_MAX_BYTES` cut fell inside is not invalid, and is left off. A file that is
+ * not there is `missing`; any other failure is `unreadable`, and `onError` is
+ * told why.
  *
- * With a `boundary` — the project's `<root>/<output folder>` — every read re-checks
- * containment (NFR8): the file's real path must sit inside the boundary's real
- * path, else the read is `refused` and nothing is opened. The check is per
+ * With a `boundary` every read re-checks it (NFR8, AD-13 amended). A directory —
+ * the project's `<root>/<output folder>` — is containment: the file's real path
+ * must sit inside the boundary's real path. A `{ realPath }` — a Changes row's,
+ * admitted at open — is identity: the file's real path must still be exactly that
+ * one. Otherwise the read is `refused` and nothing is opened. The check is per
  * read, because what a path leads to can change after the window opened: a file
  * swapped for a link out, or a missing one created under a directory linked
  * out. The file is then opened by its real path, so the link is not followed a
@@ -57,7 +115,7 @@ function codeOf(error: unknown): string | undefined {
 export async function readDocument(
   fullPath: string,
   onError: (error: unknown) => void = () => {},
-  boundary?: string
+  boundary?: DocBoundary
 ): Promise<DocRead> {
   let handle: Awaited<ReturnType<typeof open>> | undefined
   try {
@@ -76,13 +134,17 @@ export async function readDocument(
         // be shown, so nothing is read.
         return { state: 'refused' }
       }
-      let realBoundary: string
-      try {
-        realBoundary = await realpath(boundary)
-      } catch {
-        return { state: 'refused' }
-      }
-      if (!isInside(realBoundary, realTarget)) {
+      if (typeof boundary === 'string') {
+        let realBoundary: string
+        try {
+          realBoundary = await realpath(boundary)
+        } catch {
+          return { state: 'refused' }
+        }
+        if (!isInside(realBoundary, realTarget)) {
+          return { state: 'refused' }
+        }
+      } else if (realTarget !== boundary.realPath) {
         return { state: 'refused' }
       }
       target = realTarget
@@ -102,15 +164,14 @@ export async function readDocument(
       bytesRead = (await handle.read(buffer, 0, buffer.length, 0)).bytesRead
     }
 
-    const bytes = buffer.subarray(0, bytesRead)
-    if (bytes.subarray(0, DOC_SNIFF_BYTES).includes(0)) {
+    const truncated = info.size > DOC_MAX_BYTES
+    // Cut short either way, by the bound or by a file that shrank between the stat and the read: a
+    // sequence the cut fell inside is left off, and only `truncated` is reported.
+    const text = decodeText(buffer.subarray(0, bytesRead), truncated || bytesRead < info.size)
+    if (text === null) {
       return { state: 'binary' }
     }
-    return {
-      state: 'present',
-      text: new TextDecoder('utf-8').decode(bytes),
-      truncated: info.size > DOC_MAX_BYTES
-    }
+    return { state: 'present', text, truncated }
   } catch (error) {
     const code = codeOf(error)
     if (code === 'ENOENT' || code === 'ENOTDIR') {
@@ -137,8 +198,8 @@ export function watchDocument({
   onError
 }: {
   fullPath: string
-  /** The project's `<root>/<output folder>`: every read must stay inside its real path. */
-  boundary?: string
+  /** The project's `<root>/<output folder>`, every read inside its real path; or a Changes row's admitted real path, every read at it. */
+  boundary?: DocBoundary
   /** How a read is taken. Injectable so a test can hold one in flight. */
   read?: DocumentReader
   onRead: (read: DocRead) => void

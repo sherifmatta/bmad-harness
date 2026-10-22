@@ -15,7 +15,15 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true })
 })
 
-const LAYOUT = { widths: { rail: 400, room: 300 }, folded: { '/work/a': ['_bmad/', '_bmad/ux/'] }, skillRowOpen: true }
+const LAYOUT = {
+  widths: { rail: 400, room: 300 },
+  folded: { '/work/a': ['_bmad/', '_bmad/ux/'] },
+  skillRowOpen: true,
+  railSplit: null,
+  changesFolded: {}
+}
+/** What the file holds for `LAYOUT`: no rail split and no Changes folds, so neither optional field. */
+const WRITTEN = { widths: LAYOUT.widths, folded: LAYOUT.folded, skillRowOpen: LAYOUT.skillRowOpen }
 
 describe('the layout file', () => {
   it('lives under the data directory it is given, by name', () => {
@@ -27,15 +35,24 @@ describe('the layout file', () => {
 
     expect(writeLayoutFile(file, LAYOUT)).toEqual({ ok: true })
 
-    expect(readLayoutFile(file)).toEqual({ version: LAYOUT_VERSION, ...LAYOUT })
+    expect(readLayoutFile(file)).toEqual({ version: LAYOUT_VERSION, ...WRITTEN })
     expect(Object.keys(JSON.parse(readFileSync(file, 'utf8')) as object).sort()).toEqual(['folded', 'skillRowOpen', 'version', 'widths'])
+    expect(LAYOUT_VERSION).toBe(1)
+  })
+
+  it('writes the rail split and the Changes folds (Story 9.3) only when there are any, additively', () => {
+    const file = layoutFilePath(dir)
+    const chosen = { ...LAYOUT, railSplit: 0.3, changesFolded: { '/work/a': ['src/'] } }
+
+    expect(writeLayoutFile(file, chosen)).toEqual({ ok: true })
+    expect(readLayoutFile(file)).toEqual({ version: LAYOUT_VERSION, ...chosen })
     expect(LAYOUT_VERSION).toBe(1)
   })
 
   it('creates the directory, and leaves no temporary file beside it', () => {
     const nested = join(dir, 'a', 'b')
 
-    expect(writeLayoutFile(layoutFilePath(nested), { widths: {}, folded: {}, skillRowOpen: false })).toEqual({ ok: true })
+    expect(writeLayoutFile(layoutFilePath(nested), { widths: {}, folded: {}, skillRowOpen: false, railSplit: null, changesFolded: {} })).toEqual({ ok: true })
     expect(readdirSync(nested)).toEqual(['layout.json'])
   })
 
@@ -50,7 +67,7 @@ describe('the layout file', () => {
     writeFileSync(file, 'garbage')
 
     expect(writeLayoutFile(file, LAYOUT)).toEqual({ ok: true })
-    expect(readLayoutFile(file)).toEqual({ version: 1, ...LAYOUT })
+    expect(readLayoutFile(file)).toEqual({ version: 1, ...WRITTEN })
   })
 
   it('reports the errno of a rename that fails after the temporary file is written, and removes that file', () => {

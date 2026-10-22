@@ -41,6 +41,10 @@ const SOURCES = [
   `${OUTPUTS_DIR}/outputs.tsx`,
   `${OUTPUTS_DIR}/outputs.css`,
   `${OUTPUTS_DIR}/row-nav.ts`,
+  // The Changes half's tree folds as the Outputs tree does (Story 9.3), and the rail split is shipped(LAYOUT_DIR)'s.
+  'src/renderer/ui/changes/changes.tsx',
+  'src/renderer/ui/changes/change-row.tsx',
+  'src/renderer/ui/changes/changes.css',
   'src/renderer/ui/shell/shell.tsx',
   'src/renderer/ui/shell/shell.css',
   'src/renderer/ui/party/party-view.tsx',
@@ -56,6 +60,7 @@ describe('no animation of a width or a fold', () => {
     const stylesheets = SOURCES.filter((path) => path.endsWith('.css'))
 
     expect(stylesheets).toContain(`${LAYOUT_DIR}/panel-splitter.css`)
+    expect(stylesheets).toContain(`${LAYOUT_DIR}/rail-split.css`)
     for (const path of stylesheets) {
       expect(code(path), path).not.toMatch(/\btransition/)
     }
@@ -131,7 +136,13 @@ function draw(snapshot: RailSnapshot, folded: string[]): string {
     widths: { sidebar: null, rail: null, room: null },
     folded: new Set(folded),
     saveWidth: () => {},
-    saveFolded: () => {}
+    saveFolded: () => {},
+    skillRowOpen: false,
+    saveSkillRowOpen: () => {},
+    railSplit: null,
+    saveRailSplit: () => {},
+    changesFolded: new Set(),
+    saveChangesFolded: () => {}
   }
   return renderToStaticMarkup(
     createElement(

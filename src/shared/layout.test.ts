@@ -1,6 +1,24 @@
 import { describe, expect, it } from 'vitest'
 
-import { clampWidth, effectiveWidth, growsRight, isPanelId, keyedWidth, limitsFor, PANEL_IDS, PANELS, readWidth } from './layout'
+import {
+  clampShare,
+  clampWidth,
+  effectiveShare,
+  effectiveWidth,
+  growsRight,
+  isPanelId,
+  keyedShare,
+  keyedWidth,
+  limitsFor,
+  NO_LAYOUT,
+  PANEL_IDS,
+  PANELS,
+  RAIL_HALF_MIN,
+  readShare,
+  readWidth,
+  sharePercent,
+  splitLimits
+} from './layout'
 
 describe('the panels’ ranges', () => {
   it('hold the ranges and the neighbours’ minimums the story decided, and the defaults the tokens give', () => {
@@ -174,6 +192,66 @@ describe('keyedWidth', () => {
       for (const key of ['Arrow' + 'Up', 'Arrow' + 'Down', ' ', 'Tab', 'Escape', 'PageUp', 'x']) {
         expect(keyedWidth(panel, 300, key, false, 1200), `${panel} ${key}`).toBeUndefined()
       }
+    }
+  })
+})
+
+describe('the rail split (Story 9.3)', () => {
+  const up = 'Arrow' + 'Up'
+  const down = 'Arrow' + 'Down'
+
+  it('keeps each half at least 120px, and holds half and half where the rail cannot hold both', () => {
+    expect(RAIL_HALF_MIN).toBe(120)
+    expect(splitLimits(600)).toEqual({ min: 0.2, max: 0.8 })
+    expect(splitLimits(240)).toEqual({ min: 0.5, max: 0.5 })
+    for (const short of [239, 100, 0, -1, null, undefined, Number.NaN, Infinity]) {
+      expect(splitLimits(short), String(short)).toEqual({ min: 0.5, max: 0.5 })
+    }
+  })
+
+  it('reads a stored share strictly between 0 and 1, and anything else as half and half, silently', () => {
+    expect(readShare(0.3)).toBe(0.3)
+    expect(readShare(0.999)).toBe(0.999)
+    for (const bad of [0, 1, 7, -0.2, Number.NaN, Infinity, '0.4', null, undefined, {}, [], true]) {
+      expect(readShare(bad), String(bad)).toBeNull()
+    }
+    expect(NO_LAYOUT.railSplit).toBeNull()
+    expect(NO_LAYOUT.changesFolded).toEqual([])
+  })
+
+  it('clamps a share to the live height when drawn, and draws half and half with nothing chosen', () => {
+    expect(clampShare(0.05, 600)).toBe(0.2)
+    expect(clampShare(0.95, 600)).toBe(0.8)
+    expect(clampShare(0.4, 600)).toBe(0.4)
+    expect(effectiveShare(null, 600)).toBe(0.5)
+    expect(effectiveShare(0.3, 600)).toBe(0.3)
+    expect(effectiveShare(0.3, 200)).toBe(0.5)
+  })
+
+  it('says the share as a whole percentage', () => {
+    expect(sharePercent(0.5)).toBe(50)
+    expect(sharePercent(1 / 3)).toBe(33)
+    expect(sharePercent(0.2)).toBe(20)
+  })
+
+  it('moves 16px on the arrows and 64px with Shift, up shrinking the Changes half', () => {
+    expect(keyedShare(0.5, up, false, 800)).toBeCloseTo(0.48)
+    expect(keyedShare(0.5, down, false, 800)).toBeCloseTo(0.52)
+    expect(keyedShare(0.5, up, true, 800)).toBeCloseTo(0.42)
+    expect(keyedShare(0.5, down, true, 800)).toBeCloseTo(0.58)
+  })
+
+  it('goes to the limits on Home and End, resets on Enter, and holds at a limit', () => {
+    expect(keyedShare(0.5, 'Home', false, 600)).toBe(0.2)
+    expect(keyedShare(0.5, 'End', false, 600)).toBe(0.8)
+    expect(keyedShare(0.3, 'Enter', false, 600)).toBeNull()
+    expect(keyedShare(0.2, up, false, 600)).toBe(0.2)
+    expect(keyedShare(0.8, down, true, 600)).toBe(0.8)
+  })
+
+  it('claims no other key', () => {
+    for (const key of ['Arrow' + 'Left', 'Arrow' + 'Right', ' ', 'Tab', 'Escape', 'PageUp', 'x']) {
+      expect(keyedShare(0.5, key, false, 600), key).toBeUndefined()
     }
   })
 })

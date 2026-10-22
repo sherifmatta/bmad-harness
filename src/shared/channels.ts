@@ -15,6 +15,13 @@ export const PROJECT_BRANCH_CHANNEL = 'project:branch'
 export const INSTALL_GET_CHANNEL = 'install:get'
 export const INSTALL_CHANGED_CHANNEL = 'install:changed'
 
+/**
+ * The Changes half's two (Story 9.3, AD-31): the read a window makes on
+ * connecting, and the snapshot main pushes whenever what git reports differs.
+ */
+export const CHANGES_GET_CHANNEL = 'changes:get'
+export const CHANGES_CHANGED_CHANNEL = 'changes:changed'
+
 export const RAIL_GET_CHANNEL = 'rail:get'
 export const RAIL_CHANGED_CHANNEL = 'rail:changed'
 
@@ -83,13 +90,16 @@ export const THEME_CHOOSE_CHANNEL = 'theme:choose'
 export const OUTPUT_FOLDER_CHOOSE_CHANNEL = 'output-folder:choose'
 
 /**
- * The layout's four (Story 5.5, Story 9.1): the widths, folded directories and
- * skill row choice a window asks for (synchronously, so its first paint is at
- * the stored width), then one width a window keeps, the set of directories it
- * has folded, and whether the skill row is open. Each write is a request main
- * validates; nothing is pushed.
+ * The layout's five (Story 5.5, Story 9.1, Story 9.3): the widths, folded
+ * directories, skill row choice and rail split a window asks for (synchronously,
+ * so its first paint is at the stored width), then one width a window keeps, the
+ * set of directories it has folded (in either rail half), whether the skill row
+ * is open, and the rail split's share. Each write is a request main validates;
+ * nothing is pushed.
  */
 export const LAYOUT_GET_CHANNEL = 'layout:get'
 export const LAYOUT_SET_WIDTH_CHANNEL = 'layout:set-width'
 export const LAYOUT_SET_FOLDED_CHANNEL = 'layout:set-folded'
 export const LAYOUT_SET_SKILL_ROW_CHANNEL = 'layout:set-skill-row'
+/** The rail split's share (Story 9.3): the part of the rail's height the Changes half takes, or `null` for half and half. */
+export const LAYOUT_SET_RAIL_SPLIT_CHANNEL = 'layout:set-rail-split'

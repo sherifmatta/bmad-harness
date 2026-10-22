@@ -1,0 +1,50 @@
+/*
+ * The rail split (Story 9.3), from DESIGN.md's `components.rail-split`: the side
+ * panels' splitter (panel-splitter.css) turned on its side. A 9px hit area centred
+ * on the Outputs head's own 1px top border, which is the line at rest. It is a flex
+ * item of net-zero height (the box is --splitter-hit and its two margins pull it back
+ * by the same), so it takes no room from either half, and `position: relative` lets
+ * it paint over the head's edge without a stacking index.
+ *
+ * Hover widens the line to 3px of --accent-border; a drag and keyboard focus make it
+ * 3px of --accent, and focus keeps the shared ring (design/focus.css).
+ *
+ * No transition, animation or easing, and no snap: the boundary follows the pointer
+ * one frame at a time. Whether it shows at all is the shell's breakpoint. Every value
+ * reaches the design system through `var()`.
+ */
+
+.rail-split {
+  position: relative;
+  flex: 0 0 var(--splitter-hit);
+  height: var(--splitter-hit);
+  margin: var(--splitter-pull) 0;
+  align-self: stretch;
+  cursor: row-resize;
+}
+
+.rail-split::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--splitter-inset);
+  height: var(--splitter-line);
+  background: transparent;
+}
+
+.rail-split:hover::before {
+  background: var(--accent-border);
+}
+
+.rail-split.is-dragging::before,
+.rail-split:focus-visible::before {
+  background: var(--accent);
+}
+
+/* While the split is dragged the whole window shows the row-resize cursor; `is-resizing`
+   (panel-splitter.css) already takes the selection away, and both classes go on release. */
+body.is-resizing.is-resizing-rows,
+body.is-resizing.is-resizing-rows * {
+  cursor: row-resize;
+}

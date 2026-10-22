@@ -2,6 +2,7 @@ import { BrowserWindow, app, ipcMain } from 'electron'
 import { PROJECT_PATH_CHANNEL } from '../shared/channels'
 import { defaultWriteDiagnostic } from './bridge-kit'
 import { registerBoardBridge } from './board-bridge'
+import { registerChangesBridge } from './changes-bridge'
 import { registerDocBridge } from './doc-bridge'
 import { registerInstallBridge } from './install-bridge'
 import { registerLayoutBridge } from './layout-bridge'
@@ -137,6 +138,9 @@ registerRailBridge({
     board.observeArtifact(sender, projectRoot, observation)
   }
 })
+// The Changes half's one git read (Story 9.3, AD-31), only while a project window is in front. Registered
+// before the document bridge, whose second admission reads the rows it holds.
+registerChangesBridge()
 registerDocBridge()
 // The recent list is the app's own bookkeeping under `userData`, read on first use.
 const recent = createRecentList({ userDataPath: () => app.getPath('userData') })

@@ -1,6 +1,19 @@
 import { describe, expect, it } from 'vitest'
 
-import { allFolded, foldedOf, skillRowOpenOf, widthsOf, withFolded, withSkillRowOpen, withWidth } from './layout'
+import {
+  allChangesFolded,
+  allFolded,
+  changesFoldedOf,
+  foldedOf,
+  railSplitOf,
+  skillRowOpenOf,
+  widthsOf,
+  withChangesFolded,
+  withFolded,
+  withRailSplit,
+  withSkillRowOpen,
+  withWidth
+} from './layout'
 
 describe('widthsOf', () => {
   it('reads a width per panel, each judged by its own range', () => {
@@ -60,16 +73,18 @@ describe('withWidth', () => {
   const store = { widths: { rail: 400, room: 300 }, folded: { '/work/a': ['_bmad/'] } }
 
   it('sets one panel’s width and leaves the other and every fold as they were', () => {
-    expect(withWidth(store, 'rail', 450)).toEqual({ widths: { rail: 450, room: 300 }, folded: { '/work/a': ['_bmad/'] }, skillRowOpen: false })
+    expect(withWidth(store, 'rail', 450)).toEqual({ widths: { rail: 450, room: 300 }, folded: { '/work/a': ['_bmad/'] }, skillRowOpen: false, railSplit: null, changesFolded: {} })
     expect(withWidth(store, 'sidebar', 220)).toEqual({
       widths: { sidebar: 220, rail: 400, room: 300 },
       folded: { '/work/a': ['_bmad/'] },
-      skillRowOpen: false
+      skillRowOpen: false,
+      railSplit: null,
+      changesFolded: {}
     })
   })
 
   it('removes a panel’s width for null', () => {
-    expect(withWidth(store, 'room', null)).toEqual({ widths: { rail: 400 }, folded: { '/work/a': ['_bmad/'] }, skillRowOpen: false })
+    expect(withWidth(store, 'room', null)).toEqual({ widths: { rail: 400 }, folded: { '/work/a': ['_bmad/'] }, skillRowOpen: false, railSplit: null, changesFolded: {} })
   })
 
   it('stores no width the panel would not read, and forgets the one it had', () => {
@@ -78,8 +93,8 @@ describe('withWidth', () => {
   })
 
   it('starts a store from nothing, and from a file of the wrong shape', () => {
-    expect(withWidth(null, 'rail', 400)).toEqual({ widths: { rail: 400 }, folded: {}, skillRowOpen: false })
-    expect(withWidth('garbage', 'room', 250)).toEqual({ widths: { room: 250 }, folded: {}, skillRowOpen: false })
+    expect(withWidth(null, 'rail', 400)).toEqual({ widths: { rail: 400 }, folded: {}, skillRowOpen: false, railSplit: null, changesFolded: {} })
+    expect(withWidth('garbage', 'room', 250)).toEqual({ widths: { room: 250 }, folded: {}, skillRowOpen: false, railSplit: null, changesFolded: {} })
   })
 })
 
@@ -90,12 +105,14 @@ describe('withFolded', () => {
     expect(withFolded(store, '/work/a', ['_bmad/', '_bmad/ux/'])).toEqual({
       widths: { rail: 400 },
       folded: { '/work/a': ['_bmad/', '_bmad/ux/'], '/work/b': ['docs/'] },
-      skillRowOpen: false
+      skillRowOpen: false,
+      railSplit: null,
+      changesFolded: {}
     })
   })
 
   it('removes a project’s entry when nothing is folded', () => {
-    expect(withFolded(store, '/work/a', [])).toEqual({ widths: { rail: 400 }, folded: { '/work/b': ['docs/'] }, skillRowOpen: false })
+    expect(withFolded(store, '/work/a', [])).toEqual({ widths: { rail: 400 }, folded: { '/work/b': ['docs/'] }, skillRowOpen: false, railSplit: null, changesFolded: {} })
   })
 
   it('keeps each directory once', () => {
@@ -107,14 +124,14 @@ describe('withFolded', () => {
   })
 
   it('starts from nothing, and from a file of the wrong shape', () => {
-    expect(withFolded(undefined, '/p', ['a/'])).toEqual({ widths: {}, folded: { '/p': ['a/'] }, skillRowOpen: false })
-    expect(withFolded([], '/p', ['a/'])).toEqual({ widths: {}, folded: { '/p': ['a/'] }, skillRowOpen: false })
+    expect(withFolded(undefined, '/p', ['a/'])).toEqual({ widths: {}, folded: { '/p': ['a/'] }, skillRowOpen: false, railSplit: null, changesFolded: {} })
+    expect(withFolded([], '/p', ['a/'])).toEqual({ widths: {}, folded: { '/p': ['a/'] }, skillRowOpen: false, railSplit: null, changesFolded: {} })
   })
 })
 
 describe('skillRowOpenOf', () => {
   it('reads a stored true as open', () => {
-    expect(skillRowOpenOf({ widths: {}, folded: {}, skillRowOpen: true })).toBe(true)
+    expect(skillRowOpenOf({ widths: {}, folded: {}, skillRowOpen: true, railSplit: null, changesFolded: {} })).toBe(true)
   })
 
   it.each([
@@ -143,12 +160,67 @@ describe('the skill row choice across writes', () => {
   })
 
   it('is set by its own write, which keeps the widths and every fold', () => {
-    expect(withSkillRowOpen(open, false)).toEqual({ widths: { rail: 400 }, folded: { '/work/a': ['_bmad/'] }, skillRowOpen: false })
-    expect(withSkillRowOpen({ ...open, skillRowOpen: false }, true)).toEqual(open)
+    expect(withSkillRowOpen(open, false)).toEqual({ widths: { rail: 400 }, folded: { '/work/a': ['_bmad/'] }, skillRowOpen: false, railSplit: null, changesFolded: {} })
+    expect(withSkillRowOpen({ ...open, skillRowOpen: false }, true)).toEqual({ ...open, railSplit: null, changesFolded: {} })
   })
 
   it('starts from nothing, and from a file of the wrong shape', () => {
-    expect(withSkillRowOpen(null, true)).toEqual({ widths: {}, folded: {}, skillRowOpen: true })
-    expect(withSkillRowOpen('garbage', true)).toEqual({ widths: {}, folded: {}, skillRowOpen: true })
+    expect(withSkillRowOpen(null, true)).toEqual({ widths: {}, folded: {}, skillRowOpen: true, railSplit: null, changesFolded: {} })
+    expect(withSkillRowOpen('garbage', true)).toEqual({ widths: {}, folded: {}, skillRowOpen: true, railSplit: null, changesFolded: {} })
+  })
+})
+
+describe('the rail split’s share (Story 9.3)', () => {
+  it('reads a share strictly between 0 and 1, and anything else, or nothing, as none', () => {
+    expect(railSplitOf({ railSplit: 0.35 })).toBe(0.35)
+    for (const bad of [null, 'x', [], {}, { railSplit: 7 }, { railSplit: 0 }, { railSplit: 1 }, { railSplit: '0.4' }, { railSplit: null }]) {
+      expect(railSplitOf(bad)).toBeNull()
+    }
+  })
+
+  it('is set by its own write, removed by null, and a share the split would not read is not stored', () => {
+    const store = { widths: { rail: 400 }, folded: { '/a': ['x/'] }, skillRowOpen: true, changesFolded: { '/a': ['src/'] } }
+    expect(withRailSplit(store, 0.3)).toEqual({
+      widths: { rail: 400 },
+      folded: { '/a': ['x/'] },
+      skillRowOpen: true,
+      railSplit: 0.3,
+      changesFolded: { '/a': ['src/'] }
+    })
+    expect(withRailSplit({ ...store, railSplit: 0.3 }, null).railSplit).toBeNull()
+    expect(withRailSplit(store, 7).railSplit).toBeNull()
+  })
+
+  it('is kept by every other writer', () => {
+    const store = { widths: {}, folded: {}, railSplit: 0.25 }
+    expect(withWidth(store, 'rail', 400).railSplit).toBe(0.25)
+    expect(withFolded(store, '/a', ['x/']).railSplit).toBe(0.25)
+    expect(withChangesFolded(store, '/a', ['x/']).railSplit).toBe(0.25)
+    expect(withSkillRowOpen(store, true).railSplit).toBe(0.25)
+  })
+})
+
+describe('the Changes half’s folds (Story 9.3)', () => {
+  const store = { widths: { rail: 400 }, folded: { '/a': ['_bmad/'] }, changesFolded: { '/a': ['src/', 'src/'], '/b': 'x' } }
+
+  it('reads its own set per project, apart from the Outputs set, as tolerantly', () => {
+    expect(changesFoldedOf(store, '/a')).toEqual(['src/'])
+    expect(changesFoldedOf(store, '/b')).toEqual([])
+    expect(changesFoldedOf(store, '__proto__')).toEqual([])
+    expect(allChangesFolded(store)).toEqual({ '/a': ['src/'] })
+    expect(foldedOf(store, '/a')).toEqual(['_bmad/'])
+  })
+
+  it('is replaced by its own write, which leaves the Outputs folds as they were, and the reverse', () => {
+    expect(withChangesFolded(store, '/a', ['docs/']).changesFolded).toEqual({ '/a': ['docs/'] })
+    expect(withChangesFolded(store, '/a', ['docs/']).folded).toEqual({ '/a': ['_bmad/'] })
+    expect(withChangesFolded(store, '/a', []).changesFolded).toEqual({})
+    expect(withFolded(store, '/a', []).changesFolded).toEqual({ '/a': ['src/'] })
+  })
+
+  it('is kept by a width, rail split and skill row write', () => {
+    expect(withWidth(store, 'room', 300).changesFolded).toEqual({ '/a': ['src/'] })
+    expect(withRailSplit(store, 0.4).changesFolded).toEqual({ '/a': ['src/'] })
+    expect(withSkillRowOpen(store, true).changesFolded).toEqual({ '/a': ['src/'] })
   })
 })

@@ -1,8 +1,9 @@
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { documentSegments, resolveDocument } from './resolve-document'
+import type { ChangeRow } from '../../../shared/changes'
+import { documentSegments, resolveChange, resolveDocument } from './resolve-document'
 
 let root: string
 let outside: string
@@ -158,5 +159,61 @@ describe('a chosen output folder (Story 5.4)', () => {
     expect(await resolveDocument(root, 'docs/out/alias.md', FOLDER)).toMatchObject({ ok: true, refused: false })
     expect(await resolveDocument(root, 'docs/out/leaves.md', FOLDER)).toMatchObject({ ok: true, refused: true })
     expect(await resolveDocument(root, 'docs/out/out.md', FOLDER)).toMatchObject({ ok: true, refused: true })
+  })
+})
+
+describe('resolveChange: the second admission (Story 9.3, AD-13 amended)', () => {
+  let rows: ChangeRow[]
+
+  beforeEach(() => {
+    mkdirSync(join(root, 'src'), { recursive: true })
+    writeFileSync(join(root, 'src/a.ts'), 'a\n')
+    writeFileSync(join(root, '.env'), 'SECRET=1\n')
+    writeFileSync(join(root, 'listed-target.ts'), 't\n')
+    symlinkSync(join(root, '.env'), join(root, 'link.env'))
+    symlinkSync(join(root, 'listed-target.ts'), join(root, 'alias.ts'))
+    symlinkSync(join(outside, 'secret.md'), join(root, 'out.md'))
+    rows = [
+      { path: 'src/a.ts', state: 'modified' },
+      { path: 'link.env', state: 'untracked' },
+      { path: 'alias.ts', state: 'untracked' },
+      { path: 'listed-target.ts', state: 'added' },
+      { path: 'out.md', state: 'untracked' },
+      { path: 'gone.ts', state: 'deleted' },
+      { path: 'sub/', state: 'untracked', directory: true }
+    ]
+  })
+
+  it('admits a listed path whose real path is itself listed, with that real path', async () => {
+    expect(await resolveChange(root, 'src/a.ts', rows)).toEqual({
+      ok: true,
+      fullPath: join(root, 'src/a.ts'),
+      realPath: realpathSync(join(root, 'src/a.ts')),
+      refused: false
+    })
+  })
+
+  it('admits a listed link whose target is listed too', async () => {
+    expect(await resolveChange(root, 'alias.ts', rows)).toMatchObject({
+      ok: true,
+      realPath: realpathSync(join(root, 'listed-target.ts'))
+    })
+  })
+
+  it.each([
+    ['an untracked link to an ignored file', 'link.env'],
+    ['a listed link out of the project', 'out.md'],
+    ['a deleted row', 'gone.ts'],
+    ['a directory row', 'sub/'],
+    ['a path not listed', 'src/b.ts'],
+    ['a path equal only after normalising', 'src//a.ts'],
+    ['not a string', 7]
+  ])('refuses %s', async (_name, path) => {
+    expect(await resolveChange(root, path, rows)).toEqual({ ok: false, code: 'doc/invalid-path' })
+  })
+
+  it('refuses a listed path that is no longer there', async () => {
+    unlinkSync(join(root, 'src/a.ts'))
+    expect(await resolveChange(root, 'src/a.ts', rows)).toEqual({ ok: false, code: 'doc/invalid-path' })
   })
 })

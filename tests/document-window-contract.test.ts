@@ -440,15 +440,16 @@ describe('reading the file', () => {
     expect(watcher).not.toMatch(/awaitWriteFinish|usePolling|interval:|debounce|followSymlinks/)
   })
 
-  it('bounds the read at DOC_MAX_BYTES and sniffs DOC_SNIFF_BYTES', () => {
+  it('bounds the read at DOC_MAX_BYTES and calls the whole bounded read binary on a NUL or invalid UTF-8 (Story 9.3)', () => {
     const watcher = code('src/main/sources/project/watch-document.ts')
     const shared = code('src/shared/document.ts')
 
     expect(shared).toContain('DOC_MAX_BYTES = 1_048_576')
-    expect(shared).toContain('DOC_SNIFF_BYTES = 8192')
+    // The 8 KiB sniff is gone: a NUL anywhere in what is read, or a sequence that is not UTF-8, is binary.
+    expect(shared).not.toContain('DOC_SNIFF_BYTES')
     expect(watcher).toContain('Math.min(info.size, DOC_MAX_BYTES)')
-    expect(watcher).toContain('DOC_SNIFF_BYTES')
-    expect(watcher).toContain("new TextDecoder('utf-8')")
+    expect(watcher).toContain('bytes.includes(0)')
+    expect(watcher).toContain("new TextDecoder('utf-8', { fatal: true })")
     expect(watcher).not.toMatch(/readFile\(|readFileSync|createReadStream/)
   })
 

@@ -5,9 +5,13 @@ import { errnoOf } from '../errno'
 /**
  * Where the layout lives and how it is read and written (Story 5.5): one JSON
  * file, `<userData>/layout.json`, holding `{version, widths: {sidebar, rail, room},
- * folded: {<projectKey>: string[]}, skillRowOpen: boolean}` and nothing else.
+ * folded: {<projectKey>: string[]}, skillRowOpen: boolean, railSplit?: number,
+ * changesFolded?: {<projectKey>: string[]}}` and nothing else.
  * `skillRowOpen` (Story 9.1) is whether the skill row is open, app-wide; a file
- * written before it has none, which reads as collapsed. It is the harness's own
+ * written before it has none, which reads as collapsed. `railSplit` and
+ * `changesFolded` (Story 9.3) are the rail split's share, per user, and the
+ * Changes half's folds per project, each written only when there is one; both
+ * are additive and optional, so `LAYOUT_VERSION` stays as it was. It is the harness's own
  * bookkeeping, beside the recent list, the theme and the output folders; nothing
  * is ever written into a project.
  *
@@ -63,6 +67,9 @@ export type LayoutToWrite = {
   widths: Readonly<Record<string, number>>
   folded: Readonly<Record<string, readonly string[]>>
   skillRowOpen: boolean
+  /** The rail split's share, or `null` for half and half, which writes no field. */
+  railSplit: number | null
+  changesFolded: Readonly<Record<string, readonly string[]>>
 }
 
 export type LayoutWriteOutcome = { ok: true } | { ok: false; errno: string }
@@ -78,7 +85,9 @@ export function writeLayoutFile(filePath: string, layout: LayoutToWrite): Layout
         version: LAYOUT_VERSION,
         widths: layout.widths,
         folded: layout.folded,
-        skillRowOpen: layout.skillRowOpen
+        skillRowOpen: layout.skillRowOpen,
+        ...(layout.railSplit === null ? {} : { railSplit: layout.railSplit }),
+        ...(Object.keys(layout.changesFolded).length === 0 ? {} : { changesFolded: layout.changesFolded })
       })
     )
     renameSync(temporary, filePath)

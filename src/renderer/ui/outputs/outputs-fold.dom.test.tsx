@@ -66,7 +66,11 @@ function Folding({ snapshot, initial = [] }: { snapshot: RailSnapshot; initial?:
       setFolded(new Set(next))
     },
     skillRowOpen: false,
-    saveSkillRowOpen: () => {}
+    saveSkillRowOpen: () => {},
+    railSplit: null,
+    saveRailSplit: () => {},
+    changesFolded: new Set(),
+    saveChangesFolded: () => {}
   }
   return createElement(
     LayoutContext.Provider,

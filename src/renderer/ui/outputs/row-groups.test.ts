@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { RailRow } from '../../../shared/rail'
-import { baseName, buildTree, hasChanging } from './row-groups'
+import { baseName, buildTree, firstRows, hasChanging, hasRows, showing } from './row-groups'
 import type { TreeNode } from './row-groups'
 
 const row = (path: string): RailRow => ({ path, state: 'saved', savedAt: 1 })
@@ -119,5 +119,67 @@ describe('baseName', () => {
     expect(baseName('_bmad/a/b.md')).toBe('b.md')
     expect(baseName('b.md')).toBe('b.md')
     expect(baseName('_bmad/.memlog.md')).toBe('.memlog.md')
+  })
+})
+
+describe('the tree for the Changes half (Story 9.3)', () => {
+  type Change = { path: string; state: string }
+  const change = (path: string): Change => ({ path, state: 'modified' })
+
+  it('roots at the project itself, headed by the folder’s name, and nests every path under it', () => {
+    const tree = buildTree([change('src/a.ts'), change('README.md'), change('src/ui/b.tsx')], '', 'bmad-harness/')
+
+    expect(lines(tree as never)).toEqual(['bmad-harness/', '  src/', '    ui/', '      b.tsx', '    a.ts', '  README.md'])
+    expect(tree.dir).toBe('')
+    expect(tree.dirs[0]).toMatchObject({ dir: 'src/', name: 'src/', depth: 1 })
+  })
+
+  it('lists a path ending in / as a row of its parent, named with its slash', () => {
+    const tree = buildTree([change('a/sub/'), change('a/x.ts'), change('top/')], '', 'p/')
+
+    expect(tree.rows.map((r) => r.path)).toEqual(['top/'])
+    expect(tree.dirs.map((d) => d.dir)).toEqual(['a/'])
+    expect(tree.dirs[0]?.rows.map((r) => baseName(r.path))).toEqual(['sub/', 'x.ts'])
+    expect(baseName('a/sub/')).toBe('sub/')
+    expect(baseName('sub/')).toBe('sub/')
+  })
+})
+
+describe('showing', () => {
+  it('lists the headings and the rows showing in visual order, each with its parent heading, and nothing under a fold', () => {
+    const tree = buildTree([row('_bmad/a.md'), row('_bmad/x/y.md')], '_bmad/')
+
+    expect(showing(tree, new Set()).order).toEqual(['dir:_bmad/', 'dir:_bmad/x/', '_bmad/x/y.md', '_bmad/a.md'])
+    expect(showing(tree, new Set(['_bmad/x/'])).order).toEqual(['dir:_bmad/', 'dir:_bmad/x/', '_bmad/a.md'])
+    expect(showing(tree, new Set()).parentOf.get('_bmad/x/y.md')).toBe('dir:_bmad/x/')
+    expect(showing(tree, new Set()).parentOf.get('dir:_bmad/')).toBeNull()
+  })
+
+  it('shows nothing for no tree, or a tree with no rows', () => {
+    expect(showing(null, new Set()).order).toEqual([])
+    const empty = buildTree([], '_bmad/')
+    expect(hasRows(empty)).toBe(false)
+    expect(showing(empty, new Set()).order).toEqual([])
+  })
+})
+
+describe('firstRows', () => {
+  it('takes the first rows of the tree in preorder, subdirectories before files, folds ignored', () => {
+    const tree = buildTree([row('_bmad/z.md'), row('_bmad/a/b/c.md'), row('_bmad/a/d.md'), row('_bmad/e/f.md')], '_bmad/')
+
+    expect(firstRows(tree, 10).map((r) => r.path)).toEqual(['_bmad/a/b/c.md', '_bmad/a/d.md', '_bmad/e/f.md', '_bmad/z.md'])
+    expect(firstRows(tree, 2).map((r) => r.path)).toEqual(['_bmad/a/b/c.md', '_bmad/a/d.md'])
+    expect(firstRows(tree, 0)).toEqual([])
+  })
+
+  it('caps 620 rows at 500, the rest left for the line that says so', () => {
+    const rows = Array.from({ length: 620 }, (_, n) => row(`_bmad/d${String(n % 7)}/f${String(n).padStart(3, '0')}.md`))
+    const tree = buildTree(rows, '_bmad/')
+    const first = firstRows(tree, 500)
+
+    expect(first).toHaveLength(500)
+    expect(rows.length - first.length).toBe(120)
+    // A tree of the first rows draws them in the very same order.
+    expect(firstRows(buildTree(first, '_bmad/'), 500)).toEqual(first)
   })
 })

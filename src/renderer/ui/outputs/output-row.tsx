@@ -22,7 +22,7 @@ function stateText(row: RailRow, now: number): string {
  * and stroked with the row's colour. Decoration only, so it is hidden from
  * assistive technology.
  */
-function FileIcon(): JSX.Element {
+export function FileIcon(): JSX.Element {
   return (
     <svg className="file-icon" viewBox="0 0 12 14" fill="none" aria-hidden="true">
       <path

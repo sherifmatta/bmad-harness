@@ -1,4 +1,5 @@
 import type { BoardSnapshot } from '../shared/board'
+import type { ChangesSnapshot } from '../shared/changes'
 import type { SessionTarget } from '../shared/commands'
 import type { ConversationSnapshot, OpenedSession } from '../shared/conversation'
 import type { ContractEvent } from '../shared/events'
@@ -9,7 +10,7 @@ import type { ChooseOutcome } from '../shared/output-folder'
 import type { RailSnapshot } from '../shared/rail'
 
 /**
- * The whole bridge surface. Explicitly enumerated: twenty-four named methods, no
+ * The whole bridge surface. Explicitly enumerated: twenty-eight named methods, no
  * generic `invoke(channel, …)` passthrough, and no `ipcRenderer` in the
  * renderer's reach.
  */
@@ -19,6 +20,13 @@ export interface HarnessApi {
   getInstall(): Promise<InstallSnapshot>
   /** Calls back with each pushed snapshot; returns the way to stop listening. */
   onInstallChanged(listener: (snapshot: InstallSnapshot) => void): () => void
+  /**
+   * The Changes half's snapshot (Story 9.3): what git reports uncommitted in this window's project, or
+   * the one line it came to. Rejects with the `HarnessError` envelope.
+   */
+  getChanges(): Promise<ChangesSnapshot>
+  /** Calls back with each pushed Changes snapshot; returns the way to stop listening. */
+  onChangesChanged(listener: (snapshot: ChangesSnapshot) => void): () => void
   /**
    * The checked-out branch of this window's project, `detached · <7 hex>`, or
    * `null` when there is no answer. Never rejects and never carries a path.
@@ -58,16 +66,23 @@ export interface HarnessApi {
    */
   setPanelWidth(panel: PanelId, width: number | null): void
   /**
-   * Keep the Outputs directories this project has folded, as project-relative paths. A
-   * request: nothing comes back. Held under `userData`, never in the project.
+   * Keep the directories this project has folded, as project-relative paths: the Outputs half's,
+   * or with `half` `'changes'` the Changes half's own set (Story 9.3). A request: nothing comes
+   * back. Held under `userData`, never in the project.
    */
-  setFolded(dirs: readonly string[]): void
+  setFolded(dirs: readonly string[], half?: 'changes'): void
   /**
    * Keep whether the skill row above the composer is open (Story 9.1): one choice for the
    * whole app, shared by every persona's chat. A request: nothing comes back, and main
    * ignores anything that is not a boolean. Held under `userData`, never in the project.
    */
   setSkillRowOpen(open: boolean): void
+  /**
+   * Keep the rail split's share (Story 9.3): the part of the rail's height the Changes half takes,
+   * strictly between 0 and 1, or `null` for half and half. One choice per user. A request: nothing
+   * comes back, and main ignores anything else.
+   */
+  setRailSplit(share: number | null): void
   /**
    * Calls back with the project-relative path of the row whose document window
    * has just been closed by the user; returns the way to stop listening.

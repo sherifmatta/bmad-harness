@@ -194,10 +194,14 @@ describe('Shell', () => {
     expect(markup).toContain('bmad · 5 agents')
   })
 
-  it('heads the rail with Team above Outputs, the Outputs body still empty', () => {
+  it('heads the rail with Team above Changes above Outputs, the Changes and Outputs bodies still empty', () => {
     expect(markup.indexOf('>Team<')).toBeGreaterThan(-1)
-    expect(markup.indexOf('>Team<')).toBeLessThan(markup.indexOf('>Outputs<'))
-    expect(count(markup, /<div class="rail-body"><\/div>/g)).toBe(1)
+    expect(markup.indexOf('>Team<')).toBeLessThan(markup.indexOf('>Changes<'))
+    // Story 9.3: the rail's two halves, Changes above the split above Outputs; Changes draws nothing before its first answer.
+    expect(markup.indexOf('>Changes<')).toBeLessThan(markup.indexOf('class="rail-split"'))
+    expect(markup.indexOf('class="rail-split"')).toBeLessThan(markup.indexOf('>Outputs<'))
+    expect(count(markup, /<div class="rail-body"><\/div>/g)).toBe(2)
+    expect(markup).toMatch(/>Changes<\/h3><\/div><div class="rail-body"><\/div>/)
     expect(markup).toMatch(/>Outputs<\/h3><\/div><div class="rail-body"><\/div>/)
   })
 
@@ -252,8 +256,9 @@ describe('Shell', () => {
 
 describe('Shell, the team and the header', () => {
   const tiles = (html: string): string[] => html.match(/<button[^>]*persona-tile[^>]*>/g) ?? []
+  // The Team half up to the rail's first half, Changes (Story 9.3), so the rail split is never counted as the Team's.
   const teamOf = (html: string): string =>
-    html.slice(html.indexOf('aria-label="Team"'), html.indexOf('>Outputs<'))
+    html.slice(html.indexOf('aria-label="Team"'), html.indexOf('>Changes<'))
 
   it('holds one tile button per agent, in display order, in the Team half', () => {
     const markup = renderToStaticMarkup(<Shell projectPath="/p" snapshot={snapshot(5)} />)
@@ -478,7 +483,7 @@ describe('Shell, the project files', () => {
   const withRail = renderToStaticMarkup(<Shell projectPath="/p" snapshot={snapshot(3)} rail={rail} />)
   const outputsOf = (html: string): string => html.slice(html.indexOf('>Outputs<'))
   const teamOf = (html: string): string =>
-    html.slice(html.indexOf('>Team<'), html.indexOf('>Outputs<'))
+    html.slice(html.indexOf('>Team<'), html.indexOf('>Changes<'))
 
   it('puts the rows and group headings in the Outputs half and never the Team half', () => {
     expect(count(outputsOf(withRail), /<li/g)).toBe(2)

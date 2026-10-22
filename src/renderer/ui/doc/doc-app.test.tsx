@@ -119,7 +119,7 @@ describe('the foot', () => {
     ['missing', 'no longer on disk'],
     ['refused', 'outside _bmad/ · not opened'],
     ['unreadable', 'could not be read'],
-    ['binary', 'not text · not shown']
+    ['binary', 'not shown · binary']
   ] as const)('reads %s as %s', (state, line) => {
     expect(render({ ...SNAPSHOT, state })).toContain(`<span>${line}</span>`)
   })

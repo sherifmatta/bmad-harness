@@ -17,9 +17,14 @@ vi.mock('electron', () => ({
   }
 }))
 
-const { LAYOUT_GET_CHANNEL, LAYOUT_SET_FOLDED_CHANNEL, LAYOUT_SET_SKILL_ROW_CHANNEL, LAYOUT_SET_WIDTH_CHANNEL, registerLayoutBridge } = await import(
-  './layout-bridge'
-)
+const {
+  LAYOUT_GET_CHANNEL,
+  LAYOUT_SET_FOLDED_CHANNEL,
+  LAYOUT_SET_RAIL_SPLIT_CHANNEL,
+  LAYOUT_SET_SKILL_ROW_CHANNEL,
+  LAYOUT_SET_WIDTH_CHANNEL,
+  registerLayoutBridge
+} = await import('./layout-bridge')
 
 const root = mkdtempSync(join(tmpdir(), 'harness-layout-bridge-'))
 afterAll(() => rmSync(root, { recursive: true, force: true }))
@@ -62,6 +67,8 @@ const setWidth = (id: number, ...args: unknown[]): unknown => handlers.get(LAYOU
 const setFolded = (id: number, ...args: unknown[]): unknown => handlers.get(LAYOUT_SET_FOLDED_CHANNEL)?.({ sender: { id } }, ...args)
 const setSkillRow = (id: number, ...args: unknown[]): unknown =>
   handlers.get(LAYOUT_SET_SKILL_ROW_CHANNEL)?.({ sender: { id } }, ...args)
+const setRailSplit = (id: number, ...args: unknown[]): unknown =>
+  handlers.get(LAYOUT_SET_RAIL_SPLIT_CHANNEL)?.({ sender: { id } }, ...args)
 const stored = (): unknown => JSON.parse(readFileSync(join(userData, 'layout.json'), 'utf8'))
 
 /** Every file and directory under a tree, with each file's bytes: the whole of what a project holds. */
@@ -84,7 +91,7 @@ function snapshotOf(dir: string): Record<string, string | null> {
 
 describe('the layout bridge: the read', () => {
   it('answers each window synchronously, with the defaults while nothing is stored', () => {
-    expect(read(WINDOW_A)).toEqual({ sidebar: null, rail: null, room: null, folded: [], skillRowOpen: false })
+    expect(read(WINDOW_A)).toEqual({ sidebar: null, rail: null, room: null, folded: [], skillRowOpen: false, railSplit: null, changesFolded: [] })
   })
 
   it('answers with the stored widths, and the folded set of the asking window’s own project', () => {
@@ -94,16 +101,16 @@ describe('the layout bridge: the read', () => {
     setFolded(WINDOW_A, ['_bmad/'])
     setFolded(WINDOW_B, ['docs/', 'docs/x/'])
 
-    expect(read(WINDOW_A)).toEqual({ sidebar: 220, rail: 400, room: 300, folded: ['_bmad/'], skillRowOpen: false })
+    expect(read(WINDOW_A)).toEqual({ sidebar: 220, rail: 400, room: 300, folded: ['_bmad/'], skillRowOpen: false, railSplit: null, changesFolded: [] })
     // The widths are the user's, so the other window has them; the fold is the project's, so it has its own.
-    expect(read(WINDOW_B)).toEqual({ sidebar: 220, rail: 400, room: 300, folded: ['docs/', 'docs/x/'], skillRowOpen: false })
+    expect(read(WINDOW_B)).toEqual({ sidebar: 220, rail: 400, room: 300, folded: ['docs/', 'docs/x/'], skillRowOpen: false, railSplit: null, changesFolded: [] })
   })
 
   it('answers a window with no project the widths and nothing folded', () => {
     setWidth(WINDOW_A, 'rail', 400)
     setFolded(WINDOW_A, ['_bmad/'])
 
-    expect(read(WELCOME)).toEqual({ sidebar: null, rail: 400, room: null, folded: [], skillRowOpen: false })
+    expect(read(WELCOME)).toEqual({ sidebar: null, rail: 400, room: null, folded: [], skillRowOpen: false, railSplit: null, changesFolded: [] })
   })
 
   it.each([
@@ -115,7 +122,7 @@ describe('the layout bridge: the read', () => {
   ])('reads %s as the defaults and nothing folded, silently', (_name, content) => {
     writeFileSync(join(userData, 'layout.json'), content)
 
-    expect(read(WINDOW_A)).toEqual({ sidebar: null, rail: null, room: null, folded: [], skillRowOpen: false })
+    expect(read(WINDOW_A)).toEqual({ sidebar: null, rail: null, room: null, folded: [], skillRowOpen: false, railSplit: null, changesFolded: [] })
     expect(diagnostics).toEqual([])
   })
 })
@@ -185,8 +192,11 @@ describe('the layout bridge: a fold', () => {
   })
 
   it('keys the set by `projectKey` the window’s own, and a window cannot name another', () => {
-    setFolded(WINDOW_A, ['x/'], projectB)
+    // Story 9.3: a second argument is the rail half, and a project path is none, so the write is ignored whole.
+    expect(setFolded(WINDOW_A, ['x/'], projectB)).toEqual({ ok: true, ignored: true })
+    expect(readdirSync(userData)).toEqual([])
 
+    setFolded(WINDOW_A, ['x/'])
     expect(Object.keys((stored() as { folded: object }).folded)).toEqual([projectA])
   })
 
@@ -287,7 +297,7 @@ describe('the layout bridge: the skill row choice (Story 9.1)', () => {
 
     setSkillRow(WINDOW_B, false)
     expect(stored()).toEqual({ version: 1, widths: { rail: 400 }, folded: { [projectA]: ['_bmad/'] }, skillRowOpen: false })
-    expect(read(WINDOW_A)).toEqual({ sidebar: null, rail: 400, room: null, folded: ['_bmad/'], skillRowOpen: false })
+    expect(read(WINDOW_A)).toEqual({ sidebar: null, rail: 400, room: null, folded: ['_bmad/'], skillRowOpen: false, railSplit: null, changesFolded: [] })
   })
 })
 
@@ -351,7 +361,7 @@ describe('the layout bridge: a file it cannot read', () => {
     expect(diagnostics).toEqual(['layout/unread · EISDIR', 'layout/unread · EISDIR', 'layout/unread · EISDIR'])
     expect(statSync(join(userData, 'layout.json')).isDirectory()).toBe(true)
     expect(readdirSync(join(userData, 'layout.json'))).toEqual(['kept'])
-    expect(read(WINDOW_A)).toEqual({ sidebar: null, rail: null, room: null, folded: [], skillRowOpen: false })
+    expect(read(WINDOW_A)).toEqual({ sidebar: null, rail: null, room: null, folded: [], skillRowOpen: false, railSplit: null, changesFolded: [] })
   })
 
   it('still replaces a file that is there but not JSON, as it always has', () => {
@@ -389,8 +399,84 @@ describe('the layout bridge: nothing is written into a project', () => {
 })
 
 describe('the layout bridge: the channels', () => {
-  it('registers the read as a synchronous listener and the three writes as handlers, and nothing else', () => {
+  it('registers the read as a synchronous listener and the four writes as handlers, and nothing else', () => {
     expect([...listeners.keys()]).toEqual(['layout:get'])
-    expect([...handlers.keys()].sort()).toEqual(['layout:set-folded', 'layout:set-skill-row', 'layout:set-width'])
+    expect([...handlers.keys()].sort()).toEqual([
+      'layout:set-folded',
+      'layout:set-rail-split',
+      'layout:set-skill-row',
+      'layout:set-width'
+    ])
+  })
+})
+
+describe('the rail split and the Changes folds (Story 9.3)', () => {
+  it('keeps a share strictly between 0 and 1 per user, reads it back in every window, and forgets it for null', () => {
+    expect(setRailSplit(WINDOW_A, 0.3)).toEqual({ ok: true })
+    expect(stored()).toEqual({ version: 1, widths: {}, folded: {}, skillRowOpen: false, railSplit: 0.3 })
+    expect(read(WINDOW_A).railSplit).toBe(0.3)
+    expect(read(WINDOW_B).railSplit).toBe(0.3)
+    expect(read(WELCOME).railSplit).toBe(0.3)
+
+    expect(setRailSplit(WINDOW_B, null)).toEqual({ ok: true })
+    expect(stored()).toEqual({ version: 1, widths: {}, folded: {}, skillRowOpen: false })
+    expect(read(WINDOW_A).railSplit).toBeNull()
+  })
+
+  it.each([
+    ['out of range', 7, 'number'],
+    ['zero', 0, 'number'],
+    ['one', 1, 'number'],
+    ['not a number', Number.NaN, 'number'],
+    ['a string', '0.4', 'string'],
+    ['missing', undefined, 'undefined'],
+    ['an object', {}, 'object']
+  ])('ignores a share %s, writes nothing, and says so once', (_name, share, type) => {
+    expect(setRailSplit(WINDOW_A, share)).toEqual({ ok: true, ignored: true })
+    expect(readdirSync(userData)).toEqual([])
+    expect(diagnostics).toEqual([`layout/ignored · rail-split · ${type}`])
+  })
+
+  it('reads a stored share that is missing, unreadable or out of range as none, silently', () => {
+    for (const railSplit of [7, -1, 'x', null]) {
+      writeFileSync(join(userData, 'layout.json'), JSON.stringify({ version: 1, railSplit }))
+      expect(read(WINDOW_A).railSplit).toBeNull()
+    }
+    writeFileSync(join(userData, 'layout.json'), '{not json')
+    expect(read(WINDOW_A).railSplit).toBeNull()
+    expect(diagnostics).toEqual([])
+  })
+
+  it('keeps the share through a width, fold and skill row write', () => {
+    setRailSplit(WINDOW_A, 0.4)
+    setWidth(WINDOW_A, 'rail', 400)
+    setFolded(WINDOW_A, ['_bmad/'])
+    setFolded(WINDOW_A, ['src/'], 'changes')
+    setSkillRow(WINDOW_A, true)
+    expect(read(WINDOW_A).railSplit).toBe(0.4)
+  })
+
+  it('routes a folded set with the half `changes` to its own set per project, leaving the Outputs set alone', () => {
+    setFolded(WINDOW_A, ['_bmad/'])
+    expect(setFolded(WINDOW_A, ['src/', 'docs/'], 'changes')).toEqual({ ok: true })
+    expect(read(WINDOW_A)).toMatchObject({ folded: ['_bmad/'], changesFolded: ['src/', 'docs/'] })
+    expect(read(WINDOW_B)).toMatchObject({ folded: [], changesFolded: [] })
+    expect(stored()).toEqual({
+      version: 1,
+      widths: {},
+      folded: { [projectA]: ['_bmad/'] },
+      skillRowOpen: false,
+      changesFolded: { [projectA]: ['src/', 'docs/'] }
+    })
+
+    setFolded(WINDOW_A, [])
+    expect(read(WINDOW_A)).toMatchObject({ folded: [], changesFolded: ['src/', 'docs/'] })
+  })
+
+  it('ignores a folded set naming any other half', () => {
+    for (const half of ['outputs', null, 1, {}]) {
+      expect(setFolded(WINDOW_A, ['src/'], half)).toEqual({ ok: true, ignored: true })
+    }
+    expect(readdirSync(userData)).toEqual([])
   })
 })

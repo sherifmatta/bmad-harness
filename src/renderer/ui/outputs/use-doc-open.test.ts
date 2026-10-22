@@ -24,6 +24,15 @@ describe('openDocument', () => {
     expect(openDoc).toHaveBeenCalledTimes(1)
   })
 
+  it('tells `onRefused` of a refused open, and of nothing else (Story 9.3)', async () => {
+    const refused = vi.fn()
+    openDocument({ openDoc: () => Promise.reject({ code: 'doc/invalid-path', message: 'no' }) }, 'link.env', refused)
+    openDocument({ openDoc: () => Promise.resolve() }, 'src/a.ts', refused)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(refused).toHaveBeenCalledTimes(1)
+  })
+
   it('does nothing, and does not throw, when there is no bridge', () => {
     expect(() => openDocument(undefined, '_bmad/a.md')).not.toThrow()
     expect(() => openDocument({}, '_bmad/a.md')).not.toThrow()

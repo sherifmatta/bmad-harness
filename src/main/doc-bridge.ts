@@ -1,4 +1,4 @@
-import { resolve as resolvePath } from 'node:path'
+import { basename, resolve as resolvePath } from 'node:path'
 import { ipcMain } from 'electron'
 import type { BrowserWindow, IpcMainInvokeEvent, WebContents } from 'electron'
 import {
@@ -10,6 +10,7 @@ import {
   DOC_OPEN_CHANNEL,
   DOC_REVEAL_CHANNEL
 } from '../shared/channels'
+import type { ChangeRow } from '../shared/changes'
 import type { DocAck, DocReply } from '../shared/document'
 import type { HarnessError } from '../shared/install'
 import {
@@ -19,13 +20,14 @@ import {
   noProject,
   unexpected
 } from './bridge-kit'
+import { changeRowsOf } from './changes-model'
 import { documentKindFor } from './fold/document-kind'
 import { outputFolderNameFor } from './output-folder-model'
 import { createDocumentProjection } from './projections/document'
 import type { DocumentProjection } from './projections/document'
-import { resolveDocument } from './sources/project/resolve-document'
+import { resolveChange, resolveDocument } from './sources/project/resolve-document'
 import { watchDocument } from './sources/project/watch-document'
-import type { DocRead, DocumentWatcher } from './sources/project/watch-document'
+import type { DocBoundary, DocRead, DocumentWatcher } from './sources/project/watch-document'
 import { openDocWindow, parentWindowFor } from './windows/doc-window'
 import type { DocWindowCloseReason, DocWindowHandle } from './windows/doc-window'
 import { openInEditor, revealInFinder } from './windows/macos-escapes'
@@ -50,11 +52,15 @@ export type DocBridgeDeps = {
   projectPathFor?: (webContentsId: number) => string | undefined
   parentWindowFor?: (webContents: WebContents) => BrowserWindow | null
   resolve?: typeof resolveDocument
+  /** AD-13's second admission (Story 9.3): a path the window's Changes list holds, checked on real paths. */
+  resolveChange?: typeof resolveChange
+  /** The Changes rows main holds for a project window, or `null` when it holds no list. */
+  changeRowsFor?: (webContentsId: number) => readonly ChangeRow[] | null
   /** The window's output folder now, project-relative with a trailing `/`: what bounds a document opened now. */
   folderFor?: (webContentsId: number) => string
   watch?: (options: {
     fullPath: string
-    boundary: string
+    boundary: DocBoundary
     onRead: (read: DocRead) => void
     onError: (error: unknown) => void
   }) => DocumentWatcher
@@ -90,6 +96,15 @@ const invalidPath = (folder: string): HarnessError => ({
  * Open a document window on `doc:open`, answer it with `doc:get`, push every
  * change on `doc:changed`, and return the room on close with `doc:closed`.
  *
+ * `doc:open` has exactly two admissions (AD-13, amended by AD-31 for Story 9.3).
+ * The first is a path inside the output folder, as it always was. The second is a
+ * path that is exactly a non-deleted, non-directory row of the Changes list main
+ * holds for the asking window, whose real path, made project-relative, is itself
+ * such a row. Each window keeps the boundary it was admitted by: the output
+ * folder's for the first, and for the second the project folder's name as its
+ * folder and the admitted real path, which every read must still resolve to. A
+ * path admitted by neither is refused as it always was.
+ *
  * Every handler is `ipcMain.handle`, and registering them reads and starts
  * nothing: a watcher exists only while a document window does. `doc:open` is
  * answered for a project window only; the other four act on the asking
@@ -101,6 +116,8 @@ export function registerDocBridge(deps: DocBridgeDeps = {}): void {
   const projectPathFor = deps.projectPathFor ?? defaultProjectPathFor
   const parentOf = deps.parentWindowFor ?? parentWindowFor
   const resolve = deps.resolve ?? resolveDocument
+  const resolveListed = deps.resolveChange ?? resolveChange
+  const changeRowsFor = deps.changeRowsFor ?? changeRowsOf
   const folderFor = deps.folderFor ?? outputFolderNameFor
   const watch = deps.watch ?? watchDocument
   const openWindow = deps.openWindow ?? openDocWindow
@@ -109,6 +126,35 @@ export function registerDocBridge(deps: DocBridgeDeps = {}): void {
   const edit = deps.openInEditor ?? ((target) => void openInEditor(target, { writeDiagnostic }))
 
   const entries = new Map<number, Entry>()
+
+  /**
+   * Which admission a path is let in by, and the boundary its window keeps: the
+   * output folder first, then the window's Changes list. `null` for neither.
+   */
+  async function admit(
+    senderId: number,
+    projectRoot: string,
+    path: unknown,
+    outputFolder: string
+  ): Promise<{ resolved: { fullPath: string; refused: boolean }; folder: string; boundary: DocBoundary } | null> {
+    const inOutputs = await resolve(projectRoot, path, outputFolder)
+    if (inOutputs.ok) {
+      return { resolved: inOutputs, folder: outputFolder, boundary: resolvePath(projectRoot, outputFolder) }
+    }
+    const rows = changeRowsFor(senderId)
+    if (rows === null) {
+      return null
+    }
+    const listed = await resolveListed(projectRoot, path, rows)
+    if (!listed.ok) {
+      return null
+    }
+    return {
+      resolved: listed,
+      folder: `${basename(projectRoot)}/`,
+      boundary: { realPath: listed.realPath }
+    }
+  }
 
   function entryFor(event: IpcMainInvokeEvent): Entry | undefined {
     return entries.get(event.sender.id)
@@ -149,11 +195,12 @@ export function registerDocBridge(deps: DocBridgeDeps = {}): void {
       try {
         // The folder as it is at this open: a window already open keeps the
         // boundary it was opened with, whatever the folder becomes after.
-        const folder = folderFor(event.sender.id)
-        const resolved = await resolve(projectRoot, path, folder)
-        if (!resolved.ok) {
-          return failure(invalidPath(folder))
+        const outputFolder = folderFor(event.sender.id)
+        const admitted = await admit(event.sender.id, projectRoot, path, outputFolder)
+        if (admitted === null) {
+          return failure(invalidPath(outputFolder))
         }
+        const { resolved, folder, boundary } = admitted
         const parent = parentOf(event.sender)
         if (parent === null || parent.isDestroyed()) {
           return noProject('doc')
@@ -194,7 +241,7 @@ export function registerDocBridge(deps: DocBridgeDeps = {}): void {
           ? null
           : watch({
               fullPath: resolved.fullPath,
-              boundary: resolvePath(projectRoot, folder),
+              boundary,
               onRead: (read) => projection.apply(read),
               onError: (error) =>
                 writeDiagnostic(

@@ -144,6 +144,8 @@ describe("no palette, no launcher, no global skills list", () => {
   const KEY_SURFACES = [
     "src/renderer/ui/team/",
     "src/renderer/ui/outputs/",
+    // The Changes half (Story 9.3) is the Outputs tree's roving list again, with its own state.
+    "src/renderer/ui/changes/",
     "src/renderer/ui/a11y/",
     // The Welcome's recent list is a roving list of its own page (Story 5.1), and
     // takes its arrows from the shared roving code like the other two.
@@ -729,7 +731,7 @@ describe("the text ramp", () => {
     },
     "ui/outputs/outputs.css: .file-icon": {
       kind: "decoration",
-      why: "the glyph before a file name",
+      why: "the glyph before a file name, on a rail row and on a Changes row (Story 9.3)",
     },
     "ui/chat/turn.css: .turn-role": {
       kind: "label",
@@ -982,8 +984,8 @@ describe("the handoff says only what is true and parses no skill (Story 2.9)", (
     // Thirteen before Story 2.11, whose one new method is closeSession, Story 3.1's
     // dispatchMenu, Story 3.7's stopRun, Story 3.10's onRunRevealed and Story 5.4's chooseOutputFolder;
     // none is the handoff's. Story 5.5 added the layout's three: getLayout, setPanelWidth and setFolded,
-    // and Story 9.1 the layout's fourth, setSkillRowOpen.
-    expect([...preload.matchAll(/^ {2}([a-zA-Z]+): (?:async )?\(/gm)]).toHaveLength(25);
+    // and Story 9.1 the layout's fourth, setSkillRowOpen; Story 9.3 getChanges, onChangesChanged and setRailSplit.
+    expect([...preload.matchAll(/^ {2}([a-zA-Z]+): (?:async )?\(/gm)]).toHaveLength(28);
     expect(code.get("src/shared/commands.ts") ?? "").not.toMatch(/handoff|sysline/i);
     expect(code.get("src/shared/events.ts") ?? "").not.toMatch(/handoff|sysline/i);
   });
@@ -1444,14 +1446,22 @@ describe("Epic 2's conversational surface asserts the rest of its prohibitions (
       // `tokens.css` alone names an attribute: the light theme's `data-theme` (Story 5.2), which is
       // written by the preload and read by no component. A folder heading's `title={dir}` (Story 9.2) is
       // the one title, named by its exact text: the directory's full path, never anything of a persona's turn.
+      // Story 9.3 adds a Changes row's `title={description}`: the file's path, or `deleted · nothing to open`.
       const FOLDER_HEADING = "src/renderer/ui/outputs/folder-heading.tsx";
+      const CHANGE_ROW = "src/renderer/ui/changes/change-row.tsx";
       const SWEPT = /(?<![\w-])title\s*=|(?<![\w-])data-[a-z]|aria-describedby|role=["']tooltip|\btooltip\b|\bpopover\b|\battr\(|\bdataset\b|\bsetAttribute\(/i;
       const heading = code.get(FOLDER_HEADING) ?? "";
       expect(heading.split("title={dir}")).toHaveLength(2);
       expect(heading.replace("title={dir}", "")).not.toMatch(SWEPT);
+      const changeRow = code.get(CHANGE_ROW) ?? "";
+      expect(changeRow.split("title={description}")).toHaveLength(2);
+      expect(changeRow).toContain("const description = row.state === 'deleted' ? 'deleted · nothing to open' : row.path");
+      expect(changeRow.replace("title={description}", "")).not.toMatch(SWEPT);
       expect(
         offenders(
-          RENDERER_ALL.filter((path) => path !== "src/renderer/design/tokens.css" && path !== FOLDER_HEADING),
+          RENDERER_ALL.filter(
+            (path) => path !== "src/renderer/design/tokens.css" && path !== FOLDER_HEADING && path !== CHANGE_ROW,
+          ),
           SWEPT,
         ),
       ).toEqual([]);
@@ -1798,7 +1808,9 @@ describe("the skill row knows nothing about what it runs (Story 3.1)", () => {
   });
 
   it("names `+N more` and `fewer` in the row alone, and no transcript entry carries them", () => {
+    // Story 9.3: the Changes half's `+<N> more not listed` past its cap is a plain line, no control, and no menu's.
     expect(offenders(RENDERER_CODE.filter((path) => path.endsWith(".tsx") && !path.endsWith(".test.tsx")), /\bfewer\b|\+\$\{[^}]*\}\s*more/)).toEqual([
+      "src/renderer/ui/changes/changes.tsx: +${drawn.more} more",
       "src/renderer/ui/chat/skill-row.tsx: fewer",
     ]);
     expect(row).toMatch(/`\+\$\{[^}]*\} more`/);
@@ -2284,7 +2296,7 @@ describe("two writers, one file: the rail reports it and nothing arbitrates (Sto
     expect(offenders([OWNER_LABEL], /§|\bof\b|\btotal\b|\bcount\b/)).toEqual([]);
   });
 
-  it("adds no command, event, channel or bridge method: the counts stay eight, seventeen, thirty-seven and twenty-five", () => {
+  it("adds no command, event, channel or bridge method: the counts stay eight, seventeen, forty and twenty-eight", () => {
     const commands = [...(code.get(COMMANDS) ?? "").matchAll(/^\s+'([a-z]+\.[a-z]+)':\s*CommandSpec/gm)].map(([, name]) => name);
     const events = [...(code.get(EVENTS) ?? "").matchAll(/^\s+'([a-z]+:[a-z-]+)':\s*EventSpec/gm)].map(([, name]) => name);
     const channels = [...(code.get(CHANNELS) ?? "").matchAll(/^export const (\w+) = '/gm)].map(([, name]) => name);
@@ -2302,10 +2314,12 @@ describe("two writers, one file: the rail reports it and nothing arbitrates (Sto
     // Story 3.19 added `turn.stop` (eight commands), its channel (thirty-four) and `stopTurn` (twenty-two).
     // Story 6.2 added `board:changed` (seventeen events), the Board's two channels (thirty-six) and its two methods (twenty-four).
     // Story 9.1 added `layout:set-skill-row` (thirty-seven) and `setSkillRowOpen` (twenty-five).
+    // Story 9.3 added `changes:get`, `changes:changed` and `layout:set-rail-split` (forty), and
+    // `getChanges`, `onChangesChanged` and `setRailSplit` (twenty-eight).
     expect(commands).toHaveLength(8);
     expect(events).toHaveLength(17);
-    expect(channels).toHaveLength(37);
-    expect(methods).toHaveLength(25);
+    expect(channels).toHaveLength(40);
+    expect(methods).toHaveLength(28);
     // And none of them is named for it.
     expect(offenders(CONTRACT, /contend|contention|\bowners\b|arbitrat/i)).toEqual([]);
     expect(offenders(MAIN_CODE, /ipcMain\.handle\(\s*["'`][^"'`]*(?:contend|contention|owners|arbitrat)/i)).toEqual([]);
@@ -2542,7 +2556,7 @@ describe("told once, quietly, when you are elsewhere: one silent banner, one scr
     expect(revealing).not.toMatch(/setComposerFocus|openDoc|activate\(|send\(|runSkill|stopRun|close\(/);
   });
 
-  it("gives the preload and the shared contract no word of it, and no new command or event: eight, seventeen, thirty-seven channels, twenty-five methods", () => {
+  it("gives the preload and the shared contract no word of it, and no new command or event: eight, seventeen, forty channels, twenty-eight methods", () => {
     expect(
       offenders(
         [...sources("src/preload/"), ...sources("src/shared/")],
@@ -2558,10 +2572,10 @@ describe("told once, quietly, when you are elsewhere: one silent banner, one scr
     );
     expect(commands).toHaveLength(8);
     expect(events).toHaveLength(17);
-    // Thirty-seven and twenty-five since Story 9.1's skill row channel and method.
-    expect(channels).toHaveLength(37);
+    // Forty and twenty-eight since Story 9.3's three channels and three methods.
+    expect(channels).toHaveLength(40);
     expect(channels).toContain("RUN_REVEALED_CHANNEL");
-    expect(methods).toHaveLength(25);
+    expect(methods).toHaveLength(28);
     expect(methods).toContain("onRunRevealed");
     // The channel is a push to a window and nothing answers on it: no handler, no invoke.
     expect(offenders(MAIN_CODE, /ipcMain\.handle\(\s*RUN_REVEALED_CHANNEL/)).toEqual([]);
@@ -2711,13 +2725,13 @@ describe("nothing this epic promised not to do: the audit's static half (Story 3
     expect((code.get(ROW) ?? "").match(/<button\b/g)).toHaveLength(1);
   });
 
-  it("holds the contract at eight commands, seventeen events, thirty-seven channels and twenty-five bridge methods (Story 9.1 added one of each of the last two)", () => {
+  it("holds the contract at eight commands, seventeen events, forty channels and twenty-eight bridge methods (Story 9.1 added one of each of the last two, Story 9.3 three of each)", () => {
     const commands = [...(code.get(COMMANDS) ?? "").matchAll(/^\s+'([a-z]+\.[a-z]+)':\s*CommandSpec/gm)];
     const events = [...(code.get(EVENTS) ?? "").matchAll(/^\s+'([a-z]+:[a-z-]+)':\s*EventSpec/gm)];
     const channels = [...(code.get(CHANNELS) ?? "").matchAll(/^export const (\w+) = '/gm)];
     const preload = code.get(PRELOAD) ?? "";
     const methods = [...preload.slice(preload.indexOf("const harness: HarnessApi = {"), preload.indexOf("contextBridge.exposeInMainWorld")).matchAll(/^ {2}(\w+):/gm)];
-    expect([commands.length, events.length, channels.length, methods.length]).toEqual([8, 17, 37, 25]);
+    expect([commands.length, events.length, channels.length, methods.length]).toEqual([8, 17, 40, 28]);
   });
 
   it("says what carried on after a stop in lower case, `·`-separated, unpunctuated, and offers nothing: no resume, continue, retry or guidance word", () => {
@@ -2947,13 +2961,13 @@ describe("nothing this epic promised not to do: the audit's static half (Story 4
     expect(offenders(PARTY_CSS, /spinner|skeleton|shimmer|loader|badge|@keyframes\s+(?!eq\b)/i)).toEqual([]);
   });
 
-  it("holds the contract at eight commands, seventeen events, thirty-seven channels and twenty-five bridge methods (Story 9.1 added one of each of the last two)", () => {
+  it("holds the contract at eight commands, seventeen events, forty channels and twenty-eight bridge methods (Story 9.1 added one of each of the last two, Story 9.3 three of each)", () => {
     const commands = [...(code.get(COMMANDS) ?? "").matchAll(/^\s+'([a-z]+\.[a-z]+)':\s*CommandSpec/gm)];
     const events = [...(code.get(EVENTS) ?? "").matchAll(/^\s+'([a-z]+:[a-z-]+)':\s*EventSpec/gm)];
     const channels = [...(code.get(CHANNELS) ?? "").matchAll(/^export const (\w+) = '/gm)];
     const preload = code.get(PRELOAD) ?? "";
     const methods = [...preload.slice(preload.indexOf("const harness: HarnessApi = {"), preload.indexOf("contextBridge.exposeInMainWorld")).matchAll(/^ {2}(\w+):/gm)];
-    expect([commands.length, events.length, channels.length, methods.length]).toEqual([8, 17, 37, 25]);
+    expect([commands.length, events.length, channels.length, methods.length]).toEqual([8, 17, 40, 28]);
   });
 
   it("says a refused message once, as a fact, in the window's own register, and never sends, queues or retries it (Story 4.8)", () => {
@@ -3250,5 +3264,81 @@ describe("what a chat per persona did not do, and the one predicate behind its t
     expect(
       offenders(ALL_CODE.filter((path) => path !== THREAD), /\bfunction (?:threadAgentOf|isInPersonaThread)\b|\bconst (?:threadAgentOf|isInPersonaThread)\b/),
     ).toEqual([]);
+  });
+});
+
+describe("what the Changes half never does (Story 9.3, AD-31)", () => {
+  const GIT_STATUS = "src/main/sources/project/git-status.ts";
+  const GIT_LOCATOR = "src/main/sources/project/git-locator.ts";
+  const CHANGES_UI = sources("src/renderer/ui/changes/", [".ts", ".tsx", ".css"]);
+  const AD31_ARGV = [
+    "--no-optional-locks",
+    "-c",
+    "core.fsmonitor=false",
+    "-c",
+    "core.untrackedCache=false",
+    "-c",
+    "status.renames=true",
+    "status",
+    "--porcelain=v2",
+    "-z",
+    "--untracked-files=all",
+    "--ignore-submodules=dirty",
+  ];
+
+  it("spells AD-31's one git argv once, in the git source, and no other git argv anywhere in main", () => {
+    const source = code.get(GIT_STATUS) ?? "";
+    const from = source.indexOf("export const GIT_STATUS_ARGS: readonly string[] = [");
+    expect(from).toBeGreaterThan(-1);
+    const literal = source.slice(source.indexOf("= [", from), source.indexOf("\n]", from));
+    expect([...literal.matchAll(/'([^']*)'/g)].map(([, argument]) => argument)).toEqual(AD31_ARGV);
+    // The argv's own words live in that one file.
+    expect(offenders(MAIN_CODE, /--porcelain|--no-optional-locks|--untracked-files|--ignore-submodules/).map((hit) => hit.split(":")[0])).toEqual([GIT_STATUS]);
+    // The one run: the located git, the argv spread from that constant, nothing else.
+    expect(source.match(/\brun\(/g)).toHaveLength(1);
+    expect(source).toContain("await run(git, [...GIT_STATUS_ARGS], {");
+    // Only the projection reaches the git source, and only the git source reaches the locator.
+    expect(offenders(MAIN_CODE, /from ['"][^'"]*\/sources\/project\/git-status['"]/).map((hit) => hit.split(":")[0])).toEqual([
+      "src/main/projections/changes.ts",
+    ]);
+    expect(offenders(MAIN_CODE, /from ['"][^'"]*git-locator['"]/).map((hit) => hit.split(":")[0])).toEqual([GIT_STATUS]);
+    // No git subcommand that writes, in any shape, in anything that reaches git.
+    expect(
+      offenders(
+        [GIT_STATUS, GIT_LOCATOR, "src/main/fold/git-status.ts", "src/main/projections/changes.ts", "src/main/changes-bridge.ts"],
+        /['"`](?:add|commit|stash|checkout|switch|restore|reset|revert|rm|mv|push|pull|fetch|merge|rebase|clean|apply|am|update-index|update-ref|gc|stage|unstage|diff)['"`]/,
+      ),
+    ).toEqual([]);
+  });
+
+  it("never spawns bare git, the /usr/bin stubs or xcrun: those names live only in the locator's refusal list", () => {
+    // A command spelled as a literal `git` is bare `git`: never passed to any runner or spawn.
+    expect(offenders(MAIN_CODE, /(?:spawn|execFile|execFileSync|exec|execSync|run|runCommand)\(\s*['"`](?:git|\/usr\/bin\/git|\/usr\/bin\/xcrun|xcrun)['"`]/)).toEqual([]);
+    expect(offenders(MAIN_CODE, /\/usr\/bin\/(?:git|xcrun)/).map((hit) => hit.split(":")[0])).toEqual([GIT_LOCATOR]);
+    const locator = code.get(GIT_LOCATOR) ?? "";
+    expect(locator).toContain("const STUBS = new Set(['/usr/bin/git', '/usr/bin/xcrun'])");
+    // The locator reads a header and never runs a candidate.
+    expect(locator).not.toMatch(/child_process|\bspawn\b|\bexec(?:File)?\b|runCommand/);
+    // The branch chip still reads `.git/HEAD` and spawns nothing.
+    expect(code.get("src/main/sources/project/branch.ts") ?? "").not.toMatch(/child_process|runCommand|\bspawn\b/);
+  });
+
+  it("writes nothing into the project or `.git`: the git source and the Changes bridge hold no write", () => {
+    for (const path of [GIT_STATUS, GIT_LOCATOR, "src/main/projections/changes.ts", "src/main/changes-bridge.ts", "src/main/changes-model.ts", "src/main/fold/git-status.ts"]) {
+      expect(code.get(path) ?? "", path).not.toMatch(/writeFile|appendFile|mkdir|rename\(|unlink|rmSync|\brm\(|copyFile|symlink|chmod|truncate|open\([^)]*['"][wa]/);
+    }
+  });
+
+  it("has no stage, commit, revert, discard, stash, checkout or diff control or word under ui/changes/", () => {
+    expect(CHANGES_UI.length).toBeGreaterThan(3);
+    expect(
+      offenders(CHANGES_UI, /\b(?:un)?stag(?:e|es|ed|ing)\b|\bcommit(?:s|ted|ting)?\b|\brevert\w*|\bdiscard\w*|\bstash\w*|\bcheckout\b|\bdiff\b/i),
+    ).toEqual([]);
+  });
+
+  it("draws no count, badge, state colour or live announcement in the Changes half", () => {
+    const css = CHANGES_UI.filter((path) => path.endsWith(".css")).map((path) => code.get(path) ?? "").join("\n");
+    expect(css).not.toMatch(/var\(--(?:amber|green|red|accent)\b/);
+    expect(offenders(CHANGES_UI, /aria-live|role=["'](?:status|alert)|\bannounce\w*|[Bb]adge|\.length\}\s*(?:files?|changes?)/)).toEqual([]);
   });
 });

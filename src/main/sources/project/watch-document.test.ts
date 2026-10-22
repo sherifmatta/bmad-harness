@@ -118,10 +118,30 @@ describe('readDocument', () => {
     expect(await readDocument(file)).toEqual({ state: 'present', text: '', truncated: false })
   })
 
-  it('drops a byte order mark and decodes bad UTF-8 without throwing', async () => {
-    writeFileSync(file, Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('ok '), Buffer.from([0xff])]))
+  it('drops a byte order mark', async () => {
+    writeFileSync(file, Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('ok')]))
 
-    expect(await readDocument(file)).toEqual({ state: 'present', text: 'ok �', truncated: false })
+    expect(await readDocument(file)).toEqual({ state: 'present', text: 'ok', truncated: false })
+  })
+
+  it('calls invalid UTF-8 binary, without throwing (Story 9.3)', async () => {
+    writeFileSync(file, Buffer.concat([Buffer.from('ok '), Buffer.from([0xff])]))
+
+    expect(await readDocument(file)).toEqual({ state: 'binary' })
+  })
+
+  it('does not call a sequence cut off at DOC_MAX_BYTES invalid: the incomplete tail is left off', async () => {
+    // 'é' is two bytes; one 'a' first puts the cut between them.
+    writeFileSync(file, Buffer.concat([Buffer.from('a'), Buffer.from('é'.repeat(DOC_MAX_BYTES))]))
+
+    const read = await readDocument(file)
+
+    expect(read.state).toBe('present')
+    if (read.state === 'present') {
+      expect(read.truncated).toBe(true)
+      expect(read.text.endsWith('é')).toBe(true)
+      expect(Buffer.byteLength(read.text)).toBe(DOC_MAX_BYTES - 1)
+    }
   })
 
   it('reads at most DOC_MAX_BYTES of a larger file and says so', async () => {
@@ -142,16 +162,43 @@ describe('readDocument', () => {
     expect(await readDocument(file)).toMatchObject({ state: 'present', truncated: false })
   })
 
-  it('calls a NUL in the first 8 KiB binary, with no text', async () => {
+  it.each([
+    ['a 3-byte character cut after 1 byte', '€', 1],
+    ['a 3-byte character cut after 2 bytes', '€', 2],
+    ['a 4-byte character cut after 1 byte', '𝄞', 1],
+    ['a 4-byte character cut after 2 bytes', '𝄞', 2],
+    ['a 4-byte character cut after 3 bytes', '𝄞', 3]
+  ])('reads %s at DOC_MAX_BYTES as present and truncated, without the cut sequence', async (_name, character, kept) => {
+    const filler = 'a'.repeat(DOC_MAX_BYTES - kept)
+    writeFileSync(file, Buffer.concat([Buffer.from(filler), Buffer.from(character), Buffer.from('tail')]))
+
+    expect(await readDocument(file)).toEqual({ state: 'present', text: filler, truncated: true })
+  })
+
+  it('trims a sequence cut by a file that shrank between the stat and the read, and does not call it truncated', async () => {
+    const { decodeText } = await import('./watch-document')
+    const bytes = Buffer.concat([Buffer.from('ok '), Buffer.from('€').subarray(0, 2)])
+
+    expect(decodeText(bytes, true)).toBe('ok ')
+    expect(decodeText(bytes, false)).toBeNull()
+  })
+
+  it('calls a NUL binary, with no text', async () => {
     writeFileSync(file, Buffer.concat([Buffer.from('text'), Buffer.from([0]), Buffer.from('more')]))
 
     expect(await readDocument(file)).toEqual({ state: 'binary' })
   })
 
-  it('does not look for a NUL past the first 8 KiB', async () => {
+  it('looks for a NUL in the whole bounded read, past the first 8 KiB too (Story 9.3)', async () => {
     writeFileSync(file, Buffer.concat([Buffer.from('a'.repeat(9000)), Buffer.from([0])]))
 
-    expect(await readDocument(file)).toMatchObject({ state: 'present' })
+    expect(await readDocument(file)).toEqual({ state: 'binary' })
+  })
+
+  it('does not look for a NUL past DOC_MAX_BYTES, which is never read', async () => {
+    writeFileSync(file, Buffer.concat([Buffer.from('a'.repeat(DOC_MAX_BYTES)), Buffer.from([0])]))
+
+    expect(await readDocument(file)).toMatchObject({ state: 'present', truncated: true })
   })
 
   it('calls a file that is not there missing, and reports no error', async () => {
@@ -428,6 +475,33 @@ describe('readDocument with a boundary (NFR8)', () => {
   })
 })
 
+describe('readDocument at one admitted real path (Story 9.3, AD-13’s second admission)', () => {
+  it('reads the file while its real path is still the one admitted', async () => {
+    writeFileSync(file, 'listed')
+    const { realpathSync } = await import('node:fs')
+
+    expect(await readDocument(file, () => {}, { realPath: realpathSync(file) })).toMatchObject({
+      state: 'present',
+      text: 'listed'
+    })
+  })
+
+  it('refuses a file swapped for a link after it was admitted, and reads nothing of the target', async () => {
+    writeFileSync(file, 'listed')
+    const { realpathSync } = await import('node:fs')
+    const admitted = realpathSync(file)
+    writeFileSync(join(root, '.env'), 'SECRET=1')
+    rmSync(file)
+    symlinkSync(join(root, '.env'), file)
+
+    expect(await readDocument(file, () => {}, { realPath: admitted })).toEqual({ state: 'refused' })
+  })
+
+  it('keeps a file that has gone missing, not refused', async () => {
+    expect(await readDocument(file, () => {}, { realPath: file })).toEqual({ state: 'missing' })
+  })
+})
+
 describe('watchDocument with a boundary', () => {
   const boundary = () => join(root, '_bmad')
   const delivered = (): string => JSON.stringify(reads)
@@ -474,7 +548,7 @@ describe('watchDocument with a boundary', () => {
   })
 
   it('hands the boundary to the reader it is given', async () => {
-    const seen: (string | undefined)[] = []
+    const seen: unknown[] = []
     writeFileSync(file, 'x')
     await start({
       boundary: boundary(),

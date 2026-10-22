@@ -158,10 +158,50 @@ describe('the inert layout', () => {
     expect(INERT_LAYOUT.widths).toEqual({ sidebar: null, rail: null, room: null })
     expect(INERT_LAYOUT.folded.size).toBe(0)
     expect(INERT_LAYOUT.skillRowOpen).toBe(false)
+    expect(INERT_LAYOUT.railSplit).toBeNull()
+    expect(INERT_LAYOUT.changesFolded.size).toBe(0)
     expect(() => {
       INERT_LAYOUT.saveWidth('rail', 400)
       INERT_LAYOUT.saveFolded(new Set(['x/']))
       INERT_LAYOUT.saveSkillRowOpen(true)
+      INERT_LAYOUT.saveRailSplit(0.3)
+      INERT_LAYOUT.saveChangesFolded(new Set(['src/']))
     }).not.toThrow()
+  })
+})
+
+describe('the rail split and the Changes folds (Story 9.3)', () => {
+  it('reads a stored share strictly between 0 and 1, and anything else as half and half, silently', () => {
+    setHarness({ getLayout: () => ({ railSplit: 0.3 }) })
+    expect(renderHook(useLayout).current.railSplit).toBe(0.3)
+    for (const railSplit of [7, 0, 1, '0.4', null, undefined]) {
+      setHarness({ getLayout: () => ({ railSplit }) })
+      expect(renderHook(useLayout).current.railSplit, String(railSplit)).toBeNull()
+    }
+  })
+
+  it('keeps a share through its own method, and forgets it for null', () => {
+    const setRailSplit = vi.fn()
+    setHarness({ setRailSplit })
+    const hook = renderHook(useLayout)
+
+    hook.current.saveRailSplit(0.25)
+    hook.current.saveRailSplit(null)
+
+    expect(setRailSplit.mock.calls).toEqual([[0.25], [null]])
+  })
+
+  it('holds the Changes half’s own folded set, apart from the Outputs set, and keeps it with its half named', () => {
+    const setFolded = vi.fn()
+    setHarness({ getLayout: () => ({ folded: ['_bmad/'], changesFolded: ['src/', 3] }), setFolded })
+    const hook = renderHook(useLayout)
+    expect([...hook.current.changesFolded]).toEqual(['src/'])
+    expect([...hook.current.folded]).toEqual(['_bmad/'])
+
+    inAct(() => hook.current.saveChangesFolded(new Set(['src/', 'docs/'])))
+
+    expect([...hook.current.changesFolded]).toEqual(['src/', 'docs/'])
+    expect([...hook.current.folded]).toEqual(['_bmad/'])
+    expect(setFolded.mock.calls).toEqual([[['src/', 'docs/'], 'changes']])
   })
 })

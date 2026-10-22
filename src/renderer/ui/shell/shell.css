@@ -660,9 +660,10 @@
 
 /* ---------- 1:1 : the side panels ---------- */
 
-/* The Team sidebar on the left and the Outputs rail on the right of the chat
-   column: one column of one half each. Each width is its token, overridden
-   inline when the user has chosen one. */
+/* The Team sidebar on the left and the rail on the right of the chat column. The
+   sidebar is one half; the rail is two, Changes above Outputs (Story 9.3), each
+   taking its share of the rail's height as an inline `--rail-half-basis`. Each
+   width is its token, overridden inline when the user has chosen one. */
 .sidebar {
   display: flex;
   flex-direction: column;
@@ -709,6 +710,12 @@
   gap: var(--space-lg);
   min-width: 0;
   margin-left: auto;
+}
+
+/* The Outputs head's top border (Story 9.3): the line between the two rail halves, and the
+   line the rail split sits on and widens when hovered, dragged or focused. */
+.rail-split + .rail-half .rail-head {
+  border-top: var(--rule-width) solid var(--line);
 }
 
 .rail-head h3 {
@@ -789,6 +796,11 @@
 
   .rail-half {
     min-height: var(--stack-half-min);
+  }
+
+  /* Stacked, the halves take their content's height: no split between them (Story 9.3). */
+  .rail-split {
+    display: none;
   }
 
   .topbar {

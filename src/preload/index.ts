@@ -2,6 +2,8 @@ import { contextBridge, ipcRenderer } from 'electron'
 import {
   BOARD_CHANGED_CHANNEL,
   BOARD_GET_CHANNEL,
+  CHANGES_CHANGED_CHANNEL,
+  CHANGES_GET_CHANNEL,
   CONVERSATION_END_CHANNEL,
   CONVERSATION_GET_CHANNEL,
   DOC_CLOSED_CHANNEL,
@@ -10,6 +12,7 @@ import {
   INSTALL_GET_CHANNEL,
   LAYOUT_GET_CHANNEL,
   LAYOUT_SET_FOLDED_CHANNEL,
+  LAYOUT_SET_RAIL_SPLIT_CHANNEL,
   LAYOUT_SET_SKILL_ROW_CHANNEL,
   LAYOUT_SET_WIDTH_CHANNEL,
   MENU_DISPATCH_CHANNEL,
@@ -27,6 +30,7 @@ import {
   TURN_STOP_CHANNEL
 } from '../shared/channels'
 import type { BoardReply, BoardSnapshot } from '../shared/board'
+import type { ChangesReply, ChangesSnapshot } from '../shared/changes'
 import type { ContractCommands } from '../shared/commands'
 import type {
   ConversationReply,
@@ -52,6 +56,8 @@ import type { HarnessApi } from './harness-api'
 export {
   BOARD_CHANGED_CHANNEL,
   BOARD_GET_CHANNEL,
+  CHANGES_CHANGED_CHANNEL,
+  CHANGES_GET_CHANNEL,
   CONVERSATION_END_CHANNEL,
   CONVERSATION_GET_CHANNEL,
   DOC_CLOSED_CHANNEL,
@@ -60,6 +66,7 @@ export {
   INSTALL_GET_CHANNEL,
   LAYOUT_GET_CHANNEL,
   LAYOUT_SET_FOLDED_CHANNEL,
+  LAYOUT_SET_RAIL_SPLIT_CHANNEL,
   LAYOUT_SET_SKILL_ROW_CHANNEL,
   LAYOUT_SET_WIDTH_CHANNEL,
   MENU_DISPATCH_CHANNEL,
@@ -97,6 +104,24 @@ const harness: HarnessApi = {
     ipcRenderer.on(INSTALL_CHANGED_CHANNEL, wrapper)
     return () => {
       ipcRenderer.removeListener(INSTALL_CHANGED_CHANNEL, wrapper)
+    }
+  },
+
+  // The Changes half's snapshot (Story 9.3), read on connecting, then pushed whenever what git reports
+  // differs. Main reads git only while this window is in front; nothing here asks it to.
+  getChanges: async () => {
+    const reply = (await ipcRenderer.invoke(CHANGES_GET_CHANNEL)) as ChangesReply
+    if (reply.ok) {
+      return reply.snapshot
+    }
+    throw reply.error
+  },
+
+  onChangesChanged: (listener) => {
+    const wrapper = (_event: unknown, snapshot: ChangesSnapshot): void => listener(snapshot)
+    ipcRenderer.on(CHANGES_CHANGED_CHANNEL, wrapper)
+    return () => {
+      ipcRenderer.removeListener(CHANGES_CHANGED_CHANNEL, wrapper)
     }
   },
 
@@ -168,14 +193,25 @@ const harness: HarnessApi = {
     void ipcRenderer.invoke(LAYOUT_SET_WIDTH_CHANNEL, panel, width)
   },
 
-  setFolded: (dirs) => {
-    void ipcRenderer.invoke(LAYOUT_SET_FOLDED_CHANNEL, [...dirs])
+  // The half crosses only when it is given (Story 9.3): the Outputs half's write is as it always was.
+  setFolded: (dirs, half) => {
+    if (half === undefined) {
+      void ipcRenderer.invoke(LAYOUT_SET_FOLDED_CHANNEL, [...dirs])
+    } else {
+      void ipcRenderer.invoke(LAYOUT_SET_FOLDED_CHANNEL, [...dirs], half)
+    }
   },
 
   // Whether the skill row is open (Story 9.1): one app-wide boolean, a request like the
   // other two writes. Nothing comes back; main ignores anything that is not a boolean.
   setSkillRowOpen: (open) => {
     void ipcRenderer.invoke(LAYOUT_SET_SKILL_ROW_CHANNEL, open)
+  },
+
+  // The rail split's share (Story 9.3): a fraction of the rail's height, or `null` for half and half.
+  // A request like the other writes; main ignores anything else.
+  setRailSplit: (share) => {
+    void ipcRenderer.invoke(LAYOUT_SET_RAIL_SPLIT_CHANNEL, share)
   },
 
   onDocClosed: (listener) => {

@@ -11,45 +11,11 @@ import { useLayoutContext } from '../layout/layout-context'
 import { FolderHeading } from './folder-heading'
 import { OutputRow } from './output-row'
 import { ownerLabel } from './owner-label'
-import { buildTree, hasChanging } from './row-groups'
+import { buildTree, hasChanging, showing } from './row-groups'
 import type { TreeNode } from './row-groups'
 import { headingKey, rowMove, tabStopPath } from './row-nav'
 import { useDocOpen } from './use-doc-open'
 import { useNow } from './use-now'
-
-/**
- * The headings and the rows showing, in visual order: a heading is keyed `dir:<dir>`, a
- * row by its path; nothing beneath a folded heading. With each key's parent heading, for
- * `←` and for a focused entry that leaves. A tree with no rows shows nothing.
- */
-function showing(
-  tree: TreeNode | null,
-  folded: ReadonlySet<string>
-): { order: string[]; parentOf: Map<string, string | null> } {
-  const order: string[] = []
-  const parentOf = new Map<string, string | null>()
-  const walk = (node: TreeNode, parent: string | null): void => {
-    const key = headingKey(node.dir)
-    order.push(key)
-    parentOf.set(key, parent)
-    if (folded.has(node.dir)) {
-      return
-    }
-    node.dirs.forEach((child) => walk(child, key))
-    for (const row of node.rows) {
-      order.push(row.path)
-      parentOf.set(row.path, key)
-    }
-  }
-  if (tree !== null && hasRows(tree)) {
-    walk(tree, null)
-  }
-  return { order, parentOf }
-}
-
-function hasRows(node: TreeNode): boolean {
-  return node.rows.length > 0 || node.dirs.length > 0
-}
 
 /**
  * The rail's Outputs half (FR48, UX-DR18): one row per file under the project's

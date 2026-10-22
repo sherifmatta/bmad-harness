@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { FolderView } from '../src/main/output-folder-model'
 import type { CommandRunner } from '../src/main/sources/install/run-command'
-import type { DocRead } from '../src/main/sources/project/watch-document'
+import type { DocBoundary, DocRead } from '../src/main/sources/project/watch-document'
 import { DEFAULT_OUTPUT_FOLDER } from '../src/shared/output-folder'
 import type { DocSnapshot } from '../src/shared/document'
 import type { ArtifactObservation, RailSnapshot } from '../src/shared/rail'
@@ -207,7 +207,7 @@ describe('a project whose BMad configuration names another output folder', () =>
   let configured: string
   let picks: (string | null)[]
   let watching: { folder: string; closed: boolean }[]
-  let docWatchers: { boundary: string; deliver: (read: DocRead) => void }[]
+  let docWatchers: { boundary: DocBoundary; deliver: (read: DocRead) => void }[]
   let docSenders: FakeSender[]
   let rail: ReturnType<typeof registerOutputFolderBridge>
 

@@ -46,7 +46,11 @@ function layout(widths: Partial<LayoutContextValue['widths']> = {}): LayoutConte
     saveWidth: (panel, width) => saved.push([panel, width]),
     saveFolded: () => {},
     skillRowOpen: false,
-    saveSkillRowOpen: () => {}
+    saveSkillRowOpen: () => {},
+    railSplit: null,
+    saveRailSplit: () => {},
+    changesFolded: new Set(),
+    saveChangesFolded: () => {}
   }
 }
 
@@ -111,7 +115,12 @@ describe('the rail’s splitter', () => {
     // On the rail's inner edge: after the chat column, before the rail.
     expect(bar.previousElementSibling?.className).toBe('chat')
     expect(bar.nextElementSibling).toBe(rail())
-    expect(document.querySelectorAll('[role="separator"]')).toHaveLength(2)
+    // The sidebar's, the rail's and, inside the rail, the rail split between its two halves (Story 9.3).
+    expect(document.querySelectorAll('[role="separator"]')).toHaveLength(3)
+    const split = rail().querySelector('.rail-split')
+    expect(split?.getAttribute('aria-orientation')).toBe('horizontal')
+    expect(split?.previousElementSibling?.querySelector('h3')?.textContent).toBe('Changes')
+    expect(split?.nextElementSibling?.querySelector('h3')?.textContent).toBe('Outputs')
   })
 
   it('leaves the rail at the token’s own width until a width is chosen: no inline value', () => {

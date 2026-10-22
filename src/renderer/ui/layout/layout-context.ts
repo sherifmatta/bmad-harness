@@ -5,7 +5,8 @@ import type { PanelId } from '../../../shared/layout'
 /**
  * What the window's layout gives the panels and the Outputs list (Story 5.5): the
  * widths the user chose, the directories they folded, whether the skill row is
- * open (Story 9.1), and the ways to keep each. The default is inert, so a `Shell` or an `Outputs` mounted with no
+ * open (Story 9.1), the rail split's share and the Changes half's own folded
+ * directories (Story 9.3), and the ways to keep each. The default is inert, so a `Shell` or an `Outputs` mounted with no
  * provider (a test, a page with no bridge) shows the defaults and keeps nothing.
  */
 export type LayoutContextValue = {
@@ -21,6 +22,14 @@ export type LayoutContextValue = {
   skillRowOpen: boolean
   /** Open or close the skill row, and keep the choice. */
   saveSkillRowOpen(open: boolean): void
+  /** The share of the rail's height the Changes half takes, as stored, or `null` for half and half. Read once, when the split mounts. */
+  railSplit: number | null
+  /** Keep the rail split's share, or forget it for `null`. */
+  saveRailSplit(share: number | null): void
+  /** The project-relative directories the Changes half has folded: its own set, apart from `folded`. */
+  changesFolded: ReadonlySet<string>
+  /** Keep the Changes half's whole folded set. */
+  saveChangesFolded(dirs: ReadonlySet<string>): void
 }
 
 function nothing(): void {}
@@ -31,7 +40,11 @@ export const INERT_LAYOUT: LayoutContextValue = {
   saveWidth: nothing,
   saveFolded: nothing,
   skillRowOpen: false,
-  saveSkillRowOpen: nothing
+  saveSkillRowOpen: nothing,
+  railSplit: null,
+  saveRailSplit: nothing,
+  changesFolded: new Set<string>(),
+  saveChangesFolded: nothing
 }
 
 export const LayoutContext = createContext<LayoutContextValue>(INERT_LAYOUT)

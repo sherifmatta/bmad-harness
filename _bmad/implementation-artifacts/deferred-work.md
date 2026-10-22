@@ -174,3 +174,6 @@
 - source_spec: `_bmad/implementation-artifacts/spec-9-2-the-output-folders-nest-as-a-tree.md`
   summary: When the last Outputs row leaves while focused, the empty state draws and focus falls to `body`, since nothing in the half can hold it.
   evidence: Review (edge cases): `target` is null with an empty order. Pre-existing: before Story 9.2 no removal hand-off existed. A fix would send focus to the head's `change…` control, outside the list.
+- source_spec: `_bmad/implementation-artifacts/spec-9-3-see-what-changed-across-the-project-above-the-outputs.md`
+  summary: Confirm whether Xcode's git (`/Applications/Xcode.app/Contents/Developer/usr/bin/git`) raises the licence dialog when the Xcode licence has not been accepted; if it does, drop it from AD-31's candidates (`git-locator.ts`, `FIXED_CANDIDATES`).
+  evidence: AD-31 open item. The build machine has no Xcode, only the CommandLineTools git, so the candidate is kept as AD-31 lists it. Settle on a Mac with Xcode installed and its licence not yet accepted, by opening a project window with nothing else on the login path.

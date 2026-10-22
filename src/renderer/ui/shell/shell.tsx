@@ -1,5 +1,5 @@
 import { createRef, useCallback, useState } from 'react'
-import type { JSX, ReactNode, RefObject } from 'react'
+import type { CSSProperties, JSX, ReactNode, RefObject } from 'react'
 
 import './shell.css'
 import type { AgentView, HarnessError, InstallSnapshot, MenuEntryView } from '../../../shared/install'
@@ -8,6 +8,7 @@ import { stateLineOf } from '../../../shared/output-folder'
 import type { BoardSnapshot } from '../../../shared/board'
 import type { RailSnapshot } from '../../../shared/rail'
 import { BoardView } from '../board/board-view'
+import { ConnectedChanges } from '../changes/changes'
 import type { ProseStore } from '../chat/prose-store'
 import type { TranscriptEntry } from '../chat/transcript-entry'
 import { ChatHeader, NewSessionHeader, SkillHeader } from '../chat/chat-header'
@@ -15,7 +16,9 @@ import type { SkillSeat } from '../status/skill-seat'
 import { OrphanHeader } from '../chat/orphan-header'
 import { FollowScroller } from '../follow/follow-scroller'
 import { PanelSplitter } from '../layout/panel-splitter'
+import { RailSplit } from '../layout/rail-split'
 import { usePanelWidth } from '../layout/use-panel-width'
+import { useRailSplit } from '../layout/use-rail-split'
 import type { PersonaState } from '../status/persona-state'
 import { ConnectedOutputs } from '../outputs/outputs'
 import { OutputsFolder, OutputsState } from '../outputs/outputs-head'
@@ -39,21 +42,23 @@ function labelOf(id: ViewId): string {
  * One half of a side panel: a head over a scrolling body, empty unless given children.
  * `trailing` is what the head holds on its right (the Outputs half's folder and
  * `change…`), and `beneath` a line between the head and the body that does not
- * scroll with it.
+ * scroll with it. `style` carries a rail half's share as `--rail-half-basis` (Story 9.3).
  */
 function RailHalf({
   label,
   trailing,
   beneath,
+  style,
   children
 }: {
   label: string
   trailing?: ReactNode
   beneath?: ReactNode
+  style?: CSSProperties
   children?: ReactNode
 }): JSX.Element {
   return (
-    <section className="rail-half">
+    <section className="rail-half" style={style}>
       <div className="rail-head">
         <h3>{label}</h3>
         {trailing !== undefined && trailing !== null && <div className="rail-head-trailing">{trailing}</div>}
@@ -257,6 +262,8 @@ export function Shell({
   if (railPanel.base !== railBase) {
     setRailBase(railPanel.base)
   }
+  // The rail's two halves (Story 9.3): Changes above Outputs, split by a share of the rail's height.
+  const { holdRail: holdRailHeight, changesStyle, outputsStyle, split } = useRailSplit()
   const { holdContainer: holdSidebar, style: sidebarStyle, splitter: sidebarSplitter } = sidebarPanel
   const { holdContainer: holdRail, style: railStyle, splitter: railSplitter } = railPanel
   const holdView = useCallback(
@@ -392,9 +399,14 @@ export function Shell({
           {mode === 'new' && newComposer?.(fieldRef)}
         </div>
         <PanelSplitter splitter={railSplitter} />
-        <div className="rail" style={railStyle}>
+        <div className="rail" style={railStyle} ref={holdRailHeight}>
+          <RailHalf label="Changes" style={changesStyle}>
+            <ConnectedChanges />
+          </RailHalf>
+          <RailSplit split={split} />
           <RailHalf
             label="Outputs"
+            style={outputsStyle}
             trailing={rail === null ? null : <OutputsFolder folder={rail.folder} onChange={onChooseFolder} />}
             beneath={outputsLine === undefined ? null : <OutputsState line={outputsLine} />}
           >

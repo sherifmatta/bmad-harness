@@ -1,5 +1,6 @@
 import { lstat, realpath } from 'node:fs/promises'
-import { isAbsolute, join, relative } from 'node:path'
+import { isAbsolute, join, relative, sep } from 'node:path'
+import type { ChangeRow } from '../../../shared/changes'
 
 /**
  * Which file a row names, and whether it may be read (NFR8, NFR7).
@@ -93,5 +94,54 @@ export async function resolveDocument(
     return { ok: true, fullPath, refused: !isInside(realFolder, realTarget) }
   } catch {
     return { ok: true, fullPath, refused: true }
+  }
+}
+
+/**
+ * AD-13's second admission (Story 9.3, AD-31): a Changes row's path. It is
+ * admitted only when it is exactly the `path` of a non-deleted, non-directory
+ * row in the Changes snapshot main holds for the asking window, **and** the
+ * file's real path, made relative to the project's real path, is itself such a
+ * row. That second check is what stops an untracked link to an ignored file
+ * (`link.env → .env`): the link is listed, its target is not.
+ *
+ * Nothing is opened unless both hold: a path not listed, a target outside the
+ * project, a target not listed, and a path that does not resolve (gone, a loop)
+ * are all `{ ok: false }`, the same refusal as a path outside the output folder.
+ * The admitted `realPath` is what the window's every read must still resolve to.
+ */
+export type ResolvedChange =
+  | { ok: true; fullPath: string; realPath: string; refused: false }
+  | { ok: false; code: 'doc/invalid-path' }
+
+/** The rows a path may be admitted as: listed, not deleted, and not a directory. */
+function openable(rows: readonly ChangeRow[]): Set<string> {
+  return new Set(rows.filter((row) => row.state !== 'deleted' && row.directory !== true).map((row) => row.path))
+}
+
+export async function resolveChange(
+  projectRoot: string,
+  path: unknown,
+  rows: readonly ChangeRow[]
+): Promise<ResolvedChange> {
+  const listed = openable(rows)
+  if (typeof path !== 'string' || !listed.has(path)) {
+    return { ok: false, code: 'doc/invalid-path' }
+  }
+  const segments = path.split('/')
+  if (path.startsWith('/') || path.includes('\0') || segments.some((part) => part === '' || part === '.' || part === '..')) {
+    return { ok: false, code: 'doc/invalid-path' }
+  }
+  const fullPath = join(projectRoot, ...segments)
+  try {
+    const realRoot = await realpath(projectRoot)
+    const realPath = await realpath(fullPath)
+    if (!isInside(realRoot, realPath)) {
+      return { ok: false, code: 'doc/invalid-path' }
+    }
+    const asListed = relative(realRoot, realPath).split(sep).join('/')
+    return listed.has(asListed) ? { ok: true, fullPath, realPath, refused: false } : { ok: false, code: 'doc/invalid-path' }
+  } catch {
+    return { ok: false, code: 'doc/invalid-path' }
   }
 }

@@ -36,12 +36,12 @@ describe('what the room did not add', () => {
     expect([...body.matchAll(/^ {2}'([a-z-]+:[a-z-]+)': EventSpec</gm)]).toHaveLength(17)
   })
 
-  it('leaves the room no channel of its own: thirty-seven in all, four the Welcome’s, three the theme’s, one the output folder’s, four the layout’s and two the Board’s', () => {
-    expect(Object.values(channels)).toHaveLength(37)
+  it('leaves the room no channel of its own: forty in all, four the Welcome’s, three the theme’s, one the output folder’s, five the layout’s, two the Board’s and two the Changes half’s', () => {
+    expect(Object.values(channels)).toHaveLength(40)
   })
 
-  it('leaves twenty-five preload methods, the eighteenth the output folder’s chooser, four the layout’s and two the Board’s', () => {
-    expect([...read('src/preload/harness-api.d.ts').matchAll(/^ {2}[a-zA-Z]+\(/gm)]).toHaveLength(25)
+  it('leaves twenty-eight preload methods, one the output folder’s chooser, five the layout’s, two the Board’s and two the Changes half’s', () => {
+    expect([...read('src/preload/harness-api.d.ts').matchAll(/^ {2}[a-zA-Z]+\(/gm)]).toHaveLength(28)
   })
 
   it('widens the argument of session.open and leaves its reply as it was', () => {

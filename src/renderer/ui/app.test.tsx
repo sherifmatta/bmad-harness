@@ -90,6 +90,9 @@ function installBridge(): void {
       return () => {}
     },
     getBranch: async () => 'main',
+    // The Changes half (Story 9.3): one uncommitted file, so its tree is drawn above the Outputs half's.
+    getChanges: async () => ({ kind: 'list', revision: 2, root: 'falcon', rows: [{ path: 'src/app.ts', state: 'modified' }] }),
+    onChangesChanged: () => () => {},
     getRail: async () => railNow,
     getBoard: () => boardNow(),
     onBoardChanged: (listener: (next: unknown) => void) => {
@@ -3344,7 +3347,8 @@ describe('following the thread, in the window (Story 5.3)', () => {
 })
 
 describe('App, the output folder (Story 5.4)', () => {
-  const head = (): HTMLElement => mounted!.container.querySelectorAll<HTMLElement>('.rail-head')[1]
+  // The Outputs head is the rail's third: after the Team half's and the Changes half's (Story 9.3).
+  const head = (): HTMLElement => mounted!.container.querySelectorAll<HTMLElement>('.rail-head')[2]
   const state = (): string | null => mounted!.container.querySelector('.outputs-state')?.textContent ?? null
   const live = (): string => mounted!.container.querySelector('.visually-hidden')?.textContent ?? ''
   const pushRail = (next: RailSnapshot): void => act(() => railListeners.forEach((listener) => listener(next)))
@@ -3514,8 +3518,9 @@ describe('App, the layout (Story 5.5)', () => {
     expect(sidebar.style.getPropertyValue('--sidebar')).toBe('300px')
     expect(sidebar.querySelector('.persona-tile')).not.toBeNull()
     expect(rail.querySelector('.persona-tile')).toBeNull()
-    // A tree (Story 9.2): folding `_bmad/` hides everything beneath it, `ux/` with its rows.
-    const headings = (): HTMLButtonElement[] => [...mounted!.container.querySelectorAll<HTMLButtonElement>('.folder-heading')]
+    // A tree (Story 9.2): folding `_bmad/` hides everything beneath it, `ux/` with its rows. The Outputs half's
+    // headings only: the Changes half above it draws a tree of its own (Story 9.3).
+    const headings = (): HTMLButtonElement[] => [...mounted!.container.querySelectorAll<HTMLButtonElement>('.outputs .folder-heading')]
     expect(headings().map((heading) => heading.textContent)).toEqual(['_bmad/'])
     expect(headings()[0].getAttribute('aria-expanded')).toBe('false')
     expect(mounted!.container.querySelectorAll('.output-row-name')).toHaveLength(0)
@@ -3530,6 +3535,11 @@ describe('App, the layout (Story 5.5)', () => {
 
     expect(setFolded).toEqual([[], ['_bmad/ux/']])
     expect(setPanelWidth).toEqual([])
+    // The Changes half above keeps its own tree and its own folds: the Outputs folds touched none of it (Story 9.3).
+    const changes = [...mounted!.container.querySelectorAll<HTMLButtonElement>('.changes .folder-heading')]
+    expect(changes.map((heading) => heading.textContent)).toEqual(['falcon/', 'src/'])
+    expect(changes.every((heading) => heading.getAttribute('aria-expanded') === 'true')).toBe(true)
+    expect(mounted!.container.querySelector('.change-row-button')?.getAttribute('aria-label')).toBe('app.ts, modified')
   })
 })
 

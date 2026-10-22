@@ -1,0 +1,115 @@
+/*
+ * The rail's Changes half (Story 9.3, UX-DR59): DESIGN.md's *Changes row* and
+ * `components.changes-row` / `changes-head`.
+ *
+ * A Changes row is a Rail row at rest: the same line, padding and hover ground,
+ * the file icon at `faint` (the icon's own rule, shared with the Outputs half),
+ * the name in `text` and git's state as a word in `meta` mono at `dim`. No state
+ * colour and no badge: nothing in this half ever looks like it is happening. A
+ * deleted row's name is `dim` and struck through, and nothing underlines it.
+ *
+ * The directory headings are `FolderHeading`'s (`.folder-heading`), indented by
+ * the group's `--tree-depth` as the Outputs tree is. No rule here draws the
+ * focus ring: the shared inset ring is design/focus.css's. Every value reaches
+ * the design system through `var()`; the only bare values are zero and CSS
+ * keywords. No stacking index, no keyframes and no motion.
+ */
+
+.changes,
+.changes-group,
+.changes-branch {
+  display: flex;
+  flex-direction: column;
+}
+
+.changes-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.change-row {
+  display: flex;
+  flex-direction: column;
+  border-bottom: var(--rule-width) solid var(--line-soft);
+}
+
+/* A native button, stretched to the row's width by its column parent and reset
+   to read as the row and nothing else, as a rail row's is. */
+.change-row-button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md-plus);
+  margin: 0;
+  padding: var(--rail-row-padding);
+  border: 0;
+  background: transparent;
+  font-family: var(--sans);
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.change-row-button:hover {
+  background: var(--panel-2);
+}
+
+/* The tree's indent: a row at depth d sits under its heading, one step further in. */
+.change-row .file-icon {
+  margin-left: calc(var(--space-xl) * var(--tree-depth) + var(--space-xl));
+}
+
+.change-row-name {
+  flex: 1 1 auto;
+  min-width: var(--rail-name-min);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--mono);
+  font-size: var(--fs-body-ui);
+  color: var(--text);
+}
+
+.change-row-state {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: var(--fs-meta);
+  color: var(--dim);
+}
+
+/* A file that is not there: its name dim and struck through, and never underlined, since it opens nothing. */
+.change-row--deleted .change-row-name {
+  color: var(--dim);
+  text-decoration-line: line-through;
+}
+
+.change-row--deleted .change-row-button {
+  cursor: default;
+}
+
+/* A folded directory keeps its branch, empty, so its heading's `aria-controls` names something. */
+.changes-branch[hidden] {
+  display: none;
+}
+
+/* ---------- the one line, and the line past the cap ----------
+   The Outputs empty line's type and ink: mono at the label size, `dim`. Neither is a control. */
+
+.changes-line {
+  margin: 0;
+  padding: var(--rail-group-padding);
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+
+.changes-failure {
+  padding: var(--rail-group-padding);
+}

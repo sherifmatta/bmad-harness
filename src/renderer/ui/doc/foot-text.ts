@@ -9,7 +9,7 @@ const STATE_LINE: Record<Exclude<DocState, 'refused'>, string> = {
   present: 'separate window · read-only preview · reloads on write',
   missing: 'no longer on disk',
   unreadable: 'could not be read',
-  binary: 'not text · not shown'
+  binary: 'not shown · binary'
 }
 
 /** The state line of a state that names no folder: every one but `refused`. */

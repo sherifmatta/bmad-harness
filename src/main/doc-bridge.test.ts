@@ -1,9 +1,10 @@
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ChangeRow } from '../shared/changes'
 import type { DocSnapshot } from '../shared/document'
-import type { DocRead } from './sources/project/watch-document'
+import type { DocBoundary, DocRead } from './sources/project/watch-document'
 import type { DocWindowCloseReason } from './windows/doc-window'
 
 type Handler = (event: { sender: FakeSender }, ...args: unknown[]) => unknown
@@ -55,7 +56,7 @@ class FakeParent {
 
 type FakeWatcher = {
   fullPath: string
-  boundary: string
+  boundary: DocBoundary
   deliver: (read: DocRead) => void
   fail: (error: unknown) => void
   closed: boolean
@@ -81,6 +82,8 @@ let watchThrows: Error | null
 let nextDocId: number
 /** The output folder the window's project is on: what bounds a document opened now (Story 5.4). */
 let folder: string
+/** The Changes rows main holds for project window 1 (Story 9.3), or `null` when it holds no list. */
+let changeRows: ChangeRow[] | null
 
 beforeEach(() => {
   handlers.clear()
@@ -99,8 +102,10 @@ beforeEach(() => {
   watchThrows = null
   nextDocId = 500
   folder = '_bmad/'
+  changeRows = null
 
   registerDocBridge({
+    changeRowsFor: (id) => (id === 1 ? changeRows : null),
     projectPathFor: (id) => (id < 100 ? root : undefined),
     folderFor: () => folder,
     parentWindowFor: (contents) => {
@@ -619,5 +624,73 @@ describe('a chosen output folder (Story 5.4)', () => {
       ok: true,
       snapshot: { state: 'refused', text: '', folder: 'docs/out/' }
     })
+  })
+})
+
+describe('the second admission: a Changes row (Story 9.3, AD-13 amended)', () => {
+  beforeEach(() => {
+    mkdirSync(join(root, 'src'), { recursive: true })
+    writeFileSync(join(root, 'src/a.ts'), 'export const a = 1\n')
+    writeFileSync(join(root, '.env'), 'SECRET=1\n')
+    symlinkSync(join(root, '.env'), join(root, 'link.env'))
+    changeRows = [
+      { path: 'src/a.ts', state: 'modified' },
+      { path: 'link.env', state: 'untracked' },
+      { path: 'gone.ts', state: 'deleted' },
+      { path: 'sub/', state: 'untracked', directory: true }
+    ]
+  })
+
+  it('opens a listed path, passed unchanged, with the project folder as its folder and the real path as its boundary', async () => {
+    const { reply, window } = await open('src/a.ts')
+
+    expect(reply).toEqual({ ok: true })
+    expect(window?.fullPath).toBe(join(root, 'src/a.ts'))
+    expect(watchers[0]?.boundary).toEqual({ realPath: realpathSync(join(root, 'src/a.ts')) })
+    watchers[0]?.deliver(present('export const a = 1\n'))
+    const got = (await call(DOC_GET_CHANNEL, window!.sender)) as { snapshot: DocSnapshot }
+    expect(got.snapshot).toMatchObject({ path: 'src/a.ts', folder: `${basename(root)}/`, kind: 'text', state: 'present' })
+  })
+
+  it('refuses an untracked link whose target is not itself listed, with the refusal it always gave', async () => {
+    const { reply } = await open('link.env')
+
+    expect(reply).toEqual({ ok: false, error: { code: 'doc/invalid-path', message: 'doc · not a document under _bmad/' } })
+    expect(windows).toEqual([])
+    expect(watchers).toEqual([])
+  })
+
+  it.each([
+    ['a deleted row', 'gone.ts'],
+    ['a directory row', 'sub/'],
+    ['a path not listed', 'src/b.ts'],
+    ['a path built from a listed one', './src/a.ts'],
+    ['not a string', 42]
+  ])('opens nothing for %s', async (_name, path) => {
+    const { reply } = await open(path as string)
+
+    expect(reply).toMatchObject({ ok: false, error: { code: 'doc/invalid-path' } })
+    expect(windows).toEqual([])
+  })
+
+  it('opens nothing from a window main holds no Changes list for', async () => {
+    const { reply } = await open('src/a.ts', new FakeSender(2))
+
+    expect(reply).toMatchObject({ ok: false, error: { code: 'doc/invalid-path' } })
+  })
+
+  it('tries the output folder first: a listed path under it keeps the output folder’s boundary', async () => {
+    changeRows = [{ path: PRD, state: 'modified' }]
+    await open(PRD)
+
+    expect(watchers[0]?.boundary).toBe(join(root, '_bmad'))
+  })
+
+  it('keeps the window open when its path later leaves the list', async () => {
+    const { window } = await open('src/a.ts')
+    changeRows = []
+
+    expect(window?.closeCalls).toBe(0)
+    expect(watchers[0]?.closed).toBe(false)
   })
 })

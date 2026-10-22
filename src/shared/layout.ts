@@ -30,7 +30,10 @@ export const PANELS: Readonly<Record<PanelId, PanelLimits>> = {
 /** The panels, in the order the layout names them. */
 export const PANEL_IDS: readonly PanelId[] = ['sidebar', 'rail', 'room']
 
-/** What the window holds of the layout: a chosen width per panel (or none), the folded Outputs directories, and whether the skill row is open. */
+/**
+ * What the window holds of the layout: a chosen width per panel (or none), the folded Outputs directories,
+ * whether the skill row is open, the rail split's share (or none) and the folded Changes directories.
+ */
 export type Layout = {
   sidebar: number | null
   rail: number | null
@@ -39,10 +42,22 @@ export type Layout = {
   folded: string[]
   /** Whether the skill row above the composer is open, app-wide (Story 9.1). Absent reads as collapsed. */
   skillRowOpen?: boolean
+  /** The share of the rail's height the Changes half takes, per user (Story 9.3), `0 < x < 1`; `null` is half and half. */
+  railSplit: number | null
+  /** Project-relative directory paths the Changes half has folded (Story 9.3), its own set, apart from `folded`. */
+  changesFolded: string[]
 }
 
 /** The layout of a window that has stored nothing. */
-export const NO_LAYOUT: Layout = { sidebar: null, rail: null, room: null, folded: [], skillRowOpen: false }
+export const NO_LAYOUT: Layout = {
+  sidebar: null,
+  rail: null,
+  room: null,
+  folded: [],
+  skillRowOpen: false,
+  railSplit: null,
+  changesFolded: []
+}
 
 /** Whether a value is one of the panels. */
 export function isPanelId(value: unknown): value is PanelId {
@@ -130,6 +145,85 @@ export function keyedWidth(
       return clampWidth(panel, current + step, available)
     case shrink:
       return clampWidth(panel, current - step, available)
+    case 'Home':
+      return min
+    case 'End':
+      return max
+    case 'Enter':
+      return null
+    default:
+      return undefined
+  }
+}
+
+/**
+ * The rail split (Story 9.3, UX-DR59): the share of the rail's height the Changes
+ * half takes, above the Outputs half. One rule for the drag, the keys and the
+ * stored value, as `keyedWidth` is for the side panels. A share is a fraction,
+ * `0 < x < 1`; `null` is half and half.
+ */
+
+/** The least height either half of the rail is drawn at. */
+export const RAIL_HALF_MIN = 120
+
+/** The share with nothing chosen, and the share a rail too short for two minimums is drawn at. */
+export const RAIL_SPLIT_DEFAULT = 0.5
+
+/** A stored share as the split reads it: a number strictly between 0 and 1, else `null` (half and half). Silent. */
+export function readShare(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 && value < 1 ? value : null
+}
+
+/** Whether `height` is a rail height that can be split: a positive number. */
+function knownHeight(height: number | null | undefined): height is number {
+  return typeof height === 'number' && Number.isFinite(height) && height > 0
+}
+
+/**
+ * The least and the most share at this rail `height`: each half keeps `RAIL_HALF_MIN`.
+ * A rail too short for both minimums, or of unknown height, holds the split at half and half.
+ */
+export function splitLimits(height: number | null | undefined): { min: number; max: number } {
+  if (!knownHeight(height) || height < RAIL_HALF_MIN * 2) {
+    return { min: RAIL_SPLIT_DEFAULT, max: RAIL_SPLIT_DEFAULT }
+  }
+  return { min: RAIL_HALF_MIN / height, max: 1 - RAIL_HALF_MIN / height }
+}
+
+/** `share` held to the limits at this `height`, for drawing only: a stored share is never rewritten by it. */
+export function clampShare(share: number, height: number | null | undefined): number {
+  const { min, max } = splitLimits(height)
+  return Math.min(Math.max(share, min), max)
+}
+
+/** The share drawn: the chosen one, else half and half, held to the limits. */
+export function effectiveShare(chosen: number | null | undefined, height: number | null | undefined): number {
+  return clampShare(chosen ?? RAIL_SPLIT_DEFAULT, height)
+}
+
+/** A share as a whole percentage, what the separator's `aria-value*` say. */
+export function sharePercent(share: number): number {
+  return Math.round(share * 100)
+}
+
+/**
+ * What a key does to the focused rail split, given the share drawn now and the
+ * rail's height: `↑`/`↓` move it 16px (64px with `Shift`), `Home`/`End` go to the
+ * limits and `Enter` resets it (`null`). `undefined` for a key the split does not claim.
+ */
+export function keyedShare(
+  share: number,
+  key: string,
+  shift: boolean,
+  height: number | null | undefined
+): number | null | undefined {
+  const step = (shift ? KEY_STEP_SHIFT : KEY_STEP) / (knownHeight(height) ? height : RAIL_HALF_MIN * 2)
+  const { min, max } = splitLimits(height)
+  switch (key) {
+    case 'ArrowUp':
+      return clampShare(share - step, height)
+    case 'ArrowDown':
+      return clampShare(share + step, height)
     case 'Home':
       return min
     case 'End':

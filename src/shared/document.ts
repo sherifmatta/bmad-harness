@@ -13,16 +13,13 @@ import type { HarnessError } from './install'
 /** The most bytes of a file that are read and decoded (NFR8). 1 MiB. */
 export const DOC_MAX_BYTES = 1_048_576
 
-/** How much of the start of a file is looked at for a NUL byte. */
-export const DOC_SNIFF_BYTES = 8192
-
 /**
  * What main can say about the file:
  * - `present`: read, decoded, shown;
  * - `missing`: not on disk (yet, or any more);
- * - `refused`: resolves outside the output folder, so nothing was read;
+ * - `refused`: resolves outside the boundary the window was admitted by, so nothing was read;
  * - `unreadable`: a read failed;
- * - `binary`: a NUL byte in the first 8 KiB, so it is not text.
+ * - `binary`: a NUL byte or invalid UTF-8 within the bounded read, so it is not text.
  */
 export type DocState = 'present' | 'missing' | 'refused' | 'unreadable' | 'binary'
 
@@ -37,7 +34,9 @@ export type DocKind = 'markdown' | 'text'
  *
  * `folder` is the output folder the document was opened under, project-relative
  * with a trailing `/` (Story 5.4): the foot names it when the file leads outside.
- * It is the window's own and does not follow a later change of the project's.
+ * A window opened from a Changes row (Story 9.3, AD-13's second admission) has the
+ * project folder's own name instead (`bmad-harness/`). It is the window's own and
+ * does not follow a later change of the project's.
  *
  * `text` is the last good text. A failed or non-text read never blanks it.
  */

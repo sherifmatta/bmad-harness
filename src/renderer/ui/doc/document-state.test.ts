@@ -114,7 +114,7 @@ describe('announcementFor', () => {
   it.each([
     ['missing', 'no longer on disk'],
     ['unreadable', 'could not be read'],
-    ['binary', 'not text · not shown']
+    ['binary', 'not shown · binary']
   ] as const)('speaks the transition into %s, with the state line', (state, line) => {
     expect(announcementFor('present', state)).toBe(line)
     expect(announcementFor(null, state)).toBe(line)
