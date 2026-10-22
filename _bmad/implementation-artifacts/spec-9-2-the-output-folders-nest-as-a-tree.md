@@ -110,6 +110,23 @@ Pass 1 (blind-hunter, edge-case-hunter, verification-gap). The first launch of e
 | 15 | blind, verification | Task list names `tests/run-note-feed.test.ts` and `shell/negative-surface.test.tsx`, which were not changed; `shell.test.tsx` was | false | both pass unchanged (the declared token satisfies one; `title` follows `aria-controls` for the other); the fix would edit the spec | reject |
 | 16 | blind | Test gaps: `→` on a folded nested heading, the computed indent | low | `→` is the unchanged `setFolded` path, tested at the root; jsdom computes no layout | reject |
 
+Pass 2 (post-commit `bmad-review` of `ff9a882`: adversarial, edge-case-hunter, verification-gap).
+
+| # | Layer | Finding | Verdict | Evidence | Route |
+|---|-------|---------|---------|----------|-------|
+| 1 | verification | No test pins `onBlur` clearing `focusedKey`; the outside-button test passes without it | real | the new dom test fails with the clearing removed | patch |
+| 2 | edge, adversarial | Files sharing a name (rows from outside the root) keep input order | low | ties now break on the whole path; a new order-independence test | patch |
+| 3 | adversarial | `folder-heading.tsx` doc says `aria-level` is the depth; `outputs.css` header still names `.rail-group` | low | both comments corrected | patch |
+| 4 | adversarial | Keeping focus across a window switch rests on `hasFocus()` being false in Chromium, tested only mocked | maybe-false | added to the existing manual check in `deferred-work.md` | defer |
+| 5 | adversarial | A closed document window whose row has gone, or a remembered stop that left, falls to the root heading | low | the removal hand-off already re-points the stop while the window is behind; the rest is the Story 1.12 tab-stop rule | reject |
+| 6 | adversarial | `aria-level` past 6; unbounded indent | false | pass 1 #6 and #10 | reject |
+| 7 | adversarial | Directory order counts the trailing `/` (`a-b/` before `a/`) | false | pinned on purpose: `row-groups.test.ts` 'orders by code unit' | reject |
+| 8 | adversarial | Out-of-root rows sit under the root by file name | false | the Code Map's decision | reject |
+| 9 | adversarial | `→` on an open heading does not descend | false | the frozen intent: `→` unfolds and focus stays | reject |
+| 10 | adversarial | Level 4 is hard-coded against the rail head's `h3` | low | the intent records it; `outputs.test.tsx` pins the levels | reject |
+| 11 | adversarial | Spec `done` vs sprint `review`; task list names unchanged files | false | the close-out commit sets the sprint row, as for 9.1; pass 1 #15 | reject |
+| 12 | adversarial | The regenerated epic context dropped 9.1's no-row cases and 9.3's "a test proves" line | false | 9.1 is done; Story 9.3 in `epics.md` keeps the test and the NFRs | reject |
+
 ## Verification
 
 **Commands:**

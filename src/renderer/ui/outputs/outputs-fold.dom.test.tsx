@@ -486,6 +486,20 @@ describe('what arrives, changes and leaves while a directory is folded', () => {
     outside.remove()
   })
 
+  it('takes back no focus the user dropped on the page, while the window keeps its focus', () => {
+    const shown = show(rail(saved(EPICS), saved(PRD)))
+    const prd = [...document.querySelectorAll<HTMLElement>('.output-row-button')].find((node) => labelOf(node) === 'prd.md') as HTMLElement
+    act(() => prd.focus())
+    // A click on nothing focusable: a blur with nowhere to go, but the window still has focus.
+    const hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    act(() => prd.blur())
+
+    shown.rerender(rail(saved(EPICS)))
+
+    expect(document.activeElement).toBe(document.body)
+    hasFocus.mockRestore()
+  })
+
   it('does not move the list’s focus when a heading comes and goes elsewhere', () => {
     const shown = show(rail(saved(EPICS), saved(PRD)))
     document.querySelector<HTMLElement>('.output-row-button')?.focus()

@@ -83,6 +83,14 @@ describe('buildTree', () => {
     expect(buildTree(rows, '_bmad/')).toEqual(buildTree([...rows].reverse(), '_bmad/'))
   })
 
+  it('does not depend on the order it is given when rows outside the root share a name', () => {
+    const rows = [row('elsewhere/q.md'), row('_bmad/q.md'), row('other/q.md')]
+    const paths = (rows: readonly RailRow[]): string[] => buildTree(rows, '_bmad/').rows.map((r) => r.path)
+
+    expect(paths(rows)).toEqual(['_bmad/q.md', 'elsewhere/q.md', 'other/q.md'])
+    expect(paths([...rows].reverse())).toEqual(paths(rows))
+  })
+
   it('does not mutate what it is given', () => {
     const rows = [row('_bmad/b.md'), row('_bmad/a.md')]
     buildTree(rows, '_bmad/')

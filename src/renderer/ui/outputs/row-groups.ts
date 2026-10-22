@@ -25,10 +25,14 @@ export function baseName(path: string): string {
   return path.slice(path.lastIndexOf('/') + 1)
 }
 
-/** Subdirectories by name, then files by name, at every level. The nodes are this module's own. */
+/**
+ * Subdirectories by name, then files by name, at every level; files of one name (only
+ * rows from outside the root can share one) by their whole path. The nodes are this
+ * module's own.
+ */
 function order(node: TreeNode): void {
   node.dirs.sort((a, b) => byCodeUnit(a.name, b.name))
-  node.rows.sort((a, b) => byCodeUnit(baseName(a.path), baseName(b.path)))
+  node.rows.sort((a, b) => byCodeUnit(baseName(a.path), baseName(b.path)) || byCodeUnit(a.path, b.path))
   node.dirs.forEach(order)
 }
 

@@ -31,8 +31,8 @@ function Chevron({ open }: { open: boolean }): JSX.Element {
  * `aria-expanded` and `aria-controls` say the fold, so nothing is announced through
  * the live region.
  *
- * The button sits in a `role="heading"` wrapper whose `aria-level` is the tree's depth
- * (the rail head is an `h3`, so the root is level 4). The indent is the stylesheet's,
+ * The button sits in a `role="heading"` wrapper whose `aria-level` is 4 plus the tree's
+ * depth (the rail head is an `h3`, so the root is level 4). The indent is the stylesheet's,
  * from the group's `--tree-depth`, and moves the chevron only, so the rule and the
  * hover ground stay full width.
  *
