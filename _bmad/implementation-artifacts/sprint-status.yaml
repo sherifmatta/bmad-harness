@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-25-2026 17:00
-last_updated: 10-20-2026 17:25
+last_updated: 10-22-2026 11:57
 project: bmad-harness
 project_key: NOKEY
 tracking_system: file-system
@@ -150,7 +150,7 @@ development_status:
   # folders nest (UX-DR58). 9.3: the rail's Changes half from git (FR142, UX-DR59),
   # git source settled by AD-31.
   9-1-open-the-skill-row-only-when-you-want-it: done
-  9-2-the-output-folders-nest-as-a-tree: review
+  9-2-the-output-folders-nest-as-a-tree: done
   9-3-see-what-changed-across-the-project-above-the-outputs: backlog
   epic-9-retrospective: optional
 action_items:
